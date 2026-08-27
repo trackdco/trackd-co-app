@@ -7,13 +7,17 @@ import { useEffect } from "react";
  * the entire document, so it renders its own <html>/<body> and uses inline
  * styles (the app stylesheet may not be available at this point). Kept
  * deliberately minimal — this only fires on catastrophic failures.
+ *
+ * ⚠️ `unstable_retry`, not `reset`, for the reason spelled out in `error.tsx`:
+ * `reset()` does not re-fetch, so it cannot recover a server-side failure — and
+ * a root-layout failure is always one.
  */
 export default function GlobalError({
   error,
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   useEffect(() => {
     console.error(error);
@@ -47,7 +51,7 @@ export default function GlobalError({
           The app hit an unexpected error. Your data is safe. Please try again.
         </p>
         <button
-          onClick={() => reset()}
+          onClick={() => unstable_retry()}
           style={{
             marginTop: "0.5rem",
             height: "3rem",

@@ -4,8 +4,72 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-17 (spec 11 Steps 1-2 built; D86 written; the 29 Aug grace
-reminder traced)
+Last updated: 2026-08-27 (go-live sequence rewritten around what production
+actually holds: 94 accounts, 89 rows, gate still unset)
+
+---
+
+## 🔴 GO LIVE — THE SEQUENCE, AS AT 2026-08-27
+
+Adrian has asked for the gate ON in production with the grace **14 days out, not 4**.
+Everything below is ordered, and the order is the whole safety.
+
+⚠️ **Read `Context/LAUNCH-MORNING-RUNBOOK.md` §P10-P13 first.** This is not a second
+copy of it — it is the three things that have CHANGED underneath it since it was
+written, plus the order they now have to happen in.
+
+### What changed underneath the runbook
+
+1. **The grace cohort is 85, not 86.** `driancomedia@gmail.com` was deleted on
+   2026-08-27 at Adrian's request and held one of the dated comp rows.
+   `004_regrace_launch_date.sql`'s VERIFY block still says "86 rows sharing ONE expiry
+   instant". **Expect 85.** The guard itself is count-agnostic — it only requires that
+   at least one row still carries the original instant — so the file runs unmodified.
+2. **Five accounts hold no entitlement row at all** (see `progress-tracker.md`). They
+   signed up after the backfill and are invisible to `004`, which only moves rows that
+   already exist.
+3. **The gate has never been on in production.** Nothing in the billing merge bites.
+
+### The order
+
+- [ ] **G1. Deploy the error-boundary fix and verify healthy.** `app/plans/error.tsx`,
+      `app/checkout/error.tsx`, `app/onboarding/error.tsx`,
+      `components/billing/FlowError.tsx`, plus `reset` → `unstable_retry` on
+      `app/error.tsx` and `app/global-error.tsx`. Nothing here touches money; it goes
+      first so the deploy being healthy is established before anything is irreversible.
+
+- [ ] **G2. Re-run the beta backfill, live.** `POST /api/billing/beta-grace` with the
+      `CRON_SECRET` bearer. **Run `?dry=1` first and READ it** — on 2026-08-27 it
+      reported `granted: 5, comp: 0, grace: 5, skipped: 89, upgraded: 0` and an empty
+      `compAccounts`. It grants the five stragglers their fortnight and cannot disturb
+      the 85, because the route's predicate is "has a row at all".
+      ⚠️ **Before G4, not after.** After the flip those five are already read-only.
+
+- [ ] **G3. Apply `supabase/billing/004_regrace_launch_date.sql` BY HAND.** Moves the
+      85 from 31 Aug to `now() + 14 days`. ⚠️ **The file says in as many words: no
+      agent runs it, Adrian applies it, and the fortnight is measured from the MOMENT
+      IT RUNS.** Paste the whole file, then the VERIFY block separately. Expect 85 + 4,
+      one shared instant, and no row left at `2026-08-31 00:48:47.401+00`.
+      Run it on the day the gate actually flips — G3 and G4 are the same morning or
+      the notice's date drifts away from the remainder it claims.
+
+- [ ] **G4. Set `BILLING_GATE_ENABLED=true` in Vercel production, then redeploy.**
+      ⚠️ **Adrian does this himself.** The Vercel CLI on this machine authenticates as
+      `adrianschimizzi1-8005` and the only project under the `adriandrianco` scope is
+      `adn-builders-website` — the Trackd project is not reachable from here. An env
+      change needs a redeploy to reach the running deployment.
+
+- [ ] **G5. Verify by BEHAVIOUR, not by the dashboard saying it is set.** The pop-up
+      Adrian could not see IS the control: with the gate on, a comp account with no
+      seen-cookie must get `BetaLaunchNotice` naming its own date. A restart proves
+      nothing; the named artefact does.
+
+### Still outstanding, unblocked by the above
+
+- `angusbrake6@gmail.com` is on `COMP_EMAILS` and has no account. If he signs up, the
+  ONLY thing that grants him free-for-life is another `POST /api/billing/beta-grace`.
+  Re-running it does not undo `004` — the route only inserts for accounts with no row.
+
 
 ---
 

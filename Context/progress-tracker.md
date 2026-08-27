@@ -5,7 +5,76 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-17 (06 finished through Step 5; 07 Steps 4-5 driven; pair 2's release condition observed)
+Last updated: 2026-08-27 (the paid flow gained its own error boundary; two accounts deleted; the gate found unset in production)
+
+## The paid flow's error screen stopped being a door into the app (2026-08-27)
+
+Adrian hit an error partway through `/plans`, pressed **Back to home**, and landed on
+`/dashboard` without ever reaching a card field. Two defects, one screen.
+
+**The door.** `app/error.tsx` is the app-wide boundary and its secondary link is `/`,
+which `app/page.tsx` resolves to `/dashboard` for any signed-in, gated user. That is
+the right offer for an error on a screen somebody already had access to and the wrong
+one for an error thrown mid-payment. `/plans`, `/checkout` and `/onboarding` now have
+their own boundary (`components/billing/FlowError.tsx`) whose exits go back INTO the
+flow or nowhere: `/plans` offers only "Try again", `/checkout` adds "Back to plans",
+`/onboarding` adds "Start over" — never `/plans`, because that route is reachable by a
+stranger and `/plans` would bounce them to `/login`. The app-wide screen keeps its link.
+
+**The dead button.** Both boundaries took Next 16's `reset`, which re-renders the
+boundary's children **without re-fetching**. Everything they actually catch is thrown
+in a server component, so "Try again" re-ran a client render against the same failed
+payload and reproduced the same error every time. That is why the secondary link got
+pressed. `app/error.tsx`, `app/global-error.tsx` and the new boundary all take
+`unstable_retry` now, which re-fetches the segment.
+
+⚠️ **The copy is `app/error.tsx`'s, verbatim, and specifically has no payment variant.**
+The tempting sentence is "nothing has been charged"; this boundary catches a render
+failure, which can happen after a confirm has already succeeded, so it cannot know that.
+
+`tsc`, ESLint, `gate-audit` (32 gated / 2 conditional / 70 ungated) and 1761 tests green.
+Both boundaries were driven with a temporary throw and photographed before the probe was
+reverted — `/plans` renders one button and zero links, `/checkout` one button and
+`Back to plans -> /plans`.
+
+## ⚠️ `BILLING_GATE_ENABLED` IS UNSET IN PRODUCTION, and it explains three reports (2026-08-27)
+
+Billing merged to `main` and none of it bites. `gate.ts:142` short-circuits on the flag
+**before any database read**, so `writeAccess()` returns `"allowed"` for everybody. One
+unset variable is the whole reason:
+
+- nothing enforces payment — every account has full write access
+- the beta and comp pop-ups cannot render: `dashboard/page.tsx:343` gates
+  `showBetaNotice` on the same flag. Adrian built them and could not see them.
+- the trial-ending, past-due and final-day banners are off, and `runner.ts:309`
+  suppresses the trial reminder push
+
+The data behind them is fine. The backfill ran and the rows exist.
+
+### What the entitlement rows actually look like now
+
+**94 accounts, 89 entitlement rows — 5 accounts hold NONE.** `hopkinsjett@gmail.com`,
+`mrsmithy2019@hotmail.com`, `loganmcrae8@gmail.com`, `flynn.robinson14@gmail.com` and
+`inamatajunior@gmail.com` all signed up between 18 and 26 August, after the accidental
+17 August backfill. **P13 is what makes a missing row mean read-only**, so flipping the
+gate would drop those five into read-only cold — no grace, no notice — having signed up
+while the app was free. A `?dry=1` run of `POST /api/billing/beta-grace` reports exactly
+`granted: 5, comp: 0, grace: 5, skipped: 89, upgraded: 0`, which is the documented
+repair and must be run BEFORE the gate flips.
+
+`angusbrake6@gmail.com` is on `COMP_EMAILS` and **still has no account**, which is why
+only 4 of the 5 comp addresses hold a free-for-life row.
+
+### Two accounts deleted at Adrian's request
+
+`driancomedia@gmail.com` (19 dose logs, 5 protocol compounds, 3 progress photos, 1
+bloodwork report, a 31-Aug comp row) and `social@trackdco.app` (an empty 27 Aug signup).
+Deleted `public.profiles` — which is what cascades, since `profiles` has **no FK to
+`auth.users`** — then `auth.users`, then the 4 storage objects through the Storage API,
+because `storage.protect_delete()` refuses a direct SQL delete. Neither was on
+`COMP_EMAILS`; the founder address there is `admin@trackdco.app`. This is why the
+grace cohort is **85**, not the 86 that `004`'s VERIFY block still predicts.
+
 
 ## Pair 2's release condition is met, and 06 is finished (2026-08-17, afternoon)
 
