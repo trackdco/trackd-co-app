@@ -1,0 +1,192 @@
+-- ============================================================
+--  006_comp_grant_one_row.sql
+--  D113 — the SINGLE-ROW comp grant that replaces re-running the beta-grace route.
+--  Migration name: `comp_grant_one_row`
+--
+--  ⚠️ NOT APPLIED. WRITTEN ONLY. Adrian applies this BY HAND, and only once its
+--     precondition is TRUE. No agent runs it.
+--
+--  ⚠️ IT IS A STANDING INSTRUCTION, NOT A STEP. Its precondition is somebody
+--     ELSE's action — a signup — which has not happened and may never.
+-- ============================================================
+--
+--  ## Why this file exists instead of the documented repair
+--
+--  `next-tasks.md` and `004`'s own header both say the repair for a comp-list
+--  member holding no entitlement row is to re-run `POST /api/billing/beta-grace`.
+--  **D113 closed that path.** Two reasons, both read from source:
+--
+--    1. `route.ts:239-256` is a real `UPDATE ({active_until: null})`. It modifies
+--       existing rows. It fires for nobody on today's data, which is a fact about
+--       the data and not a property of the code.
+--    2. THE STRONGER ONE — `route.ts:126` takes `new Date()` and `route.ts:277`
+--       feeds it to `grantExpiry`, so the route COMPUTES ITS DATE AT RUN TIME. A
+--       run tonight writes `now + 14 days`, NOT `2026-09-10T04:00:11.374343+00`.
+--       That is a SECOND ending instant in a table whose 82 grace rows share one,
+--       and `004`'s VERIFY block forbids exactly that: "Two different instants
+--       means it was run twice against different row sets, and the notice can
+--       then only be right for one of the groups."
+--
+--  The route's remit is EVERY ACCOUNT. It cannot be used as a fixture however
+--  narrow the assertion, and it already fired unplanned once — writing 90 rows on
+--  17 Aug 2026. This file writes one row and can write no other.
+--
+-- ------------------------------------------------------------
+--  ⚠️⚠️ A DEPARTURE FROM THE BRIEF, AND IT IS DELIBERATE
+-- ------------------------------------------------------------
+--
+--  The brief said: "The ending date is NOT computed — it is the same instant the
+--  other rows carry. State it literally."
+--
+--  **The first half is honoured and the second half would be WRONG HERE.**
+--
+--  `2026-09-10T04:00:11.374343+00` is the BETA GRACE date — the fortnight given
+--  to people who are NOT on the comp list. A comp-list member was promised
+--  Trackd **for life**. Writing that instant onto their row would put a friend
+--  who was promised forever onto a fourteen-day clock, which is the exact
+--  mistake `004`'s own header refuses to make:
+--
+--      "❌ LEAVES the 4 undated comp rows (COMP_EMAILS — free for life).
+--       Clearing or DATING one of those would put a friend who was promised
+--       Trackd for life on a fourteen-day clock."
+--
+--  So `active_until` is **NULL**. That satisfies what the brief was protecting —
+--  nothing is computed, nothing reads a clock, the value is a literal written in
+--  the statement — in its strongest form. NULL is not a missing date; in this
+--  schema it IS the value that means "never expires". `grantExpiry` returns
+--  exactly this for `{kind: "comp"}`.
+--
+--  ⚠️ If what is actually wanted is a DATED GRACE for a NON-comp-list account,
+--  this is the wrong file and no dated variant is written here on purpose. A
+--  second statement in this file, differing only in one field, is how the wrong
+--  one gets pasted at 2am.
+--
+-- ------------------------------------------------------------
+--  ▶ PRECONDITION — ALL THREE MUST BE TRUE. Check before pasting.
+-- ------------------------------------------------------------
+--
+--   1. The address is on `COMP_EMAILS` in `lib/billing/betaGrace.ts`.
+--      As of 27 Aug 2026 the only one in this state is angusbrake6@gmail.com.
+--   2. They HAVE AN AUTH ACCOUNT. As of 27 Aug 2026 they do not.
+--      ⚠️ THIS IS WHY THE FILE CANNOT BE RUN TODAY. `entitlements.user_id` is a
+--      FK to `public.profiles(id)`. No account means no profile means no row can
+--      exist. This is not a bug and not a thing to work around: there is nobody
+--      to entitle yet.
+--   3. They hold NO entitlement row. If they hold a DATED one instead, this is
+--      the wrong file — that is the upgrade case, and it is one UPDATE clearing
+--      `active_until`, not an insert.
+--
+--   Run the precondition query at the end FIRST. It answers all three.
+--
+-- ------------------------------------------------------------
+--  ▶ HOW TO RUN
+-- ------------------------------------------------------------
+--
+--   1. Run BEFORE/AFTER CHECK (bottom of this file). Keep the output.
+--   2. Edit the address on the ONE line marked ⬅, and nowhere else.
+--   3. Paste and run the statement below. Expect "INSERT 0 1".
+--      "INSERT 0 0" means the guard refused — read the precondition query.
+--   4. Run BEFORE/AFTER CHECK again. Every column must be IDENTICAL to step 1.
+--
+--   SAFE TO RUN TWICE. The `where not exists` makes a second run insert zero
+--   rows rather than a duplicate. It is a guard against a doubled paste, not
+--   permission to run it at the wrong moment.
+
+-- ------------------------------------------------------------
+--  THE STATEMENT. One row. It can write no other.
+-- ------------------------------------------------------------
+
+insert into public.entitlements (user_id, product, source, active_until, is_active)
+select
+  u.id,
+  'pro',            -- the only product
+  'comp',           -- comp + NULL expiry is the free-for-life shape (betaGrace.ts)
+  null,             -- ⬅ FREE FOR LIFE. Not the 004 instant. See the departure note.
+  true
+from auth.users u
+where lower(u.email) = 'angusbrake6@gmail.com'          -- ⬅ THE ONLY LINE TO EDIT
+  -- Refuses if they already hold ANY entitlement row, of any source or status.
+  -- Same predicate the backfill uses, and for the same reason: a row means this
+  -- account has already been answered, and answering twice is how somebody gets
+  -- a second fortnight nobody decided to give them.
+  and not exists (
+    select 1 from public.entitlements e where e.user_id = u.id
+  );
+
+-- ------------------------------------------------------------
+--  ▶ BEFORE / AFTER CHECK — run it TWICE, compare all five columns.
+-- ------------------------------------------------------------
+--
+--  ⚠️ IT IS NOT A COUNT. A count is what produced the 84: it returns a confident
+--  number over a depleted set and cannot tell you WHICH rows it counted. This
+--  fingerprints the SET, so a row swapped for another changes the answer even
+--  though the count does not.
+--
+--  select
+--    count(*)                                   as rows_at_instant,
+--    count(distinct active_until)               as distinct_instants,
+--    min(active_until)                          as the_instant,
+--    md5(string_agg(user_id::text, ',' order by user_id)) as row_fingerprint,
+--    count(*) filter (where not is_active)      as revoked
+--  from public.entitlements
+--  where source = 'comp' and product = 'pro' and active_until is not null;
+--
+--  EXPECTED, BEFORE AND AFTER, IDENTICAL:
+--
+--    rows_at_instant     82
+--    distinct_instants    1        ⬅ THE ONE THAT MATTERS
+--    the_instant          2026-09-10 04:00:11.374343+00
+--    row_fingerprint      c6b39999088f5ca6227a3baf4fa89172
+--    revoked              0
+--
+--  ⚠️ THAT FINGERPRINT IS A REAL MEASUREMENT, taken 2026-08-27T05:38Z, not an
+--  illustration. It is the md5 of the 82 user_ids in ascending order.
+--
+--  ⚠️ IT WILL CHANGE LEGITIMATELY, and that does not make it useless. Deleting
+--  an account, or upgrading a grace row to free-for-life, moves a row out of
+--  this set on purpose — both happened on 27 Aug. **Re-baseline deliberately
+--  after any such change and write the new value here.** What the fingerprint is
+--  for is the pair of runs either side of ONE statement, minutes apart, where
+--  nothing else was supposed to happen. Do not treat a stale baseline from last
+--  week as an alarm.
+--
+--  `distinct_instants` going to 2 is the failure this check exists to catch, and
+--  it is the failure re-running the route would have caused. A changed
+--  `row_fingerprint` with an unchanged count means a row was SWAPPED — which no
+--  count would show.
+--
+--  ⚠️ WHAT THIS CHECK CANNOT DO, stated plainly:
+--
+--  It distinguishes TOTAL failure from success. An error surfaces as an error;
+--  an empty read returns 0 / 0 / null / null, which nobody would mistake for 82.
+--
+--  It CANNOT distinguish "these rows changed" from "I could not see all of
+--  them". A partial read — rows invisible for any reason — produces a lower
+--  count and a different fingerprint, which is byte-for-byte what a real
+--  modification looks like. Both say "something moved" and neither says which.
+--  Run as service role in the SQL editor RLS does not apply, so partial
+--  visibility is unlikely; this check cannot certify that, only assume it.
+--
+--  So: a PASS means "unchanged, assuming I could read everything." A FAIL means
+--  "either something moved or I went blind." That is the honest reading, and it
+--  is the right way round — the ambiguous result is the alarming one.
+--
+-- ------------------------------------------------------------
+--  ▶ PRECONDITION QUERY — answers all three, run FIRST.
+-- ------------------------------------------------------------
+--
+--  select
+--    'angusbrake6@gmail.com'                  as addr,          -- ⬅ edit
+--    u.id                                     as user_id,
+--    (u.id is null)                           as no_account_yet,
+--    (select count(*) from public.entitlements e where e.user_id = u.id) as rows_held,
+--    e.source, e.is_active, e.active_until,
+--    case
+--      when u.id is null            then 'WAIT — no account. Nothing to entitle. Do not run.'
+--      when e.user_id is null       then 'RUN THIS FILE — account, no row.'
+--      when e.active_until is null  then 'ALREADY DONE — free for life. Do not run.'
+--      else 'WRONG FILE — they hold a DATED row. That is the UPGRADE case.'
+--    end as verdict
+--  from (select null::uuid as x) _
+--  left join auth.users u on lower(u.email) = 'angusbrake6@gmail.com'   -- ⬅ edit
+--  left join public.entitlements e on e.user_id = u.id;

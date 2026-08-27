@@ -4,8 +4,8 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-27 (G3 done — 004 applied; G2 and G4 outstanding; one
-UNVERIFIED trial-conversion risk raised)
+Last updated: 2026-08-27 (gate CONFIRMED ON; G2 CANCELLED by D113; the webhook
+pile is empty; one UNVERIFIED trial-conversion risk still open)
 
 ---
 
@@ -38,7 +38,21 @@ written, plus the order they now have to happen in.
       `app/error.tsx` and `app/global-error.tsx`. Nothing here touches money; it goes
       first so the deploy being healthy is established before anything is irreversible.
 
-- [ ] **G2. Re-run the beta backfill, live.** `POST /api/billing/beta-grace` with the
+- [x] **G2. CANCELLED BY D113 — DO NOT RUN THIS ROUTE.** ⚠️ The step below is
+      kept verbatim because deleting it would leave the next reader to rediscover
+      the repair and run it. It is DECLINED, not done and not forgotten.
+      Two reasons, both read from source, neither needing a run: `route.ts:239-256`
+      is a real `UPDATE` on existing rows, and — the stronger one —
+      `route.ts:126`/`277` compute the date AT RUN TIME, so any run writes a
+      SECOND ending instant into a table whose 82 rows share one. That instant is
+      what 82 real people are shown in writing.
+      **The replacement is `supabase/billing/006_comp_grant_one_row.sql`**, one
+      hand-applied row, with a before/after fingerprint check.
+      ⚠️ The five uncovered accounts DO NOT need it: they are not on `COMP_EMAILS`,
+      so the checkout refusal cannot fire for them and they get the ordinary
+      7-day trial. Proven by reading `billing-actions.ts:378` and `freeTime.ts:126`.
+
+- [ ] ~~**G2 (original, DECLINED).** Re-run the beta backfill, live.~~ `POST /api/billing/beta-grace` with the
       `CRON_SECRET` bearer. **Run `?dry=1` first and READ it** — on 2026-08-27 it
       reported `granted: 5, comp: 0, grace: 5, skipped: 89, upgraded: 0` and an empty
       `compAccounts`. It grants the five stragglers their fortnight and cannot disturb
@@ -73,6 +87,43 @@ written, plus the order they now have to happen in.
 - `angusbrake6@gmail.com` is on `COMP_EMAILS` and has no account. If he signs up, the
   ONLY thing that grants him free-for-life is another `POST /api/billing/beta-grace`.
   Re-running it does not undo `004` — the route only inserts for accounts with no row.
+
+
+---
+
+## ✅ THE WEBHOOK LEDGER IS EMPTY — measured 2026-08-27T05:0xZ
+
+Two records were reconciled into one. The `fetch.ts:448` comment describes **148
+unstamped test-mode rows as of 17 Aug**; Adrian holds a record of a **26 Aug SQL run
+taking unprocessed 149 → 0 with processed unmoved at 13,692**. They are the SAME PILE,
+before and after: 148 grew to 149 and was stamped on the 26th.
+
+Counted tonight, by mode, from the table rather than from either record:
+
+| mode | unstamped | processed |
+|---|---|---|
+| test | **0** | 12,603 |
+| *no `livemode` in payload* | **0** | 1,089 |
+| live | **0** | 10 |
+
+13,692 + the 10 live events from today's checkout drive = 13,702. Both records agree
+with the table and with each other.
+
+**So the soak has a real baseline: zero unstamped, in every mode.** The "(this mode)"
+parenthetical on a reconcile run is a true scoping caveat, but there is currently
+nothing outside the scope for it to be hiding.
+
+### ⚠️ A THIRD BUCKET NO RUN CAN EVER SEE
+
+`modeOfPayload` (`fetch.ts:510`) returns `live`, `test`, or **`unknown`** when the
+payload carries no `livemode` key — and `fetchUnstampedWebhooks` filters with
+`modeOfPayload(row.payload) === mode`, so an `unknown` row matches **neither** a live
+run nor a test run. **1,089 rows are in that bucket.** All 1,089 are processed today,
+so nothing is hidden right now.
+
+But an UNSTAMPED row landing there would be invisible to every reconciliation run that
+can be made, forever, and no exit code would ever report it. That is not the
+mode-scoping caveat — that is a hole beside it. Not fixed, not decided; recorded.
 
 
 ---

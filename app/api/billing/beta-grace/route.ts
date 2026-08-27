@@ -232,6 +232,24 @@ export async function POST(req: Request) {
      * never shortens anybody, never touches a `stripe`/`apple`/`google` row, and
      * never turns a paying customer into a comp.
      */
+    /**
+     * ⚠️⚠️ D113 (Adrian, 27 Aug 2026): **THIS ROUTE IS NOT TO BE RE-RUN.** This
+     * branch is one of the two reasons. See the ledger; the short form is that
+     * `grantExpiry(grant, now)` below computes a date AT RUN TIME, so any run
+     * now puts a SECOND ending instant in a table whose 82 grace rows share one.
+     * The repair for a refused comp-list member is a single hand-applied row.
+     *
+     * ⚠️ AND THE WRITE BELOW IS BROADER THAN THE PREDICATE THAT AUTHORISES IT
+     * (D113a). The predicate tests ONE shape — a comp-list member whose only
+     * entitlement is a DATED `comp` row. The write filters on `user_id` and
+     * `source` alone: **no `product` filter, no `active_until` guard.** So it
+     * clears the expiry on every comp row that user holds, not the row that was
+     * examined. Harmless while each user holds at most one, which is true today
+     * and is a fact about the data rather than a property of this code.
+     *
+     * If you narrow it, narrow it to what the predicate actually tested:
+     * `.eq("product", "pro").not("active_until", "is", null)`.
+     */
     if (grant.kind === "comp" && timeLimitedComp.has(account.id)) {
       upgraded.push(account.email ?? account.id);
       if (!dry) {

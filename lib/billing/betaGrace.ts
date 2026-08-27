@@ -120,6 +120,32 @@ export type BetaGrant =
  * billing switches on with no notice at all, which is the outcome this whole
  * file exists to prevent.
  */
+/**
+ * ⚠️⚠️ DO NOT ADD PLUS-ADDRESS CANONICALISATION HERE. IT IS LOAD-BEARING THAT
+ * THIS IS AN EXACT MATCH (D113a, 27 Aug 2026).
+ *
+ * Stripping `+tag` before the `@` is the obvious tidy-up — Gmail treats
+ * `a+x@gmail.com` and `a@gmail.com` as one mailbox, so folding them looks like a
+ * correctness fix. **It is not, on this data.**
+ *
+ * `barbrake24+test1@gmail.com` is a REAL SEPARATE ACCOUNT and it is one of the
+ * 82 beta-grace rows sitting at `2026-09-10T04:00:11.374343+00` — the instant
+ * `supabase/billing/004_regrace_launch_date.sql` wrote and that those people
+ * will be shown in writing. `barbrake24@gmail.com` is on {@link COMP_EMAILS}.
+ *
+ * Today they are different strings, so the `+test1` account answers `grace` and
+ * the comp path cannot reach it. Fold them and it answers `comp` — at which
+ * point `beta-grace/route.ts`'s UPGRADE branch becomes able to clear
+ * `active_until` on a row at the 004 instant, silently converting a dated grace
+ * into free-for-life and taking one row out of the set the notice describes.
+ *
+ * The canonicalisation would also be wrong in general: `+` addressing is a Gmail
+ * convention, not an RFC guarantee, and this list is compared against addresses
+ * from every provider.
+ *
+ * If a comp-list member ever signs up with a tagged address, add the tagged
+ * address to {@link COMP_EMAILS} as its own entry. One list, exact strings.
+ */
 export function betaGrantFor(email: string | null | undefined): BetaGrant {
   const normalised = (email ?? "").trim().toLowerCase();
   return COMP_EMAILS.includes(normalised)
