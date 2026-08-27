@@ -8,10 +8,28 @@ import { trialEligibility } from "./billing-actions";
 import { resolveStepId, stepMeta, type StepId } from "@/lib/onboarding/steps";
 import { onboardingDates } from "@/lib/onboarding/flowEntryDates";
 
+/**
+ * ⚠️ THIS CARRIES THE SITE'S PUBLIC IDENTITY NOW, because `/` redirects here.
+ *
+ * The `openGraph` block below was on `app/page.tsx` while that route rendered a
+ * landing screen of its own. Now that it redirects, a crawler or a link
+ * unfurler following trackdco.app lands on THIS metadata — and without the move
+ * every shared link would have lost its title card and its description.
+ *
+ * If `/` ever renders something again, this and that have to be reconciled
+ * rather than both claiming to be the site.
+ */
 export const metadata: Metadata = {
-  title: "Get started · Trackd Co",
+  title: "Trackd Co · Track the whole protocol",
   description:
-    "See how Trackd tracks a protocol before you make an account. No sign-up needed.",
+    "Everything you're running, in one place you'll actually open. A private, founder-led app built by people who run real protocols.",
+  openGraph: {
+    title: "Trackd Co · Track the whole protocol",
+    description: "Everything you're running, in one place you'll actually open.",
+    type: "website",
+    url: "https://trackdco.app",
+    siteName: "Trackd Co",
+  },
 };
 
 /**

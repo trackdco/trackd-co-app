@@ -830,6 +830,58 @@ svg ::-moz-selection {
   overscroll-behavior-y: contain;
 }
 
+/* ---------------------------------------------------------------------------
+   The hook's card column.
+
+   ⚠️ ONE TREATMENT AT EVERY SIZE, AND THAT IS THE FIX RATHER THAN A COMPROMISE.
+
+   This branched on height twice, and both attempts broke on a real phone while
+   passing everything on a laptop:
+
+     1. `@media (min-height: …)`. A media query measures the full layout
+        viewport; this flow is sized `100svh`, which excludes the browser
+        toolbars. On an iPhone 16 Pro those are 874 and ~700 — so the ROOMY
+        branch was chosen and rendered into the SHORT box, leaving 6px between
+        the subtitle and the button.
+
+     2. `@container` with `container-type: size` on `.flow-viewport`. That reads
+        the right box and fixed the measurement, and it made things worse on the
+        device: Adrian reported the cards pushed off the top of the screen and
+        the title spacing blown out. It could not be reproduced in Chromium at
+        any box height from 500 to 860, so it is Safari behaviour around size
+        containment on a full-height flex container that I could not see.
+
+   So there is no branch. The card sizing below is a single set of values that
+   fits the shortest handset we support and still reads well on the tallest, and
+   all four cards always render. When a box genuinely cannot hold them the
+   ScrollPort scrolls, which is a thing it already does everywhere else in the
+   flow and which degrades in a way a user understands.
+
+   The lesson worth keeping: a layout rule that depends on knowing the viewport
+   height is a layout rule that will be wrong on a phone browser, because there
+   is no single viewport height on one.
+   --------------------------------------------------------------------------- */
+.hero-stack {
+  gap: 0.5rem;
+}
+
+/* Sized so FOUR of these plus a two-line headline, a subtitle, the CTA and the
+   four statutory links all clear a ~700px box — an iPhone in Safari, which is
+   the tightest case that actually matters. Bigger cards were tried and left 7px
+   between the last card and the headline on exactly that phone. */
+.hero-card {
+  gap: 0.375rem;
+  padding: 0.625rem 1rem;
+}
+
+.hero-value {
+  font-size: 21px;
+}
+
+.hero-type {
+  gap: 0.5rem;
+}
+
 /* Cards that sit ON the canvas instead of being holes cut out of it: a hairline
    of light along the top edge where a light source would catch it, and a soft
    shadow underneath. Both are far weaker than they look written down; the

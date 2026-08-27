@@ -111,7 +111,13 @@ export function CelebrateScreen() {
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 py-2">
           <Mascot pose="thumbs" size={330} className="-mb-4 shrink-0" />
 
-          <div className="shrink-0 space-y-5 text-center">
+          {/* NOT a uniform `space-y`: the eyebrow holds still while the title
+              and the ticks come UP to meet it (Adrian, 2026-08-27: "keep 'Good
+              news' where it is, and just move them closer"). Even spacing gave
+              the eyebrow the same 20px as everything else and made it read as a
+              third item in a list rather than as a lead-in to the line under
+              it. */}
+          <div className="shrink-0 text-center">
             {/* "GOOD NEWS," is an EYEBROW over the headline, not the headline
                 itself (Adrian, 2026-08-27). The full line was briefly shrunk to
                 caption size; he wanted only the first half small, with the
@@ -126,14 +132,14 @@ export function CelebrateScreen() {
                 The exclamation mark is his and deliberate: "not a full stop". */}
             <p className={cn(CARD_EYEBROW, "text-center")}>Good news,</p>
 
-            <h1 className={cn(FLOW_DISPLAY, "text-balance")}>
-              we are built to solve{" "}
+            <h1 className={cn(FLOW_DISPLAY, "mt-1.5 text-balance")}>
+              We&apos;re built to solve{" "}
               <strong className={FLOW_EMPHASIS}>exactly that!</strong>
             </h1>
 
             {/* Staggered so the answers arrive one at a time rather than as a
                 block, which is what makes it read as a reply. */}
-            <ul className="mx-auto max-w-[19rem] space-y-2.5 text-left">
+            <ul className="mx-auto mt-4 max-w-[19rem] space-y-2.5 text-left">
               {lines.map((line, i) => (
                 <li
                   key={line}

@@ -62,6 +62,28 @@ import { StepRenderer } from "./step-renderer";
  * the transition away.
  */
 
+/**
+ * The wordmark that rides the header on every step.
+ *
+ * One definition, two homes: centred in the middle cell on the hook (which has
+ * no progress rail), railed right everywhere else. Written as a component so
+ * the two placements cannot drift into two different marks.
+ *
+ * Not `priority` — it is chrome on every screen, and the step's own content
+ * should win the first paint.
+ */
+function Wordmark() {
+  return (
+    <Image
+      src="/trackd-wordmark.png"
+      alt="Trackd.co"
+      width={1049}
+      height={200}
+      className="h-3 w-auto opacity-70"
+    />
+  );
+}
+
 /** Never notifies: the client/server answer cannot change after hydration. */
 const subscribeNever = () => () => {};
 
@@ -778,6 +800,16 @@ function OnboardingFlowClient({
     ],
   );
 
+  /**
+   * Whether the progress rail is on screen — which decides where the wordmark
+   * sits, because the two share the header's centre cell.
+   *
+   * Mirrors `ProgressRail`'s own guard (it renders null at 0%) rather than
+   * asking it: the header has to know BEFORE the rail renders, since it is
+   * choosing which cell to put the mark in.
+   */
+  const railVisible = chrome === "onboarding" && stepProgress(step) > 0;
+
   // A screen that owns BACK always shows the arrow (the demo steps its own
   // stages); otherwise it only shows if this flow actually pushed something.
   const canGoBack =
@@ -857,9 +889,14 @@ function OnboardingFlowClient({
                 screens, which is the one thing this header is built not to do.
                 A wrapper that always renders pins the cell. */}
             <div className="flex items-center justify-center">
-              {chrome === "onboarding" ? (
-                <ProgressRail progress={stepProgress(step)} />
-              ) : null}
+              {railVisible ? <ProgressRail progress={stepProgress(step)} /> : null}
+              {/* THE HOOK CENTRES THE MARK (Adrian, 2026-08-27: "for only the
+                  hero section, I want Trackd in the center of the screen").
+                  It can, and only it can: the hook is the one step with no
+                  progress rail, so the middle cell is free. Everywhere else the
+                  rail owns the centre and the mark stays right, which is why
+                  this is a swap between two cells rather than a move. */}
+              {!railVisible ? <Wordmark /> : null}
             </div>
 
             {/* THE WORDMARK, ON EVERY STEP (Adrian, 2026-08-27), so the flow
@@ -881,13 +918,7 @@ function OnboardingFlowClient({
                 Not `priority` — it is chrome on every screen, and the hook's
                 own hero is what should win the first paint. */}
             <div className="flex items-center justify-end">
-              <Image
-                src="/trackd-wordmark.png"
-                alt="Trackd.co"
-                width={1049}
-                height={200}
-                className="h-3 w-auto opacity-70"
-              />
+              {railVisible ? <Wordmark /> : null}
             </div>
           </div>
 

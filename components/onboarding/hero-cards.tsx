@@ -186,7 +186,6 @@ function HeroCard({
   value,
   unit,
   delay,
-  shortHide,
 }: {
   eyebrow: string;
   glyph: React.ReactNode;
@@ -194,14 +193,6 @@ function HeroCard({
   value: string;
   unit: string;
   delay: number;
-  /**
-   * Hidden on a short viewport. Four cards, a two-line headline and a CTA do
-   * not fit a 320x568 together — measured, the headline ended up UNDERNEATH
-   * the button, which puts the one sentence explaining the product behind the
-   * control. Dropping the fourth card is the cheapest honest fix: the screen
-   * still shows three real surfaces, and nobody sees both versions.
-   */
-  shortHide?: boolean;
 }) {
   return (
     <div
@@ -211,12 +202,12 @@ function HeroCard({
       // screen is.
       aria-hidden
       className={cn(
-        "animate-hero-card flow-card flex w-full flex-col rounded-[18px] bg-bg-surface px-4",
-        // Short handset first, then the roomy treatment once there is height
-        // for it. See the note above `HeroCards`.
-        "gap-1.5 pb-2.5 pt-2.5",
-        "[@media(min-height:760px)]:gap-[9px] [@media(min-height:760px)]:pb-4 [@media(min-height:760px)]:pt-[15px]",
-        shortHide && "hidden [@media(min-height:700px)]:flex",
+        "animate-hero-card flow-card hero-card flex w-full flex-col rounded-[18px] bg-bg-surface",
+        // Sizing lives in `globals.css` under `@container flow`, NOT in a
+        // height media query. On a phone those measure different boxes — the
+        // media query sees the viewport with the toolbars counted in, this
+        // element is `100svh` without them, and the gap between the two is
+        // ~175px on a 16 Pro. See `.flow-viewport`.
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
@@ -228,7 +219,7 @@ function HeroCard({
             {label}
           </p>
         </span>
-        <span className="font-mono text-[21px] font-light leading-none tracking-[-0.03em] tabular-nums text-foreground [@media(min-height:760px)]:text-[25px]">
+        <span className="hero-value font-mono font-light leading-none tracking-[-0.03em] tabular-nums text-foreground">
           {value}
           <small className="text-[0.46em] tracking-normal text-text-muted">{unit}</small>
         </span>
@@ -244,7 +235,7 @@ function HeroCard({
  */
 export function HeroCards() {
   return (
-    <div className="flex w-full flex-col gap-2 [@media(min-height:760px)]:gap-[11px]">
+    <div className="hero-stack flex w-full flex-col">
       <HeroCard
         eyebrow="Anabolics"
         glyph={<LoggedTick />}
@@ -276,7 +267,6 @@ export function HeroCards() {
         value="83.9"
         unit="kg"
         delay={510}
-        shortHide
       />
     </div>
   );

@@ -211,7 +211,10 @@ export function AppCarousel() {
       {/* Sized so the phone reads as the hero of the screen. The page scrolls,
           so this does not have to fight the plan cards for room. */}
       <div
-        className="relative mx-auto h-[18.75rem] w-full max-w-[24rem] shrink-0 touch-pan-y select-none"
+        // A notch smaller (Adrian, 2026-08-27: "it's just a little bit big").
+        // The ring is fixed-height by construction, so this is the one number
+        // that sizes it — the phones are positioned against this box.
+        className="relative mx-auto h-[16.5rem] w-full max-w-[22rem] shrink-0 touch-pan-y select-none"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerCancel={() => { drag.current = null; }}
@@ -234,7 +237,7 @@ export function AppCarousel() {
               key={slide.id}
               aria-hidden
               className={cn(
-                "pointer-events-none absolute left-1/2 top-1/2 w-[11.4rem] rounded-[1.5rem] p-[3px]",
+                "pointer-events-none absolute left-1/2 top-1/2 w-[10rem] rounded-[1.35rem] p-[3px]",
                 // THE SAME BAND AS `device-frame.tsx` (Adrian, 2026-08-14:
                 // "do those same outlines in the carousel as well"). These were
                 // a flat `bg-bg-surface-raised` while the hook's phone had been

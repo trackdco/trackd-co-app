@@ -44,7 +44,10 @@ export function FreeScreen() {
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
         <ScrollPort>
-          <div className="flex w-full flex-1 flex-col justify-start gap-4 pt-3">
+          {/* `gap-10`, up from `gap-4`: the carousel came down twice and the
+              headline needs to stop crowding it (Adrian, 2026-08-27: "give more
+              space between the carousel and the subtitle as well"). */}
+          <div className="flex w-full flex-1 flex-col justify-start gap-10 pt-3">
             {/* ONE line of type, not three (Adrian, 2026-08-05: "too much
                 text"). The eyebrow and the giant $0 both went: the eyebrow said
                 the same thing as the line above the button, and a 4.5rem figure

@@ -63,16 +63,25 @@ describe("⚠️ strings the legal documents quote word for word", () => {
    *
    * Washington's My Health My Data Act requires the consumer health data privacy
    * policy to be published under that name and linked where a visitor can reach
-   * it WITHOUT LOGGING IN. `app/page.tsx` renders `FirstRun` for every logged-out
-   * visitor, so that component is the homepage for this purpose.
+   * it WITHOUT LOGGING IN.
+   *
+   * ⚠️ THE HOMEPAGE MOVED (2026-08-27) and this test is why we noticed. `/` used
+   * to render `FirstRun`, which carried these links; it now redirects to the
+   * onboarding flow, whose first screen is the hook. Deleting FirstRun therefore
+   * deleted a statutory link from the logged-out entry point, and this control
+   * failed on exactly that. The links were added to the hook rather than the
+   * assertion being relaxed.
+   *
+   * If the front door moves again, point this at whatever the logged-out visitor
+   * lands on — never at whichever file happens to still contain the strings.
    *
    * The full name is pinned because a shortened label ("Health Data", "Your
    * data") reads perfectly well and fails the check the statute actually
    * describes. This is the kind of string a tidy-up shortens.
    */
   it("⚠️ the homepage links the Consumer Health Data Privacy Policy by its full name", () => {
-    const firstRun = readFileSync(
-      new URL("../../app/_components/first-run.tsx", import.meta.url),
+    const homepage = readFileSync(
+      new URL("../../components/onboarding/screens/hook.tsx", import.meta.url),
       "utf8",
     );
     /**
@@ -82,12 +91,12 @@ describe("⚠️ strings the legal documents quote word for word", () => {
      * fails on a refactor it has no opinion about gets weakened or deleted, and
      * then it is not there on the day it matters.
      */
-    expect(firstRun).toContain("/consumer-health-data");
-    expect(firstRun).toContain("Consumer Health Data Privacy Policy");
+    expect(homepage).toContain("/consumer-health-data");
+    expect(homepage).toContain("Consumer Health Data Privacy Policy");
     // The other three must be reachable from the homepage too — a privacy
     // policy a visitor cannot find from the front page is one in name only.
     for (const route of ["/terms", "/privacy", "/medical-disclaimer"]) {
-      expect(firstRun, `${route} is not linked from the homepage`).toContain(route);
+      expect(homepage, `${route} is not linked from the homepage`).toContain(route);
     }
   });
 
