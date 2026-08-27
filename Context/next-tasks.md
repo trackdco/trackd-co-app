@@ -4,8 +4,8 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-27 (go-live sequence rewritten around what production
-actually holds: 94 accounts, 89 rows, gate still unset)
+Last updated: 2026-08-27 (go-live sequence rewritten; the Manage card row fixed;
+one UNVERIFIED trial-conversion risk raised)
 
 ---
 
@@ -69,6 +69,51 @@ written, plus the order they now have to happen in.
 - `angusbrake6@gmail.com` is on `COMP_EMAILS` and has no account. If he signs up, the
   ONLY thing that grants him free-for-life is another `POST /api/billing/beta-grace`.
   Re-running it does not undo `004` — the route only inserts for accounts with no row.
+
+
+---
+
+## 🔴 UNVERIFIED — DOES A TRIAL ACTUALLY CONVERT? (raised 2026-08-27)
+
+⚠️ **This is a question, not a finding. It is written down because it was noticed
+while fixing something else, and because the cost of it being real is every trial.**
+
+Fixing the Manage card row meant measuring where a confirmed trial's card lives.
+`startTrial`'s exact `subscriptions.create` was replayed against real Stripe and its
+`pending_setup_intent` confirmed with a card, the way the browser's `confirmSetup`
+does. Measured, immediately after confirmation:
+
+    customer.invoice_settings.default_payment_method  null
+    subscription.default_payment_method               null
+    subscription.status                               trialing
+    customer's attached card payment methods          visa ****4242
+
+**Nothing points at the card.** `startTrial` also sets
+`trial_settings: { end_behavior: { missing_payment_method: "cancel" } }`
+(`billing-actions.ts:841`). If Stripe evaluates "missing payment method" against the
+DEFAULT pointers rather than against what is merely attached, then at `trial_end` the
+subscription is CANCELLED instead of charged — for everybody.
+
+### Why it is NOT being asserted as a bug
+
+`progress-tracker.md` records a test-clock run in which a real invoice was PAID
+(2026-08-31T06:20Z) after a courtesy period. That is evidence conversion works — but
+it came through the SAVE-OFFER courtesy path, which may set the pointer differently
+from a first-time trial. The two have not been shown to be the same shape, so neither
+"it converts" nor "it cancels" is currently proven for `startTrial`'s own output.
+
+### The test that settles it, and it is cheap
+
+A Stripe test clock, a customer created on it, `startTrial`'s exact create, the
+setup intent confirmed, then advance the clock past `trial_end` and read ONE thing:
+
+    invoice paid            -> conversion works, delete this section
+    subscription canceled   -> every trial silently cancels; fix before launch
+
+⚠️ **Do this before P13.** If it cancels, no amount of grace re-dating matters,
+because nobody converts at the end of theirs either. The harness already exists:
+`scratchpad/harness/clockwindow.scenario.ts` drove the 23-hour invoice window on a
+test clock and is the pattern to copy.
 
 
 ---

@@ -5,7 +5,48 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-27 (the paid flow gained its own error boundary; two accounts deleted; the gate found unset in production)
+Last updated: 2026-08-27 (paid-flow error boundary; the Manage card row reads the right field at last; the gate still unset in production)
+
+## The Manage row said "None on file" to somebody whose card was stored (2026-08-27)
+
+Adrian, against his own live `trialing` subscription. `cardOnFile` read
+`customer.invoice_settings.default_payment_method` and nothing else, and **that field
+is null for every trial subscriber by design**: `startTrial` uses
+`save_default_payment_method: "on_subscription"`, which sets a default when an invoice
+is paid, and a trial pays none. `billing-actions.ts:1826` already said so in as many
+words — *"a confirmed TRIAL can legitimately have a null default"* — and the reader was
+written against the other field anyway.
+
+⚠️ **The obvious fix was measured and discarded.** `cardUpdate.ts:36` says a
+subscription's own `default_payment_method` beats the customer's, which reads like the
+answer. `startTrial`'s exact `subscriptions.create` was replayed against real Stripe
+and its `pending_setup_intent` confirmed with a card:
+
+    customer.invoice_settings.default_payment_method  null   <- what it read
+    subscription.default_payment_method               null   <- the obvious fix
+    customer's attached card payment methods          visa ****4242
+
+A confirmed trial's card is attached to the CUSTOMER and pointed at by nothing, so any
+fix reading only a `default_*` pointer swaps one wrong field for another.
+
+It now resolves the way a charge would: a **billable** subscription's own pointer, then
+the customer default, then the attached card. The order and the refusals are pure and
+tested (`cardOnFile.test.ts`, 12 cases) — a cancelled subscription's stale pointer is
+ignored, an unexpanded string id is treated as absent, and **two attached cards with no
+pointer anywhere returns null rather than guessing**, because in that state Stripe
+itself does not know which it would charge.
+
+Steps 1 and 2 share one `customers.retrieve` — the subscriptions arrive on the same
+call via `expand`, verified against real Stripe rather than assumed. Step 3 is a second
+call and only fires when nothing points anywhere, which today is exactly the trial
+cohort. Driven end to end on a real fixture: **resolved at step 3, renders
+`Visa •••• 4242`**, where before the fix it rendered "None on file".
+
+⚠️ **It raised a question that is NOT answered** — whether a trial whose card is
+pointed at by nothing actually converts at `trial_end`, given
+`missing_payment_method: "cancel"`. Written up in `next-tasks.md` with the test that
+settles it. Not asserted as a bug in either direction.
+
 
 ## The paid flow's error screen stopped being a door into the app (2026-08-27)
 
