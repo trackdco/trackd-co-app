@@ -19,6 +19,7 @@ import { coerceDoseUnit } from "@/lib/db/doseUnits"
 import { isInventoryForm } from "@/lib/containers/form"
 import {
   activePause,
+  cyclePauseContext,
   dayBefore,
   effectiveCadenceStart,
   isPausedOn,
@@ -39,6 +40,7 @@ import {
 } from "@/lib/home/protocolSync"
 import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
 import { dropMember } from "@/lib/home/stacks"
+import { versionInForceOn } from "@/lib/protocol/scheduleVersions"
 import {
   cycleRuleFromColumns,
   cycleRuleToColumns,
@@ -267,12 +269,12 @@ export function resolveScheduleOn(
   // that predates every version falls back to the earliest, because that is the
   // oldest rule we know of — never the current one, which is exactly the
   // retroactive rewrite versioning exists to stop.
-  let best: ScheduleVersion | null = null
-  for (const v of sorted) {
-    if (v.effectiveFrom > dateKey) continue
-    if (!best || v.effectiveFrom > best.effectiveFrom) best = v
-  }
-  const version = best ?? sorted[0]
+  //
+  // ⚠️ SHARED with the push runner (`lib/protocol/scheduleVersions.ts`), which
+  // needs the same answer about `stopped`. A second copy of this selection is how
+  // the mirror fell out of step over cycles and pauses; it is not being written a
+  // third time.
+  const version = versionInForceOn(sorted, dateKey) ?? sorted[0]
 
   return {
     schedule: {
@@ -363,13 +365,11 @@ export function pauseContext(
   dateKey: string,
   base?: CycleContext
 ): CycleContext | undefined {
-  if (!c.pauses || c.pauses.length === 0 || !cycle) return base
-  const pausedDays = pausedDaysBetween(c.pauses, cycle.anchor, dateKey)
-  const pausedBeforeEnd =
-    cycle.end.type === "onDate"
-      ? pausedDaysBetween(c.pauses, cycle.anchor, cycle.end.date)
-      : 0
-  return { ...base, pausedDays, pausedBeforeEnd }
+  // The arithmetic lives in the pause module, because the push runner needs the
+  // identical context and has no `StackCompound` to hand — only Postgres rows.
+  // A second copy there is how the mirror ended up calling `isOnCycle` with no
+  // context at all, announcing doses on days the app showed as off-cycle.
+  return cyclePauseContext(c.pauses, cycle, dateKey, base)
 }
 
 /**
@@ -722,6 +722,19 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
   const next = exists
     ? cur.map((c) => (c.id === compound.id ? compound : c))
     : [...cur, compound]
+  /**
+   * Did this write RECORD a version, or is it just carrying the trail along?
+   *
+   * Most callers of `upsertStack` touch no version at all — pausing, resuming, a
+   * rotation index — and re-push whatever the device holds. That re-push heals a
+   * trail that failed to sync, so it stays; but it must not be allowed to DELETE
+   * the versions Postgres holds and this device may simply not have pulled yet.
+   * Only a genuine new version supersedes anything. See
+   * `sweepSupersededVersions`.
+   */
+  const before = cur.find((c) => c.id === compound.id)?.scheduleHistory
+  const recordedAVersion =
+    JSON.stringify(before ?? []) !== JSON.stringify(compound.scheduleHistory ?? [])
   const ok = saveStack(userId, next)
   if (ok) {
     notifyStackChanged()
@@ -740,7 +753,8 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
         pushScheduleVersions(
           compound.id,
           compound.name,
-          compound.scheduleHistory.map(scheduleVersionToRow)
+          compound.scheduleHistory.map(scheduleVersionToRow),
+          { supersede: recordedAVersion }
         )
       )
     }
@@ -797,8 +811,13 @@ export function archiveInStack(
     if (updated && isCustomName(updated.name)) void pushStackCompound({ ...updated, archived })
     if (history) {
       // Same skipped-until-005 treatment as an alteration's versions.
+      // A delete always records a stop, so it always supersedes whatever came
+      // after it — which is the whole point: a re-add that back-dated its start
+      // must not leave the old stop standing as the newest row in Postgres.
       void trackSync(
-        pushScheduleVersions(id, updated?.name ?? null, history.map(scheduleVersionToRow))
+        pushScheduleVersions(id, updated?.name ?? null, history.map(scheduleVersionToRow), {
+          supersede: true,
+        })
       )
     }
     // The NAME is passed so the server can RESOLVE the row rather than derive its

@@ -14,6 +14,7 @@ import type { DayLogs } from "@/lib/home/doseLog";
 import { customPosesIn, latestDay, type ProgressPhoto } from "@/lib/progress/photos";
 import type { WeightUnit } from "@/lib/weight";
 import type { StackCompound } from "@/lib/home/stack";
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
 
 type Return = "none" | "gallery" | "edit";
 
@@ -42,6 +43,8 @@ export function ProgressPhotoSection({
   previewStack?: StackCompound[];
   previewLogs?: DayLogs;
 }) {
+  /** Guarded: adding a photo. Viewing, comparing and the gallery are not. */
+  const { guard } = useWriteAccess();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -60,10 +63,17 @@ export function ProgressPhotoSection({
   // The Calendar's Photos row deep-links here → open the photo gallery.
   useProgressAction("photos-gallery", () => setGalleryOpen(true));
 
+  /**
+   * The one funnel that opens the ADD-a-photo sheet. Viewing, comparing and the
+   * gallery are all untouched: a read-only account keeps every photo it has and
+   * can look at all of them.
+   */
   function openAdd(date: string | undefined, ret: Return) {
-    setAddDate(date);
-    setAddReturn(ret);
-    setAddOpen(true);
+    guard(() => {
+      setAddDate(date);
+      setAddReturn(ret);
+      setAddOpen(true);
+    });
   }
   function returnTo(target: Return) {
     if (target === "gallery") setGalleryOpen(true);

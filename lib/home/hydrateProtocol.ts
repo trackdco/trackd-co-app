@@ -283,9 +283,16 @@ function mergeAndSave(
   // for; a day only the device knows about is KEPT rather than dropped. Both
   // halves matter: supabase/protocol/005 may not be applied yet (every pull then
   // returns nothing, and clobbering would discard the user's alteration history),
-  // and an alteration made offline hasn't reached Postgres either. Versions are
-  // only ever added or replaced, never deleted, so a union can't resurrect
-  // anything the user removed.
+  // and an alteration made offline hasn't reached Postgres either.
+  //
+  // ⚠️ A UNION, WHICH IS ONLY SAFE BECAUSE THE PUSH SWEEPS. Versions ARE removed:
+  // `recordScheduleVersion` drops every version dated after the one it records,
+  // and this merge would happily pull a dropped one back. That is not theoretical
+  // — a back-dated re-add drops the delete's stop, and while Postgres still held
+  // it the next hydration restored it here and the compound stopped being due in
+  // the app, forever. `sweepSupersededVersions` (protocolSync.ts) deletes them on
+  // the way out so there is nothing stale left to re-merge; if that sweep is ever
+  // removed, this union becomes a resurrection.
   const mergedStack = [...reconciledPg, ...extras].map((c) => {
     const rows = versionRows[c.id] ?? []
     const local = c.scheduleHistory ?? []

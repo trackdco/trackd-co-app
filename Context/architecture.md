@@ -1393,6 +1393,31 @@ full-screen sheet, and the site picker inside the log-dose sheet.
 
 ## Billing — Stripe, in-app checkout, 7-day trial (Spec w2b-15, 2026-08-08)
 
+> **Amended 2026-08-13** by the read-only gate, the save offer and the beta
+> grace period. Four invariants were added and they outrank anything below that
+> contradicts them:
+>
+> 1. **ONE live subscription per user, ever.** `startTrial` holds a per-user
+>    LEASE (`lib/billing/trialLease.ts`, `supabase/billing/002`) across its whole
+>    Stripe check-and-create, checks `BILLABLE_STATUSES` shared with the cancel
+>    path, and RECONCILES afterwards — oldest wins, everything else cancelled.
+>    Not `pg_advisory_lock`: session-scoped leaks over PostgREST's connection
+>    pool, transaction-scoped releases before the Stripe call it guards.
+> 2. **A lapsed account is READ-ONLY, never locked out.** Every screen opens,
+>    every log stays visible, nothing is hidden or deleted. The gate is a
+>    provider plus `requireWriteAccess()` on the write actions, and it is OFF
+>    unless `BILLING_GATE_ENABLED=true`. `lib/billing/gate.ts` is the authority
+>    on what is covered and what deliberately is not.
+> 3. **The save offer comes AFTER the cancellation, never before it.** The
+>    cancellation is written to Stripe and returned before the offer is looked
+>    up, so no failure path leaves somebody subscribed who asked not to be.
+>    Once ever, tracked in Stripe customer metadata.
+> 4. **`comp` WITH an expiry is the beta grace and nothing else produces that
+>    shape.** It is what lets the grace drive the trial banner and the day-5 push
+>    with no new concept, and the `comp` test is load-bearing — a paid
+>    subscriber's entitlement also carries an `active_until`.
+
+
 **THE APP NEVER ASKS STRIPE WHETHER A USER HAS ACCESS. IT ASKS `entitlements`.**
 Stripe writes that table through the webhook; Apple and Google will write the
 same rows through RevenueCat when TRACKD reaches the App Store, and not one line

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   getActiveSubscription,
   getCapability,
+  resyncSubscription,
   subscribe,
   unsubscribe,
   type PushCapability,
@@ -94,6 +95,12 @@ export function usePushNotifications(initialEnabled: boolean) {
       if (cancelled) return;
       setCapability(cap);
       setStatus(statusFrom(cap, Boolean(sub), initialEnabled));
+      // The browser has an endpoint and this account wants notifications — make
+      // sure the account actually HOLDS that endpoint. Signing out deletes the
+      // row (so the next person on this phone cannot receive the last one's
+      // doses) and signing back in would otherwise leave the intent flag on with
+      // nothing to send to. Idempotent, and a no-op in the ordinary case.
+      if (sub && initialEnabled) void resyncSubscription();
     });
 
     return () => {

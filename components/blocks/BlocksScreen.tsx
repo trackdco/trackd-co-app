@@ -38,6 +38,7 @@ import type { JournalEntry } from "@/lib/progress/journal"
 import type { ProgressPhoto } from "@/lib/progress/photos"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
 
 /**
  * `/blocks` — the live block, and the look-back list.
@@ -79,6 +80,8 @@ export function BlocksScreen({
   sampleStack?: StackCompound[]
   sampleLogs?: DayLogs
 }) {
+  /** Guarded: starting a block CREATES one. Ending or deleting is not. */
+  const { guard } = useWriteAccess();
   const [creating, setCreating] = useState(false)
   const [ending, setEnding] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -200,7 +203,7 @@ export function BlocksScreen({
         ) : (
           <button
             type="button"
-            onClick={() => setCreating(true)}
+            onClick={() => guard(() => setCreating(true))}
             className="hairline flex w-full flex-col items-center gap-1.5 rounded-2xl border-border-default px-6 py-8 text-center text-text-muted transition hover:text-foreground active:scale-[0.98]"
           >
             <span className="flex items-center gap-2 text-sm font-medium">
@@ -218,7 +221,7 @@ export function BlocksScreen({
         <div className="animate-home-up" style={{ animationDelay: "70ms" }}>
           <button
             type="button"
-            onClick={() => setCreating(true)}
+            onClick={() => guard(() => setCreating(true))}
             className="hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default px-6 py-4 text-sm font-medium text-text-muted transition hover:text-foreground active:scale-[0.98]"
           >
             <Plus className="h-4 w-4" aria-hidden />

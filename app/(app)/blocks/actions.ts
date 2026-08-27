@@ -27,6 +27,7 @@ import {
   startBlock,
   type StartBlockInput,
 } from "@/lib/db/blocks"
+import { requireWriteAccess } from "@/lib/billing/gate"
 
 function revalidate() {
   revalidatePath("/blocks")
@@ -36,6 +37,10 @@ function revalidate() {
 export async function startBlockAction(
   input: StartBlockInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
+  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
+  const writable = await requireWriteAccess()
+  if (!writable.ok) return writable
   const res = await startBlock(input)
   if (!res.ok) return res
   revalidate()
@@ -71,6 +76,10 @@ export async function saveReflectionAction(
   blockId: string,
   reflection: string,
 ): Promise<{ ok: boolean }> {
+  // ⚠️ THE READ-ONLY GATE, ENFORCED. The client guard is UX; this is the rule.
+  // A server action is a public HTTP endpoint. See `lib/billing/gate.ts`.
+  const writable = await requireWriteAccess()
+  if (!writable.ok) return writable
   const res = await saveReflection(blockId, reflection)
   if (res.ok) revalidate()
   return res

@@ -3,11 +3,14 @@ import { redirect } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
+import { ReadOnlyProvider } from "@/components/billing/ReadOnlyGate";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { SyncStatusNotice } from "@/components/notifications/SyncStatusNotice";
 import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
 import { RotationNotice } from "@/components/layout/RotationNotice";
 import { getSessionContext } from "@/lib/auth";
+import { canWriteData } from "@/lib/billing/gate";
+import { loadPricesSafe } from "@/lib/billing/prices";
 import { createClient } from "@/lib/supabase/server";
 import { unitForPreference } from "@/lib/weight";
 import { bodySexFor } from "@/lib/db/types";
@@ -19,6 +22,19 @@ import { bodySexFor } from "@/lib/db/types";
  * Only a fully signed-in, gated user reaches the children. getUser() (inside
  * getSessionContext) revalidates against the Auth server — the proxy refresh is
  * optimistic only and is never trusted for access.
+ *
+ * ## ⚠️ IT DOES NOT REDIRECT A LAPSED SUBSCRIBER, AND MUST NOT
+ *
+ * The obvious one-line version of the read-only gate is a third redirect here,
+ * beside the two above. It would be wrong: a lapsed account keeps full READ
+ * access to everything it has ever logged, and bouncing somebody off
+ * `/dashboard` because their card expired would be withholding their own health
+ * data to apply commercial pressure.
+ *
+ * So the gate is a PROVIDER, not a redirect. Every screen still renders. What
+ * `canWriteData` decides is whether the write entry points inside them run or
+ * open the pop-up. See `lib/billing/gate.ts` and
+ * `components/billing/ReadOnlyGate.tsx`.
  */
 export default async function AppLayout({
   children,
@@ -45,7 +61,20 @@ export default async function AppLayout({
   const unit = unitForPreference(profile?.units_preference);
   const bodySex = bodySexFor(profile?.sex);
 
+  const canWrite = await canWriteData();
+  /**
+   * THE PRICES ARE ONLY FETCHED FOR SOMEBODY WHO IS ACTUALLY LOCKED OUT.
+   *
+   * `loadPricesSafe` is memoised for five minutes and swallows a Stripe outage,
+   * so it is cheap and safe — but it is still a network call in the layout of
+   * every logged-in page, and a subscriber has no use for it. Skipping it for
+   * the overwhelming majority means the gate costs nothing to the people it does
+   * not apply to.
+   */
+  const prices = canWrite ? [] : await loadPricesSafe();
+
   return (
+    <ReadOnlyProvider canWrite={canWrite} prices={prices}>
     <div className="flex min-h-dvh flex-col">
       <header
         className="flex items-center justify-between border-b border-border/60 px-5"
@@ -83,5 +112,6 @@ export default async function AppLayout({
           for a SUSTAINED landscape and can be dismissed — see the component. */}
       <RotationNotice />
     </div>
+    </ReadOnlyProvider>
   );
 }

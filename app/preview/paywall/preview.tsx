@@ -43,7 +43,7 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
     name: "Adrian",
     plan: "yearly",
   });
-  const [view, setView] = useState<"paywall" | "checkout" | "holding">("paywall");
+  const [view, setView] = useState<"plans" | "start" | "holding">("plans");
 
   const priceFor = useCallback(
     (plan: PlanId): PricedPlan | undefined => {
@@ -59,9 +59,9 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
     () => ({
       session,
       patch: (next) => setSession((s) => ({ ...s, ...next })),
-      step: view === "checkout" ? "checkout" : "paywall",
+      step: view === "start" ? "start" : "plans",
       // The paywall's CTA advances to the card screen, exactly as in the flow.
-      goNext: () => setView((v) => (v === "paywall" ? "checkout" : "holding")),
+      goNext: () => setView((v) => (v === "plans" ? "start" : "holding")),
       goBack: () => {},
       goTo: () => {},
       finish: () => {},
@@ -87,7 +87,7 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
             Paywall · preview
           </p>
           <div className="mt-2 flex gap-1.5">
-            {(["paywall", "checkout", "holding"] as const).map((v) => (
+            {(["plans", "start", "holding"] as const).map((v) => (
               <button
                 key={v}
                 type="button"
@@ -111,8 +111,8 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
                and there is none here — so it will sit on "Setting up your
                trial" and then reach the recoverable state, which is exactly the
                pair worth looking at. */
-            <TrialHold onEntitled={() => setView("paywall")} />
-          ) : view === "checkout" ? (
+            <TrialHold onEntitled={() => setView("plans")} />
+          ) : view === "start" ? (
             <CheckoutScreen />
           ) : (
             <PaywallScreen />

@@ -34,6 +34,7 @@ import {
   type WeightUnit,
 } from "@/lib/weight";
 import { deleteWeight, logWeight } from "@/app/(app)/weight/actions";
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
 
 interface Entry {
   key: DateKey;
@@ -187,6 +188,8 @@ function ScrubTip({
  * presented neutrally — no good/bad colouring, no paywall copy.
  */
 export function WeightView({ entries, unitPreference, todayKey }: WeightViewProps) {
+  /** Guarded: logging a weigh-in CREATES data. Deleting one is not guarded. */
+  const { guard } = useWriteAccess();
   const router = useRouter();
   const unit = unitForPreference(unitPreference);
 
@@ -416,7 +419,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
         <button
           type="button"
-          onClick={handleSave}
+          onClick={() => guard(handleSave)}
           disabled={saving}
           className="mt-4 w-full rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
         >

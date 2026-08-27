@@ -43,8 +43,10 @@ const SCREENS: Record<StepId, () => React.ReactElement> = {
   cost: CostScreen,
   free: FreeScreen,
   account: AccountScreen,
-  paywall: PaywallScreen,
-  checkout: CheckoutScreen,
+  // The step ids are `plans` / `start`; the screens keep their original names.
+  // See `StepId` in `lib/onboarding/steps.ts` for why only the id moved.
+  plans: PaywallScreen,
+  start: CheckoutScreen,
   welcome: WelcomeScreen,
   install: InstallScreen,
   notifications: NotificationsScreen,

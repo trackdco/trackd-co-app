@@ -32,6 +32,17 @@ export type EntitlementProductRow = "pro";
 type BillingCustomerRow = {
   user_id: string;
   stripe_customer_id: string;
+  /**
+   * The lease `startTrial` holds across its Stripe check-and-create
+   * (`supabase/billing/002`, `lib/billing/trialLease.ts`). `-infinity` when
+   * unheld.
+   *
+   * ⚠️ Typed here while `002` may still be UNAPPLIED, which is a deliberate
+   * asymmetry: the type says the column exists so the claim can be written
+   * normally, and the claim handles the `42703` it gets back if it does not. A
+   * type cannot know what a hand-applied migration has done.
+   */
+  trial_lock_until: string;
   created_at: string;
   updated_at: string;
 };
@@ -87,7 +98,10 @@ export type BillingDatabase = {
     Tables: {
       billing_customers: {
         Row: BillingCustomerRow;
-        Insert: Defaulted<BillingCustomerRow, "created_at" | "updated_at">;
+        Insert: Defaulted<
+          BillingCustomerRow,
+          "created_at" | "updated_at" | "trial_lock_until"
+        >;
         Update: Partial<BillingCustomerRow>;
         Relationships: [];
       };
