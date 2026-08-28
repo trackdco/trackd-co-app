@@ -108,12 +108,14 @@ export function installSteps({ platform, browser }: DeviceGuess): InstallStep[] 
   if (platform === "ios") {
     if (browser !== "safari") {
       // Not possible here at all. Say so, and say what to do instead.
+      // The screen now carries an "Open in Safari" button and a copy button, so
+      // step one no longer asks them to select a URL by hand.
       return [
         {
           icon: "menu",
-          text: `Copy this page's address from ${BROWSER_LABEL[browser]}`,
+          text: `Open this page in Safari. ${BROWSER_LABEL[browser]} cannot install it`,
         },
-        { icon: null, text: "Open Safari and paste it in" },
+        { icon: null, text: "Sign in there if it asks you to" },
         { icon: "share", text: "Then Share, View More, Add to Home Screen" },
       ];
     }
@@ -149,3 +151,81 @@ export function installSteps({ platform, browser }: DeviceGuess): InstallStep[] 
     { icon: null, text: "Tap Install" },
   ];
 }
+
+/* ------------------------------------------------------------------ *
+ * The visual walkthrough
+ * ------------------------------------------------------------------ */
+
+/**
+ * Which set of drawn step frames applies here.
+ *
+ * `null` means there is no walkthrough to show: on iOS outside Safari the
+ * install is not possible at all, and drawing a Share sheet for a browser that
+ * does not have one is the exact failure `canInstallHere` exists to prevent.
+ */
+export type InstallFlowId =
+  | "ios-safari"
+  | "android-chrome"
+  | "android-samsung"
+  | "android-firefox";
+
+export function installFlowId({ platform, browser }: DeviceGuess): InstallFlowId | null {
+  if (platform === "ios") return browser === "safari" ? "ios-safari" : null;
+  if (browser === "samsung") return "android-samsung";
+  if (browser === "firefox") return "android-firefox";
+  // Chrome and Edge share a menu. This is the MENU path, not the one-tap
+  // prompt: the walkthrough only ever appears once the automatic route has
+  // failed, so showing "Chrome offers to install it for you" here would be
+  // describing the thing that just did not happen.
+  return "android-chrome";
+}
+
+export interface WalkthroughStep {
+  text: string;
+  /** The exact substring naming the control, emphasised in the caption. */
+  strong?: string;
+}
+
+/**
+ * One caption per drawn frame in `public/onboarding/install/<flow>/`.
+ *
+ * ⚠️ THESE ARE PAIRED WITH IMAGES BY INDEX. Caption 3 sits under frame `03`.
+ * Both are generated from the same step data in
+ * `scratchpad/icon-harness/install-build.html`, so re-render the frames and
+ * re-extract these together or a caption will describe the wrong picture.
+ *
+ * Longer and more specific than `installSteps` above, which stays as the terse
+ * text-only list for the case with no walkthrough. The two describe the same
+ * journey at different resolutions; this one is written against a drawing of
+ * the actual screen, so it can afford to name where on the screen to look.
+ */
+export const INSTALL_WALKTHROUGH: Record<InstallFlowId, WalkthroughStep[]> = {
+  "ios-safari": [
+    { text: "Tap ⋯ at the right-hand end of the address bar", strong: "⋯" },
+    { text: "Tap Share…", strong: "Share…" },
+    { text: "The sheet opens part-way. Tap View More", strong: "View More" },
+    { text: "The list grows. Tap Add to Home Screen", strong: "Add to Home Screen" },
+    { text: "Check the name, then tap Add", strong: "Add" },
+    { text: "Trackd is on the Home Screen" },
+  ],
+  "android-chrome": [
+    { text: "Tap ⋮ at the top right", strong: "⋮" },
+    { text: "Tap Install and create shortcut", strong: "Install and create shortcut" },
+    { text: "Tap Add", strong: "Add" },
+    { text: "Trackd is on the home screen" },
+  ],
+  "android-samsung": [
+    { text: "Tap the menu, bottom right", strong: "menu" },
+    { text: "Tap Add page to", strong: "Add page to" },
+    { text: "Tap Home screen", strong: "Home screen" },
+    { text: "Tap Add", strong: "Add" },
+    { text: "Trackd is on the home screen" },
+  ],
+  "android-firefox": [
+    { text: "Tap ⋮, bottom right", strong: "⋮" },
+    { text: "It isn’t top level. Tap More", strong: "More" },
+    { text: "Tap Add to Home screen", strong: "Add to Home screen" },
+    { text: "Tap Add", strong: "Add" },
+    { text: "Trackd is on the home screen" },
+  ],
+};

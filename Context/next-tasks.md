@@ -4,8 +4,53 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-27 (gate CONFIRMED ON; G2 CANCELLED by D113; the webhook
-pile is empty; one UNVERIFIED trial-conversion risk still open)
+Last updated: 2026-08-29 (deep links now survive sign-in at all five doorways;
+G2 CANCELLED by D113; the webhook pile is empty; one UNVERIFIED trial-conversion
+risk still open; TWO NEW ENVIRONMENT BLOCKERS below — `npm run check` cannot pass
+and the working tree does not build)
+
+---
+
+## 🔴 TWO ENVIRONMENT BLOCKERS, FOUND 2026-08-29. NEITHER IS MINE TO FIX BLIND.
+
+Both surfaced while verifying the deep-link fix. Both predate it. Neither is on
+`main` — they are local `node_modules` and uncommitted working-tree state — but
+the second one means **the tree as it stands right now would fail a Vercel
+build**, so it matters before the next push.
+
+### 1. `npm run check` cannot pass, and it has been HIDING type errors
+
+`node_modules/@types/` holds **19 duplicated `… 2` folders** — the same macOS
+duplication that produced `page 2.tsx`, `screenFacts 2.ts` and
+`tsconfig.harness 2.json`. `tsc` reports one TS2688 per folder and **bails before
+semantic analysis**, so `tsc --noEmit` looked "clean apart from noise" while
+`next build` immediately caught a real error it had never mentioned.
+
+`check` is `tsc --noEmit && eslint && npm run gate:check && vitest run`, so it
+short-circuits at the first `&&` — **eslint, the gate audit and vitest have not
+been running.**
+
+- [ ] `rm -rf node_modules/@types/*\ 2` (or a clean `npm ci`), then confirm
+      `npm run check` runs all four steps.
+
+Proved by excluding the duplicates via an explicit `compilerOptions.types` list:
+the full semantic check then runs and yields exactly the two errors below and
+nothing else. Vercel is unaffected — it installs fresh.
+
+### 2. The working tree does not build — `ApplePayOption`
+
+    components/onboarding/payment-sheet.tsx:6
+    components/onboarding/screens/checkout.tsx:11
+      Module '"@stripe/stripe-js"' has no exported member 'ApplePayOption'.
+
+`@stripe/stripe-js@9.13.0` does not export that type. Both files are Adrian's
+uncommitted Apple Pay work and **neither import is in HEAD**, so `main` is fine.
+With the duplicate type folders excluded these are the ONLY two type errors in
+the entire project.
+
+- [ ] Adrian: either bump `@stripe/stripe-js` to a version that exports it, or
+      use the type the installed version actually provides. Not guessed at here —
+      it is in-progress work and the right answer depends on the intent.
 
 ---
 

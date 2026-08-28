@@ -1,3 +1,4 @@
+import { InstallWalkthrough } from "@/components/onboarding/install-walkthrough";
 import { SHEET_TITLE } from "@/lib/ui-presets";
 
 /**
@@ -7,9 +8,21 @@ import { SHEET_TITLE } from "@/lib/ui-presets";
  * isn't installed yet (iOS only delivers Web Push to a Home-Screen-installed
  * standalone PWA).
  *
- * NOTE on spacing: every bold <span> is followed by an explicit {" "} so the space
- * survives JSX whitespace collapsing — without it, a line wrap turns "Share button"
- * into "Sharebutton".
+ * ## Why this shows the walkthrough (Adrian, 2026-08-29)
+ *
+ * He asked how somebody is told what to do **once they have got themselves into
+ * Safari**, and the honest answer was: by this component, with a three-line text
+ * list — while the person who never left the onboarding flow got the drawn
+ * walkthrough. That is backwards. The user who lands here is the one who was
+ * just bounced out of Chrome, told to copy a URL, and made to sign in a second
+ * time; they have spent more patience than anybody and understand less about
+ * where they are. They get the pictures.
+ *
+ * ⚠️ ALL THREE CALLERS GATE ON iOS SAFARI before rendering this — non-Safari
+ * iOS gets `OpenInSafariPrompt` instead, because the install is impossible
+ * there. So the device is pinned rather than guessed: this component is only
+ * ever reached in one situation, and re-deriving it here would invite the two
+ * checks to disagree.
  *
  * Presentational only (no hook, no state) — the parent decides when to show it.
  */
@@ -17,39 +30,10 @@ export function AddToHomeScreenPrompt() {
   return (
     <div className="rounded-2xl bg-bg-surface p-5">
       <p className={SHEET_TITLE}>Add Trackd to your Home Screen</p>
-      <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
+      <p className="mt-1.5 mb-4 text-sm leading-relaxed text-text-muted">
         Get the full app, not a Safari tab. Here&apos;s how:
       </p>
-      <ol className="mt-4 space-y-3">
-        <li className="flex items-start gap-3">
-          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
-            1
-          </span>
-          <span className="text-sm leading-snug text-text-muted">
-            Tap the <span className="text-foreground">Share</span>{" "}
-            button. On newer iPhones it&apos;s inside the{" "}
-            <span className="text-foreground">•••</span> menu.
-          </span>
-        </li>
-        <li className="flex items-start gap-3">
-          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
-            2
-          </span>
-          <span className="text-sm leading-snug text-text-muted">
-            Tap <span className="text-foreground">View more</span>{" "}
-            if you don&apos;t see the next option yet.
-          </span>
-        </li>
-        <li className="flex items-start gap-3">
-          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
-            3
-          </span>
-          <span className="text-sm leading-snug text-text-muted">
-            Choose <span className="text-foreground">Add to Home Screen</span>,
-            then open Trackd from your Home Screen.
-          </span>
-        </li>
-      </ol>
+      <InstallWalkthrough device={{ platform: "ios", browser: "safari" }} />
     </div>
   );
 }

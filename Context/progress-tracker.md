@@ -5,7 +5,132 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-27 (004 applied by Adrian; COMP_EMAILS reopened for barbrake24; three accounts deleted; the gate still unset)
+Last updated: 2026-08-29 (a deep link now survives sign-in, at all five doorways; the `next` parser is shared and two weak copies are gone; the subscribe row reaches an account with no entitlement)
+
+## A deep link stopped surviving sign-in, at five doorways (2026-08-29)
+
+Adrian opened `/billing` while signed out, was sent to sign in, and landed on
+`/dashboard`. Nothing about billing: **every server-side guard redirected to a
+bare `/login` and threw the destination away.**
+
+    app/(app)/layout.tsx              both guards — the whole logged-in app
+    app/welcome/page.tsx              the 18+/ToS gate, bounced back out
+    components/billing/BillingFlowEntry.tsx   `/plans` and `/checkout`
+
+The last one is the one that would have hurt after the fix below: `/billing`'s
+subscribe row points at `/plans`, so a lapsed session on the one screen built to
+sell a plan landed the user on the dashboard instead of the plan they clicked.
+
+### The path had to come from the proxy, and that is not a workaround
+
+**A Next 16 layout cannot read the current pathname.** `layout.md` §Pathname
+says so outright — layouts do not re-render on navigation, so they get no
+pathname — and points at `usePathname` in a Client Component, which is no use to
+a guard whose whole job is to decide on the server, before anything renders,
+that you may not be here. So `lib/supabase/middleware.ts` stamps
+`x-trackd-path`, which is the mechanism `proxy.md` §Setting Headers names for
+handing information from the proxy to the application.
+
+⚠️ **The stamp decides nothing.** Access is still `getUser()` in the guard, and
+the proxy is still refresh-only and still never trusted for access. When the
+header is absent the guards redirect exactly as they did before, so the failure
+mode is the old behaviour rather than an open door.
+
+⚠️ **The clone timing inside `setAll` is the invariant, not a detail.**
+`request.cookies.set` writes through to the request's `cookie` header, which is
+how the existing `NextResponse.next({ request })` pattern carries a refreshed
+session. The header clone is therefore taken *inside* each build point rather
+than once up front — a clone taken early would pin the OLD cookies onto the
+response and desync the browser and server sessions, which is precisely what
+that file's second invariant warns about.
+
+### ⚠️ THE SECURITY HALF, AND IT WAS FORESEEN IN WRITING
+
+`app/login/actions.ts` carried a hardened `readNext` and a note saying it was not
+remotely triggerable, *"but the guarantee goes live the first time anything reads
+`next` off a URL."* **This change is that first time.** `/login` now reads
+`?next=` off the address bar and hands it to three controls, two of which thread
+it onward to `/auth/callback` and `/auth/confirm` — **both of which were still
+running the `startsWith` test the hardened parser was written to replace:**
+
+    next=//evil.com       -> blocked
+    next=https://evil.com -> blocked
+    next=/\evil.com       -> PASSED, and the browser lands on evil.com
+    next=/<TAB>/evil.com  -> PASSED (also LF, CR)
+
+The WHATWG URL parser folds `\` to `/` and strips C0 controls, so `/\` IS `//`
+by the time a browser reads it. The parser moved to `lib/auth/nextPath.ts`; all
+four doorways call it; the bypasses are pinned in `lib/auth/nextPath.test.ts`.
+The emailed-link path is the least excusable of the four to have left weak — it
+sits in an inbox for days and can be forwarded.
+
+### The no-plan account had no route to a plan, anywhere
+
+Second half of the same report: signed in, read-only, no onboarding in sight.
+`showSubscribeRow` was `isBetaGrace(entitlement)` only, and its fourth exclusion
+read *"not a lapsed account — `05`'s pop-up owns that route."* That sentence
+could not carry the weight:
+
+- `05`'s pop-up fires **on an attempted write**. It is not a route somebody can
+  go and find; it happens to you when you try to log a dose.
+- And the argument holds whichever way `BILLING_GATE_ENABLED` is set, so the
+  fix does not rest on reading it. **Off** (G4 in `next-tasks.md` is still an
+  unticked box, so that is the live case as far as this repo says):
+  `canWriteData` returns `allowed` and the pop-up cannot fire at all — the route
+  the exclusion delegated to did not exist for the cohort being excluded. **On:**
+  it fires, but only at somebody already mid-write, which is still not a thing
+  you can go and find.
+
+So an account holding no entitlement row — every account that reached the app
+without going through the onboarding paywall — had no route to a plan anywhere
+in the product, least of all on Billing, which is the screen a person actually
+opens when they want to sort their plan out.
+
+⚠️ **This does not break the standing rule that nothing may route a user at the
+paywall until Adrian says so.** Nothing routes them. The row sits on a screen
+they navigated to themselves, in the ordinary weight §3.8 specifies — a caret
+row, not a filled button, "available rather than urgent". It is a route, not a
+push. Adrian chose this scope over both the do-nothing option and a redirect
+after sign-in, which he ruled out for exactly that reason.
+
+⚠️ `access.known` is load-bearing beside it. `entitlement === null` means BOTH
+"nothing entitles them" and "the entitlements read failed", and a database that
+would not answer is not grounds to offer somebody a control that starts a
+charge — the same argument `subscriptionsKnown` already makes for the mirror.
+
+### Measured, not reasoned
+
+Driven against a real dev server, signed out:
+
+    /billing              -> /login?next=%2Fbilling
+    /plans                -> /login?next=%2Fplans
+    /checkout             -> /login?next=%2Fcheckout
+    /progress?tab=photos  -> /login?next=%2Fprogress%3Ftab%3Dphotos
+    /dashboard            -> /login          (the default — carrying it is noise)
+
+and the hostile values, through the live query string: raw TAB, raw LF, `//`
+and an absolute URL all failed to reach the form's hidden field. The
+percent-encoded forms (`/%09/…`, `/%5C…`) survive as same-origin **paths** and
+were confirmed to 404 on our own origin rather than leaving it.
+
+### ⚠️ TWO ENVIRONMENT FINDINGS, NEITHER FIXED, BOTH REAL
+
+1. **`npm run check` cannot pass, and it has been hiding type errors.**
+   `node_modules/@types/` holds 19 duplicated `… 2` folders (the same macOS
+   duplication that produced `page 2.tsx`, `screenFacts 2.ts`,
+   `tsconfig.harness 2.json`). They make `tsc` bail with 19 TS2688s **before it
+   does semantic analysis**, so `tsc --noEmit` reported "clean apart from noise"
+   while `next build` caught a real error. `npm run check` short-circuits at its
+   first `&&`, so eslint, the gate audit and vitest never run. Fix is
+   `rm -rf node_modules/@types/*\ 2` or a clean `npm ci`. Vercel is unaffected —
+   it installs fresh.
+2. **The working tree does not build.** `ApplePayOption` is imported in
+   `components/onboarding/payment-sheet.tsx` and
+   `components/onboarding/screens/checkout.tsx`, and `@stripe/stripe-js@9.13.0`
+   does not export it. Both are uncommitted Apple Pay work in progress and
+   neither import is in HEAD; with the duplicate type folders excluded, those two
+   lines are the **only** type errors in the whole project.
+
 
 ## `004` is applied, the comp list reopened, and three accounts removed (2026-08-27)
 
@@ -3481,6 +3606,122 @@ plus an empty `app/api/stripe/webhook 2/`. All were untracked, gitignored and
 byte-identical to committed originals — `.gitignore` already documents them and
 says to delete them freely. ~18 more sit in `.git/objects` and make `git fsck`
 report "bad sha1 file"; harmless, left alone.
+
+### Install-flow icon sets — recreated per platform (28 Aug)
+
+All 58 app icons in the install mockups rebuilt against real reference imagery,
+in each platform's current design language. The previous set was a faithful
+recreation of the WRONG OS: `scratchpad/icon-harness/refs/` held iOS 18 artwork,
+so 22 carefully-built icons matched iOS 18 rather than iOS 26.
+
+**Tile silhouettes are now measured, not guessed.** Fitted off real artwork as
+superellipses (`|x/a|^n + |y/b|^n = 1`), applied as scalable SVG masks in both
+renderers:
+
+| | measured | previously in the build |
+| --- | --- | --- |
+| iOS 26 | n = 4.52 | 25.8% radius |
+| One UI 8.5 | n = 2.62 | 30% radius — about half the curvature |
+| Pixel | circle (n = 2) | correct |
+
+iOS 18 measures n = 5.08, so iOS 26 is genuinely rounder — the change is real,
+not a preference.
+
+**Per-platform artwork.** `APP_ART`/`APPICON` keys are now namespaced: iOS keeps
+the bare keys (the share sheet reaches for them directly), Samsung and Pixel
+resolve `sam_*`/`pix_*` first via `SkinCtx`/`artKey` and fall back to the bare
+key only where a platform has no variant. A Galaxy no longer renders Apple's
+Phone icon. The old un-namespaced Samsung/Google entries are pruned.
+
+Also fixed: the stop screen shares the Home Screen's Safari artwork instead of
+drawing a second, different Safari; "Angus" is gone from the share sheet target
+row (a real first name there reads as somebody's actual phone).
+
+Three icons have no true public reference and are marked as such in the audit
+sheet — iOS Files, iOS Fitness (Apple has published no iOS 26 artwork for
+either) and Pixel Settings.
+
+Artifacts: icon audit `3f3b5fb2-5bfa-41fc-b320-b33d08f5074b`, install flow
+`bf12810a-aded-41b9-9607-289802386f42`.
+
+### Install-flow Reels (28 Aug)
+
+Three 1080x1920 H.264 videos for Instagram, in `scratchpad/icon-harness/reels/`:
+iPhone/Safari (20s), Android/Chrome (12s), Samsung Internet (17s). Rendered by
+`reel.mjs` frame-by-frame from install-build.html's OWN `PATHS[key].frames[i]`,
+so the videos cannot drift from the mockups. Captions and tap targets were
+already in the build; the video adds a dim, a caption band below the phone and
+an amber ring on the tap target.
+
+Three bugs found and fixed while building it:
+
+- **Duplicate DOM broke SVG fills.** The harness hid the studio page with
+  `display:none` rather than removing it, so every `url(#ios_photos-g0)`
+  resolved to the hidden copy and Photos/Calendar lost their gradients. Icons
+  that share ids must not appear twice in one document.
+- **`at:'.saf-cap .dotbtn'` never matched** — `.dotbtn` is not inside
+  `.saf-cap`. The artifact's own step-1 finger had nothing to point at.
+  Now `at:'.dotbtn'`.
+- **Photos depended on `mix-blend-mode:multiply`**, which resolves against
+  whatever backdrop the browser supplies and vanished under a CSS mask plus an
+  ancestor transform. The petals use plain alpha now and render identically
+  everywhere.
+
+Pixel logos were also crowding their circles. Measured against the family that
+looked right (Gmail 0.64, Keep 0.62, Photos 0.66 of the tile) and brought Maps,
+Gemini, Calendar, Drive, Files, Wallet and Chrome into line; Phone was the
+opposite problem at 0.45 and was raised. Chrome had to be redrawn as a disc —
+its red base was a full-bleed rect with arcs painted over it, so scaling left
+a red square behind the logo. Samsung Gemini and SmartThings shrunk.
+
+### Install walkthrough, shipped into onboarding (29 Aug)
+
+The install step (screen 13) used to carry a three-line text list. It now
+carries a **swipeable, snap-scrolling walkthrough**: one drawn frame per step,
+the target lit and ringed with everything else dimmed, and a real-text caption
+under each card.
+
+New: `components/onboarding/install-walkthrough.tsx`,
+`app/preview/install/walkthrough/page.tsx` (all five device cases on one page),
+`public/onboarding/install/<flow>/NN.webp` (19 frames, 195 KB total; a user
+loads only their own platform, 32-69 KB).
+
+`lib/onboarding/platform.ts` gained `InstallFlowId`, `installFlowId()` and
+`INSTALL_WALKTHROUGH`. **The captions are paired with the images BY INDEX and
+both are generated from the same step data** in `install-build.html` — re-render
+the frames and re-extract the captions together (`still.mjs --bare`, `caps.mjs`)
+or a caption ends up describing the wrong picture.
+
+Decisions worth keeping:
+
+- **Frames are images, not DOM.** `app-carousel.tsx` already ships captures from
+  the `/preview/*` harness for the same reason. The alternative was a second
+  copy of every browser's chrome in production JSX, and it would be the copy
+  that drifts.
+- **Frames are CROPPED to the control.** A whole phone scaled into this screen
+  is ~140px wide and its menu rows are unreadable, which defeats the point.
+- **Captions are DOM text, not burned in** — screen-readable and editable
+  without re-rendering. Symbol glyphs (`⋯`, `⋮`) are set 1.45x, because at
+  caption size the one character carrying the instruction was the least visible
+  thing in the sentence.
+- **`installFlowId` returns null on iOS outside Safari** and the old text list
+  shows instead. There is no Share sheet to draw there; the instruction is to
+  change browser, not to press anything.
+- **The Safari landing gets the walkthrough too.** `AddToHomeScreenPrompt` — the
+  shared iPhone steps behind the post-sign-in popup, the Profile row and the push
+  flow — carried the old three-line text list. That is the surface somebody hits
+  after being bounced out of Chrome, told to copy a URL and made to sign in
+  again: the person who has spent the most patience was getting the least help,
+  while whoever never left onboarding got the pictures. All three callers already
+  gate on iOS Safari, so the device is pinned there rather than re-derived.
+- **Android keeps the one-tap prompt as the default** and gained an opt-in
+  "Show me how instead". Previously the steps only appeared once the prompt had
+  FAILED, which made people fail first to earn the explanation.
+
+Also produced for marketing, not in the app: three 1080x1920 Reels
+(`scratchpad/icon-harness/reels/`) and 20 carousel stills
+(`scratchpad/icon-harness/stills/`), with the carousel preview artifact at
+`7fcfb303-ab63-4333-8f4e-57e6dd05cc24`.
 
 ## Environment
 
