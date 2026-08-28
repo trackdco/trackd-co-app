@@ -379,3 +379,117 @@ export function intervalSuffix(plan: {
       return null;
   }
 }
+
+/**
+ * THE SAME INTERVAL, SPELLED OUT — "year" / "month" / "week".
+ *
+ * Apple's payment sheet is prose, not a data row: "per yr" reads as a typo
+ * where "per year" reads as a sentence. Same source and the SAME refusal as
+ * {@link intervalSuffix} — an interval count other than one, or an interval
+ * this app has no word for, returns null and the caller states nothing.
+ */
+export function intervalWord(plan: {
+  interval?: string;
+  intervalCount?: number;
+}): "year" | "month" | "week" | null {
+  if (plan.intervalCount !== undefined && plan.intervalCount !== 1) return null;
+  switch (plan.interval) {
+    case "year":
+      return "year";
+    case "month":
+      return "month";
+    case "week":
+      return "week";
+    default:
+      return null;
+  }
+}
+
+/**
+ * THE SAME INTERVAL, AS APPLE'S MACHINE FIELDS DEMAND IT.
+ *
+ * ⚠️ APPLE HAS NO WEEK. `ApplePayRecurringPaymentRequestIntervalUnit` is
+ * `year | month | day | hour | minute` — and this app sells a WEEKLY plan, which
+ * is also the plan the go-live smoke test charges. Handing Apple `"week"` is a
+ * type violation and an unobserved runtime risk on the one surface that
+ * authorises a charge.
+ *
+ * A week is expressed the only way Apple can hold it: seven days. That is exact
+ * rather than approximate, so the sheet's recurring line still describes the
+ * real subscription.
+ *
+ * ⚠️ THIS IS DELIBERATELY NOT {@link intervalWord}. That one is PROSE — "per
+ * week" is what a human should read — and this one is DATA. They disagree on
+ * the weekly plan on purpose, and collapsing them back into one function
+ * reintroduces the bug.
+ */
+export function applePayInterval(plan: {
+  interval?: string;
+  intervalCount?: number;
+}): { unit: "year" | "month" | "day"; count: number } | null {
+  if (plan.intervalCount !== undefined && plan.intervalCount !== 1) return null;
+  switch (plan.interval) {
+    case "year":
+      return { unit: "year", count: 1 };
+    case "month":
+      return { unit: "month", count: 1 };
+    case "week":
+      return { unit: "day", count: 7 };
+    default:
+      return null;
+  }
+}
+
+/**
+ * THE RECURRING CHARGE, AS APPLE'S SHEET MUST STATE IT — "US$69.99 per year".
+ *
+ * ## ⚠️ THE SYMBOL IS QUALIFIED HERE AND NOWHERE ELSE, DELIBERATELY
+ *
+ * Every one of our own screens prints the currency beside the amount ("$69.99
+ * USD/yr"), so a bare "$" is disambiguated by the label next to it. **The Apple
+ * Pay sheet has no such label** — it renders one line of our text and nothing
+ * else names the currency. A bare "$69.99" there is exactly the ambiguity `02b`
+ * warns about, on the one surface where the customer is authorising a charge.
+ *
+ * `en-GB` with `currencyDisplay: "symbol"` is a MEASURED pick, not a taste:
+ *
+ *     en-GB  symbol   USD=US$69.99   AUD=A$69.99   EUR=€69.99   ✅
+ *     en-AU  symbol   USD=USD 69.99  AUD=$69.99                 clumsy
+ *     en-US  symbol   USD=$69.99     AUD=A$69.99                ambiguous
+ *
+ * So a dollar is never bare, and a non-dollar currency still reads naturally.
+ * ⚠️ The locale is about FORMATTING, not about the customer — do not "fix" it
+ * to the user's locale, which would reintroduce the bare dollar for Americans.
+ *
+ * Returns null when the interval cannot be stated, and the caller then sends no
+ * recurring request at all rather than describing the charge wrongly.
+ */
+export function recurringLabel(plan: {
+  price: number;
+  currency: string;
+  interval?: string;
+  intervalCount?: number;
+}): string | null {
+  const word = intervalWord(plan);
+  if (!word) return null;
+  let amount: string;
+  try {
+    amount = new Intl.NumberFormat("en-GB", {
+      style: "currency",
+      currency: plan.currency.toUpperCase(),
+      currencyDisplay: "symbol",
+    }).format(plan.price);
+  } catch {
+    /**
+     * A MALFORMED code — `Intl` throws `RangeError` on anything that is not
+     * three letters ("", "us", "badcode").
+     *
+     * ⚠️ It does NOT throw on a well-formed code it does not know: measured,
+     * "xyz" formats as "XYZ 69.99". That is not caught here and does not need
+     * to be — it still names the currency, which is the property this whole
+     * function exists to guarantee. Only the unformattable case says nothing.
+     */
+    return null;
+  }
+  return `${amount} per ${word}`;
+}

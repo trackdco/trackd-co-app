@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   resolveReturningIntent,
@@ -8,11 +8,28 @@ import {
 } from "@/app/onboarding/billing-actions";
 import { track } from "@/lib/onboarding/analytics";
 import type { IntentKind } from "@/lib/billing/stripe";
+import type { StripeExpressCheckoutElementOptions } from "@stripe/stripe-js";
+
+/**
+ * ⚠️ DERIVED, BECAUSE `ApplePayOption` IS NOT EXPORTED FROM THE PACKAGE ROOT.
+ *
+ * It is declared in `elements/apple-pay.d.ts`, but `elements/index.d.ts` does
+ * not re-export that module — `express-checkout.d.ts` imports the type without
+ * re-exporting it either. Naming it directly compiles to
+ * `TS2305: has no exported member 'ApplePayOption'`.
+ *
+ * Reaching into the deep path would work and would break on any repackage, so
+ * the type is taken off the public options surface instead. That cannot drift:
+ * if Stripe changes the shape, this changes with it.
+ */
+type ApplePayOption = NonNullable<StripeExpressCheckoutElementOptions["applePay"]>;
 import {
   billingDate,
   formatPrice,
+  applePayInterval,
   intervalSuffix,
   monthlyEquivalent,
+  recurringLabel,
   TRIAL_DAYS,
 } from "@/lib/onboarding/pricing";
 import { FLOW_EMPHASIS } from "@/lib/ui-presets";
@@ -239,7 +256,190 @@ export function CheckoutScreen() {
   }, []);
 
 
+  /**
+   * ⚠️ THE CLOCK, READ EXACTLY ONCE, AT MOUNT.
+   *
+   * `Date.now()` in a render body is an impure call and the house lint config
+   * refuses it by name (`react-hooks/purity`) — correctly: a re-render would
+   * move the date under somebody mid-session, and the whole point of printing a
+   * billing date is that it is a fixed commitment. A lazy `useState`
+   * initialiser is React's own sanctioned way to freeze one.
+   */
+  const [mountedAt] = useState(() => Date.now());
+
   const selected = priceFor(session.plan);
+
+  /** Primitives, so the memo below is not re-run by a fresh object identity. */
+  const planAmountMinor = selected?.amountMinor;
+  const planCurrency = selected?.currency;
+  const planPrice = selected?.price;
+  const planInterval = selected?.interval;
+  const planIntervalCount = selected?.intervalCount;
+
+  /**
+   * ⚠️ ONE STRING THAT CHANGES ONLY WHEN THE REQUEST'S CONTENT DOES.
+   *
+   * The memo below cannot depend on `selected`: `priceFor` builds a FRESH
+   * OBJECT LITERAL on every call (`flow.tsx:420-432`), so the identity never
+   * matches and the memo recomputes every render — handing the Element a new
+   * options object each time, which is what makes react-stripe call
+   * `element.update()`. `applePay` is a CREATE-only option and `update()` does
+   * not accept it.
+   *
+   * Depending on the individual primitives instead is what the React Compiler
+   * refuses to preserve (`react-hooks/preserve-manual-memoization`), because it
+   * cannot prove values read off an optional chain are stable. A single derived
+   * string is stable BY VALUE, so the compiler keeps the memo and the identity
+   * only changes when something a customer would actually see changes.
+   */
+  const applePaySignature = [
+    planAmountMinor,
+    planCurrency,
+    planPrice,
+    planInterval,
+    planIntervalCount,
+    trial,
+    midGrace,
+    graceEndsOn,
+  ].join("|");
+
+  /**
+   * WHAT APPLE'S SHEET SAYS, INSTEAD OF "AMOUNT PENDING".
+   *
+   * ## Why the sheet says that at all
+   *
+   * Elements mounts in `setup` mode for anyone with free time, because nothing
+   * is due today — so there is no amount, Apple has no total to render, and its
+   * sheet falls back to the pending state. `recurringPaymentRequest` is how a
+   * subscription declares itself instead: the recurring charge, and separately
+   * the free run in front of it.
+   *
+   * ## ⚠️ IT IS BUILT PER COHORT, because "7 days free" is a LIE to two of them
+   *
+   * The same rule the rest of this screen already follows. A returning customer
+   * is charged today and a mid-grace beta user is charged when their fortnight
+   * ends; promising either of them seven free days on the sheet that authorises
+   * the charge is the Law 5 violation this screen exists to avoid, one surface
+   * further out than the disclosure.
+   *
+   * ⚠️ And the mid-grace wording obeys D17: no "trial", and nothing framing
+   * their free time as running out. "Free until 1 Sep" states a fact.
+   *
+   * ## What it refuses to state
+   *
+   * No price, no minor amount, an interval count other than one, or an interval
+   * with no word for it — and it returns undefined, sending no request at all.
+   * The sheet then shows pending, which is worse than a correct total and far
+   * better than a confident wrong one. Same refusal `intervalSuffix` already
+   * makes for the on-screen price line.
+   *
+   * ⚠️ `managementURL` MUST be absolute and reachable — Apple shows it in the
+   * customer's Wallet as the way to cancel. It is read from the live origin
+   * rather than typed, so a preview deploy points at itself.
+   */
+  const applePay = useMemo<ApplePayOption | undefined>(() => {
+    if (typeof window === "undefined") return undefined;
+    if (planAmountMinor === undefined || planCurrency === undefined) return undefined;
+    if (planPrice === undefined) return undefined;
+
+    const every = applePayInterval({ interval: planInterval, intervalCount: planIntervalCount });
+    const label = recurringLabel({
+      price: planPrice,
+      currency: planCurrency,
+      interval: planInterval,
+      intervalCount: planIntervalCount,
+    });
+    if (!every || !label) return undefined;
+
+    const regularBilling = {
+      /** The line the customer sees against the recurring charge. */
+      label: "Trackd Pro",
+      amount: planAmountMinor,
+      recurringPaymentIntervalUnit: every.unit,
+      recurringPaymentIntervalCount: every.count,
+    };
+    const managementURL = `${window.location.origin}/billing`;
+
+    // Charged today: one recurring line, and no free run to describe.
+    if (!trial && !midGrace) {
+      return {
+        recurringPaymentRequest: { paymentDescription: label, managementURL, regularBilling },
+      };
+    }
+
+    /**
+     * ⚠️ THE MID-GRACE BRANCH CARRIES NO DATES, AND THAT IS THE FIX RATHER THAN
+     * AN OMISSION.
+     *
+     * `graceEndsOn` — the day the words name — is CLAMPED: `flowEntryDates.ts`
+     * runs it through `resolveFreeTime`, which floors the end at
+     * `STRIPE_MIN_TRIAL_END_OFFSET` (48h) so Stripe will accept the trial end,
+     * and the create call uses that same clamped instant. `eligibility.graceEndsAt`
+     * is the RAW row.
+     *
+     * Feeding the raw instant to Apple's machine fields while the description
+     * names the clamped day puts a contradiction of up to 48 hours INSIDE ONE
+     * REQUEST, for every beta account in its final two days. Stating the free
+     * run without dating it is honest; dating it from a second source is the
+     * defect `flowEntryDates.ts` exists to prevent, one surface further out.
+     */
+    if (midGrace) {
+      return {
+        recurringPaymentRequest: {
+          paymentDescription: `Free until ${graceEndsOn}, then ${label}`,
+          managementURL,
+          regularBilling,
+          trialBilling: { label: `Free until ${graceEndsOn}`, amount: 0 },
+        },
+      };
+    }
+
+    /**
+     * The trial cohort DOES carry dates, because nothing clamps them: the
+     * projection here is the same one `onboardingDates` makes server-side
+     * (`now` + `TRIAL_DAYS`), so the words and the instants share a source.
+     */
+    const billingStarts = new Date(mountedAt + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+    const freeLabel = `${TRIAL_DAYS} days free`;
+    return {
+      recurringPaymentRequest: {
+        paymentDescription: `${freeLabel}, then ${label}`,
+        managementURL,
+        regularBilling: { ...regularBilling, recurringPaymentStartDate: billingStarts },
+        trialBilling: {
+          label: freeLabel,
+          amount: 0,
+          recurringPaymentStartDate: new Date(mountedAt),
+          recurringPaymentEndDate: billingStarts,
+        },
+      },
+    };
+    /**
+     * ⚠️ PRIMITIVES ONLY. `priceFor` builds a FRESH OBJECT LITERAL every call
+     * (`flow.tsx:420-432`), so depending on `selected` meant this recomputed on
+     * every render, handing `ExpressCheckoutElement` a new options object each
+     * time — and react-stripe then calls `element.update()`, which does not
+     * accept `applePay` at all.
+     */
+    /**
+     * ⚠️ TWO LINT RULES WANT OPPOSITE THINGS HERE, AND THIS IS THE RESOLUTION.
+     *
+     *   exhaustive-deps                 wants every primitive listed.
+     *   preserve-manual-memoization     ERRORS if they are, because it cannot
+     *                                   prove a value read off an optional
+     *                                   chain is stable, and it then abandons
+     *                                   compiling this component entirely.
+     *
+     * The second is an error and costs the whole component its optimisation, so
+     * the signature wins. It is exhaustive BY CONSTRUCTION — every value the
+     * body reads is in the string above — which is the property exhaustive-deps
+     * is actually protecting, reached a different way.
+     *
+     * ⚠️ ADD A READ TO THE BODY, ADD IT TO THE SIGNATURE. Nothing enforces that
+     * but this comment.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applePaySignature, mountedAt]);
   /**
    * ⚠️ FROM THE SERVER, in the user's STORED timezone (spec 02b §3.5).
    *
@@ -624,6 +824,7 @@ export function CheckoutScreen() {
               trial ? `Start my ${TRIAL_DAYS}-day free trial` : "Subscribe"
             }
             disclosure={disclosure}
+            applePay={applePay}
             onOutcome={onOutcome}
           />
         ) : (

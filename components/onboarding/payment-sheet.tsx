@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
-import { loadStripe, type Stripe } from "@stripe/stripe-js";
+import {
+  loadStripe,
+  type AvailablePaymentMethods,
+  type Stripe,
+  type StripeExpressCheckoutElementOptions,
+} from "@stripe/stripe-js";
 import {
   Elements,
   ExpressCheckoutElement,
@@ -16,6 +21,15 @@ import type { PlanId } from "@/lib/onboarding/pricing";
 import type { IntentKind } from "@/lib/billing/stripe";
 
 import { paymentAppearance } from "./stripe-appearance";
+
+/**
+ * ⚠️ DERIVED, BECAUSE `ApplePayOption` IS NOT EXPORTED FROM THE PACKAGE ROOT.
+ *
+ * `elements/index.d.ts` does not re-export `elements/apple-pay.d.ts`, so naming
+ * the type directly is `TS2305: has no exported member`. Taken off the public
+ * options surface instead, which cannot drift from the shape Stripe accepts.
+ */
+type ApplePayOption = NonNullable<StripeExpressCheckoutElementOptions["applePay"]>;
 
 /**
  * The payment surface, mounted INSIDE the paywall (Spec w2b-15).
@@ -87,6 +101,7 @@ export function PaymentSheet({
   ctaLabel,
   disclosure,
   onOutcome,
+  applePay,
   notice,
   onModeCorrection,
 }: {
@@ -138,6 +153,26 @@ export function PaymentSheet({
    */
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
+  /**
+   * ⚠️ WHAT APPLE'S SHEET SAYS THIS CHARGE IS. Without it the sheet reads
+   * "Amount Pending".
+   *
+   * The Element mounts in `setup` mode for anyone with free time, because
+   * nothing is due today — and a sheet with no amount has nothing to total, so
+   * Apple renders the pending state. `recurringPaymentRequest` is how a
+   * subscription declares itself: the recurring charge, and separately the free
+   * run before it.
+   *
+   * ⚠️ BUILT BY THE SCREEN, NOT HERE, for the same reason {@link disclosure}
+   * is. The cohort decides what is true — "7 days free" is a lie to somebody
+   * charged today — and the screen is what knows the cohort. This component
+   * only carries it to Stripe.
+   *
+   * Undefined is a valid answer and means "say nothing": no price, no stateable
+   * interval, no wallet. The sheet then falls back to pending, which is worse
+   * than a correct total and far better than a wrong one.
+   */
+  applePay?: ApplePayOption;
   /**
    * A message from OUTSIDE a submit — today, what a returning bank redirect
    * resolved to (§3.5). Rendered in the same slot as a confirm error so there
@@ -265,6 +300,7 @@ export function PaymentSheet({
         ctaLabel={ctaLabel}
         disclosure={disclosure}
         onOutcome={onOutcome}
+        applePay={applePay}
         notice={notice}
         onModeCorrection={onModeCorrection}
       />
@@ -279,6 +315,7 @@ function PaymentForm({
   ctaLabel,
   disclosure,
   onOutcome,
+  applePay,
   notice,
   onModeCorrection,
 }: {
@@ -291,6 +328,8 @@ function PaymentForm({
   disclosure: ReactNode;
   onOutcome: (outcome: PaymentOutcome) => void;
   /** See `PaymentSheet`. */
+  applePay?: ApplePayOption;
+  /** See `PaymentSheet`. */
   notice?: string;
   /** See `PaymentSheet`. */
   onModeCorrection?: (mode: IntentKind) => void;
@@ -299,6 +338,26 @@ function PaymentForm({
   const elements = useElements();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * WHICH WALLETS THIS DEVICE CAN ACTUALLY OFFER, as `onReady` reports them.
+   *
+   * Three states, and the third is the one that matters:
+   *
+   *   null       the Element has not reported yet. Reserve the space.
+   *   undefined  it reported, and NO wallet can show.
+   *   object     it reported, and at least one can.
+   *
+   * ⚠️ `null` is not the same as `undefined` here and must not be collapsed
+   * into a single falsy check. Treating "not reported yet" as "no wallet"
+   * hides the wrapper on first paint and pops it back in when Stripe answers,
+   * which is worse than the gap it was meant to remove.
+   */
+  const [wallets, setWallets] = useState<AvailablePaymentMethods | undefined | null>(
+    null,
+  );
+  /** Reported, and nothing to show. Only then is the wrapper's space wasted. */
+  const noWallet = wallets !== null && !wallets;
 
   /**
    * One path for the card fields and for a wallet, so they cannot diverge.
@@ -454,13 +513,63 @@ function PaymentForm({
           the same false premise and is corrected there. Removing the residual gap
           needs `onReady`'s `availablePaymentMethods` to drop the wrapper — a
           behaviour change, outside Step 6, and worth a further 12px. */}
-      <ExpressCheckoutElement
-        options={{
-          buttonTheme: { applePay: "white-outline", googlePay: "white" },
-          buttonHeight: 48,
-        }}
-        onConfirm={(event) => void run(() => event.paymentFailed({ reason: "fail" }))}
-      />
+      {/* ⚠️ HIDDEN, NEVER UNMOUNTED, WHEN THERE IS NO WALLET.
+          `onReady` is fired BY this element, so unmounting it on that event
+          would destroy the thing that reported — and with it any chance of it
+          reporting again. `display:none` keeps the Element alive and costs no
+          box, which is what reclaims the 12px `space-y-3` was paying for a
+          button that is not there. */}
+      <div className={noWallet ? "hidden" : undefined}>
+        {/* ⚠️ KEYED ON THE DESCRIPTION, BECAUSE `applePay` IS A CREATE-ONLY
+            OPTION. react-stripe creates the Element once and thereafter only
+            calls `element.update()`, whose option type
+            (`StripeExpressCheckoutElementUpdateOptions`) has no `applePay` at
+            all — so a changed request would be silently dropped and the sheet
+            would keep describing the OLD deal.
+
+            That is reachable, not theoretical: on a mode correction the user
+            stays on this screen and is asked to retry, while `Elements` re-mounts
+            in `payment` mode. Without this key the retry shows a real total
+            beside "7 days free". Changing the key remounts the Element, which is
+            the only way the new request reaches Stripe. */}
+        <ExpressCheckoutElement
+          key={applePay?.recurringPaymentRequest?.paymentDescription ?? "no-apple-pay"}
+          options={{
+            buttonTheme: { applePay: "white-outline", googlePay: "white" },
+            buttonHeight: 48,
+            /**
+             * ⚠️ `"always"`, NOT the `"auto"` default, and it is the difference
+             * between a button and an empty gap on two common setups.
+             *
+             * Stripe's own matrix: Apple Pay on a NON-SAFARI desktop browser
+             * shows only when this is `always`, and on Safari it is otherwise
+             * suppressed whenever the wallet holds no active card.
+             *
+             * The cost, stated because it is a real one: with `always` the
+             * button also renders for somebody with no card saved, and tapping
+             * it opens Apple's card-setup flow rather than paying. A button
+             * that leads somewhere is still better than the silence, which is
+             * indistinguishable from us being broken.
+             */
+            paymentMethods: { applePay: "always", googlePay: "always" },
+            /* Spread, never `applePay: applePay` — `ApplePayOption` is a union
+               requiring exactly one request kind, and an explicit `undefined`
+               is not the same as the key being absent. */
+            ...(applePay ? { applePay } : {}),
+          }}
+          /**
+           * ⚠️ THE ONLY MOUNT-TIME SIGNAL THIS SCREEN HAS. Without it "Apple Pay
+           * is not showing" and "Apple Pay failed to load" are the same empty
+           * space, and the first one cost this project a long hunt through the
+           * dashboard for a fault that was in neither place.
+           */
+          onLoadError={({ error: loadError }) =>
+            console.error("[billing] express checkout failed to load:", loadError)
+          }
+          onReady={({ availablePaymentMethods }) => setWallets(availablePaymentMethods)}
+          onConfirm={(event) => void run(() => event.paymentFailed({ reason: "fail" }))}
+        />
+      </div>
 
       <PaymentElement
         options={{
