@@ -389,7 +389,17 @@ export function CheckoutScreen() {
           paymentDescription: `Free until ${graceEndsOn}, then ${label}`,
           managementURL,
           regularBilling,
-          trialBilling: { label: `Free until ${graceEndsOn}`, amount: 0 },
+          /**
+           * ⚠️ NO `trialBilling` HERE, and that is deliberate.
+           *
+           * Apple prints an INTERVAL against every billing line, and defaults it
+           * to "1 month" when one is not supplied — measured on the trial sheet,
+           * which read "Free / 1 month" for a SEVEN day trial. Stating the free
+           * run needs its length, and this cohort's length is the clamped grace
+           * window, which the comment above explains we deliberately do not date
+           * from here. So the free run is carried by the description alone,
+           * where it is a sentence rather than a mis-defaulted interval.
+           */
         },
       };
     }
@@ -411,6 +421,19 @@ export function CheckoutScreen() {
           amount: 0,
           recurringPaymentStartDate: new Date(mountedAt),
           recurringPaymentEndDate: billingStarts,
+          /**
+           * ⚠️ THE FREE LINE NEEDS ITS OWN INTERVAL. Without these two, Apple
+           * prints "1 month" against a SEVEN DAY trial — measured on the live
+           * sheet, and a free period stated as four times its real length is
+           * exactly the kind of contradiction this screen is built to avoid.
+           *
+           * Days rather than weeks because `TRIAL_DAYS` is not guaranteed to
+           * divide into whole weeks; Apple has no week unit anyway, and it
+           * renders a 7-day interval back as "per week" on the recurring line,
+           * so days lose nothing.
+           */
+          recurringPaymentIntervalUnit: "day" as const,
+          recurringPaymentIntervalCount: TRIAL_DAYS,
         },
       },
     };
