@@ -13,12 +13,12 @@ const SCREENS = [
   {
     href: "/preview/install/presell",
     title: "This is where Trackd goes",
-    note: "The pre-sell. One action, no skip. Switch iPhone / Samsung / Pixel at the top — each draws its own launcher.",
+    note: "The pre-sell. One action, no skip. Switch iPhone / Samsung / Pixel at the top. Each draws its own launcher.",
   },
   {
     href: "/preview/install/stop",
     title: "Open Safari",
-    note: "The black stop screen, for iPhone users in Chrome, Firefox or Edge — where adding to the Home Screen is impossible.",
+    note: "The black stop screen, for iPhone users in Chrome, Firefox or Edge, where adding to the Home Screen is impossible.",
   },
   {
     href: "/preview/install/returned",

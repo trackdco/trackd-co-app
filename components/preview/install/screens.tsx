@@ -63,8 +63,8 @@ function FlowHead({ pct }: { pct: number }) {
 export function PresellScreen({ skin }: { skin: Skin }) {
   const how =
     skin === "ios"
-      ? "It gets there from Safari — its own icon, no address bar, and reminders that actually arrive. Four taps, and we'll show you each one."
-      : `${skin === "sam" ? "Samsung Internet" : "Chrome"} can put it there for you — its own icon, no address bar, and reminders that actually arrive.`;
+      ? "It gets there from Safari: its own icon, no address bar, and reminders that actually arrive. Four taps, and we'll show you each one."
+      : `${skin === "sam" ? "Samsung Internet" : "Chrome"} can put it there for you: its own icon, no address bar, and reminders that actually arrive.`;
 
   return (
     <Screen>
@@ -169,7 +169,7 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
             Trackd is on your home screen
           </h2>
           <p className={cn(FLOW_SUB, "mt-3 max-w-[19rem] text-center text-pretty")}>
-            You can close this tab. Open Trackd from your home screen &mdash; that&rsquo;s where
+            You can close this tab. Open Trackd from your home screen. That&rsquo;s where
             your reminders come from.
           </p>
           <span className="mt-5 flex items-center gap-2 font-mono text-[9.5px] tracking-[0.16em] text-text-subtle uppercase">
@@ -196,7 +196,7 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
           <TrackdIcon asking />
           <h2 className={cn(FLOW_TITLE, "mt-7 text-[1.95rem] text-balance")}>Did you add Trackd?</h2>
           <p className={cn(FLOW_SUB, "mt-3 max-w-[19rem] text-center text-pretty")}>
-            If it&rsquo;s on your Home Screen, open it from there &mdash; everything happens in the
+            If it&rsquo;s on your Home Screen, open it from there. Everything happens in the
             app now.
           </p>
         </div>
@@ -208,7 +208,7 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
             Yes, it&rsquo;s on my Home Screen
           </button>
           <button type="button" className="mx-auto block rounded-md px-3 py-2 text-[11.5px] text-text-subtle">
-            Not yet &mdash; show me the steps
+            Not yet, show me the steps
           </button>
         </div>
       </Screen>
@@ -223,8 +223,8 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
           Open Trackd from your Home Screen
         </h2>
         <p className={cn(FLOW_SUB, "mt-3 max-w-[19rem] text-center text-pretty")}>
-          Look for this icon. This Safari tab is finished &mdash; carrying on here won&rsquo;t carry
-          over.
+          Look for this icon. This Safari tab is finished, and carrying on here won&rsquo;t
+          carry over.
         </p>
         <span className="mt-5 flex max-w-[20rem] items-start gap-2.5 rounded-2xl border border-border-default bg-bg-surface px-3.5 py-3 text-left">
           <svg viewBox="0 0 24 24" className="mt-0.5 h-[15px] w-[15px] flex-none text-accent-amber" fill="none" aria-hidden>
