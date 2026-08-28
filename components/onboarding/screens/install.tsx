@@ -3,12 +3,14 @@
 import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { DotsThree, Plus, Share } from "@/components/icons";
+import { useMounted } from "@/components/home/useMounted";
 import { usePwaInstall } from "@/components/pwa/usePwaInstall";
 import { track } from "@/lib/onboarding/analytics";
 import {
   BROWSER_LABEL,
   canInstallHere,
   guessDevice,
+  installFlowId,
   installSteps,
   type Browser,
   type DeviceGuess,
@@ -17,6 +19,7 @@ import { DATA_MONO } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, SkipLink, StepFrame } from "../chrome";
+import { InstallWalkthrough } from "../install-walkthrough";
 import { Segmented } from "../controls";
 import { useFlow } from "../flow-context";
 
@@ -85,10 +88,33 @@ export function InstallScreen() {
   // advancing past the end of `STEP_ORDER` is a silent no-op — the buttons
   // would simply have stopped working.
   const { finish } = useFlow();
-  // Platform AND browser, guessed once and overridable. `device` is what every
-  // piece of copy on this screen reads from, so the toggle genuinely changes
-  // the instructions rather than only the label above them.
-  const [device, setDevice] = useState<DeviceGuess>(guessDevice);
+  /**
+   * Platform AND browser, guessed after mount and overridable. `device` is what
+   * every piece of copy on this screen reads from, so the toggle genuinely
+   * changes the instructions rather than only the label above them.
+   *
+   * ⚠️ GUESSED AFTER MOUNT, NOT IN THE INITIALISER. `useState(guessDevice)` runs
+   * on the server too, where there is no `navigator` — so SSR always guessed
+   * iPhone/Safari and every other device hydrated into a mismatch. Measured:
+   * clean on iPhone Safari, one hydration error each on iPhone Chrome, Android
+   * Chrome and Samsung Internet. React recovered by throwing the subtree away
+   * and re-rendering, which is a flash of the wrong instructions for the
+   * majority of Android users. Same `useMounted` shape `InstallHomeScreenPopup`
+   * already uses for `getCapability`.
+   */
+  const mounted = useMounted();
+  const [override, setOverride] = useState<DeviceGuess | null>(null);
+  const device: DeviceGuess =
+    override ?? (mounted ? guessDevice() : { platform: "ios", browser: "safari" });
+  const setDevice = useCallback(
+    (next: DeviceGuess | ((d: DeviceGuess) => DeviceGuess)) => {
+      // Only ever called from a toggle, so `guessDevice()` is safely client-side.
+      setOverride((prev) =>
+        typeof next === "function" ? next(prev ?? guessDevice()) : next,
+      );
+    },
+    [],
+  );
   const platform = device.platform;
   const { canInstall, promptInstall } = usePwaInstall();
   const [busy, setBusy] = useState(false);
@@ -115,6 +141,17 @@ export function InstallScreen() {
    * avoids: the manual steps appear underneath, and they get a way past.
    */
   const [promptFailed, setPromptFailed] = useState(false);
+
+  /**
+   * Android, prompt working, user still wants to see it done.
+   *
+   * The one-tap path stays the default and nothing is shown by default, because
+   * a wall of instructions above a button that already works is noise. But
+   * "I'd rather see it" is a reasonable thing to want from a step that is about
+   * to change their home screen, and refusing to show it until the automatic
+   * route FAILS makes them fail first to earn the explanation.
+   */
+  const [showSteps, setShowSteps] = useState(false);
 
   const install = useCallback(async () => {
     setBusy(true);
@@ -168,14 +205,18 @@ export function InstallScreen() {
                 path away because it missed once would be the wrong trade. */}
             {promptFailed ? (
               <SkipLink onClick={install}>Try again</SkipLink>
-            ) : null}
+            ) : (
+              <SkipLink onClick={() => setShowSteps((s) => !s)}>
+                {showSteps ? "Hide the steps" : "Show me how instead"}
+              </SkipLink>
+            )}
             <SkipLink onClick={finish}>Skip for now</SkipLink>
           </div>
         }
       >
         {/* Nothing at all until the automatic path fails — an empty box here
             would take the centred block off centre for a spacer. */}
-        {promptFailed ? <InstallSteps device={device} /> : null}
+        {promptFailed || showSteps ? <InstallHowTo device={device} /> : null}
       </StepFrame>
     );
   }
@@ -252,9 +293,26 @@ export function InstallScreen() {
           }
         />
 
-        <InstallSteps device={device} />
+        <InstallHowTo device={device} />
       </div>
     </StepFrame>
+  );
+}
+
+/**
+ * Show the walkthrough where there is one, and fall back to the text list
+ * where there is not.
+ *
+ * The only case without one is iOS outside Safari, where the install cannot
+ * happen at all: there is no Share sheet to draw, and the instruction is to
+ * change browser rather than to press anything. A picture would be inventing a
+ * screen that does not exist.
+ */
+function InstallHowTo({ device }: { device: DeviceGuess }) {
+  return installFlowId(device) ? (
+    <InstallWalkthrough device={device} />
+  ) : (
+    <InstallSteps device={device} />
   );
 }
 
