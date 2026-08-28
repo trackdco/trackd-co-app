@@ -116,7 +116,7 @@ export function OpenSafariScreen() {
           Chrome can&rsquo;t put apps on your iPhone&rsquo;s Home&nbsp;Screen. Only Safari can.
         </p>
         <span className="mt-[26px] inline-flex items-center gap-2.5 rounded-full border border-[rgb(240_239_233/0.16)] bg-[rgb(240_239_233/0.05)] py-2.5 pr-2 pl-4 font-mono text-[12.5px] text-[#F0EFE9]">
-          trackd.co
+          trackdco.app
           <em className="rounded-full bg-accent-amber px-2.5 py-1 text-[9.5px] tracking-[0.14em] text-[#100E09] uppercase not-italic">
             Copied
           </em>

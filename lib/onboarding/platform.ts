@@ -108,12 +108,14 @@ export function installSteps({ platform, browser }: DeviceGuess): InstallStep[] 
   if (platform === "ios") {
     if (browser !== "safari") {
       // Not possible here at all. Say so, and say what to do instead.
+      // The screen now carries an "Open in Safari" button and a copy button, so
+      // step one no longer asks them to select a URL by hand.
       return [
         {
           icon: "menu",
-          text: `Copy this page's address from ${BROWSER_LABEL[browser]}`,
+          text: `Open this page in Safari. ${BROWSER_LABEL[browser]} cannot install it`,
         },
-        { icon: null, text: "Open Safari and paste it in" },
+        { icon: null, text: "Sign in there if it asks you to" },
         { icon: "share", text: "Then Share, View More, Add to Home Screen" },
       ];
     }

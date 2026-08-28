@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 
 import { FlowCta, SkipLink, StepFrame } from "../chrome";
 import { InstallWalkthrough } from "../install-walkthrough";
+import { OpenInSafari } from "../open-in-safari";
 import { Segmented } from "../controls";
 import { useFlow } from "../flow-context";
 
@@ -250,7 +251,15 @@ export function InstallScreen() {
       }
       footer={
         <div className="space-y-1">
-          <FlowCta onClick={confirmManually}>I&apos;ve added it</FlowCta>
+          {/* On the wrong browser, "I've added it" cannot be the primary action:
+              nothing here can add it. Getting to Safari IS the step, so that is
+              the button, and the confirmation drops to a quieter row. */}
+          {wrongBrowser ? null : (
+            <FlowCta onClick={confirmManually}>I&apos;ve added it</FlowCta>
+          )}
+          {wrongBrowser ? (
+            <SkipLink onClick={confirmManually}>I&apos;ve added it</SkipLink>
+          ) : null}
           <SkipLink onClick={finish}>Skip for now</SkipLink>
         </div>
       }
@@ -294,6 +303,7 @@ export function InstallScreen() {
         />
 
         <InstallHowTo device={device} />
+        {wrongBrowser ? <OpenInSafari /> : null}
       </div>
     </StepFrame>
   );
