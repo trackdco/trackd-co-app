@@ -310,6 +310,26 @@ export function InstallScreen() {
           {wrongBrowser ? (
             <SkipLink onClick={confirmManually}>I&apos;ve added it</SkipLink>
           ) : null}
+          {/* ⚠️ ONE NAMED SWAP, NOT A PICKER (Adrian, 2026-08-29).
+              The realistic wrong guess on iOS is exactly one: Safari read when
+              they are in Chrome, or the reverse. Both lead to instructions for
+              a menu they cannot find, and both are fixed by one tap that says
+              which browser it is switching to. The general picker stays behind
+              it for the rest. */}
+          {platform === "ios" ? (
+            <SkipLink
+              onClick={() =>
+                setDevice({
+                  platform: "ios",
+                  browser: device.browser === "safari" ? "chrome" : "safari",
+                })
+              }
+            >
+              {device.browser === "safari"
+                ? "On Chrome instead?"
+                : "On Safari instead?"}
+            </SkipLink>
+          ) : null}
           <SkipLink onClick={() => setPickerOpen((o) => !o)}>
             {pickerOpen ? "Hide" : "Not the phone you\u2019re on?"}
           </SkipLink>
