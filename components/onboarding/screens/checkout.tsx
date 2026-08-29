@@ -32,7 +32,8 @@ import {
   recurringLabel,
   TRIAL_DAYS,
 } from "@/lib/onboarding/pricing";
-import { FLOW_EMPHASIS } from "@/lib/ui-presets";
+import { CARD_EYEBROW, FLOW_EMPHASIS } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 
 import { StepFrame } from "../chrome";
 import { useFlow } from "../flow-context";
@@ -683,6 +684,16 @@ export function CheckoutScreen() {
   return (
     <StepFrame
       /**
+       * ⚠️ NO EDGE MASK ON THIS SCREEN (Adrian, 2026-08-28). One plain scroll.
+       *
+       * `.flow-scroll-fade` is a `mask-image`, so it does not tint the edges —
+       * it REMOVES them, 34px off the top and 44px off the bottom. On a screen
+       * you read through that is a nicety; on the screen where somebody is
+       * typing a card number and checking a price it is deleting the two things
+       * they are looking at.
+       */
+      fade={false}
+      /**
        * ⚠️ APPROVED COPY. The no-trial title is §5 of the founder's brief; the
        * emphasis markup changes no character. The MID-GRACE title reuses the
        * trial variant's string (D17), which is literally true for that cohort
@@ -798,6 +809,72 @@ export function CheckoutScreen() {
           was exactly the "per-screen ad-hoc padding" that table forbids, stacked on
           top of the documented value. Subtractive: −8px. */}
       <div className="flex w-full flex-1 flex-col justify-start">
+        {/**
+          * THE LEDGER (Adrian, 2026-08-28 — "option A").
+          *
+          * ## Why a screen that takes a card needs one
+          *
+          * Every figure on this screen used to live in ONE 12px muted paragraph
+          * BELOW the button. So a person was being asked to hand over a card by
+          * a screen that had not yet told them what it costs — the price was
+          * reachable only by committing first or scrolling past the commit.
+          *
+          * This states it before the fields, in the app's own inverted card
+          * idiom: a tracked-uppercase eyebrow, and the figure as the display
+          * layer in tabular mono.
+          *
+          * ## ⚠️ IT DOES NOT REPLACE THE DISCLOSURE, AND MUST NOT
+          *
+          * `02b`'s four facts are SIGNED and their POSITION is a requirement —
+          * `09` §3.5 Step 5 puts them adjacent to the button so they cannot be
+          * scrolled away from it. This is a summary ABOVE, that one is the
+          * disclosure BELOW, and both read from the same values so they cannot
+          * disagree. Do not "de-duplicate" them by deleting either.
+          */}
+        {selected && suffix ? (
+          <div className="mb-4 rounded-2xl bg-bg-surface px-5 py-4">
+            <div className="flex items-baseline justify-between gap-4">
+              <span className={CARD_EYEBROW}>Due today</span>
+              <span
+                className={cn(
+                  "font-mono text-[1.6rem] font-light tabular-nums tracking-[-0.02em]",
+                  /* Green is `ui-context`'s system-feedback colour and this is a
+                     system fact, not decoration: nothing is being taken today.
+                     A charged-today customer gets the ordinary foreground. */
+                  trial || midGrace ? "text-accent-green" : "text-foreground",
+                )}
+              >
+                {formatPrice(trial || midGrace ? 0 : selected.price, selected.currency)}
+              </span>
+            </div>
+
+            <div className="my-3 hairline-t" aria-hidden />
+
+            <dl className="space-y-1.5 text-[0.8rem]">
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-text-muted">
+                  {selected.label}
+                  {trial ? ` · after ${TRIAL_DAYS} free days` : null}
+                </dt>
+                <dd className="font-mono tabular-nums text-foreground">
+                  {formatPrice(selected.price, selected.currency)}{" "}
+                  {selected.currency.toUpperCase()}/{suffix}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-text-muted">First charge</dt>
+                {/* ⚠️ THE SAME THREE-WAY ANSWER THE DISCLOSURE GIVES, from the
+                    same values. A returning customer is charged today, a
+                    mid-grace beta user when their fortnight ends, and a trial
+                    on the server-resolved date. */}
+                <dd className="font-mono tabular-nums text-foreground">
+                  {trial ? firstChargeOn : midGrace ? graceEndsOn : "Today"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        ) : null}
+
         {selected && suffix ? (
           <PaymentSheet
             plan={selected.id}

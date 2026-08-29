@@ -6,7 +6,6 @@ import { Bell, CaretDown, Crown, Lock } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
 import { validateCode, type CodeVerdict } from "@/lib/onboarding/affiliate";
 import {
-  billingDate,
   formatPrice,
   intervalSuffix,
   PLAN_ORDER,
@@ -15,10 +14,12 @@ import {
   type PlanId,
 } from "@/lib/onboarding/pricing";
 import { cn } from "@/lib/utils";
+import { FLOW_EMPHASIS } from "@/lib/ui-presets";
 
 import { PlanRows } from "@/components/billing/PlanRows";
 
 import { FlowCta, StepFrame } from "../chrome";
+import { Mascot } from "../mascot";
 import { useFlow } from "../flow-context";
 
 /**
@@ -103,7 +104,7 @@ import { useFlow } from "../flow-context";
  * Only where the value comes from changes. §2 forbids rewriting this screen's
  * wording and nothing here touches it.
  */
-function trialTimeline(firstChargeOn: string, trial: boolean) {
+function trialTimeline(trial: boolean) {
   /**
    * ⚠️ THE WHOLE TIMELINE IS A TRIAL CLAIM, so it is withheld rather than
    * reworded for somebody charged today.
@@ -119,22 +120,29 @@ function trialTimeline(firstChargeOn: string, trial: boolean) {
     {
       id: "today",
       icon: Lock,
-      title: "Today",
-      body: "Get the whole of Trackd. Every compound, every log, every screen.",
+      /** Short by design: these are CHIPS now, not a stacked timeline. */
+      label: "Today",
+      note: "Everything unlocks",
       lit: true,
     },
     {
       id: "reminder",
       icon: Bell,
-      title: `Day ${REMINDER_DAY} · Reminder`,
-      body: "We'll notify you that your trial is ending, before anything changes.",
+      label: `Day ${REMINDER_DAY}`,
+      note: "We remind you",
       lit: true,
     },
     {
       id: "billing",
       icon: Crown,
-      title: `Day ${TRIAL_DAYS} · Billing starts`,
-      body: `You'll be charged on ${firstChargeOn} unless you cancel any time before.`,
+      label: `Day ${TRIAL_DAYS}`,
+      /**
+       * ⚠️ THE DATE IS NOT REPEATED HERE. It is in the subtitle above and in
+       * the price line under the button, both from the same server-resolved
+       * value. A third copy inside a 113pt chip is where they start to
+       * disagree.
+       */
+      note: "Billing starts",
       lit: false,
     },
   ];
@@ -202,7 +210,7 @@ export function PaywallScreen() {
    * freeze. The old `useState` initialiser existed to stop the browser clock
    * moving the date mid-session, which the server-resolved value cannot do.
    */
-  const timeline = trialTimeline(firstChargeOn ?? billingDate(new Date()), trial);
+  const timeline = trialTimeline(trial);
   useEffect(() => {
     track("paywall_viewed");
   }, []);
@@ -325,7 +333,49 @@ export function PaywallScreen() {
        * belonging to the screen rather than to the plans directly under it.
        */
       center
-      title={trial ? `Start your ${TRIAL_DAYS}-day free trial.` : "Choose your plan."}
+      /**
+       * KYLE LEADS THE SCREEN (Adrian, 2026-08-28).
+       *
+       * The last screen before a card form, and the only thing on it that is
+       * not a number or a billing fact. He is already the face of celebrate and
+       * welcome, so the flow gains a through-line rather than a one-off — and
+       * his own amber bloom is the screen's lit beat, which is why nothing else
+       * here spends one.
+       *
+       * ⚠️ Withheld with the timeline for a customer who gets no free days: a
+       * mascot celebrating above "Choose your plan." is a tone this screen has
+       * not earned for somebody being charged today.
+       */
+      above={
+        trial ? (
+          <div className="flex shrink-0 justify-center pb-2">
+            <Mascot pose="flex" size={132} />
+          </div>
+        ) : null
+      }
+      /**
+       * ⚠️ SET B (Adrian, 2026-08-28). THIS REPLACES SIGNED COPY, ON HIS WORD.
+       *
+       * The old trial title was "Start your 7-day free trial." Every other line
+       * on this screen is billing mechanics; nothing said what the product IS,
+       * one tap before a card form. "Log it properly." is the only sentence here
+       * about the thing being bought.
+       *
+       * ⚠️ THE NO-TRIAL TITLE IS UNCHANGED. "Choose your plan." is
+       * withheld-not-reworded by design — a returning customer gets the plan
+       * question with no trial claim above it — and Set B does not touch it.
+       */
+      title={
+        trial ? (
+          <>
+            Log it <em className={FLOW_EMPHASIS}>properly</em>.
+            <br />
+            Seven days free.
+          </>
+        ) : (
+          "Choose your plan."
+        )
+      }
       /**
        * ⚠️ IT STATES A FACT, IT DOES NOT REPEAT THE TITLE (Adrian, 2026-08-25).
        *
@@ -344,7 +394,35 @@ export function PaywallScreen() {
        * The trial variant gets none. Its title already promises the trial and
        * the timeline beneath it does the explaining.
        */
-      sub={trial ? undefined : "Three billing options."}
+      /**
+       * ⚠️ THE TRIAL VARIANT GAINS A SUBTITLE, which it did not have.
+       *
+       * It had none because the vertical timeline underneath did the explaining.
+       * The timeline is now three compact chips, so the one fact they no longer
+       * carry — WHEN the free run ends — is stated here instead, from the
+       * server-resolved date the checkout screen and the price line both read.
+       * Three surfaces, one value, and they cannot disagree by a day.
+       */
+      sub={
+        trial
+          ? /**
+             * ⚠️ THE DATE CLAUSE IS WITHHELD WHEN THERE IS NO DATE, never
+             * defaulted. Caught on the preview harness, which has no server
+             * behind it: this read "Nothing to pay until undefined."
+             *
+             * The old code fell back to `billingDate(new Date())` — the DEVICE
+             * clock, in the device's timezone — which is the exact defect
+             * `02b` §3.5 removed from this screen, because it let the paywall
+             * and the checkout screen print different days for one
+             * subscription. Restoring it to avoid "undefined" would trade a
+             * visible bug for a silent one, so the sentence simply stops early
+             * instead. Everything before the clause is still true.
+             */
+            firstChargeOn
+            ? `Everything in Trackd, from today. Nothing to pay until ${firstChargeOn}.`
+            : "Everything in Trackd, from today."
+          : "Three billing options."
+      }
     >
       <div className="flex flex-1 flex-col gap-5">
         {/* THE TIMELINE IS THE ONLY GRAPHIC ON THIS SCREEN NOW (Adrian,
@@ -355,46 +433,67 @@ export function PaywallScreen() {
             get the room the ring was using: 40px discs instead of 32, the type
             up one step each, and the rhythm opened from `space-y-5` to `-7`. It
             is the same component, not a redesign. */}
-        <ol className="relative space-y-7 py-2">
-          {timeline.map((beat, i) => {
-            const Icon = beat.icon;
-            const last = i === timeline.length - 1;
-            return (
-              <li key={beat.id} className="relative flex gap-4">
-                {/* The connector, drawn from THIS beat down to the next. It
-                    takes the colour of the beat it leaves, so the amber run
-                    stops exactly where the trial does. */}
-                {!last ? (
-                  <span
-                    aria-hidden
-                    /* `left-[19px]` centres the rail under a 40px disc, and
-                       `top-10` starts it below one. Both were sized for the
-                       32px disc and would have drawn the rail off-centre. */
-                    className={cn(
-                      "absolute left-[19px] top-10 h-[calc(100%+0.75rem)] w-[2px] rounded-full",
-                      beat.lit ? "bg-accent-amber/45" : "bg-bg-surface-raised",
-                    )}
-                  />
-                ) : null}
+        {/**
+          * THE WEEK, AS THREE OUTLINED CHIPS (Adrian, 2026-08-28 — "F4").
+          *
+          * This was a vertical stack of three 40px discs with a sentence each.
+          * Above the plan rows that is three filled surfaces sitting on three
+          * more, and the plan rows are the ones that have to win — so the chips
+          * are OUTLINED and the band reads as one object rather than three.
+          *
+          * ⚠️ THE RAIL CARRIES THE MEANING THE THIRD DISC USED TO. It runs amber
+          * while the free days do and goes grey before the last chip, so "the
+          * free part ends here" is said by the connector rather than by spending
+          * a second amber beat. Kyle's bloom is the other one; that is the whole
+          * budget `ui-context.md` allows, and this screen previously ran at four.
+          *
+          * ⚠️ CHIPS ARE `bg-bg-base`, NOT TRANSPARENT. The rail is drawn behind
+          * them and would otherwise show straight through an unfilled chip.
+          */}
+        <ol className="relative my-3 grid grid-cols-3 gap-2">
+          {/* The two rail segments, from the centre of one chip to the next.
+              With three equal columns those centres sit at 1/6, 3/6 and 5/6. */}
+          <span
+            aria-hidden
+            className="absolute left-[16.67%] right-1/2 top-[1.55rem] h-[2px] rounded-full bg-accent-amber/45"
+          />
+          <span
+            aria-hidden
+            className="absolute left-1/2 right-[16.67%] top-[1.55rem] h-[2px] rounded-full bg-bg-surface-raised"
+          />
 
-                <span
-                  aria-hidden
+          {timeline.map((beat) => {
+            const Icon = beat.icon;
+            return (
+              <li
+                key={beat.id}
+                className={cn(
+                  "relative z-10 flex flex-col items-center gap-1.5 rounded-2xl border bg-bg-base px-2 py-3 text-center",
+                  beat.lit ? "border-accent-amber/45" : "border-border-default",
+                )}
+              >
+                <Icon
                   className={cn(
-                    "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-                    beat.lit
-                      ? "bg-accent-amber text-bg-base"
-                      : "bg-bg-surface-raised text-text-muted",
+                    "h-5 w-5 shrink-0",
+                    beat.lit ? "text-accent-amber" : "text-text-subtle",
+                  )}
+                  aria-hidden
+                />
+                <span
+                  className={cn(
+                    "text-[0.8rem] leading-tight",
+                    beat.lit ? "text-foreground" : "text-text-muted",
                   )}
                 >
-                  <Icon className="h-5 w-5" />
+                  {beat.label}
                 </span>
-
-                <div className="min-w-0 flex-1 pt-1">
-                  <p className="text-[1.05rem] text-foreground">{beat.title}</p>
-                  <p className="mt-1 text-[0.875rem] leading-relaxed text-text-muted">
-                    {beat.body}
-                  </p>
-                </div>
+                {/* ⚠️ MEASURED TO FIT. At 390pt each chip is ~113pt wide, ~101pt
+                    usable, and the longest note ("Everything unlocks") needs
+                    ~75pt — about a quarter of the chip spare. It only fits
+                    because the icon is ABOVE the text rather than beside it. */}
+                <span className="text-[0.625rem] leading-tight text-text-muted">
+                  {beat.note}
+                </span>
               </li>
             );
           })}

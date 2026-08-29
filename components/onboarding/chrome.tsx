@@ -181,9 +181,24 @@ export function ScrollPort({
   className,
   style,
   portRef,
+  fade = true,
 }: {
   children?: ReactNode;
   className?: string;
+  /**
+   * ⚠️ THE EDGE MASK, WHICH A SCREEN MAY DECLINE.
+   *
+   * `.flow-scroll-fade` is a `mask-image`, not a tint — it does not fade
+   * content, it REMOVES it, 34px off the top and 44px off the bottom. That is
+   * right for a flow screen you are reading through and wrong for one you are
+   * filling in: on the card screen it eats the field you are typing into and
+   * the price line you are checking.
+   *
+   * False means the effect below never runs and `data-fade` is never written,
+   * so every rule in `globals.css` — all of them keyed on `[data-fade="…"]` —
+   * simply does not match. Nothing is deleted for the six screens that want it.
+   */
+  fade?: boolean;
   /**
    * Longhands only. An inline `animation` or `transition` shorthand outranks
    * the reduced-motion block in the stylesheet and cannot be switched off from
@@ -197,6 +212,7 @@ export function ScrollPort({
   const ref = portRef ?? ownRef;
 
   useEffect(() => {
+    if (!fade) return;
     const el = ref.current;
     if (!el) return;
 
@@ -223,7 +239,7 @@ export function ScrollPort({
       el.removeEventListener("scroll", sync);
       observer.disconnect();
     };
-  }, [ref]);
+  }, [ref, fade]);
 
   return (
     <div
@@ -257,7 +273,19 @@ export function StepFrame({
   footer,
   center = false,
   className,
+  fade = true,
+  above,
 }: {
+  /**
+   * A slot ABOVE the headline, inside the scroll port.
+   *
+   * Mirrors {@link footer} at the other end. It exists because the paywall
+   * leads with Kyle and nothing else in this frame can sit higher than the
+   * title — passing him as `eyebrow` would wrap a render in
+   * `StepEyebrow`'s tracked-uppercase span, and passing him inside `title`
+   * would put him inside `FlowTitle`.
+   */
+  above?: ReactNode;
   eyebrow?: ReactNode;
   title?: ReactNode;
   sub?: ReactNode;
@@ -265,6 +293,8 @@ export function StepFrame({
   footer?: ReactNode;
   center?: boolean;
   className?: string;
+  /** See `ScrollPort`. False makes this screen one plain scroll with no mask. */
+  fade?: boolean;
 }) {
   const hasHeader = Boolean(eyebrow || title || sub);
   const header = hasHeader ? (
@@ -285,6 +315,7 @@ export function StepFrame({
        * Attribution pass an EMPTY body, so the old arrangement gave them a
        * headline against the top edge and a large hole beneath it — Adrian's
        * "it's too high", on all three (2026-08-01). */}
+      {!center && above}
       {!center && header}
 
       {/* THE BODY SCROLLS, THE CHROME DOES NOT.
@@ -307,6 +338,7 @@ export function StepFrame({
        * `overflow-x` to `auto`, which gave the hook 4px of real sideways scroll
        * at 360. The shell's `overflow-x-clip` cannot reach inside a port. */}
       <ScrollPort
+        fade={fade}
         className={cn(
           // NO PINNED FOOTER: the safe area becomes the SCROLL PORT's problem,
           // because the element that would have held it clear of the home
@@ -322,6 +354,7 @@ export function StepFrame({
             !center && hasHeader && "pt-8",
           )}
         >
+          {center && above}
           {center && header}
           {center && hasHeader && children ? <div className="h-8 shrink-0" /> : null}
           {children}
