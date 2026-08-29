@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { DotsThree, Plus, Share } from "@/components/icons";
 import { useMounted } from "@/components/home/useMounted";
@@ -187,6 +187,31 @@ export function InstallScreen() {
     track("install_prompt_failed", { platform, outcome: String(outcome) });
     setPromptFailed(true);
   }, [finish, platform, promptInstall]);
+
+  /**
+   * ⚠️ STAMP THE URL SO THE HANDOFF CAN BE RECOGNISED ON THE OTHER SIDE.
+   *
+   * Chrome's share sheet hands Safari whatever is in the address bar, and
+   * nothing about `/onboarding?step=install` says where it came from. Safari
+   * receives an ordinary signed-out request, identical to somebody who had been
+   * in Safari the whole time — and telling THEM that "Safari keeps its own
+   * login, separate from Chrome" would be explaining a journey they never took.
+   *
+   * So the marker is written HERE, on the only screen that knows: the one
+   * rendering because iOS is not in Safari. `replaceState` rather than a
+   * navigation, because the flow is one client tree and a router push would
+   * throw the transition away — and the flow's own URL writer copies
+   * `window.location.href` and only sets `step`, so this survives every
+   * subsequent move.
+   */
+  const stampHandoff = platform === "ios" && !canInstallHere(device);
+  useEffect(() => {
+    if (!stampHandoff) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("from") === "chrome") return;
+    url.searchParams.set("from", "chrome");
+    window.history.replaceState(window.history.state, "", url);
+  }, [stampHandoff]);
 
   /* ---- 0. They say it is done. Point them AT the thing they just made. ---- */
   if (confirmed) {

@@ -78,9 +78,10 @@ export default async function OnboardingPage({
    * `string | string[]`, and the array case is not theoretical — see
    * `requestedStep`. Typing it as `string` is what let the guard be walked past.
    */
-  searchParams: Promise<{ step?: string | string[] }>;
+  searchParams: Promise<{ step?: string | string[]; from?: string | string[] }>;
 }) {
-  const { step } = await searchParams;
+  const { step, from } = await searchParams;
+  const fromParam = Array.isArray(from) ? from[0] : from;
   const requested = requestedStep(step);
 
   const { user, passedGate } = await getSessionContext();
@@ -136,7 +137,13 @@ export default async function OnboardingPage({
      * regardless.
      */
     if (!signedIn) {
-      redirect(`/login?next=${encodeURIComponent(`/onboarding?step=${requested}`)}`);
+      // `from=chrome` rides along when it is there, because /login uses it to
+      // decide whether to explain the browser hop. Read from the same
+      // `searchParams` the step came from, and never invented here.
+      const marker = fromParam === "chrome" ? "&from=chrome" : "";
+      redirect(
+        `/login?next=${encodeURIComponent(`/onboarding?step=${requested}${marker}`)}`,
+      );
     }
     redirect("/onboarding?step=account");
   }

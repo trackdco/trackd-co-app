@@ -77,7 +77,12 @@ export default async function LoginPage({
   const fromInstall =
     next !== undefined &&
     next.startsWith("/onboarding") &&
-    next.includes("step=install");
+    next.includes("step=install") &&
+    // ⚠️ AND ONLY FROM CHROME. Without this the copy also greets somebody who
+    // was in Safari the whole time and simply arrived signed out, explaining a
+    // browser hop they never made. The marker is stamped by the install screen
+    // itself, which is the only place that knows.
+    next.includes("from=chrome");
 
   const { user, passedGate } = await getSessionContext();
   if (user) {
