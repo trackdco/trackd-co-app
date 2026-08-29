@@ -108,15 +108,16 @@ export function installSteps({ platform, browser }: DeviceGuess): InstallStep[] 
   if (platform === "ios") {
     if (browser !== "safari") {
       // Not possible here at all. Say so, and say what to do instead.
-      // The screen now carries an "Open in Safari" button and a copy button, so
-      // step one no longer asks them to select a URL by hand.
+      // Adrian found the route that actually works and it is the browser's own:
+      // Chrome's share sheet has "Open in Safari", which carries the exact link
+      // across. Naming it beats describing a copy-and-paste, and it is one tap.
       return [
         {
-          icon: "menu",
-          text: `Open this page in Safari. ${BROWSER_LABEL[browser]} cannot install it`,
+          icon: "share",
+          text: `Tap Share in ${BROWSER_LABEL[browser]}, then Open in Safari`,
         },
-        { icon: null, text: "Sign in there if it asks you to" },
-        { icon: "share", text: "Then Share, View More, Add to Home Screen" },
+        { icon: null, text: "Sign in once more. Safari keeps its own login" },
+        { icon: "plus", text: "Then Share, View More, Add to Home Screen" },
       ];
     }
     // Adrian's own flow on his own phone (2026-08-05). "Add to Home Screen"

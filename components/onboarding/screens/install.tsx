@@ -250,11 +250,20 @@ export function InstallScreen() {
           ? `${BROWSER_LABEL[device.browser]} on iPhone can't add apps to the home screen. Only Safari can.`
           : "It works like a normal app once it's there. Do this first."
       }
-      footer={
-        <div className="space-y-1">
-          {/* On the wrong browser, "I've added it" cannot be the primary action:
-              nothing here can add it. Getting to Safari IS the step, so that is
-              the button, and the confirmation drops to a quieter row. */}
+    >
+      <div className="space-y-4">
+        {/* ⚠️ NO DEVICE PICKER (Adrian, 2026-08-29). Asking somebody which phone
+            they are holding reads as the app not knowing, and it is right
+            almost always. The override survives as a quiet link below, because
+            UA sniffing IS a guess and a wrong one otherwise strands them on
+            instructions for a menu they do not have. */}
+        <InstallHowTo device={device} />
+        {wrongBrowser ? <OpenInSafari /> : null}
+
+        {/* The actions live AFTER the steps, so reaching them means having
+            scrolled past them. Pinned, they read as the end of the screen and
+            the walkthrough underneath went unseen. */}
+        <div className="space-y-1 pt-2">
           {wrongBrowser ? null : (
             <FlowCta onClick={confirmManually}>I&apos;ve added it</FlowCta>
           )}
@@ -267,16 +276,6 @@ export function InstallScreen() {
           {pickerOpen ? <DevicePicker device={device} onChange={setDevice} /> : null}
           <SkipLink onClick={finish}>Skip for now</SkipLink>
         </div>
-      }
-    >
-      <div className="space-y-4">
-        {/* ⚠️ NO DEVICE PICKER (Adrian, 2026-08-29). Asking somebody which phone
-            they are holding reads as the app not knowing, and it is right
-            almost always. The override survives as a quiet link below, because
-            UA sniffing IS a guess and a wrong one otherwise strands them on
-            instructions for a menu they do not have. */}
-        <InstallHowTo device={device} />
-        {wrongBrowser ? <OpenInSafari /> : null}
       </div>
     </StepFrame>
   );
