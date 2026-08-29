@@ -121,7 +121,24 @@ export default async function OnboardingPage({
    * itself.
    */
   if (requested && stepMeta(requested)?.phase === "authed" && !passedGate) {
-    redirect(signedIn ? "/onboarding?step=account" : "/onboarding");
+    /**
+     * ⚠️ A SIGNED-OUT VISITOR KEEPS THEIR DESTINATION.
+     *
+     * This used to send them to a bare `/onboarding`, which is the landing
+     * page, and Adrian hit it on the route that matters most: Chrome's share
+     * sheet hands Safari the exact URL, Safari has its own cookie jar and no
+     * session, and the install step turned into "take your protocol out of
+     * your notes app". The link was right; the guard threw the destination
+     * away.
+     *
+     * The path is a constant composed here, not user input, so there is
+     * nothing to smuggle — and `/login` re-parses it through `safeNextPath`
+     * regardless.
+     */
+    if (!signedIn) {
+      redirect(`/login?next=${encodeURIComponent(`/onboarding?step=${requested}`)}`);
+    }
+    redirect("/onboarding?step=account");
   }
 
   // A gated user has nothing left to do on the account screen, and showing a

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { DotsThree, Plus, Share } from "@/components/icons";
@@ -126,10 +127,24 @@ export function InstallScreen() {
     () => false,
   );
 
+  /**
+   * "I've added it" lands on a confirmation, not the dashboard.
+   *
+   * Adrian: "it takes me to the home page. I want it to take me to the page
+   * where it says Trackd is on your home screen." He is right — the tab they
+   * are looking at is now the WRONG copy of the app, and dropping them on the
+   * dashboard inside it is an invitation to carry on in a browser tab whose
+   * notifications will never arrive.
+   *
+   * A state on this screen rather than a new entry in `STEP_ORDER`: install is
+   * deliberately last, a test pins that, and the position carries reasoning
+   * about iOS storage containers that a new step would quietly disturb.
+   */
+  const [confirmed, setConfirmed] = useState(false);
   const confirmManually = useCallback(() => {
     track("install_confirmed", { platform, method: "self-reported" });
-    finish();
-  }, [finish, platform]);
+    setConfirmed(true);
+  }, [platform]);
 
   /**
    * Has the OS dialog been tried and NOT resulted in an install?
@@ -169,6 +184,31 @@ export function InstallScreen() {
     track("install_prompt_failed", { platform, outcome: String(outcome) });
     setPromptFailed(true);
   }, [finish, platform, promptInstall]);
+
+  /* ---- 0. They say it is done. Point them AT the thing they just made. ---- */
+  if (confirmed) {
+    return (
+      <StepFrame
+        center
+        title="Trackd is on your home screen"
+        sub="Open it from there, not from this tab. That is where your reminders come from."
+        footer={
+          <div className="space-y-1">
+            <FlowCta onClick={finish}>Done</FlowCta>
+            <SkipLink onClick={() => setConfirmed(false)}>
+              Actually, show me the steps again
+            </SkipLink>
+          </div>
+        }
+      >
+        <div className="flex justify-center">
+          <span className="relative block size-24 overflow-hidden rounded-[26.4%] bg-bg-base">
+            <Image src="/icon-192.png" alt="" width={192} height={192} className="size-full" />
+          </span>
+        </div>
+      </StepFrame>
+    );
+  }
 
   /* ---- 1. Already installed. Nothing to ask for. ---- */
   if (installed) {
