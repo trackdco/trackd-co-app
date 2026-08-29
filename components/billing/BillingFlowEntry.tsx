@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { OnboardingFlow } from "@/components/onboarding/flow";
 import { getSessionContext } from "@/lib/auth";
+import { loginWithDestination } from "@/lib/auth/destination";
 import { loadPricesSafe } from "@/lib/billing/prices";
 import { onboardingDates } from "@/lib/onboarding/flowEntryDates";
 import { trialEligibility } from "@/app/onboarding/billing-actions";
@@ -33,10 +34,17 @@ import type { StepId } from "@/lib/onboarding/steps";
  * not. They are the billing section's own screens, they sit behind the same
  * session every other `(app)` route does, and somebody arriving without one is
  * sent to `/login` rather than dropped into a sign-up flow they did not ask for.
+ *
+ * ⚠️ AND THEY ARE SENT BACK AFTERWARDS. This was a bare `/login`, which threw
+ * the destination away — on the one pair of screens where that costs the most.
+ * `/billing`'s subscribe row points at `/plans`, so a lapsed session on the
+ * screen built to sell a plan landed the user on the dashboard instead of the
+ * plan they had just clicked, with nothing to suggest they should try again.
+ * See `lib/auth/destination.ts`.
  */
 export async function BillingFlowEntry({ startAt }: { startAt: StepId }) {
   const { user, passedGate } = await getSessionContext();
-  if (!user) redirect("/login");
+  if (!user) redirect(await loginWithDestination());
 
   const prices = await loadPricesSafe();
   const eligibility = await trialEligibility();

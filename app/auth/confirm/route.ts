@@ -1,6 +1,7 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { safeNextPath } from "@/lib/auth/nextPath";
 import { ensureCompEntitlement } from "@/lib/billing/betaGrace";
 import { createClient } from "@/lib/supabase/server";
 
@@ -25,14 +26,22 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type") as EmailOtpType | null;
   const code = searchParams.get("code");
 
-  // Only honour internal, single-slash paths (no open redirects).
-  const requestedNext = searchParams.get("next");
-  const next =
-    requestedNext &&
-    requestedNext.startsWith("/") &&
-    !requestedNext.startsWith("//")
-      ? requestedNext
-      : "/dashboard";
+  /**
+   * ⚠️ THE SAME WEAK `startsWith` TEST THIS ROUTE SHIPPED WITH, REPLACED.
+   *
+   * See the note in `/auth/callback` — identical rule, identical bypasses
+   * (`/\evil.com` and the C0-control variants both PASSED it), and this route
+   * is the far end of the OTHER thread `/login` now starts: sign-up puts the
+   * requested `next` into the confirmation email's `emailRedirectTo`, and it
+   * comes back here when the link is clicked.
+   *
+   * ⚠️ An emailed link is the one of the four that sits in an inbox for days
+   * and can be forwarded, which makes it the LEAST trustworthy carrier of the
+   * four and the least excusable place to keep a check that is known to fail.
+   *
+   * One parser: `lib/auth/nextPath.ts`.
+   */
+  const next = safeNextPath(searchParams.get("next"));
 
   const supabase = await createClient();
   let verified = false;

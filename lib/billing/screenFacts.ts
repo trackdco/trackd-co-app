@@ -411,16 +411,16 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
   const planStartsOn = graceStartsOn(entitlement ?? null, subscription);
 
   /**
-   * ⚠️ THE D35 SUBSCRIBE ROW, AND ITS COHORT IS NARROW ON PURPOSE.
+   * ⚠️ THE D35 SUBSCRIBE ROW. ITS COHORT IS NARROW, AND IT IS ONE NAME WIDER
+   * THAN IT WAS.
    *
-   * §3.8, as corrected by the founder: **a live beta grace AND no subscription.
-   * Nothing else.**
+   * §3.8, as corrected by the founder, said: **a live beta grace AND no
+   * subscription. Nothing else.** The exclusions it listed, all still enforced:
    *
    *   not a courtesy user   a courtesy period only exists ON a live
    *                         subscription, so they already have one and a
    *                         subscribe control invites a SECOND — which the
    *                         one-subscription invariant forbids outright.
-   *   not a lapsed account  `05`'s pop-up owns that route.
    *   not a free-for-life comp  `01` refuses them at the create call.
    *   not a paying subscriber   nothing to set up.
    *
@@ -430,13 +430,55 @@ export async function loadBillingFacts(userId: string): Promise<BillingFacts> {
    * days. `06` says so in as many words: "`08` carries the standing route via
    * its subscribe row (D31), which is what makes a one-shot notice safe."
    *
-   * ⚠️ `subscriptionsKnown` IS NOT DECORATION. See the destructure above: an
-   * unreadable mirror must not read as "no subscription", because the answer to
-   * that question is a control that starts a charge.
+   * ## ⚠️ AN ACCOUNT WITH NO ENTITLEMENT AT ALL NOW GETS IT TOO (Adrian, 2026-08-29)
+   *
+   * The fourth exclusion read **"not a lapsed account — `05`'s pop-up owns that
+   * route"**, and that sentence was doing more work than it could carry.
+   *
+   * `05`'s pop-up fires on an ATTEMPTED WRITE. It is not a route somebody can go
+   * and find; it is a thing that happens to you when you try to log a dose. So an
+   * account holding no entitlement row — which is every account that reached the
+   * app without going through the onboarding paywall — had **no route to a plan
+   * anywhere in the product**. Not on Billing, which is the screen a person
+   * actually opens when they want to sort their plan out, and where this file's
+   * own header explains there is deliberately no upgrade control. Adrian walked
+   * straight into it: signed in, landed in the app, went looking, found nothing.
+   *
+   * ⚠️ AND THE ARGUMENT HOLDS WHICHEVER WAY THE SWITCH IS SET, which is why it
+   * does not rest on reading it:
+   *
+   *   gate OFF  `canWriteData` returns `allowed`, so the pop-up cannot fire AT
+   *             ALL. The route the exclusion delegated to does not exist for the
+   *             cohort being excluded. (`next-tasks.md` G4 — "set
+   *             `BILLING_GATE_ENABLED=true` in Vercel production" — is still an
+   *             unticked box, so this is the live case as far as this repo says.)
+   *   gate ON   the pop-up can fire, but only at somebody already mid-write. It
+   *             is still not a thing you can go and FIND, and Billing is still
+   *             the screen you would look on.
+   *
+   * ⚠️ THIS DOES NOT BREAK THE STANDING RULE that nothing may route a user at
+   * the paywall until Adrian says so. Nothing routes them. The row sits on a
+   * screen they navigated to themselves, in the ordinary weight §3.8 specifies —
+   * a caret row, not a filled button, "available rather than urgent" — and it
+   * answers a question they arrived asking. It is a route, not a push.
+   *
+   * ⚠️ `access.known` IS LOAD-BEARING AND `entitlement === null` ALONE IS NOT
+   * ENOUGH. See the destructure above: that null means BOTH "nothing entitles
+   * them" and "the entitlements read failed", and the header there says in as
+   * many words that the DECISIONS must read `accessKnown` beside it rather than
+   * inferring from the null. A database that would not answer is not grounds to
+   * offer somebody a control that starts a charge — exactly the argument
+   * `subscriptionsKnown` already makes one line down, for the mirror.
+   *
+   * ⚠️ `subscriptionsKnown` IS NOT DECORATION either. An unreadable mirror must
+   * not read as "no subscription", for the same reason.
    */
   const subscriptionsKnown = !subsError;
+  const nothingEntitlesThem = access.known && entitlement === null;
   const showSubscribeRow =
-    subscriptionsKnown && liveRows.length === 0 && isBetaGrace(entitlement);
+    subscriptionsKnown &&
+    liveRows.length === 0 &&
+    (isBetaGrace(entitlement) || nothingEntitlesThem);
 
   return {
     tz,

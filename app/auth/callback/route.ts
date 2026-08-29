@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { safeNextPath } from "@/lib/auth/nextPath";
 import { ensureCompEntitlement } from "@/lib/billing/betaGrace";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,14 +17,28 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  // Default landing is the dashboard; the (app) guard bounces to /welcome if the
-  // gate isn't passed yet. Only honour internal, single-slash paths (no open
-  // redirects via ?next=//evil.example or ?next=https://…).
-  const requestedNext = searchParams.get("next");
-  const next =
-    requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//")
-      ? requestedNext
-      : "/dashboard";
+  /**
+   * Default landing is the dashboard; the (app) guard bounces to /welcome if the
+   * gate isn't passed yet.
+   *
+   * ## ⚠️ THIS USED TO BE A `startsWith` TEST, AND IT WAS THE WEAK ONE
+   *
+   *     next=//evil.com       -> blocked
+   *     next=https://evil.com -> blocked
+   *     next=/\evil.com       -> PASSED, and the browser lands on evil.com
+   *     next=/<TAB>/evil.com  -> PASSED (also LF, CR)
+   *
+   * `app/login/actions.ts` replaced that rule for the form path and recorded the
+   * condition under which this copy would start to matter: the first time
+   * anything reads `next` off a URL. `/login` now does, and it hands the value to
+   * `GoogleSignInButton`, which threads it into the `redirectTo` that comes back
+   * HERE — so this is the far end of a thread that now starts in the address bar.
+   *
+   * One parser, shared: `lib/auth/nextPath.ts`, with the bypasses pinned in
+   * `lib/auth/nextPath.test.ts`. Validating in both places is deliberate — the
+   * value crosses an OAuth round trip through Google and Supabase between them.
+   */
+  const next = safeNextPath(searchParams.get("next"));
 
   if (code) {
     const supabase = await createClient();

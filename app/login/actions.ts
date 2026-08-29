@@ -3,6 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { DEFAULT_NEXT, safeNextPath } from "@/lib/auth/nextPath";
 import { ensureCompEntitlement } from "@/lib/billing/betaGrace";
 import { createClient } from "@/lib/supabase/server";
 
@@ -45,63 +46,35 @@ function readCredentials(formData: FormData) {
   return { email, password };
 }
 
-/** Where /login sends someone once they are in. Unchanged default. */
-const DEFAULT_NEXT = "/dashboard";
-
 /**
  * Where to land after auth, read off the form.
  *
- * The onboarding account screen (Spec w2b-14) mounts this same form and needs
- * the user back at `/onboarding?step=account` rather than the dashboard — the
- * flow is mid-way through and the dashboard is not where it resumes.
+ * Two callers supply one: the onboarding account screen (Spec w2b-14), which is
+ * mid-flow and needs the user back at `/onboarding?step=account` rather than the
+ * dashboard — and now `/login` itself, which forwards the deep link that sent an
+ * unauthenticated visitor there in the first place.
  *
- * ## UNTRUSTED INPUT, and a `startsWith` test is NOT enough
+ * ## ⚠️ THE PARSER MOVED, AND THE REASON IS THE SECOND CALLER
  *
- * This began as the rule `/auth/callback` uses — starts with `/`, does not start
- * with `//` — and a cold review walked straight through it by replaying the real
- * Server Action POST:
+ * The hardened version of this check used to live here, with a note saying it
+ * was not remotely triggerable — `next` was a constant in `account.tsx`, and
+ * Next rejects a cross-origin Server Action POST — but that *"the guarantee goes
+ * live the first time anything reads `next` off a URL."*
  *
- *     next=//evil.com      -> blocked
- *     next=https://evil.com -> blocked
- *     next=/\evil.com       -> PASSED, and `location.assign` lands on evil.com
- *     next=/<TAB>/evil.com  -> PASSED (also LF, CR)
+ * `/login` now does exactly that. And the same value travels on from here to
+ * `/auth/callback` and `/auth/confirm`, both of which were still running the
+ * `startsWith` test this one was written to replace, and both of which that test
+ * lets `/\evil.com` straight through.
  *
- * The WHATWG URL parser folds a backslash to `/` and strips C0 controls, so
- * `/\` IS `//` by the time a browser reads it. A prefix test on the raw string
- * is checking a value nothing will ever use.
- *
- * So the string is PARSED, against a base that cannot be escaped, and only its
- * path, query and fragment are kept. Whatever host a caller tries to smuggle in
- * is discarded by construction rather than by a pattern someone has to keep
- * ahead of.
- *
- * Not remotely triggerable today — `next` is a constant in `account.tsx` and
- * Next rejects a cross-origin Server Action POST — but the guarantee goes live
- * the first time anything reads `next` off a URL, and a comment claiming a rule
- * the code does not enforce is how that lands unnoticed.
+ * So the parse is in `lib/auth/nextPath.ts` and all four doorways call it. The
+ * bypasses it blocks — and the two the prefix test did not — are pinned in
+ * `lib/auth/nextPath.test.ts`.
  *
  * Anything unusable falls back to the default rather than erroring: a mangled
- * destination must never cost someone the account they just made.
+ * destination must never cost somebody the account they just made.
  */
 function readNext(formData: FormData): string {
-  const raw = formData.get("next");
-  if (typeof raw !== "string" || !raw.startsWith("/")) return DEFAULT_NEXT;
-  try {
-    // The base is opaque and unreachable, so a successful parse that leaves it
-    // behind proves the input named another origin.
-    const base = "https://trackd.invalid";
-    const url = new URL(raw, base);
-    if (url.origin !== base) return DEFAULT_NEXT;
-    const resolved = `${url.pathname}${url.search}${url.hash}`;
-    // `new URL("/\\evil.com", base)` yields origin `https://evil.com`, caught
-    // above. This second test catches nothing today and costs nothing; it is
-    // here so a future change to the parse cannot silently re-open the hole.
-    return resolved.startsWith("/") && !resolved.startsWith("//")
-      ? resolved
-      : DEFAULT_NEXT;
-  } catch {
-    return DEFAULT_NEXT;
-  }
+  return safeNextPath(formData.get("next"));
 }
 
 /** The site origin for this request (handles Vercel's proxy). */

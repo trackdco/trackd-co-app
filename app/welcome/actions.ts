@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 
+import { safeNextPath } from "@/lib/auth/nextPath";
 import { createClient } from "@/lib/supabase/server"
 import { gateWriter } from "@/lib/auth/gate-writer";
 
@@ -30,8 +31,8 @@ function ageInYears(dob: Date, now: Date): number {
  * the acceptance timestamp, and which ToS version was accepted (read live from
  * legal_documents so it stays correct after the launch-day bump to 1.0).
  *
- * Returns a field error for the form on rejection; redirects to /dashboard on
- * success.
+ * Returns a field error for the form on rejection; on success it redirects to
+ * the `next` the form carried, or to /dashboard when there is none.
  */
 export async function completeGate(
   _prev: GateState,
@@ -44,6 +45,21 @@ export async function completeGate(
   if (!user) {
     redirect("/login");
   }
+
+  /**
+   * ⚠️ READ BEFORE ANYTHING IS VALIDATED, SPENT ONLY AFTER EVERYTHING IS WRITTEN.
+   *
+   * Where this user was originally going, carried across the gate from
+   * `app/(app)/layout.tsx` via a hidden field. Parsed here rather than trusted:
+   * a hidden field is a value the browser sends, and every one of the four
+   * `next` doorways runs the same parser. See `lib/auth/nextPath.ts`.
+   *
+   * It changes NOTHING above the redirect — not the age check, not the consent
+   * write, not the service-role gate write. A destination must never be able to
+   * influence whether somebody passes the gate, only where they land once they
+   * have.
+   */
+  const next = safeNextPath(formData.get("next"));
 
   // Three separate affirmative consents (Spec 12). All required.
   const agreeTosPrivacy = formData.get("agree_tos_privacy") === "on";
@@ -158,5 +174,7 @@ export async function completeGate(
     return { error: "Couldn't save that just now. Please try again." };
   }
 
-  redirect("/dashboard");
+  // Falls back to `DEFAULT_NEXT` inside `safeNextPath`, so this is /dashboard
+  // for everybody who arrived here without a deep link — the unchanged path.
+  redirect(next);
 }

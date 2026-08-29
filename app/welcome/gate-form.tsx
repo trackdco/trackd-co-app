@@ -49,9 +49,22 @@ const SELECT_CLASS =
  *
  * Acceptance is a single checkbox covering all three legal documents, each
  * opening in a new tab so reading them doesn't drop the form. On success the
- * action redirects to /dashboard.
+ * action redirects to `next`, or to /dashboard when there is none.
  */
-export function GateForm() {
+export function GateForm({
+  /**
+   * The deep link that sent this user through the front door, carried across
+   * the gate. A first-run visitor who opened `/billing` signs in, meets this
+   * screen because they have never confirmed their age, and must still arrive
+   * at `/billing` afterwards — otherwise the destination survives sign-in only
+   * for people who happen to have signed up already, which is the narrower half
+   * of the bug rather than the fix.
+   *
+   * Validated on `app/welcome/page.tsx` on the way in and by the action on the
+   * way out; a hidden field is untrusted input like any other.
+   */
+  next,
+}: { next?: string } = {}) {
   const [state, formAction, isPending] = useActionState(
     completeGate,
     initialState,
@@ -96,6 +109,8 @@ export function GateForm() {
 
   return (
     <form action={formAction} className="mt-10 w-full max-w-[20rem] text-left">
+      {next ? <input type="hidden" name="next" value={next} /> : null}
+
       <fieldset className="border-0 p-0">
         <legend className="mb-2 block text-xs uppercase tracking-[0.18em] text-text-muted">
           Date of birth

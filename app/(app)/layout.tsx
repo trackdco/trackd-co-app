@@ -9,6 +9,10 @@ import { SyncStatusNotice } from "@/components/notifications/SyncStatusNotice";
 import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
 import { RotationNotice } from "@/components/layout/RotationNotice";
 import { getSessionContext } from "@/lib/auth";
+import {
+  gateWithDestination,
+  loginWithDestination,
+} from "@/lib/auth/destination";
 import { canWriteData } from "@/lib/billing/gate";
 import { createClient } from "@/lib/supabase/server";
 import { unitForPreference } from "@/lib/weight";
@@ -41,8 +45,8 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const { user, passedGate } = await getSessionContext();
-  if (!user) redirect("/login");
-  if (!passedGate) redirect("/welcome");
+  if (!user) redirect(await loginWithDestination());
+  if (!passedGate) redirect(await gateWithDestination());
 
   // The user's weight unit — for the FAB menu's quick log-weight popup — and the
   // body their injection-site map draws (the menu's log-dose flow shows one).

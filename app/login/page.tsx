@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { EmailPasswordForm } from "@/components/auth/email-password-form";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { getSessionContext } from "@/lib/auth";
+import { DEFAULT_NEXT, safeNextPath } from "@/lib/auth/nextPath";
 
 export const metadata: Metadata = {
   title: "Log in · Trackd Co",
@@ -20,18 +21,53 @@ export const metadata: Metadata = {
  * haven't passed it, otherwise the dashboard) so /login never shows to a live
  * session. ?error=auth surfaces a failed code exchange handed back by the
  * callback route.
+ *
+ * ## ⚠️ `?next=` — THE DESTINATION SOMEBODY WAS ACTUALLY ASKING FOR
+ *
+ * `app/(app)/layout.tsx` sends an unauthenticated visitor here with the path
+ * they were opening. This screen's only job with it is to hand it to the three
+ * controls that can complete a sign-in, so all three land in the same place:
+ *
+ *   Google       -> `/auth/callback?next=`   (a 302)
+ *   sign-in      -> the action returns it and the client loads it
+ *   sign-up      -> into the confirmation email, back via `/auth/confirm?next=`
+ *
+ * ⚠️ **THIS IS THE FIRST THING IN THE CODEBASE THAT READS A `next` OFF A URL**,
+ * and `app/login/actions.ts` named that moment as the one where the parser stops
+ * being belt-and-braces. So it is validated HERE, before it reaches any of the
+ * three, and again inside each of them — see `lib/auth/nextPath.ts`, which is
+ * now the single parser all four doorways share.
  */
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  /**
+   * ⚠️ `string | string[]`, and the array case is NOT theoretical. A repeated
+   * query parameter arrives as an array, and typing it as `string` is exactly
+   * how `app/onboarding/page.tsx`'s `?step=` guard was walked past — `?next=a&
+   * next=b` would have fallen straight through to the default while the address
+   * bar said otherwise. Resolved with `[0]`, which is what
+   * `URLSearchParams.get` returns, so this agrees with any client reading the
+   * same URL.
+   */
+  searchParams: Promise<{ error?: string; next?: string | string[] }>;
 }) {
+  const { error, next: rawNext } = await searchParams;
+  const requested = Array.isArray(rawNext) ? rawNext[0] : rawNext;
+  // `""` rather than the usual fallback: this screen needs to know whether a
+  // destination was asked for at all, not merely what it resolves to.
+  const validated = safeNextPath(requested, "");
+  const next = validated && validated !== DEFAULT_NEXT ? validated : undefined;
+
   const { user, passedGate } = await getSessionContext();
   if (user) {
-    redirect(passedGate ? "/dashboard" : "/welcome");
+    // A live session never sees this screen. It still honours the destination —
+    // arriving here signed in is what happens on a second tab, or a back button
+    // after the redirect, and dropping the deep link there would be the same
+    // bug one door along.
+    if (passedGate) redirect(next ?? DEFAULT_NEXT);
+    redirect(next ? `/welcome?next=${encodeURIComponent(next)}` : "/welcome");
   }
-
-  const { error } = await searchParams;
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-8 text-center">
@@ -63,7 +99,7 @@ export default async function LoginPage({
       ) : null}
 
       <div className="mt-10 w-full max-w-[20rem]">
-        <GoogleSignInButton />
+        <GoogleSignInButton next={next} />
 
         <div className="my-5 flex items-center gap-3" aria-hidden>
           <span className="h-[0.5px] flex-1 bg-border-default" />
@@ -71,7 +107,7 @@ export default async function LoginPage({
           <span className="h-[0.5px] flex-1 bg-border-default" />
         </div>
 
-        <EmailPasswordForm />
+        <EmailPasswordForm next={next} />
 
         <p className="mt-5 text-[0.7rem] leading-relaxed text-text-subtle">
           18+ only. By continuing you agree to our{" "}
