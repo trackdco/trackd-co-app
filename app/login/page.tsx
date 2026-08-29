@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { EmailPasswordForm } from "@/components/auth/email-password-form";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { SafariMark } from "@/components/onboarding/browser-marks";
 import { getSessionContext } from "@/lib/auth";
 import { DEFAULT_NEXT, safeNextPath } from "@/lib/auth/nextPath";
 
@@ -59,6 +60,25 @@ export default async function LoginPage({
   const validated = safeNextPath(requested, "");
   const next = validated && validated !== DEFAULT_NEXT ? validated : undefined;
 
+  /**
+   * ⚠️ ARRIVING FROM THE CHROME HANDOFF, WHICH NEEDS ITS OWN WORDS.
+   *
+   * Chrome on iPhone cannot add to the home screen, so the install step sends
+   * people to Safari through Chrome's own share sheet. Safari keeps a SEPARATE
+   * cookie jar, so they land here signed out — and "Welcome back" to somebody
+   * who signed in ninety seconds ago in another app reads as the app having
+   * lost them, or worse, as a phishing page. Adrian, watching it happen:
+   * "I don't know what's going on, to be honest. This is too hard."
+   *
+   * Nothing new is threaded through the URL to detect it. The destination the
+   * guard already attaches IS the signal, so there is no second parameter to
+   * keep in sync with the first.
+   */
+  const fromInstall =
+    next !== undefined &&
+    next.startsWith("/onboarding") &&
+    next.includes("step=install");
+
   const { user, passedGate } = await getSessionContext();
   if (user) {
     // A live session never sees this screen. It still honours the destination —
@@ -82,12 +102,29 @@ export default async function LoginPage({
         />
       </Link>
 
-      <h1 className="mt-12 text-balance text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
-        Welcome back
-      </h1>
-      <p className="mt-3 max-w-[17rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">
-        Sign in, or create an account to get started.
-      </p>
+      {fromInstall ? (
+        <>
+          <span className="mt-12 flex size-14 items-center justify-center rounded-2xl border border-border-default bg-bg-surface">
+            <SafariMark className="size-7" />
+          </span>
+          <h1 className="mt-6 text-balance text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+            One more sign-in
+          </h1>
+          <p className="mt-3 max-w-[19rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">
+            Safari keeps its own login, separate from Chrome. Sign in here and
+            we&rsquo;ll take you straight back to adding Trackd.
+          </p>
+        </>
+      ) : (
+        <>
+          <h1 className="mt-12 text-balance text-[2rem] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+            Welcome back
+          </h1>
+          <p className="mt-3 max-w-[17rem] text-pretty text-[0.95rem] leading-relaxed text-text-muted">
+            Sign in, or create an account to get started.
+          </p>
+        </>
+      )}
 
       {error ? (
         <p
