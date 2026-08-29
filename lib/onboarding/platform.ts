@@ -210,9 +210,9 @@ export interface WalkthroughStep {
  */
 export const INSTALL_WALKTHROUGH: Record<InstallFlowId, WalkthroughStep[]> = {
   "ios-chrome": [
-    { text: "Tap Share at the bottom of Chrome", strong: "Share" },
+    { text: "Tap Share at the top right of Chrome", strong: "Share" },
     { text: "Tap Open in Safari", strong: "Open in Safari" },
-    { text: "Safari opens on the same page, still signed in" },
+    { text: "Safari opens on the same page. The rest is done there" },
   ],
   "ios-safari": [
     { text: "Tap ⋯ at the right-hand end of the address bar", strong: "⋯" },
