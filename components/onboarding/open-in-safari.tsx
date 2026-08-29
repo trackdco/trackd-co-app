@@ -29,15 +29,33 @@ import { cn } from "@/lib/utils";
 export function OpenInSafari({ className }: { className?: string }) {
   const [copied, setCopied] = useState(false);
 
+  /**
+   * ⚠️ SAFARI STARTS SIGNED OUT, so the destination has to be carried.
+   *
+   * Chrome and Safari are separate apps with separate cookie jars. Handing
+   * Safari `/onboarding?step=install` means an authed step with no session, and
+   * the guard sends them to the START of onboarding — which is what Adrian hit:
+   * "when I press Open in Safari, it takes me to the very start."
+   *
+   * So it hands over `/login?next=/onboarding?step=install` instead, through
+   * the `?next=` thread `safeNextPath` already validates. They sign in once in
+   * Safari and land back on this step rather than at the beginning.
+   *
+   * This is a floor, not the finish. Signing in a second time at all is the
+   * thing worth removing, and that needs a one-time token on the link.
+   */
+  const handoff = () => {
+    const next = encodeURIComponent("/onboarding?step=install");
+    return `${window.location.host}/login?next=${next}`;
+  };
+
   const openSafari = useCallback(() => {
-    // Same page, same query, so whatever step they are on survives the hop.
-    const { host, pathname, search } = window.location;
-    window.location.href = `x-safari-https://${host}${pathname}${search}`;
+    window.location.href = `x-safari-https://${handoff()}`;
   }, []);
 
   const copyLink = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(`https://${handoff()}`);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {

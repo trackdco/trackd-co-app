@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useRef, useState } from "react";
 
 import {
@@ -13,42 +12,40 @@ import { cn } from "@/lib/utils";
 /**
  * The install, shown rather than described (Adrian, 2026-08-29).
  *
- * The screen used to carry a three-line text list. That is fine if you already
- * know roughly where the control is; it is not fine for the person this step
- * exists for, who is looking at a menu they have never opened and cannot find
- * the row we are naming. So each step is a drawing of their own screen at that
- * moment.
+ * A three-line text list is fine if you already know roughly where the control
+ * is. It is not fine for the person this step exists for, who is looking at a
+ * menu they have never opened and cannot find the row we are naming.
  *
- * ## ONE frame, not a row of cards (Adrian, 2026-08-29)
+ * ## THE WHOLE PHONE, IN ONE FRAME (Adrian, 2026-08-29)
  *
- * This was a side-scrolling carousel first, and he asked for the earlier shape
- * back: **a single phone frame with the steps sliding through it, and a slider
- * underneath to move between them.** He is right. A carousel puts three
- * half-steps on screen at once and invites you to compare them; what is being
- * taught here is a sequence, and a sequence wants one frame that changes. The
- * scrubber also gives the thing a visible length, so nobody wonders how much
- * further it goes.
+ * Built three times before this landed. A row of cards was wrong: it puts three
+ * half-steps on screen and invites comparing them, when what is being taught is
+ * a sequence. Cropping to the control was wrong too, and that one was my
+ * reasoning rather than his — I shrank the frame to keep menu text legible and
+ * lost the thing that made the video work, which is that you are watching YOUR
+ * phone do this. He asked for the device back, full screen, one frame, sliding.
  *
- * The slide is native scroll-snap rather than a hand-written transition, so a
- * thumb-drag gets the platform's own momentum and rubber-banding, and the
- * slider simply scrolls the same box.
+ * So: one phone, every step passing through it. The frame stays put and only
+ * its contents change, which is what makes it read as a device being operated
+ * rather than a gallery being paged.
+ *
+ * The slide is native scroll-snap, so a thumb-drag gets the platform's own
+ * momentum and rubber-banding, and the slider scrolls the same box.
  *
  * ## Two decisions worth knowing
  *
- * **The frames are images, not DOM.** `app-carousel.tsx` already ships real
- * captures out of the `/preview/*` harness for the same reason, and the same
- * warning applies here: **re-render the frames when the drawn screens change**
- * or this quietly goes stale. The alternative was porting every browser's
- * chrome into production JSX, which is a second copy of a thing that already
- * exists and would be the copy that drifts.
+ * **Frames are images, not DOM.** `app-carousel.tsx` already ships captures out
+ * of the `/preview/*` harness for the same reason, and the same warning
+ * applies: **re-render when the drawn screens change** or this goes stale. The
+ * alternative was every browser's chrome copied into production JSX, and it
+ * would be the copy that drifts.
  *
- * **The frames are CROPPED to the control, not whole phones.** A whole phone
- * scaled into this screen is about 140px wide and its menu rows are unreadable,
- * which defeats the entire point. Each frame is a window on the part of the
- * screen that matters, with everything dimmed except the row to press.
+ * **Everything dims except the control.** Each frame punches the row you need
+ * back to full brightness through the dim and rings it, so there is exactly one
+ * lit thing on a screen otherwise full of menu items.
  *
- * The caption is real text below the frame rather than burned into the image,
- * so it is readable by a screen reader and editable without re-rendering.
+ * The caption is real text below the frame, not burned into the image, so it is
+ * screen-readable and editable without re-rendering anything.
  */
 export function InstallWalkthrough({ device }: { device: DeviceGuess }) {
   const flow = installFlowId(device);
@@ -56,8 +53,6 @@ export function InstallWalkthrough({ device }: { device: DeviceGuess }) {
   const railRef = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState(0);
 
-  /* Which step fills the frame. Read back off the scroll position so a drag
-     and the slider can never disagree about where we are. */
   const onScroll = useCallback(() => {
     const rail = railRef.current;
     if (!rail || !rail.clientWidth) return;
@@ -77,10 +72,8 @@ export function InstallWalkthrough({ device }: { device: DeviceGuess }) {
   }, []);
 
   // A device change swaps the whole set, so start back at step one rather than
-  // leaving someone on "step 4 of 3" from the platform they just left. Adjusted
-  // during render rather than in an effect — an effect here sets state after
-  // paint, which shows the new frames under the old index for one frame. The
-  // rail is keyed by flow too, so its scroll position resets with it.
+  // leaving someone on "step 4 of 3". Adjusted during render, not in an effect,
+  // which would show the new frames under the old index for one paint.
   const [shownFlow, setShownFlow] = useState(flow);
   if (flow !== shownFlow) {
     setShownFlow(flow);
@@ -92,66 +85,85 @@ export function InstallWalkthrough({ device }: { device: DeviceGuess }) {
   const last = steps.length - 1;
   const now = Math.min(at, last);
   const step = steps[now];
+  const pct = last ? (now / last) * 100 : 0;
 
   return (
-    <section aria-label="How to add Trackd, step by step" className="space-y-3">
-      {/* ONE frame. Every step slides through this same box. */}
+    <section aria-label="How to add Trackd, step by step" className="space-y-4">
+      {/* ONE phone. Every step passes through this same frame. */}
       <div
         key={flow}
         ref={railRef}
         onScroll={onScroll}
         className={cn(
           "flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain",
-          "rounded-2xl border border-border-default bg-bg-surface",
-          "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "rounded-[34px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
       >
         {steps.map((s, i) => (
-          <Image
-            key={s.text}
-            src={`/onboarding/install/${flow}/${String(i + 1).padStart(2, "0")}.webp`}
-            alt={s.text}
-            width={660}
-            height={528}
-            // the first frame is the one that blocks; the rest arrive as the
-            // frame is dragged through
-            loading={i === 0 ? "eager" : "lazy"}
-            className="block h-auto w-full shrink-0 snap-center"
-          />
+          // The wrapper carries the snap width; the image keeps its own
+          // proportions inside it. A bare <img> as a flex child gets stretched
+          // to the row's cross-size, which silently squashed the phone.
+          <div key={s.text} className="flex w-full shrink-0 snap-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element --
+                A plain <img> on purpose. These are already WebP at exactly the
+                size they render, so the optimiser adds nothing — and with an
+                auto width it cannot infer a layout size, emitting widths the
+                endpoint then rejects with a 400. */}
+            <img
+              src={`/onboarding/install/${flow}/${String(i + 1).padStart(2, "0")}.webp`}
+              alt={s.text}
+              width={750}
+              height={1625}
+              loading={i === 0 ? "eager" : "lazy"}
+              decoding="async"
+              className="block h-auto max-h-[46vh] w-auto rounded-[30px]"
+            />
+          </div>
         ))}
       </div>
 
-      {/* The scrubber. A real range input, so a dragged thumb and the arrow
-          keys both work without reimplementing either. */}
-      <div className="flex items-center gap-3">
-        <input
-          type="range"
-          min={0}
-          max={last}
-          step={1}
-          value={now}
-          onChange={(e) => go(Number(e.target.value))}
-          aria-label="Step"
-          aria-valuetext={`Step ${now + 1} of ${steps.length}: ${step.text}`}
-          className={cn(
-            "h-1.5 min-w-0 flex-1 cursor-pointer rounded-full",
-            "bg-border-strong accent-accent-amber",
-            "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-amber",
-          )}
-        />
-        <span className="shrink-0 text-[0.78rem] tabular-nums text-text-muted">
-          {now + 1} / {steps.length}
-        </span>
-      </div>
-
-      {/* One caption, changing with the frame. `aria-live` so a screen reader
-          hears the new instruction when the slider moves. */}
-      <p
-        aria-live="polite"
-        className="min-h-[2.6rem] text-[0.92rem] leading-snug text-foreground"
-      >
+      <p aria-live="polite" className="min-h-[2.6rem] text-center text-[0.95rem] leading-snug">
         <Emphasise text={step.text} strong={step.strong} />
       </p>
+
+      {/* The scrubber. Ticks for every step and a filled track, so the length of
+          the thing and how far in you are are both visible without counting. */}
+      <div className="space-y-2">
+        <div className="relative h-6">
+          <div className="pointer-events-none absolute inset-x-1 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-bg-surface-raised" />
+          <div
+            className="pointer-events-none absolute top-1/2 left-1 h-1.5 -translate-y-1/2 rounded-full bg-accent-amber transition-[width] duration-200"
+            style={{ width: `calc(${pct}% - ${pct * 0.02}px)` }}
+          />
+          <div className="pointer-events-none absolute inset-x-1 top-1/2 flex -translate-y-1/2 justify-between">
+            {steps.map((s, i) => (
+              <span
+                key={s.text}
+                className={cn(
+                  "size-1.5 rounded-full",
+                  i <= now ? "bg-accent-amber" : "bg-border-strong",
+                )}
+              />
+            ))}
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={last}
+            step={1}
+            value={now}
+            onChange={(e) => go(Number(e.target.value))}
+            aria-label="Step"
+            aria-valuetext={`Step ${now + 1} of ${steps.length}: ${step.text}`}
+            className="absolute inset-0 h-full w-full cursor-grab appearance-none bg-transparent accent-accent-amber active:cursor-grabbing focus-visible:outline-none [&::-moz-range-thumb]:size-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-bg-base [&::-moz-range-thumb]:bg-accent-amber [&::-webkit-slider-thumb]:size-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-bg-base [&::-webkit-slider-thumb]:bg-accent-amber [&::-webkit-slider-thumb]:shadow-[0_2px_8px_rgba(0,0,0,.5)]"
+          />
+        </div>
+        <p className="text-center text-[0.78rem] text-text-subtle">
+          {now === last
+            ? `Step ${now + 1} of ${steps.length}`
+            : `Step ${now + 1} of ${steps.length} \u00b7 drag to move through`}
+        </p>
+      </div>
     </section>
   );
 }

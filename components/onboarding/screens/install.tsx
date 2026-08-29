@@ -141,6 +141,7 @@ export function InstallScreen() {
    * Leaving the user on a button that already did nothing is the dead end this
    * avoids: the manual steps appear underneath, and they get a way past.
    */
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [promptFailed, setPromptFailed] = useState(false);
 
   /**
@@ -260,52 +261,74 @@ export function InstallScreen() {
           {wrongBrowser ? (
             <SkipLink onClick={confirmManually}>I&apos;ve added it</SkipLink>
           ) : null}
+          <SkipLink onClick={() => setPickerOpen((o) => !o)}>
+            {pickerOpen ? "Hide" : "Not the phone you\u2019re on?"}
+          </SkipLink>
+          {pickerOpen ? <DevicePicker device={device} onChange={setDevice} /> : null}
           <SkipLink onClick={finish}>Skip for now</SkipLink>
         </div>
       }
     >
       <div className="space-y-4">
-        <Segmented
-          label="Your device"
-          value={platform}
-          onChange={(next) =>
-            // Changing platform resets the browser to that platform's default,
-            // because a stale "Samsung Internet" against iPhone would produce
-            // instructions for a combination that cannot exist.
-            setDevice({
-              platform: next,
-              browser: next === "ios" ? "safari" : "chrome",
-            })
-          }
-          options={[
-            { value: "ios", label: "iPhone" },
-            { value: "android", label: "Android" },
-          ]}
-        />
-
-        {/* The browser row. Offered per platform, because the lists genuinely
-            differ — Samsung Internet does not exist on iOS. */}
-        <Segmented
-          label="Your browser"
-          value={device.browser}
-          onChange={(browser) => setDevice((d) => ({ ...d, browser }))}
-          options={
-            platform === "ios"
-              ? ([
-                  { value: "safari", label: "Safari" },
-                  { value: "chrome", label: "Chrome" },
-                ] as { value: Browser; label: string }[])
-              : ([
-                  { value: "chrome", label: "Chrome" },
-                  { value: "samsung", label: "Samsung" },
-                ] as { value: Browser; label: string }[])
-          }
-        />
-
+        {/* ⚠️ NO DEVICE PICKER (Adrian, 2026-08-29). Asking somebody which phone
+            they are holding reads as the app not knowing, and it is right
+            almost always. The override survives as a quiet link below, because
+            UA sniffing IS a guess and a wrong one otherwise strands them on
+            instructions for a menu they do not have. */}
         <InstallHowTo device={device} />
         {wrongBrowser ? <OpenInSafari /> : null}
       </div>
     </StepFrame>
+  );
+}
+
+/**
+ * The override, behind a link rather than on the screen.
+ *
+ * UA sniffing is a good guess, not a certainty, and the cost of a wrong one is
+ * somebody hunting for a menu item their browser does not have. So the controls
+ * still exist; they are just not the first thing on a screen that already knows
+ * the answer.
+ */
+function DevicePicker({
+  device,
+  onChange,
+}: {
+  device: DeviceGuess;
+  onChange: (next: DeviceGuess | ((d: DeviceGuess) => DeviceGuess)) => void;
+}) {
+  return (
+    <div className="space-y-2 pt-2">
+      <Segmented
+        label="Your device"
+        value={device.platform}
+        onChange={(next) =>
+          // Resetting the browser with the platform, because a stale "Samsung
+          // Internet" against iPhone describes a combination that cannot exist.
+          onChange({ platform: next, browser: next === "ios" ? "safari" : "chrome" })
+        }
+        options={[
+          { value: "ios", label: "iPhone" },
+          { value: "android", label: "Android" },
+        ]}
+      />
+      <Segmented
+        label="Your browser"
+        value={device.browser}
+        onChange={(browser) => onChange((d) => ({ ...d, browser }))}
+        options={
+          device.platform === "ios"
+            ? ([
+                { value: "safari", label: "Safari" },
+                { value: "chrome", label: "Chrome" },
+              ] as { value: Browser; label: string }[])
+            : ([
+                { value: "chrome", label: "Chrome" },
+                { value: "samsung", label: "Samsung" },
+              ] as { value: Browser; label: string }[])
+        }
+      />
+    </div>
   );
 }
 
