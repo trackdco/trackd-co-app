@@ -19,7 +19,9 @@ import {
 import { DATA_MONO } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
+import { ChromeMark, SafariMark } from "../browser-marks";
 import { FlowCta, SkipLink, StepFrame } from "../chrome";
+import { SkipConfirm, SkipTrigger } from "../skip-install";
 import { InstallWalkthrough } from "../install-walkthrough";
 import { OpenInSafari } from "../open-in-safari";
 import { Segmented } from "../controls";
@@ -157,6 +159,7 @@ export function InstallScreen() {
    * avoids: the manual steps appear underneath, and they get a way past.
    */
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [skipAsking, setSkipAsking] = useState(false);
   const [promptFailed, setPromptFailed] = useState(false);
 
   /**
@@ -304,37 +307,64 @@ export function InstallScreen() {
             scrolled past them. Pinned, they read as the end of the screen and
             the walkthrough underneath went unseen. */}
         <div className="space-y-1 pt-2">
-          {wrongBrowser ? null : (
-            <FlowCta onClick={confirmManually}>I&apos;ve added it</FlowCta>
+          {skipAsking ? (
+            <SkipConfirm onCancel={() => setSkipAsking(false)} onSkip={finish} />
+          ) : (
+            <>
+              {wrongBrowser ? null : (
+                <FlowCta onClick={confirmManually}>I&apos;ve added it</FlowCta>
+              )}
+              {wrongBrowser ? (
+                <SkipLink onClick={confirmManually}>I&apos;ve added it</SkipLink>
+              ) : null}
+
+              {/* ⚠️ iOS ONLY, AND ON PURPOSE.
+                  On iOS the wrong guess is BINARY and the cost is total: Chrome
+                  cannot install at all, so somebody reading Safari's steps is
+                  hunting for a control Apple never gave their browser. One
+                  named button fixes it.
+
+                  Android deliberately does NOT get this. It is a three-way
+                  choice (Chrome, Samsung Internet, Firefox), so a single
+                  "instead" button cannot name the right one — and being wrong
+                  there is recoverable, because every Android browser can
+                  install and the one-tap prompt works regardless of whose menu
+                  we drew. The picker below is the right tool for a three-way
+                  choice. */}
+              {platform === "ios" ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDevice({
+                      platform: "ios",
+                      browser: device.browser === "safari" ? "chrome" : "safari",
+                    })
+                  }
+                  className="flex h-12 w-full items-center justify-center gap-2.5 rounded-2xl border border-border-strong bg-bg-base text-[0.9rem] font-medium text-foreground transition-colors duration-[var(--motion-fast)] hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none motion-reduce:transition-none"
+                >
+                  {device.browser === "safari" ? (
+                    <>
+                      <ChromeMark className="size-[18px]" />
+                      On Chrome instead
+                    </>
+                  ) : (
+                    <>
+                      <SafariMark className="size-[18px]" />
+                      On Safari instead
+                    </>
+                  )}
+                </button>
+              ) : null}
+
+              <SkipLink onClick={() => setPickerOpen((o) => !o)}>
+                {pickerOpen ? "Hide" : "Not the phone you\u2019re on?"}
+              </SkipLink>
+              {pickerOpen ? (
+                <DevicePicker device={device} onChange={setDevice} />
+              ) : null}
+              <SkipTrigger onClick={() => setSkipAsking(true)} />
+            </>
           )}
-          {wrongBrowser ? (
-            <SkipLink onClick={confirmManually}>I&apos;ve added it</SkipLink>
-          ) : null}
-          {/* ⚠️ ONE NAMED SWAP, NOT A PICKER (Adrian, 2026-08-29).
-              The realistic wrong guess on iOS is exactly one: Safari read when
-              they are in Chrome, or the reverse. Both lead to instructions for
-              a menu they cannot find, and both are fixed by one tap that says
-              which browser it is switching to. The general picker stays behind
-              it for the rest. */}
-          {platform === "ios" ? (
-            <SkipLink
-              onClick={() =>
-                setDevice({
-                  platform: "ios",
-                  browser: device.browser === "safari" ? "chrome" : "safari",
-                })
-              }
-            >
-              {device.browser === "safari"
-                ? "On Chrome instead?"
-                : "On Safari instead?"}
-            </SkipLink>
-          ) : null}
-          <SkipLink onClick={() => setPickerOpen((o) => !o)}>
-            {pickerOpen ? "Hide" : "Not the phone you\u2019re on?"}
-          </SkipLink>
-          {pickerOpen ? <DevicePicker device={device} onChange={setDevice} /> : null}
-          <SkipLink onClick={finish}>Skip for now</SkipLink>
         </div>
       </div>
     </StepFrame>
