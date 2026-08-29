@@ -51,6 +51,19 @@ export function InstallWalkthrough({ device }: { device: DeviceGuess }) {
   const flow = installFlowId(device);
   const steps = flow ? INSTALL_WALKTHROUGH[flow] : null;
   const railRef = useRef<HTMLDivElement>(null);
+  const attachRail = useCallback((node: HTMLDivElement | null) => {
+    railRef.current = node;
+    if (!node) return;
+    node.scrollLeft = 0;
+    // The lazy frames settle after first paint and can carry the offset with
+    // them, so it is pinned again on the next frame and once more when the
+    // first image has actually decoded.
+    requestAnimationFrame(() => { node.scrollLeft = 0; });
+    const first = node.querySelector("img");
+    if (first && !first.complete) {
+      first.addEventListener("load", () => { node.scrollLeft = 0; }, { once: true });
+    }
+  }, []);
   const [at, setAt] = useState(0);
 
   const onScroll = useCallback(() => {
@@ -92,7 +105,7 @@ export function InstallWalkthrough({ device }: { device: DeviceGuess }) {
       {/* ONE phone. Every step passes through this same frame. */}
       <div
         key={flow}
-        ref={railRef}
+        ref={attachRail}
         onScroll={onScroll}
         className={cn(
           "flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain",
@@ -116,7 +129,7 @@ export function InstallWalkthrough({ device }: { device: DeviceGuess }) {
               height={1625}
               loading={i === 0 ? "eager" : "lazy"}
               decoding="async"
-              className="block h-auto max-h-[46vh] w-auto rounded-[30px]"
+              className="block h-auto max-h-[54vh] w-auto rounded-[30px]"
             />
           </div>
         ))}

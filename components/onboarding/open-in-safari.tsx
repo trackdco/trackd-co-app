@@ -6,106 +6,59 @@ import { Check, Copy } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * Getting somebody from Chrome on iPhone into Safari (Adrian, 2026-08-29).
+ * ⚠️ THERE IS NO "OPEN IN SAFARI" BUTTON HERE, AND THAT IS THE POINT.
  *
- * The install step told them to "copy this page's address" and then gave them
- * nothing to copy it with, so the fix was a manual URL selection in an address
- * bar, mid-signup, on a phone. `OpenInSafariPrompt` on the dashboard already
- * had a copy button; the harder version was the one people hit FIRST.
+ * There was one. It navigated to `x-safari-https://…`, which opens Safari when
+ * you type it into an address bar — Adrian confirmed that much — but NOT when a
+ * page assigns it to `location.href`. Chrome kept the navigation for itself, so
+ * the button quietly did the wrong thing twice:
  *
- * ## Two buttons, because neither is reliable alone
+ *   "when I press Open in Safari, it just takes me to the Trackd dashboard"
+ *   "it keeps opening in Google, not in Safari"
  *
- * **`x-safari-https://`** opens Safari regardless of the default browser, and
- * Adrian confirmed it works on his handset. But Apple has never documented it,
- * it stopped working entirely on iOS 16, and there is no supported API that
- * guarantees opening Safari — Apple does not want apps overriding the default
- * browser. So it is offered, and it can NEVER be the only way across.
+ * His call, and the right one: *"we don't want to give people [a button] that
+ * doesn't work."* A control that silently fails is worse than no control,
+ * because the person concludes the app is broken rather than trying the route
+ * that does work.
  *
- * ⚠️ A FAILED SCHEME NAVIGATION IS SILENT. The page simply stays put; there is
- * no error and nothing to catch. So the copy button is not a fallback that
- * appears after a failure — it is always visible, because a failure looks
- * exactly like nothing happening.
+ * ## What works instead
+ *
+ * Chrome's OWN share sheet has an "Open in Safari" row, and it carries the
+ * exact URL across WITH the session — Adrian: *"it takes you exactly straight
+ * to the page that you were on. You're already signed in."* That is one tap,
+ * needs nothing from us, and is what the steps now teach.
+ *
+ * The copy button stays as the fallback for anyone who cannot find that row.
  */
-/**
- * Safari's compass, drawn rather than imported.
- *
- * Small enough to be unmistakable at 20px: the blue dial, the white ring and
- * the red-and-white needle. People recognise the face before they read the
- * word, which is the whole reason it is on a button telling them to go to a
- * different app.
- */
-function SafariMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <circle cx="12" cy="12" r="10.5" fill="#3B8FF3" />
-      <circle cx="12" cy="12" r="10.5" fill="none" stroke="#1F6FD0" strokeWidth="1" />
-      <circle cx="12" cy="12" r="8.6" fill="#F7F7F8" />
-      <path d="M16.9 7.1 10.6 10.6 7.1 16.9 13.4 13.4Z" fill="#F4453C" />
-      <path d="M10.6 10.6 13.4 13.4 7.1 16.9Z" fill="#D8D8DC" />
-    </svg>
-  );
-}
-
 export function OpenInSafari({ className }: { className?: string }) {
   const [copied, setCopied] = useState(false);
 
-  /**
-   * ⚠️ SAFARI STARTS SIGNED OUT, so the destination has to be carried.
-   *
-   * Chrome and Safari are separate apps with separate cookie jars. Handing
-   * Safari `/onboarding?step=install` means an authed step with no session, and
-   * the guard sends them to the START of onboarding — which is what Adrian hit:
-   * "when I press Open in Safari, it takes me to the very start."
-   *
-   * So it hands over `/login?next=/onboarding?step=install` instead, through
-   * the `?next=` thread `safeNextPath` already validates. They sign in once in
-   * Safari and land back on this step rather than at the beginning.
-   *
-   * This is a floor, not the finish. Signing in a second time at all is the
-   * thing worth removing, and that needs a one-time token on the link.
-   */
-  const handoff = () => {
-    const next = encodeURIComponent("/onboarding?step=install");
-    return `${window.location.host}/login?next=${next}`;
-  };
-
-  const openSafari = useCallback(() => {
-    window.location.href = `x-safari-https://${handoff()}`;
-  }, []);
-
   const copyLink = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(`https://${handoff()}`);
+      await navigator.clipboard.writeText(window.location.href);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard can be blocked. The address is on screen above to type by
+      // Clipboard can be blocked. The address is in the bar above to type by
       // hand, which is where this started, so failing here loses nothing.
     }
   }, []);
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
-      <button
-        type="button"
-        onClick={openSafari}
-        className="flex h-12 w-full items-center justify-center rounded-xl bg-bg-surface-raised text-[0.92rem] font-medium text-foreground transition-colors hover:bg-bg-input focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <SafariMark className="mr-2 size-5" />
-        Open in Safari
-      </button>
-      <button
-        type="button"
-        onClick={copyLink}
-        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-default text-[0.88rem] text-text-muted transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        {copied ? (
-          <Check className="size-4" aria-hidden="true" />
-        ) : (
-          <Copy className="size-4" aria-hidden="true" />
-        )}
-        {copied ? "Link copied" : "Copy the link instead"}
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={copyLink}
+      className={cn(
+        "flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-default text-[0.88rem] text-text-muted transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        className,
+      )}
+    >
+      {copied ? (
+        <Check className="size-4" aria-hidden="true" />
+      ) : (
+        <Copy className="size-4" aria-hidden="true" />
+      )}
+      {copied ? "Link copied" : "Copy the link instead"}
+    </button>
   );
 }

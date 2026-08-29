@@ -166,12 +166,20 @@ export function installSteps({ platform, browser }: DeviceGuess): InstallStep[] 
  */
 export type InstallFlowId =
   | "ios-safari"
+  | "ios-chrome"
   | "android-chrome"
   | "android-samsung"
   | "android-firefox";
 
 export function installFlowId({ platform, browser }: DeviceGuess): InstallFlowId | null {
-  if (platform === "ios") return browser === "safari" ? "ios-safari" : null;
+  if (platform === "ios") {
+    if (browser === "safari") return "ios-safari";
+    // Chrome cannot install, but its share sheet CAN hand the page and the
+    // session to Safari in one tap, and that is worth drawing. Only Chrome:
+    // Firefox and Edge on iOS have their own sheets, and describing Chrome's
+    // to them is the mistake this whole file exists to avoid.
+    return browser === "chrome" ? "ios-chrome" : null;
+  }
   if (browser === "samsung") return "android-samsung";
   if (browser === "firefox") return "android-firefox";
   // Chrome and Edge share a menu. This is the MENU path, not the one-tap
@@ -201,6 +209,11 @@ export interface WalkthroughStep {
  * the actual screen, so it can afford to name where on the screen to look.
  */
 export const INSTALL_WALKTHROUGH: Record<InstallFlowId, WalkthroughStep[]> = {
+  "ios-chrome": [
+    { text: "Tap Share at the bottom of Chrome", strong: "Share" },
+    { text: "Tap Open in Safari", strong: "Open in Safari" },
+    { text: "Safari opens on the same page, still signed in" },
+  ],
   "ios-safari": [
     { text: "Tap ⋯ at the right-hand end of the address bar", strong: "⋯" },
     { text: "Tap Share…", strong: "Share…" },
