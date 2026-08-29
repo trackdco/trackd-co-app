@@ -3718,6 +3718,42 @@ Decisions worth keeping:
   "Show me how instead". Previously the steps only appeared once the prompt had
   FAILED, which made people fail first to earn the explanation.
 
+### Safari handoff sign-in (30 Aug) — branch `safari-handoff-login`, NOT merged
+
+Chrome on iPhone cannot add to the home screen, so the install step sends people
+to Safari via Chrome's own Share sheet. Safari is a separate cookie jar, so they
+land signed out, and "Welcome back" to somebody who signed in ninety seconds ago
+reads as the app having lost them. `/login` now swaps its heading and blurb for
+Safari's mark, "One more sign-in", and the reason — but only on a genuine hop.
+
+**How "only from Chrome" is known.** Nothing in the request Safari receives says
+where it came from; the share sheet hands over the address bar and no more. So
+the marker is stamped by the only screen that knows:
+
+1. `components/onboarding/screens/install.tsx` — when iOS is not in Safari, a
+   `replaceState` puts `from=chrome` on its own URL. Not a navigation: the flow
+   is one client tree and a router push throws the transition away. The flow's
+   URL writer (`flow.tsx`) copies `window.location.href` and only sets `step`,
+   so the marker survives every later move.
+2. `app/onboarding/page.tsx` — the signed-out guard carries `from=chrome` into
+   the `?next=` it builds, reading it from the same `searchParams` as the step
+   and never inventing it.
+3. `app/login/page.tsx` — requires `from=chrome` *and* `step=install`.
+   `safeNextPath` keeps `url.search`, so it survives the round trip back.
+
+- **`step=install` alone was NOT enough**, which is why step 1 exists at all.
+  That condition is also true of somebody who opened Trackd in Safari, stayed in
+  Safari and was simply logged out — they would have been told Safari keeps a
+  separate login from Chrome, about a browser they never opened.
+- **No custom domain**, which is what was originally asked for. A second origin
+  is a second cookie jar — the exact problem being solved — and would guarantee
+  the signed-out state rather than smooth it.
+
+Measured, not reasoned: iPhone Chrome stamps, iPhone Safari and Android Chrome
+do not; and of plain `/login`, `step=install` alone, `step=install&from=chrome`
+and `step=account&from=chrome`, only the third shows the copy. Review artifact
+at `30701f61-ddce-4aa6-8e2a-9f597a4f2db7`.
+
 Also produced for marketing, not in the app: three 1080x1920 Reels
 (`scratchpad/icon-harness/reels/`) and 20 carousel stills
 (`scratchpad/icon-harness/stills/`), with the carousel preview artifact at
