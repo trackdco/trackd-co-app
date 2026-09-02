@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useSyncExternalStore } from "react"
+import { useMemo, useState, useSyncExternalStore } from "react"
 
 import {
   getOneOffsSnapshot,
@@ -11,6 +11,8 @@ import {
 
 /** Stable empty reference for the one-off store's server snapshot. */
 const EMPTY_ONE_OFFS: OneOffDays = {}
+
+import { CaretRight } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Container } from "@/components/containers/Container"
@@ -37,6 +39,7 @@ import {
   type DayLogs,
 } from "@/lib/home/doseLog"
 import { ReflectionEditor } from "@/components/blocks/ReflectionEditor"
+import { BlockPhotoSheets } from "@/components/blocks/BlockPhotoSheets"
 
 const EMPTY_STACK: StackCompound[] = []
 const EMPTY_LOGS: DayLogs = {}
@@ -140,6 +143,7 @@ export function BlockRetrospective({
 
   const live = block.status === "active"
   const pair = retro.photos ? comparePair(retro.photos) : null
+  const [photosOpen, setPhotosOpen] = useState(false)
   const consistencyTarget =
     block.targets.find((t) => t.variable === "consistency") ?? null
 
@@ -214,10 +218,23 @@ export function BlockRetrospective({
       {/* Photos — the earliest and latest shot of ONE pose, front preferred.
           "Before" and "After" rather than "First" and "Last": the pair is the
           ends of a pose's own timeline, which is not always the block's first
-          and last session, and each pane prints its own date. */}
+          and last session, and each pane prints its own date.
+
+          The whole card opens the block's own gallery. It is a button rather
+          than a link because the gallery is a sheet, and it carries the
+          press-compression the borderless-card rule asks of an interactive card
+          plus a muted chevron, since a surface with no border has nothing else
+          to say it is tappable. */}
       {retro.photos && (
-        <section className="rounded-2xl bg-bg-surface p-5">
-          <p className={CARD_EYEBROW}>Photos</p>
+        <button
+          type="button"
+          onClick={() => setPhotosOpen(true)}
+          className="w-full rounded-2xl bg-bg-surface p-5 text-left transition-transform active:scale-[0.98] active:opacity-90"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className={CARD_EYEBROW}>Photos</p>
+            <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+          </div>
           <p className="mt-1.5 text-sm text-text-muted">
             {retro.photos.sessions}{" "}
             {retro.photos.sessions === 1 ? "session" : "sessions"} inside this block
@@ -235,7 +252,19 @@ export function BlockRetrospective({
               />
             </div>
           )}
-        </section>
+        </button>
+      )}
+
+      {retro.photos && (
+        <BlockPhotoSheets
+          open={photosOpen}
+          onOpenChange={setPhotosOpen}
+          photos={retro.photos.all}
+          blockName={block.name}
+          from={retro.window.from}
+          to={retro.window.to}
+          unit={unit}
+        />
       )}
 
       {/* What you ran — the thing Adrian described wanting to look back on. */}

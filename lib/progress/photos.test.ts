@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest"
 import {
   DEFAULT_POSES,
   POSE_CATALOGUE,
+  comparablePoses,
   isCataloguePose,
   isDefaultPose,
   poseLabel,
   poseShape,
+  type ProgressPhoto,
 } from "./photos"
 
 /**
@@ -73,5 +75,61 @@ describe("the catalogue as a whole", () => {
     expect(isCataloguePose("Fun house mirror")).toBe(false)
     expect(poseLabel("Fun house mirror")).toBe("Fun house mirror")
     expect(poseShape("Fun house mirror")).toBeNull()
+  })
+})
+
+describe("comparablePoses", () => {
+  const photo = (pose: string, date: string, id = `${pose}-${date}`): ProgressPhoto => ({
+    id,
+    pose,
+    date,
+    url: null,
+    weightKg: null,
+    note: null,
+  })
+
+  it("drops a pose that was only photographed once", () => {
+    // It cannot carry a before and after, so offering it put the same photo in
+    // both panes and padded the chip row with a dead option.
+    expect(
+      comparablePoses([
+        photo("front", "2026-01-05"),
+        photo("front", "2026-02-20"),
+        photo("back", "2026-01-05"),
+      ]),
+    ).toEqual(["front"])
+  })
+
+  it("returns catalogue order, with custom poses last", () => {
+    const twice = (pose: string) => [
+      photo(pose, "2026-01-05"),
+      photo(pose, "2026-02-20"),
+    ]
+    expect(
+      comparablePoses([
+        ...twice("my own pose"),
+        ...twice("back"),
+        ...twice("front"),
+        ...twice("side"),
+      ]),
+    ).toEqual(["front", "side", "back", "my own pose"])
+  })
+
+  it("counts two shots of one pose on the SAME day", () => {
+    // A retake is still two photos the user can stand side by side. This is
+    // deliberately looser than the block retrospective's automatic pair, which
+    // requires two DAYS because it is asserting a change over time.
+    expect(
+      comparablePoses([
+        photo("front", "2026-01-05", "a"),
+        photo("front", "2026-01-05", "b"),
+      ]),
+    ).toEqual(["front"])
+  })
+
+  it("is empty when nothing can be compared", () => {
+    // What the gallery uses to decide whether to offer Compare at all.
+    expect(comparablePoses([photo("front", "2026-01-05")])).toEqual([])
+    expect(comparablePoses([])).toEqual([])
   })
 })
