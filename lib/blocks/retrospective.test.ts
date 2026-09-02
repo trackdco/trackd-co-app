@@ -294,15 +294,77 @@ describe("photosAcross / comparePair", () => {
     })
   })
 
-  it("falls back to each session's lead when no pose is shared", () => {
+  it("prefers FRONT over another pose shot at both ends", () => {
     const span = photosAcross(
       [
         photo({ id: "a", date: "2026-01-05", pose: "back" }),
+        photo({ id: "b", date: "2026-01-05", pose: "front" }),
+        photo({ id: "c", date: "2026-02-20", pose: "back" }),
+        photo({ id: "d", date: "2026-02-20", pose: "front" }),
+      ],
+      WINDOW,
+    )
+    // Both poses qualify; the retrospective is opened to see the front.
+    expect(comparePair(span!)).toMatchObject({ before: { id: "b" }, after: { id: "d" } })
+  })
+
+  it("prefers front, then side, then back, then a relaxed variant", () => {
+    const at = (pose: string) => [
+      photo({ id: `${pose}-1`, date: "2026-01-05", pose }),
+      photo({ id: `${pose}-2`, date: "2026-02-20", pose }),
+    ]
+    const all = [...at("back-relaxed"), ...at("back"), ...at("side"), ...at("front")]
+    const poseOf = (photos: typeof all) =>
+      comparePair(photosAcross(photos, WINDOW)!)?.before.pose
+
+    expect(poseOf(all)).toBe("front")
+    expect(poseOf(all.filter((p) => p.pose !== "front"))).toBe("side")
+    expect(poseOf(all.filter((p) => !["front", "side"].includes(p.pose)))).toBe("back")
+    expect(poseOf(at("back-relaxed"))).toBe("back-relaxed")
+  })
+
+  it("looks past the end sessions to find a pose shot twice", () => {
+    const span = photosAcross(
+      [
+        photo({ id: "a", date: "2026-01-05", pose: "front" }),
+        photo({ id: "b", date: "2026-01-20", pose: "front" }),
+        photo({ id: "c", date: "2026-02-20", pose: "back" }),
+      ],
+      WINDOW,
+    )
+    // The first session is front-only and the last back-only, so the old
+    // session-bound rule paired a front with a back. Two fronts is the honest
+    // comparison even though neither is the block's last photo.
+    expect(comparePair(span!)).toMatchObject({ before: { id: "a" }, after: { id: "b" } })
+  })
+
+  it("ignores a pose shot twice on the SAME day", () => {
+    const span = photosAcross(
+      [
+        photo({ id: "a", date: "2026-01-05", pose: "front" }),
+        photo({ id: "b", date: "2026-01-05", pose: "front" }),
+        photo({ id: "c", date: "2026-01-05", pose: "back" }),
+        photo({ id: "d", date: "2026-02-20", pose: "back" }),
+      ],
+      WINDOW,
+    )
+    // Two fronts in one session is one moment photographed twice, not a change
+    // over time. Back spans two days, so back is the only real pair.
+    expect(comparePair(span!)).toMatchObject({ before: { id: "c" }, after: { id: "d" } })
+  })
+
+  it("falls back to each session's front-most pose when no pose repeats", () => {
+    const span = photosAcross(
+      [
+        photo({ id: "a", date: "2026-01-05", pose: "back" }),
+        photo({ id: "b", date: "2026-01-05", pose: "side" }),
         photo({ id: "c", date: "2026-02-20", pose: "front" }),
       ],
       WINDOW,
     )
-    expect(comparePair(span!)).toMatchObject({ before: { id: "a" }, after: { id: "c" } })
+    // Still a mismatched pair, but it leads with the front-most pose each end
+    // carried rather than whichever happened to be first in the array.
+    expect(comparePair(span!)).toMatchObject({ before: { id: "b" }, after: { id: "c" } })
   })
 
   it("excludes photos outside the window", () => {

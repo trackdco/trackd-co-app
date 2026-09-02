@@ -211,7 +211,10 @@ export function BlockRetrospective({
         </section>
       )}
 
-      {/* Photos — first and last session side by side. */}
+      {/* Photos — the earliest and latest shot of ONE pose, front preferred.
+          "Before" and "After" rather than "First" and "Last": the pair is the
+          ends of a pose's own timeline, which is not always the block's first
+          and last session, and each pane prints its own date. */}
       {retro.photos && (
         <section className="rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>Photos</p>
@@ -221,8 +224,8 @@ export function BlockRetrospective({
           </p>
           {pair ? (
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <ComparePane photo={pair.before} caption="First" />
-              <ComparePane photo={pair.after} caption="Last" />
+              <ComparePane photo={pair.before} caption="Before" />
+              <ComparePane photo={pair.after} caption="After" />
             </div>
           ) : (
             <div className="mt-3 grid grid-cols-2 gap-3">
