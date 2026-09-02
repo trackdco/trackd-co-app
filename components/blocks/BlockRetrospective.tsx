@@ -40,6 +40,7 @@ import {
 } from "@/lib/home/doseLog"
 import { ReflectionEditor } from "@/components/blocks/ReflectionEditor"
 import { BlockPhotoSheets } from "@/components/blocks/BlockPhotoSheets"
+import { BlockWeightSheet } from "@/components/blocks/BlockWeightSheet"
 
 const EMPTY_STACK: StackCompound[] = []
 const EMPTY_LOGS: DayLogs = {}
@@ -144,6 +145,7 @@ export function BlockRetrospective({
   const live = block.status === "active"
   const pair = retro.photos ? comparePair(retro.photos) : null
   const [photosOpen, setPhotosOpen] = useState(false)
+  const [weightOpen, setWeightOpen] = useState(false)
   const consistencyTarget =
     block.targets.find((t) => t.variable === "consistency") ?? null
 
@@ -184,10 +186,18 @@ export function BlockRetrospective({
         </p>
       )}
 
-      {/* Weight — start, end, delta, and the graph clipped to the window. */}
+      {/* Weight — start, end, delta, and the graph clipped to the window. Opens
+          the block's own weight sheet, same as the Photos card. */}
       {retro.weight && (
-        <section className="rounded-2xl bg-bg-surface p-5">
-          <p className={CARD_EYEBROW}>Weight</p>
+        <button
+          type="button"
+          onClick={() => setWeightOpen(true)}
+          className="w-full rounded-2xl bg-bg-surface p-5 text-left transition-transform active:scale-[0.98] active:opacity-90"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className={CARD_EYEBROW}>Weight</p>
+            <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+          </div>
           {/* One reading has no delta, so the reading itself is the headline.
               Showing "0 kg" over "92.4 to 92.4 kg" read as a measured outcome. */}
           <p className="mt-1.5 flex items-baseline gap-2">
@@ -212,7 +222,20 @@ export function BlockRetrospective({
           {retro.weight.points.length > 1 && (
             <WindowSparkline values={retro.weight.points.map((p) => p.kg)} />
           )}
-        </section>
+        </button>
+      )}
+
+      {retro.weight && (
+        <BlockWeightSheet
+          open={weightOpen}
+          onOpenChange={setWeightOpen}
+          points={retro.weight.points}
+          blockName={block.name}
+          from={retro.window.from}
+          to={retro.window.to}
+          days={retro.window.days}
+          unit={unit}
+        />
       )}
 
       {/* Photos — the earliest and latest shot of ONE pose, front preferred.
