@@ -5,7 +5,9 @@ import { courtesyUntilFor } from "@/lib/billing/courtesy";
 import { entitlementFacts } from "@/lib/billing/entitlements";
 import { billingGateEnabled } from "@/lib/billing/gate";
 import { planLabelFor } from "@/lib/billing/manage";
+import { accountNameFor } from "@/lib/profile/name";
 import { createClient } from "@/lib/supabase/server";
+import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 
 export const metadata: Metadata = { title: "Profile · Trackd Co" };
 
@@ -29,7 +31,7 @@ export default async function ProfilePage() {
     .from("profiles")
     // `tier` is no longer read: the plan label comes from `entitlements`.
     .select(
-      "created_at, sex, date_of_birth, height_cm, weight_kg, goal, units_preference, avatar_path",
+      "created_at, sex, date_of_birth, height_cm, weight_kg, goal, units_preference, avatar_path, display_name",
     )
     .eq("id", user!.id)
     .maybeSingle();
@@ -40,7 +42,7 @@ export default async function ProfilePage() {
   if (profile?.avatar_path) {
     const { data: signed } = await supabase.storage
       .from("avatars")
-      .createSignedUrl(profile.avatar_path, 3600);
+      .createSignedUrl(profile.avatar_path, SIGNED_URL_TTL);
     avatarUrl = signed?.signedUrl ?? null;
   }
 
@@ -59,13 +61,34 @@ export default async function ProfilePage() {
     .maybeSingle();
   const displayWeightKg = latestWeight?.weight ?? profile?.weight_kg ?? null;
 
-  // ----- display identity (auth metadata only; never an access decision) -----
-  const fullName =
+  /* ----- display identity (display only; never an access decision) ---------
+   *
+   * TWO NAMES ON THIS SCREEN, ON PURPOSE (Adrian, 2026-09-03).
+   *
+   *  - The HEADING answers "whose account is this", so it is Google's first +
+   *    last and it sits directly above the email, which is the same kind of
+   *    fact.
+   *  - The "Display name" row in the details card answers "what does the app
+   *    call you". It is one token, it is the thing Home greets you with, and it
+   *    is the only one of the two the user can edit.
+   *
+   * The label on the row is what stops that reading as a bug rather than as a
+   * decision: a row simply called "Name" sitting under a two-word heading looks
+   * like it ought to match it.
+   *
+   * The heading's fallback changed with it. It used to go straight from "Google
+   * has no name" to the raw EMAIL, so an account that told us its name on the
+   * first screen of onboarding was still titled "adrianschimizzi1". It now falls
+   * back to the display name first; the email is printed underneath either way.
+   */
+  const authFullName =
     (user?.user_metadata?.full_name as string | undefined) ??
     (user?.user_metadata?.name as string | undefined) ??
     null;
-  const hasName = Boolean(fullName?.trim());
   const email = user?.email ?? "";
+  const displayName = (profile?.display_name as string | null | undefined) ?? null;
+  const accountName = accountNameFor({ authFullName, displayName });
+  const hasName = accountName !== null;
 
   /**
    * THE PLAN LABEL COMES FROM `entitlements` NOW, NOT `profiles.tier`.
@@ -135,13 +158,14 @@ export default async function ProfilePage() {
   return (
     <ProfileScreen
       userId={user!.id}
-      initials={getInitials(fullName, email)}
+      initials={getInitials(accountName, email)}
       avatarUrl={avatarUrl}
-      displayName={hasName ? fullName!.trim() : email || "Your account"}
+      displayName={accountName ?? (email || "Your account")}
       hasName={hasName}
       email={email}
       planLabel={planLabel}
       physical={{
+        displayName,
         sex: profile?.sex ?? null,
         goal: profile?.goal ?? null,
         unitsPreference: profile?.units_preference ?? "metric",

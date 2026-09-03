@@ -3040,6 +3040,95 @@ migrations — `001_custom_marker_polarity.sql` and `001_rename_cycle_changes.sq
 Both are applied, so they were NOT renumbered (renaming an applied migration
 buys confusion, not clarity). Every other folder numbers cleanly.
 
+## ⚠️ SIGNED COPY — the account-deletion screen (Adrian, 2026-09-03). HELD FOR STEP 5.
+
+**Signed and character-for-character sacred. Not built yet, deliberately.** Recorded
+here the moment it was issued so it cannot drift, be paraphrased, or be
+reconstructed from memory by a later session.
+
+| Slot | Copy |
+|---|---|
+| Title | `Are you sure you want to delete your account?` |
+| Body | `All of your compounds, doses, photos, bloodwork and metrics will be completely erased and unrecoverable.` |
+| Label above the input | `Type DELETE to confirm` |
+| Placeholder | `DELETE` |
+| Confirm button | `Yes, delete my account` |
+| Dismiss button | `I'd rather stay` |
+| Refund warning (renders ONLY when an open request exists) | `You have a refund request open. Deleting your account will remove it, and we will not be able to follow up with you here.` |
+
+**Behaviour that ships with the words:** the match is **EXACT and CASE-SENSITIVE**.
+`delete` does not enable the button. No em dashes anywhere.
+
+⚠️ **The apostrophe in `I'd rather stay` is a STRAIGHT quote (U+0027) as
+issued.** If a later pass renders it as `&rsquo;` for typography, that is a
+rendering decision to put to Adrian, not a silent substitution.
+
+⚠️ **THE BODY LINE IS A PROMISE AND IT IS GATED.** It may only ship once the
+storage sweep is proven against real Storage. **If the live drive has not passed,
+the screen does not get built** (Adrian, 2026-09-03). As of this entry the drive
+has NOT run.
+
+⚠️ **Coverage check against the promise.** The five things the body names are
+all reached: compounds, doses and metrics by the profile cascade, photos and
+bloodwork by the storage sweep. The disclosed gaps in `privacy.md:139-146`
+(waitlist email, billing event records, backups, server logs, Stripe) name none of
+the five, so they do not contradict it. **The one that does is the device copy** —
+`privacy.md:125-127` says account deletion cannot reach the browser's own storage,
+and the local store survives on that device. See the post-deletion landing note.
+
+## ⚠️ DEFECT — every upload writes the OBJECT before the ROW, so an interruption strands a file (2026-09-03)
+
+**This is not fixed by the storage sweep and must not be recorded as if it were.**
+The sweep (`lib/storage/sweep.ts`) enumerates by PREFIX precisely because of this
+defect, so a stranded file is still erased at deletion time. That stops it costing
+us at the one moment it would be most expensive. **It does nothing about the
+stranding itself**, which happens to ordinary users during ordinary use, and the
+count grows.
+
+**The three call sites.** All three upload to Storage first and write the row
+afterwards, in a second round trip, from the CLIENT:
+
+| Site | Bucket | Order |
+|---|---|---|
+| `components/progress/JournalEntrySheet.tsx:241` | `journal` | `upload()` then `saveJournalEntry` |
+| `components/progress/AttachBloodworkSheet.tsx:140` | `bloodwork` | `upload()` then `addBloodworkPhoto` |
+| `components/progress/AddProgressPhotoSheet.tsx:231` | `progress-photos` | `upload()` then `addProgressPhotos` |
+
+`components/home/AddWeightSheet.tsx:243` has the same shape for a photo attached
+to a weigh-in, and is explicitly best-effort there.
+
+Each has a client-side rollback — `JournalEntrySheet` tracks `uploadedRef` "the
+instant it lands (before setState), so rollback covers it even if the sheet closes
+mid-batch". **A rollback that runs in the browser cannot run if the browser is
+gone.** A closed tab, a killed app, a dropped connection or a navigation between
+the two round trips leaves the object with nothing pointing at it.
+
+**The measurement (production, 2026-09-03).** 53 rows record a path; 59 objects
+exist; 6 have no row. Five are the `COLD*` harness fixtures under two dead
+prefixes. **One is real:**
+`journal/e120f593-b0e7-4784-bd15-5fde963093bf/a28a3034-…/photo.jpg`, **845,660
+bytes**, uploaded 2026-08-17, under `adrianschimizzi1@gmail.com` — **8
+`journal_attachments` rows against 9 journal objects.** ⚠️ **DO NOT DELETE IT. It
+is evidence and it is Adrian's** (founder ruling, 2026-09-03).
+
+**Population: ONE, across all four buckets and all 100 accounts.** Measured, not
+sampled — every object was joined against the four path columns. So the mechanism
+is real and has fired once. It is a slow leak, not a live incident, and the number
+to watch is whether it stays at one.
+
+**What would change it.** The order, not the rollback. Either write a row FIRST
+and mark it complete after the upload lands, so an interruption leaves a
+completable row rather than an invisible object; or move the upload server-side so
+one round trip owns both and can undo itself. Both are real changes to three
+sheets and are NOT part of `16-account-deletion.md`. A cheap interim, if neither
+is taken: a periodic reconcile that lists each bucket by prefix and reports
+objects with no row — the same query that measured this, run on a schedule, so the
+count is watched rather than discovered.
+
+**No number was minted for this** (founder ruling, 2026-09-03: take the LOWEST
+free and report it, and `D112`'s status is the ledger holder's question). It is
+recorded here as a finding until a number is issued for it.
+
 ## Open Questions
 
 - **Naming compounds in marketing copy — the age gate is not the operative
@@ -3722,6 +3811,70 @@ Also produced for marketing, not in the app: three 1080x1920 Reels
 (`scratchpad/icon-harness/reels/`) and 20 carousel stills
 (`scratchpad/icon-harness/stills/`), with the carousel preview artifact at
 `7fcfb303-ab63-4333-8f4e-57e6dd05cc24`.
+
+## The greeting uses the name they gave us, not the one Google has (2026-09-03)
+
+Onboarding asks "What's your name?" on its first screen and claimed the answer
+to `signup_intake.name` — where it was used on exactly ONE screen (the
+post-paywall welcome) and then ignored. Home's greeting and the Profile heading
+both read Google's `user_metadata.full_name` instead, and an account with no
+Google name fell through to the EMAIL LOCAL-PART. The backfill shows how wrong
+this was in practice: Angus was being greeted as "Awais", Nate as "Jaron",
+belle as "Anabelle".
+
+- **`profiles.display_name`** (`supabase/profile/007_display_name.sql`, applied)
+  is the live, user-editable value. `signup_intake` could not be it: that table
+  is deliberately append-only, and it is the record of what they answered at
+  signup. 9/9 existing intake names backfilled.
+- **⚠️ `grants/004` ENUMERATES columns**, so the new column needed adding to both
+  its UPDATE and INSERT lists as well as its own `grant` line, or the Data API
+  42501s on it. That file is edited in the same change so a re-run cannot revoke
+  it.
+- **One resolution order, in `lib/profile/name.ts`.** `greetingNameFor` is
+  display_name → Google's first token → email local-part; `accountNameFor` (the
+  Profile heading) is Google's full name → display_name → **null**, deliberately
+  without an email fallback because null is the flag Profile branches on to
+  decide whether the email is a second line or IS the heading. Both pages used
+  to derive their own chain, which is how they would drift.
+- **First token, enforced on WRITE** at both entry points (the claim seed and
+  `updatePhysical`), never sliced at render — a field reading "Adrian Schimizzi"
+  beside a greeting reading "Adrian" is worse than the full name.
+  `firstNameOf` splits BEFORE normalising: `normaliseName` strips control
+  characters and a TAB is one, so the obvious order fused "Adrian\tSchimizzi"
+  into a single token. Caught by a test.
+- The Profile card is now **"Details"** rather than "Physical" (a name is not a
+  physical detail) and leads with a **"Preferred name"** row. Not "First name",
+  which describes the format rather than the job (Adrian's call).
+
+## The details card is edited against a pinned Save (2026-09-03)
+
+Chosen by Adrian from a four-by-four bench (artifact
+`e4e2ca5a-1d9f-45df-ab58-289f6259055b`): **pinned save bar + grow**. Pressing
+Edit used to scroll the Save row to CENTRE, and every field sits above that row,
+so centring the buttons pushed the form off the top. The scroll was itself a
+workaround for the fixed nav and FAB covering Save; pinning removes the need for
+it rather than dropping the guard. Documented in `ui-context.md` and
+`lib/ui-presets.ts` before it was used, per the no-one-off rule.
+
+- `.edit-action-bar` (fixed, full width, blurred, safe-area inset, slides up) and
+  `.grow-field` (surface sweeps in from the right on a `::before`, 26ms per
+  visual row) in `globals.css`; `EDIT_BAR` / `EDIT_BAR_SAVE` / `EDIT_TOGGLE` /
+  `GROW_FIELD` in `lib/ui-presets.ts`. Cancel takes Edit's slot in the header.
+- The FAB stands down via `body[data-inline-edit]`, losing `pointer-events` as
+  well as opacity. `QuickActionsFab`'s layer carries a `shortcuts-layer` class
+  as the hook.
+- **⚠️ THE BAR MUST BE PORTALLED, and this was only caught by driving the page.**
+  `position: fixed` resolves against the nearest TRANSFORMED ancestor, and the
+  card sits inside Profile's `.animate-home-up` wrapper — whose `fill: both`
+  retains `transform: translateY(0)`, a matrix rather than `none`, forever. The
+  bar measured `top: 738` in a 700px viewport, i.e. pinned off the bottom of the
+  screen: exactly the defect it was built to fix. It now portals to `document.body`
+  and re-associates with the form through `form={formId}` (`useId`, so two cards
+  on one route cannot collide). Same trap the sex-confirm dialog already
+  documented on this component.
+- Verified in Chromium at 402x700: no scroll on open, bar `bottom: 700`, Save the
+  topmost element at its own centre, scaleX sampled mid-flight at
+  `0.28 / 0.05 / 0 / 0 / 0` rising to `1.00` across the five fields.
 
 ## Environment
 

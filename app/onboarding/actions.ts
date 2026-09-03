@@ -9,6 +9,7 @@ import {
 } from "@/lib/onboarding/session";
 import { todayKey } from "@/lib/protocol/cycle";
 import { gateWriter } from "@/lib/auth/gate-writer";
+import { firstNameOf } from "@/lib/profile/name";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -272,6 +273,39 @@ export async function claimOnboardingSession(
   if (gateError) {
     console.error("[claim] gate write failed:", gateError);
     return { status: "error", name, gated: false };
+  }
+
+  /**
+   * SEED THE GREETING NAME — the same "only the winning device writes" test.
+   *
+   * `signup_intake.name` is append-only by design, so it cannot be the value
+   * Profile edits; `profiles.display_name` is that value and this is where it
+   * starts life. See `supabase/profile/007_display_name.sql`.
+   *
+   * Three things this deliberately does NOT do:
+   *  - It is not part of `passGateFromSession`. A user whose age we cannot prove
+   *    still gets a name; withholding one would be a punishment for a gate
+   *    failure, and the greeting is not an access decision.
+   *  - It uses the USER'S client, not `gateWriter()`. `display_name` is an
+   *    ordinary user-writable column (granted in `grants/004`) and nothing rests
+   *    on it, so it has no business on the service role.
+   *  - `.is("display_name", null)` — the same shape as the gate's
+   *    `.is("tos_accepted_at", null)`. A returning user who has since edited
+   *    their name must never have it overwritten by a stale anonymous session
+   *    still sitting in some other browser's `localStorage`.
+   *
+   * FIRST TOKEN ONLY, so Home can never greet somebody with their full name.
+   * A failure here is logged and swallowed: the answers are already claimed, and
+   * losing the whole claim over a greeting would be the wrong trade.
+   */
+  const seedName = firstNameOf(session.name);
+  if (mayStampGate && seedName !== null) {
+    const { error: nameError } = await supabase
+      .from("profiles")
+      .update({ display_name: seedName })
+      .eq("id", user.id)
+      .is("display_name", null);
+    if (nameError) console.error("[claim] display_name seed failed:", nameError.message);
   }
 
   // The duplicate-insert race above leaves `name` unresolved; read it back

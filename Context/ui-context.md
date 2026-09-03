@@ -459,6 +459,59 @@ stale-`.next` trap: a CSS change can sit unserved while the file on disk is
 correct, so confirm a new rule is in `document.styleSheets` before concluding
 anything about it.
 
+### Rule: an in-place edit pins its Save and never scrolls
+
+Adrian chose this from a four-by-four bench on 2026-09-03 (artifact
+`e4e2ca5a-1d9f-45df-ab58-289f6259055b`, four layouts x four motion treatments).
+Two classes in `globals.css`, two presets in `lib/ui-presets.ts`
+(`EDIT_BAR` / `EDIT_BAR_SAVE` / `EDIT_TOGGLE`, and `GROW_FIELD`). Profile's
+details card is the reference implementation.
+
+**A card edited in place does not scroll the page.** `PhysicalCard` used to bring
+its Save row into view with `scrollIntoView({ block: "center" })`. Every field
+sits ABOVE that row, so centring the buttons was the same instruction as pushing
+the form off the top: you landed looking at Save and scrolled back up to reach
+the thing you had opened.
+
+**The scroll was not decoration, and deleting it alone would have been wrong.**
+The tab bar and the FAB are `position: fixed`, so a card opened low on the page
+put its own primary action underneath them, where a tap changed tabs and threw
+the edit away. Pinning Save removes the NEED for the workaround rather than
+dropping the guard: a control that is never below the fold has nothing to be
+scrolled to.
+
+- **Save is `.edit-action-bar`** — fixed to the bottom, full width, blurred,
+  `env(safe-area-inset-bottom)` added to its padding, sliding up on open. It
+  carries `PRIMARY_BUTTON` at full width, so the app still has exactly one
+  confirm-button treatment. `z-index: 44`: above the nav (`z-40`) and its
+  safe-area filler (`z-30`), below the shortcuts menu's modal layers
+  (`z-[45]` / `z-[46]`), because a true modal still wins.
+- **Cancel takes Edit's place in the section header** (`EDIT_TOGGLE`). One
+  control, one position, two labels, so the header does not go empty mid-edit and
+  the discarding action sits furthest from a thumb resting at the bottom.
+- **Covering the tab bar is deliberate.** An in-place edit is a committed state,
+  and the two taps it is protecting you from are the two that discard your work.
+  The FAB stands down with it, driven by a `data-inline-edit` attribute on
+  `<body>` rather than by props: the editing card and the shortcuts layer are
+  siblings under the (app) layout with no state between them. It loses
+  `pointer-events` as well as opacity, because a layer you cannot see but can
+  still tap has bitten this codebase before.
+- **`GROW_FIELD` is the entrance**, and it is the one that does not blink.
+  The field's surface sweeps in from the right edge, from a `::before`, under a
+  value that has not moved, staggered 26ms per VISUAL row (set `--grow-i` inline;
+  read-only rows still count, or the sweep appears to skip). A crossfade and a
+  staggered dissolve were both built and both flash the figure you are about to
+  change, which is the thing the mono/tabular treatment exists to prevent.
+  The surface is a pseudo-element rather than a `clip-path` on the wrapper
+  precisely so the input keeps its own focus ring: a clip at the border box eats
+  the ring. It is an ANIMATION, not a transition, because the field only enters
+  the DOM when the card opens and a transition has no previous value to run from.
+
+All three collapse under `prefers-reduced-motion`, and all three END in the
+visible state, so switching the animation off leaves them correct. That is the
+opposite of `.animate-flow-confetti`, which needs `display: none` because it ends
+at zero.
+
 ### Rule: new screens reuse the system
 
 Any new screen (Protocol, Calendar, Settings, …) is composed **only**

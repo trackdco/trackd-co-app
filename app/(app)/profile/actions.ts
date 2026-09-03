@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { firstNameOf } from "@/lib/profile/name";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -125,6 +126,21 @@ export async function updatePhysical(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  /**
+   * The preferred name — what Home greets you with (`profiles.display_name`).
+   *
+   * FIRST TOKEN, NORMALISED, SERVER-SIDE. The input's `maxLength` is a courtesy
+   * and not the enforcement: a paste, a direct call to this action, or anyone
+   * with the publishable key walks straight around it, and the column's CHECK is
+   * 1..24, so an over-long value would fail the whole save rather than the field.
+   * `firstNameOf` is the same function the onboarding claim seeds with, so the
+   * two entry points cannot drift.
+   *
+   * Empty clears it (null) rather than erroring. Clearing your preferred name is
+   * a legitimate thing to want: the greeting then falls back to the Google name.
+   */
+  const displayName = firstNameOf(formData.get("display_name"));
+
   const sexRaw = String(formData.get("sex") ?? "").trim();
   const goalRaw = String(formData.get("goal") ?? "").trim();
   const unitsRaw = String(formData.get("units_preference") ?? "").trim();
@@ -168,6 +184,7 @@ export async function updatePhysical(
       goal,
       units_preference: unitsRaw,
       height_cm: heightCm,
+      display_name: displayName,
     })
     .eq("id", user.id)
     .select("id")

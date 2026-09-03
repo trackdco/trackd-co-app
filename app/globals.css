@@ -1914,3 +1914,140 @@ svg ::-moz-selection {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   IN-PLACE EDITING — the committed-state action bar, and the field grow.
+   Adrian chose both from a four-by-four bench on 2026-09-03
+   (artifact `e4e2ca5a-1d9f-45df-ab58-289f6259055b`).
+
+   ## Why a pinned bar at all
+
+   `PhysicalCard` used to SCROLL the Save row to the centre of the viewport when
+   you opened the editor. Every field sits above that row, so centring the
+   buttons was the same instruction as pushing the form off the top: you landed
+   looking at Save and scrolled back up to reach the thing you had opened.
+
+   The scroll was not decoration and must not simply be deleted. The tab bar and
+   the FAB are `position: fixed`, so a card opened low on the page put its own
+   primary action UNDERNEATH them, where a tap changed tabs and threw the edit
+   away. That is a real defect and the scroll was the workaround for it.
+
+   Pinning Save removes the need for the workaround rather than dropping the
+   guard: a control that is never below the fold has nothing to be scrolled to.
+   Cancel takes Edit's place in the section header, so one control lives in one
+   place and the header is not empty mid-edit.
+
+   Covering the tab bar is deliberate. An in-place edit is a COMMITTED state, and
+   the two taps it is protecting you from are the two that discard your work.
+   --------------------------------------------------------------------------- */
+
+/* Above the bottom nav (`z-40`) and its safe-area filler (`z-30`), below the
+   shortcuts menu's modal layers (`z-[45]` / `z-[46]`) — a true modal still wins.
+   The FAB is suppressed separately, by the body attribute below. */
+.edit-action-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 44;
+  background: color-mix(in srgb, var(--bg-base) 94%, transparent);
+  backdrop-filter: blur(14px);
+  padding: 0.75rem 1.25rem;
+  /* The inset is added to the padding, so this element must NOT also carry a
+     fixed height. Measured once at a 59px inset on a 40px row: the content was
+     pushed clean out of its own box. */
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  animation: edit-bar-in 320ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/* The FAB and the shortcuts layer step aside while an in-place edit is open.
+   Driven by a `data-inline-edit` attribute on `<body>` rather than by props,
+   because the editing card and the FAB are siblings under the (app) layout with
+   no state between them, and threading one through the layout to hide a button
+   would be a much larger change than the thing it buys.
+
+   `pointer-events: none` matters as much as the fade: a layer you cannot see
+   but can still tap is the bug this codebase has already been bitten by. */
+body[data-inline-edit="true"] .shortcuts-layer {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+/* The field surface sweeps in from the right edge, under a value that has not
+   moved. Chosen over a crossfade and over a staggered dissolve because both of
+   those BLINK the figure you are about to change, and a mono figure flickering
+   is exactly what the tabular treatment exists to prevent.
+
+   An ANIMATION, not a transition: the field only enters the DOM when the card
+   opens, and a transition on a freshly mounted element has no previous value to
+   run from. `both` holds the closed state through the stagger delay.
+
+   The surface lives on a `::before` so the input keeps its own focus ring — a
+   `clip-path` on the wrapper would have clipped the ring at the border box. */
+.grow-field {
+  position: relative;
+  display: block;
+}
+.grow-field::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 1px var(--border-default);
+  transform-origin: right center;
+  animation: grow-field-in 320ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation-delay: calc(var(--grow-i, 0) * 26ms);
+}
+/* Element+class (0,1,1) beats Tailwind's `.bg-bg-input` / `.border-border-default`
+   (0,1,0) but LOSES to `.focus-visible\:border-ring:focus-visible` (0,2,0), so
+   the focus border still lands. Deliberate; do not raise this to `:is(...)`. */
+.grow-field input,
+.grow-field select {
+  position: relative;
+  background-color: transparent;
+  border-color: transparent;
+  animation: grow-field-value-in 180ms ease both;
+  animation-delay: calc(120ms + var(--grow-i, 0) * 26ms);
+}
+
+@keyframes edit-bar-in {
+  from {
+    transform: translateY(110%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes grow-field-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes grow-field-value-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* All three END in the visible state, so switching the animation off leaves
+     them correct — the opposite of `.animate-flow-confetti`, which needs
+     `display: none` because it ends at zero. */
+  .edit-action-bar,
+  .grow-field::before,
+  .grow-field input,
+  .grow-field select {
+    animation: none;
+  }
+
+  body[data-inline-edit="true"] .shortcuts-layer {
+    transition: none;
+  }
+}

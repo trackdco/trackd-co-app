@@ -1,12 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useActionState, useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { CircleNotch } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
+import {
+  CARD_EYEBROW,
+  EDIT_BAR,
+  EDIT_BAR_SAVE,
+  EDIT_TOGGLE,
+  GROW_FIELD,
+} from "@/lib/ui-presets";
 import { updatePhysical, type PhysicalState } from "@/app/(app)/profile/actions";
 
 const initialState: PhysicalState = {};
@@ -22,6 +28,13 @@ const initialState: PhysicalState = {};
  */
 const FIELD =
   "h-11 w-full min-w-0 rounded-lg border border-border-default bg-bg-input px-2.5 text-base text-foreground outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+
+/**
+ * The stagger index for a field's grow-in, keyed to its VISUAL row rather than
+ * to its position among the editable fields — the read-only rows (Age, Weight)
+ * still occupy space, so numbering only the inputs would make the sweep skip.
+ */
+const growAt = (row: number) => ({ "--grow-i": row }) as CSSProperties;
 
 const GOALS: { value: string; label: string }[] = [
   { value: "bulk", label: "Bulk" },
@@ -65,6 +78,12 @@ function reexpressHeight(value: string, from: Units, to: Units): string {
 }
 
 export interface PhysicalInitial {
+  /**
+   * `profiles.display_name` — what the app CALLS you, as opposed to the account
+   * heading above this card, which is Google's first + last. One token, always;
+   * see `lib/profile/name.ts`.
+   */
+  displayName: string | null;
   sex: string | null;
   goal: string | null;
   unitsPreference: string;
@@ -110,8 +129,14 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
     initial.sex === "male" || initial.sex === "female" ? initial.sex : "",
   );
   const [goal, setGoal] = useState(initial.goal ?? "");
+  const [name, setName] = useState(initial.displayName ?? "");
+  /**
+   * Stable id so the PORTALLED Save button can point back at this form. `useId`
+   * rather than a literal: the preview route renders two of these cards side by
+   * side, and two forms sharing an id would send both buttons to the first one.
+   */
+  const formId = useId();
   const [pendingSex, setPendingSex] = useState<string | null>(null);
-  const actionsRef = useRef<HTMLDivElement | null>(null);
 
   // A successful save returns the card to its read state. Adjust-during-render
   // rather than an effect: an effect would paint one frame of the edit state
@@ -132,6 +157,24 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
   const [errorDismissed, setErrorDismissed] = useState(false);
   const showError = state.error != null && !errorDismissed;
 
+  /**
+   * Stands the FAB and the shortcuts layer down while this card is open (the
+   * `.edit-action-bar` note in `globals.css` has the why). An attribute on
+   * `<body>` rather than a prop: that layer is a SIBLING of this card under the
+   * (app) layout, and threading state through the layout to hide one button
+   * would be a far larger change than the thing it buys.
+   *
+   * The cleanup runs on close AND on unmount, so navigating away mid-edit
+   * cannot strand the attribute and leave the FAB invisible on the next screen.
+   */
+  useEffect(() => {
+    if (!editing) return;
+    document.body.dataset.inlineEdit = "true";
+    return () => {
+      delete document.body.dataset.inlineEdit;
+    };
+  }, [editing]);
+
   useEffect(() => {
     if (pendingSex === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -149,6 +192,7 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
     setHeight(heightToDisplay(initial.heightCm, startUnits));
     setSex(initial.sex === "male" || initial.sex === "female" ? initial.sex : "");
     setGoal(initial.goal ?? "");
+    setName(initial.displayName ?? "");
   }
 
   function startEditing() {
@@ -157,19 +201,22 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
     reseed();
     setErrorDismissed(true);
     setEditing(true);
-    // Bring the Save row into view. The nav and the FAB are FIXED, so a card
-    // opened low on the page put its own primary action underneath them — on a
-    // 360px-tall-ish phone Save was entirely below the fold, and on a 390 the
-    // bottom 60% of it was inside the nav band, where a tap navigated to another
-    // tab and threw the edit away.
-    requestAnimationFrame(() => {
-      actionsRef.current?.scrollIntoView({
-        block: "center",
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
-      });
-    });
+    /**
+     * NOTHING SCROLLS (Adrian, 2026-09-03).
+     *
+     * This used to bring the Save row into view with
+     * `scrollIntoView({ block: "center" })`. Every field sits ABOVE that row, so
+     * centring the buttons pushed the whole form off the top of the screen: you
+     * landed looking at Save and scrolled back up to reach the thing you had
+     * just opened.
+     *
+     * The scroll was not pointless and is not simply deleted. The nav and the
+     * FAB are fixed, so a card opened low put Save underneath them, where a tap
+     * changed tabs and threw the edit away. `.edit-action-bar` removes the need
+     * for the workaround instead of dropping the guard: a Save pinned to the
+     * bottom of the viewport can never be below the fold, so there is nothing
+     * left to scroll to.
+     */
   }
 
   function cancelEditing() {
@@ -194,24 +241,31 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
     <div>
       {/* The Edit control sits on the SECTION HEADER, not inside the card. */}
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <p className={CARD_EYEBROW}>Physical</p>
-        {!editing && (
-          <button
-            type="button"
-            onClick={startEditing}
-            /* 44px of target. It was 37x32 — the only sub-44 control on the
-               page, and the one that gates the whole card. The negative margin
-               keeps the visual position unchanged. */
-            className="-m-2 flex min-h-11 min-w-11 shrink-0 items-center justify-end whitespace-nowrap rounded-md p-2 text-xs text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
-          >
-            Edit
-          </button>
-        )}
+        {/* "Physical" until the preferred name moved in (2026-09-03), and a name
+            is not a physical detail. Renamed rather than given a card of its
+            own: a second card holding one field, with its own Edit toggle, is a
+            heavier thing to look at than the row it contains. */}
+        <p className={CARD_EYEBROW}>Details</p>
+        {/* ONE CONTROL, ONE PLACE, TWO LABELS (Adrian, 2026-09-03). Cancel took
+            Edit's slot when Save was pinned to the bottom of the screen: the
+            header stops going empty mid-edit, and the discarding action ends up
+            the furthest of the two from a thumb resting at the bottom. */}
+        <button
+          type="button"
+          onClick={editing ? cancelEditing : startEditing}
+          className={EDIT_TOGGLE}
+        >
+          {editing ? "Cancel" : "Edit"}
+        </button>
       </div>
 
       {/* A fresh submit un-dismisses the error slot, so the NEXT failure is
           reported even if the previous one was cancelled away. */}
-      <form action={formAction} onSubmit={() => setErrorDismissed(false)}>
+      <form
+        id={formId}
+        action={formAction}
+        onSubmit={() => setErrorDismissed(false)}
+      >
         {/* The dim is on the CARD, so every row fades together as one surface
             rather than six things fading at slightly different times. */}
         <div
@@ -225,26 +279,62 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
             editing ? "opacity-100" : "opacity-85",
           )}
         >
+          {/* FIRST, because it is the only row on this card that is about who you
+              are rather than what you measure, and because it is the one this
+              card was reopened for.
+
+              "Display name" rather than "Name": the heading directly above is
+              the account's first + last, so a row simply called "Name" showing
+              one word reads as a bug rather than as a different question. It is
+              also not "First name" (Adrian's call, 2026-09-03) — that describes
+              the format, not the job. */}
+          <Row label="Display name">
+            {editing ? (
+              <span className={`${GROW_FIELD} w-full`} style={growAt(0)}>
+                <Input
+                  name="display_name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Adrian"
+                  aria-label="Display name"
+                  autoComplete="given-name"
+                  enterKeyHint="done"
+                  /* Mirrors `NAME_MAX` and the `profiles_display_name_len` CHECK.
+                     `maxLength` is a courtesy, not the enforcement — the server
+                     runs the same `firstNameOf` normaliser the database constrains. */
+                  maxLength={24}
+                  className={FIELD}
+                />
+              </span>
+            ) : (
+              <ReadValue>{initial.displayName ?? "—"}</ReadValue>
+            )}
+          </Row>
+
+          <Divider />
           <Row label="Sex">
             {editing ? (
-              <select
-                name="sex"
-                required
-                aria-label="Sex"
-                // Controlled by `sex`, which only moves once a change is
-                // confirmed, so Cancel snaps the select straight back.
-                value={sex}
-                onChange={(e) => setPendingSex(e.target.value)}
-                className={FIELD}
-              >
-                {sex === "" && (
-                  <option value="" disabled>
-                    Select…
-                  </option>
-                )}
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </select>
+              <span className={`${GROW_FIELD} w-full`} style={growAt(1)}>
+                <select
+                  name="sex"
+                  required
+                  aria-label="Sex"
+                  // Controlled by `sex`, which only moves once a change is
+                  // confirmed, so Cancel snaps the select straight back.
+                  value={sex}
+                  onChange={(e) => setPendingSex(e.target.value)}
+                  className={FIELD}
+                >
+                  {sex === "" && (
+                    <option value="" disabled>
+                      Select…
+                    </option>
+                  )}
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </span>
             ) : (
               <ReadValue>{capital(initial.sex)}</ReadValue>
             )}
@@ -259,19 +349,21 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
           <Divider />
           <Row label={editing ? (imperial ? "Height (in)" : "Height (cm)") : "Height"}>
             {editing ? (
-              <Input
-                name="height"
-                type="number"
-                inputMode="decimal"
-                min={imperial ? 47 : 120}
-                max={imperial ? 91 : 230}
-                step="0.1"
-                placeholder={imperial ? "71" : "180"}
-                value={height}
-                onChange={(e) => setHeight(sanitizeHeight(e.target.value))}
-                aria-label={imperial ? "Height in inches" : "Height in centimetres"}
-                className={FIELD}
-              />
+              <span className={`${GROW_FIELD} w-full`} style={growAt(3)}>
+                <Input
+                  name="height"
+                  type="number"
+                  inputMode="decimal"
+                  min={imperial ? 47 : 120}
+                  max={imperial ? 91 : 230}
+                  step="0.1"
+                  placeholder={imperial ? "71" : "180"}
+                  value={height}
+                  onChange={(e) => setHeight(sanitizeHeight(e.target.value))}
+                  aria-label={imperial ? "Height in inches" : "Height in centimetres"}
+                  className={FIELD}
+                />
+              </span>
             ) : (
               <ReadValue>{heightRead}</ReadValue>
             )}
@@ -285,20 +377,22 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
           <Divider />
           <Row label="Goal">
             {editing ? (
-              <select
-                name="goal"
-                aria-label="Goal"
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                className={FIELD}
-              >
-                <option value="">Not set</option>
-                {GOALS.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
+              <span className={`${GROW_FIELD} w-full`} style={growAt(5)}>
+                <select
+                  name="goal"
+                  aria-label="Goal"
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  className={FIELD}
+                >
+                  <option value="">Not set</option>
+                  {GOALS.map((g) => (
+                    <option key={g.value} value={g.value}>
+                      {g.label}
+                    </option>
+                  ))}
+                </select>
+              </span>
             ) : (
               <ReadValue>
                 {initial.goal ? (GOAL_LABELS.get(initial.goal) ?? capital(initial.goal)) : "—"}
@@ -309,16 +403,18 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
           <Divider />
           <Row label="Units">
             {editing ? (
-              <select
-                name="units_preference"
-                aria-label="Units"
-                value={units}
-                onChange={(e) => handleUnitsChange(e.target.value as Units)}
-                className={FIELD}
-              >
-                <option value="metric">Metric</option>
-                <option value="imperial">Imperial</option>
-              </select>
+              <span className={`${GROW_FIELD} w-full`} style={growAt(6)}>
+                <select
+                  name="units_preference"
+                  aria-label="Units"
+                  value={units}
+                  onChange={(e) => handleUnitsChange(e.target.value as Units)}
+                  className={FIELD}
+                >
+                  <option value="metric">Metric</option>
+                  <option value="imperial">Imperial</option>
+                </select>
+              </span>
             ) : (
               <ReadValue>
                 {initial.unitsPreference === "imperial"
@@ -337,30 +433,39 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
           </p>
         )}
 
-        {editing && (
-          <div
-            ref={actionsRef}
-            /* Clear of the fixed bottom nav + FAB when scrolled to. */
-            className="mt-3 flex scroll-mb-32 gap-3"
-          >
-            <button
-              type="button"
-              onClick={cancelEditing}
-              className="min-h-11 rounded-xl border border-border-strong px-4 py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              aria-busy={isPending}
-              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
-            >
-              {isPending && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}
-              {isPending ? "Saving…" : "Save"}
-            </button>
-          </div>
-        )}
+        {/**
+          * ⚠️ PORTALLED, FOR THE SAME REASON THE SEX CONFIRM BELOW IS.
+          *
+          * `position: fixed` is relative to the nearest ancestor with a
+          * transform, not to the viewport, and this card sits inside Profile's
+          * `.animate-home-up` wrapper. That animation runs with `fill: both`, so
+          * its final `transform: translateY(0)` — a matrix, not `none` — is
+          * retained forever after the entrance finishes. Left in place the bar
+          * measured `top: 738` in a 700px viewport: pinned to the bottom of the
+          * CARD, i.e. off the bottom of the screen, which is precisely the defect
+          * it was built to fix. Caught by driving the page, not by reading it.
+          *
+          * A portal moves it out of the form, so the submit is re-associated by
+          * `form={formId}` — which is how HTML has always allowed a submit button
+          * to live outside its form, and needs no JS.
+          */}
+        {editing &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div className={EDIT_BAR}>
+              <button
+                type="submit"
+                form={formId}
+                disabled={isPending}
+                aria-busy={isPending}
+                className={EDIT_BAR_SAVE}
+              >
+                {isPending && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}
+                {isPending ? "Saving…" : "Save"}
+              </button>
+            </div>,
+            document.body,
+          )}
       </form>
 
       {/* Sex confirm — kept from Spec 19, where it exists because sex changes

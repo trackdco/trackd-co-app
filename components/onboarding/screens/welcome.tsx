@@ -1,6 +1,7 @@
 "use client";
 
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
+import { firstNameOf } from "@/lib/profile/name";
 
 import { FlowCta, FlowSub, ScrollPort } from "../chrome";
 import { FLOW_DISPLAY } from "@/lib/ui-presets";
@@ -38,7 +39,17 @@ export function WelcomeScreen() {
    * refused. The server decides it; this only reads the answer.
    */
   const comp = eligibility?.comp ?? false;
-  const name = accountName ?? session.name;
+  /**
+   * ONE TOKEN, for the same reason Home's greeting is (2026-09-03). "You're in,
+   * Adrian Schimizzi!" is the bug `profiles.display_name` was added to stop, and
+   * this screen is the first place the claimed name is ever spoken back — the
+   * onboarding field says "First name" but a placeholder is not a constraint.
+   *
+   * `accountName` is what the claim read back off `signup_intake`, which stores
+   * the WHOLE string on purpose (it is the record of the answer), so the slice
+   * has to happen on the way out here rather than being assumed upstream.
+   */
+  const name = firstNameOf(accountName) ?? firstNameOf(session.name);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">

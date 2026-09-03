@@ -61,6 +61,7 @@ export default async function PreviewProfilePage({
           physical={
             bare
               ? {
+                  displayName: null,
                   sex: null,
                   goal: null,
                   unitsPreference: "metric",
@@ -69,6 +70,7 @@ export default async function PreviewProfilePage({
                   weightKg: null,
                 }
               : {
+                  displayName: "Adrian",
                   sex: "male",
                   goal: "contest_prep",
                   unitsPreference: "metric",
