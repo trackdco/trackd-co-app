@@ -1,13 +1,19 @@
 /**
- * ⚠️ `BETA_GRACE_DAYS` COMES FROM ITS OWN MODULE, WHICH IS `server-only`.
+ * ⚠️ `BETA_GRACE_DAYS` IS NO LONGER IMPORTED HERE, AND THAT IS THE FIX RATHER
+ * THAN A TIDY-UP (Adrian, 2026-09-03).
  *
- * That is fine and deliberate: this module is consumed by `/billing/manage`,
- * a Server Component, and never by a client bundle. Vitest resolves `server-only`
- * to a no-op stub, so the sentences stay unit-testable. The alternative — copying
- * the number 14 into this file — is the one thing the signed copy forbids
- * outright: "The 14 from BETA_GRACE_DAYS, never typed."
+ * This doc-block used to explain at length why the fortnight's LENGTH was pulled
+ * from its `server-only` module instead of being typed: "the 14 from
+ * BETA_GRACE_DAYS, never typed", so the constant and the sentence could not
+ * disagree. That reasoning was sound and it solved the wrong problem. The
+ * sentence did not need the fortnight's length. It needed how much of the
+ * fortnight was LEFT, and by interpolating the constant it told everybody "14
+ * days on us" from the first morning to the last.
+ *
+ * The count now arrives as {@link ManageFacts.graceDaysLeft}, resolved by the
+ * caller from the entitlement row, so no number is typed here either and the
+ * sentence tracks the row instead of a constant.
  */
-import { BETA_GRACE_DAYS } from "./betaGrace";
 import {
   STOPPABLE_NOW,
   isBetaGrace,
@@ -46,8 +52,10 @@ import {
  *               a monthly subscriber reads "a month" because their price says so.
  *   {date}      formatted server-side in the user's stored timezone, by the
  *               caller. This module never formats or computes a date.
- *   14          {@link BETA_GRACE_DAYS}. Never typed, so the fortnight and the
- *               sentence describing it cannot disagree.
+ *   {n} days    `graceDaysLeft` from the entitlement row, resolved by the
+ *               caller and pluralised by `graceDaysPhrase`. Never typed, and
+ *               deliberately NOT `BETA_GRACE_DAYS`: the sentence is about how
+ *               much of the fortnight is left, not how long it was.
  *   {store}     from the entitlement source, so "the App Store" / "Google Play".
  *               Both are reachable: `google` is in the live `entitlement_source`
  *               enum.
@@ -120,6 +128,34 @@ export interface SummaryFacts {
   /** All pre-formatted, server-side, in the user's stored timezone. */
   endsOn: string | null;
   graceEndsOn: string | null;
+  /**
+   * ⚠️ WHOLE LOCAL DAYS LEFT OF THE BETA GRACE, RESOLVED BY THE CALLER
+   * (Adrian, 2026-09-03).
+   *
+   * The two grace sentences said "You've got 14 days on us until 10 Sept 2026"
+   * from the FIRST day of the fortnight to the last, because they interpolated
+   * {@link BETA_GRACE_DAYS}. On 3 September, with a week left, the Manage screen
+   * was still offering fourteen days. The date beside it was right, so the
+   * sentence contradicted itself.
+   *
+   * ⚠️ RESOLVED BY THE CALLER, exactly like {@link courtesyRunning} and for the
+   * reason stated there: this module is PURE, and a hidden `Date.now()` inside it
+   * would make every fixture in every test silently time-sensitive. The caller
+   * runs `graceDaysLeft` (`lib/billing/graceEnding.ts`) so the seven-day notice
+   * and this sentence read one count and cannot disagree about the same day.
+   *
+   * Null when there is no grace, or when the count could not be resolved. The
+   * sentence does not render on null rather than falling back to a number: a
+   * version that cannot name the figure is not a weaker acceptable variant.
+   *
+   * ⚠️ THE GUARD IS `typeof !== "number"`, NOT `=== null`, and the difference was
+   * measured: a fixture that simply omitted this field rendered "You've got
+   * undefined days left on us until 27 Aug 2026". TypeScript makes the field
+   * required, which is exactly why an `undefined` reaching here would come from
+   * somewhere no type could see. `0` is a real answer and must survive the guard,
+   * so a truthiness test would be wrong in the other direction.
+   */
+  graceDaysLeft: number | null;
   courtesyEndsOn: string | null;
   /**
    * ⚠️ IS THE COURTESY PERIOD STILL RUNNING — resolved by the CALLER, from
@@ -482,6 +518,16 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
  * both surfaces are wrong together rather than differently, which is the property
  * that was actually asked for.
  */
+/**
+ * "7 days" / "1 day". The figure derives from the row; the words around it are
+ * signed prose. A bare `${n} days` renders "1 days" on the second-to-last
+ * morning, which is the day somebody is most likely to be reading it.
+ */
+function graceDaysPhrase(days: number): string {
+  return days === 1 ? "1 day" : `${days} days`;
+}
+
+
 export function manageSummaryFor(f: SummaryFacts): string | null {
   const state = summaryStateFor(f);
   const price = f.price;
@@ -565,13 +611,23 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
     case "comp-forever":
       return "You have free access for life, so there's nothing to pay and nothing to renew.";
 
+    /**
+     * ⚠️ BOTH GRACE SENTENCES COUNT DOWN NOW (Adrian, 2026-09-03). They read
+     * "You've got 14 days on us" for the whole fortnight, so on the day the
+     * seven-day notice said seven, this said fourteen. See
+     * {@link ManageFacts.graceDaysLeft}.
+     */
     case "grace-aligned":
-      if (!f.graceEndsOn || !amount) return null;
-      return `You've got ${BETA_GRACE_DAYS} days on us until ${f.graceEndsOn}, and then your Pro plan starts at ${amount}.`;
+      if (!f.graceEndsOn || !amount || typeof f.graceDaysLeft !== "number") return null;
+      return f.graceDaysLeft === 0
+        ? `Your free run ends today, and then your Pro plan starts at ${amount}.`
+        : `You've got ${graceDaysPhrase(f.graceDaysLeft)} left on us until ${f.graceEndsOn}, and then your Pro plan starts at ${amount}.`;
 
     case "beta-grace":
-      if (!f.graceEndsOn) return null;
-      return `You've got ${BETA_GRACE_DAYS} days on us until ${f.graceEndsOn}, and you'll need a plan after that to keep adding.`;
+      if (!f.graceEndsOn || typeof f.graceDaysLeft !== "number") return null;
+      return f.graceDaysLeft === 0
+        ? "Your free run ends today, and you'll need a plan after that to keep adding."
+        : `You've got ${graceDaysPhrase(f.graceDaysLeft)} left on us until ${f.graceEndsOn}, and you'll need a plan after that to keep adding.`;
 
     case "courtesy":
       if (!f.courtesyEndsOn || !amount) return null;

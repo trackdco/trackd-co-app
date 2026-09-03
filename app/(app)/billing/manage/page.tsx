@@ -4,13 +4,14 @@ import { redirect } from "next/navigation";
 
 import { StripeHandoff } from "@/components/billing/StripeHandoff";
 import { CaretRight, CreditCard } from "@/components/icons";
-import { formatAccessDate } from "@/lib/billing/manage";
+import { formatAccessDate, isBetaGrace } from "@/lib/billing/manage";
 import { manageSummaryFor, splitSummary } from "@/lib/billing/manageSummary";
 import { loadBillingFacts } from "@/lib/billing/screenFacts";
 import { cardOnFile } from "@/lib/billing/cardOnFile";
 import { formatPrice } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
+import { graceDaysLeft } from "@/lib/billing/graceEnding";
 
 export const metadata: Metadata = { title: "Manage · Trackd Co" };
 
@@ -79,6 +80,20 @@ export default async function ManagePage() {
         : null,
     graceEndsOn: facts.entitlement?.activeUntil
       ? formatAccessDate(facts.entitlement.activeUntil, facts.tz)
+      : null,
+    /**
+     * ⚠️ RESOLVED HERE, NOT IN THE SENTENCE MODULE, for the reason
+     * `courtesyRunning` below is: `manageSummary` is pure, and a hidden
+     * `Date.now()` inside it would make every fixture in every test silently
+     * time-sensitive.
+     *
+     * It is the SAME function the seven-day notice calls, so the two surfaces
+     * cannot tell one account two different numbers on the same day. Null unless
+     * this is actually a grace, which is what keeps a paying subscriber's
+     * `active_until` from being read as a countdown.
+     */
+    graceDaysLeft: isBetaGrace(facts.entitlement)
+      ? graceDaysLeft(facts.entitlement?.activeUntil ?? null, facts.tz, new Date())
       : null,
     /**
      * ⚠️ THE RUNNING PERIOD, NOT THE RECORDED ONE (Group C). `courtesy_until` is
