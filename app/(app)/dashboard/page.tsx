@@ -30,6 +30,7 @@ import {
   trialNoticeLine,
 } from "@/lib/notifications/trialReminder";
 import { toDateKey } from "@/lib/home/mockHomeData";
+import { greetingNameFor } from "@/lib/profile/name";
 import { createClient } from "@/lib/supabase/server";
 import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites";
 import { bodySexFor } from "@/lib/db/types";
@@ -73,7 +74,7 @@ export default async function DashboardPage() {
     // `timezone` rides along for the trial notice below: the day a trial ends is
     // a CALENDAR day and it is a different one either side of midnight, so the
     // server must resolve it in the user's own zone rather than in Vercel's.
-    .select("units_preference, notifications_enabled, sex, timezone")
+    .select("units_preference, notifications_enabled, sex, timezone, display_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -413,14 +414,29 @@ export default async function DashboardPage() {
   // (per-login) "Add to Home Screen" popup below.
   const freshSignIn = cookieStore.get("trackd-install-hint")?.value === "1";
 
-  // First name for the greeting — from Google auth metadata (display only, never
-  // an access decision). Falls back to the email local-part, else null (no name).
-  const fullName =
-    (user?.user_metadata?.full_name as string | undefined) ??
-    (user?.user_metadata?.name as string | undefined) ??
-    "";
-  const firstName =
-    fullName.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || null;
+  /**
+   * The name for the greeting. THE USER'S OWN ANSWER WINS over Google's.
+   *
+   * Onboarding asks "What's your name?" on its first screen, and this used to
+   * ignore it and read Google's metadata instead — so we asked a question, used
+   * the answer once on the welcome screen, and never again. Worse, an account
+   * with no name on the Google side fell through to the EMAIL LOCAL-PART, which
+   * is how "Good morning, adrianschimizzi1" reached a home screen.
+   *
+   * The chain now lives in ONE place (`lib/profile/name.ts`) because Profile
+   * derived its own copy of it, and two copies is how the greeting and the
+   * Profile heading end up disagreeing after somebody edits one.
+   *
+   * Still display only, and still never an access decision.
+   */
+  const firstName = greetingNameFor({
+    displayName: profile?.display_name ?? null,
+    authFullName:
+      (user?.user_metadata?.full_name as string | undefined) ??
+      (user?.user_metadata?.name as string | undefined) ??
+      null,
+    email: user?.email ?? null,
+  });
 
   // Spec 02 moved weight and progress photos OFF the dashboard, so their queries
   // and the photo URL signing are gone with them — the data is untouched and lives

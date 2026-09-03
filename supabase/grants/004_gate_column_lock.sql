@@ -80,7 +80,7 @@ grant update (
   units_preference, timezone, acquisition_source, referral_code,
   onboarding_completed_at, created_at, updated_at,
   avatar_path, protocol_migrated_at, notifications_enabled, pwa_installed_at,
-  install_prompt_dismissed_at
+  install_prompt_dismissed_at, display_name
 ) on public.profiles to authenticated;
 
 grant insert (
@@ -88,7 +88,7 @@ grant insert (
   units_preference, timezone, acquisition_source, referral_code,
   onboarding_completed_at, created_at, updated_at,
   avatar_path, protocol_migrated_at, notifications_enabled, pwa_installed_at,
-  install_prompt_dismissed_at
+  install_prompt_dismissed_at, display_name
 ) on public.profiles to authenticated;
 
 -- SELECT is unchanged — a user still reads their own gate state for the UI.

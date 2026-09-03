@@ -265,8 +265,13 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
           very users the attribute exists to serve. The layer itself is
           click-through (`pointer-events-none`) so the scrim underneath still
           takes a tap to dismiss. */}
+      {/* `shortcuts-layer` is the hook an IN-PLACE EDIT uses to stand this layer
+          down — see `.edit-action-bar` in `globals.css`. It is a class and not a
+          prop because this component and the editing card are siblings under the
+          (app) layout with no state between them, and a control that floats over
+          a committed edit is a control that discards it. Styling is unchanged. */}
       <div
-        className="pointer-events-none fixed inset-0 z-[46]"
+        className="shortcuts-layer pointer-events-none fixed inset-0 z-[46]"
         {...(open
           ? { role: "dialog", "aria-modal": true, "aria-label": "Quick actions" }
           : {})}

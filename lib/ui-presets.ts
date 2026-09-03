@@ -148,3 +148,40 @@ export const PRIMARY_BUTTON =
   "text-sm font-medium text-bg-base transition-opacity hover:opacity-90 " +
   "active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 " +
   "motion-reduce:active:scale-100"
+
+/**
+ * IN-PLACE EDITING — the committed-state action bar (Adrian, 2026-09-03).
+ *
+ * A card edited in place pins its Save across the bottom of the screen, over the
+ * tab bar, and moves Cancel into the section header where Edit sits. The full
+ * argument (and the `.edit-action-bar` / `.grow-field` classes these compose
+ * with) is in `globals.css` and `ui-context.md`; the short version is that
+ * `PhysicalCard` used to SCROLL its Save row into view, which pushed every field
+ * it was meant to reveal off the top of the screen.
+ *
+ * `EDIT_BAR` carries the fixed position, the blur, the safe-area inset and the
+ * slide-up; the button inside it is `PRIMARY_BUTTON` at full width, so there is
+ * no second confirm-button treatment in the app.
+ */
+export const EDIT_BAR = "edit-action-bar"
+export const EDIT_BAR_SAVE = `${PRIMARY_BUTTON} w-full`
+
+/**
+ * The section-header control that opens and closes an in-place edit. One
+ * position, two labels: "Edit" when closed, "Cancel" when open.
+ *
+ * 44px of target. It was 37x32 — the only sub-44 control on the Profile page,
+ * and the one that gates the whole card. The negative margin keeps the visual
+ * position unchanged.
+ */
+export const EDIT_TOGGLE =
+  "-m-2 flex min-h-11 min-w-11 shrink-0 items-center justify-end whitespace-nowrap " +
+  "rounded-md p-2 text-xs text-text-muted outline-none transition-colors " +
+  "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring " +
+  "focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+
+/**
+ * Wraps ONE field in an in-place editor so its surface sweeps in from the right.
+ * Set `--grow-i` inline to the field's index for the stagger.
+ */
+export const GROW_FIELD = "grow-field"
