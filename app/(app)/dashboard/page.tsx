@@ -10,7 +10,7 @@ import { TrialEndingBanner } from "@/components/billing/TrialEndingBanner";
 import { EnableNotificationsStep } from "@/components/push/EnableNotificationsStep";
 import { InstallHomeScreenPopup } from "@/components/pwa/InstallHomeScreenPopup";
 import { BETA_GRACE_DAYS, graceAsTrial } from "@/lib/billing/betaGrace";
-import { graceDaysLeft } from "@/lib/billing/graceEnding";
+import { chooseNotice, graceDaysLeft } from "@/lib/billing/graceEnding";
 import {
   BETA_NOTICE_COOKIE,
   GRACE_NOTICE_COOKIE,
@@ -383,38 +383,31 @@ export default async function DashboardPage() {
     new Date(),
   );
 
-  const showGraceNotice =
-    billingGateEnabled() &&
-    access.known &&
-    graceDays !== null &&
-    !betaNoticeSeen(cookieStore.get(GRACE_NOTICE_COOKIE)?.value, user.id);
-
   /**
-   * ⚠️ `!showGraceNotice` IS THE SUPERSEDE, AND IT IS EXPRESSED HERE SO THE TWO
-   * CANNOT BOTH RENDER BY CONSTRUCTION.
+   * ⚠️ ONE DECISION, IN A PURE FUNCTION, AND THAT IS THE FIX.
    *
-   * 77 of the 82 never dismissed the launch notice, so for almost the whole
-   * cohort both were pending. Two modals across two loads is bad; worse is that
-   * the older one reads "you've got two more weeks on us, until 10 Sep 2026",
-   * which on 3 Sep is a fortnight announced with a week left in it and on 9 Sep
-   * is "two more weeks" about tomorrow. That is the contradiction `004` was
-   * written to prevent, arriving from the other direction.
+   * This was two inline booleans with the supersede expressed as
+   * `!showGraceNotice` on the second. A cold review measured what that cost:
+   * `showGraceNotice` carries the seen-cookie test, so it means "the grace
+   * notice is rendering RIGHT NOW" rather than "this account is superseded".
+   * Dismissing the notice wrote the cookie, the `!` term evaporated, and the
+   * LAUNCH notice rendered on the very next Home load, telling 77 accounts they
+   * had "two more weeks on us, until 10 Sept 2026" with a week left.
    *
-   * ⚠️ Safe ONLY because `GraceEndingNotice` records the same Terms and Privacy
-   * acceptance on dismissal. Terms v2.0 §25 makes continued use after notice the
-   * acceptance, and skipping the older screen must not skip recording it.
-   *
-   * ⚠️ THE FREE-FOR-LIFE COMPS ARE UNAFFECTED. `graceDays` is null without an
-   * expiry, so `showGraceNotice` is false for them and they still meet the
-   * launch notice's comp variant, which is the only screen that ever tells them
-   * they have been given Trackd Co for good.
+   * `chooseNotice` keys the supersede on the COHORT, which does not move when a
+   * notice is dismissed, and is total for that cohort so nothing can fall
+   * through. It is pure, so the nine-state matrix that hid this is now a test
+   * (`lib/billing/chooseNotice.test.ts`) rather than three booleans nobody could
+   * see into.
    */
-  const showBetaNotice =
-    billingGateEnabled() &&
-    access.known &&
-    !showGraceNotice &&
-    betaEntitlement?.source === "comp" &&
-    !betaNoticeSeen(cookieStore.get(BETA_NOTICE_COOKIE)?.value, user.id);
+  const notice = chooseNotice({
+    gateEnabled: billingGateEnabled(),
+    accessKnown: access.known,
+    entitlement: betaEntitlement,
+    daysLeft: graceDays,
+    graceSeen: betaNoticeSeen(cookieStore.get(GRACE_NOTICE_COOKIE)?.value, user.id),
+    launchSeen: betaNoticeSeen(cookieStore.get(BETA_NOTICE_COOKIE)?.value, user.id),
+  });
 
   // Set by the auth callback on a fresh sign-in / sign-up — drives the one-time
   // (per-login) "Add to Home Screen" popup below.
@@ -446,7 +439,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      {showGraceNotice && graceDays !== null && betaEntitlement?.activeUntil ? (
+      {notice === "grace" && graceDays !== null && betaEntitlement?.activeUntil ? (
         <GraceEndingNotice
           userId={user.id}
           daysLeft={graceDays}
@@ -463,7 +456,7 @@ export default async function DashboardPage() {
           countFrom={BETA_GRACE_DAYS}
         />
       ) : null}
-      {showBetaNotice ? (
+      {notice === "launch" ? (
         <BetaLaunchNotice
           userId={user.id}
           // Formatted here, in the user's own timezone, for the same reason

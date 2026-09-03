@@ -2010,11 +2010,18 @@ svg ::-moz-selection {
     animation: none;
   }
 
-  /* ⚠️ `display: none`, NOT `animation: none`. The glint's band STARTS off the
-     left edge and is only out of sight because it is mid-animation, so killing
-     the animation strands it visible on its first frame as a blurred bar across
-     the icon. ui-context.md names this exact trap for any animation whose
-     resting state is off-screen or transparent. */
+  /* ⚠️ `display: none` rather than `animation: none`, and the REASON HERE IS NOT
+     THE USUAL ONE. This comment used to claim `animation: none` would strand the
+     band visible on its first frame, which is the trap ui-context.md names. A
+     cold review measured it and that is FALSE for this element: the band's base
+     position is `left: -140%` inside a parent with `overflow: hidden`, so it is
+     out of sight either way.
+
+     It stays `display: none` on the honest reason instead: it removes an 11px
+     blur and a compositing layer for a user who has asked for less, rather than
+     leaving an invisible one painted. The trap is real and this is simply not an
+     instance of it, which is worth writing down so the next person does not
+     "fix" a different animation by copying a justification that did not apply. */
   .grace-glint {
     display: none;
   }

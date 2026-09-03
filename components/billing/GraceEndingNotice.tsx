@@ -62,9 +62,9 @@ export function GraceEndingNotice({
   userId,
   /** Whole local days until the grace ends, resolved server-side in their zone. */
   daysLeft,
-  /** The full date, formatted server-side. "10 Sep 2026". */
+  /** The full date, formatted server-side. "10 Sept 2026" (en-AU renders four letters). */
   endsOn,
-  /** The same date without the year, for the second paragraph. "10 Sep". */
+  /** The same date without the year, for the second paragraph. "10 Sept". */
   endsOnShort,
   /** The full grace length, so the count can animate down onto what is left. */
   countFrom,
@@ -202,6 +202,17 @@ function GraceEndingDialog({
   choosePlan: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * ⚠️ A CLOSE NEEDS THE PRESS TO HAVE STARTED OUTSIDE THE CARD.
+   *
+   * Selecting the headline and dragging off the edge dispatches `click` on the
+   * common ancestor, so the card's `stopPropagation` never sees it and the
+   * backdrop's handler fired. That matters more here than on an ordinary modal:
+   * `close()` writes the once-ever cookie AND records the legal acceptance, so
+   * an accidental text-selection drag spends the only sighting of the only
+   * screen 77 accounts are going to get.
+   */
+  const pressStartedOutside = useRef(false);
 
   /**
    * The count settles onto the real figure instead of appearing.
@@ -219,6 +230,20 @@ function GraceEndingDialog({
   const [shown, setShown] = useState(daysLeft);
 
   useEffect(() => {
+    /**
+     * ⚠️ NOT ON THE LAST TWO DAYS, and this was MEASURED (cold review).
+     *
+     * The count starts at `countFrom` (14), so on the final morning the headline
+     * read "Your free run will end in 14 days" for 625ms above a paragraph
+     * already saying "After today your account will become read only". The card
+     * contradicting itself about its own deadline is the exact thing
+     * `graceEnding.ts` exists to prevent, and the wrong half is the one
+     * PROMISING MORE TIME, which is the direction this project never allows.
+     *
+     * Nothing is lost: at 0 and 1 the headline is "today" and "tomorrow", which
+     * carry no figure for a count to settle onto anyway.
+     */
+    if (daysLeft <= 1) return;
     if (countFrom <= daysLeft) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
@@ -266,7 +291,13 @@ function GraceEndingDialog({
      * the modal, `aria-labelledby` announces it, and the Tab trap below keeps it
      * there. `tabIndex={-1}` is what makes it a legitimate target.
      */
-    node?.focus();
+    /**
+     * ⚠️ `preventScroll`. The backdrop is a scroll container now, so focusing the
+     * dialog asked the browser to scroll it into view and the card opened 5px
+     * off the top at 360x560, clipping the icon on arrival. Focus still moves and
+     * the trap is unaffected.
+     */
+    node?.focus({ preventScroll: true });
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -291,7 +322,20 @@ function GraceEndingDialog({
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       const active = document.activeElement;
-      if (e.shiftKey && (active === first || !node.contains(active))) {
+      /**
+       * ⚠️ `active === node` IS THE OPENING STATE AND IT COUNTS AS "AT THE START".
+       *
+       * Initial focus is the dialog itself, which is deliberately NOT in
+       * `focusable`. So on the very first Shift+Tab neither `active === first`
+       * nor `!node.contains(active)` matched (a node contains itself), nothing
+       * was prevented, and the browser walked backwards out of the portal onto a
+       * real dashboard control behind the backdrop, while `aria-modal="true"`
+       * claimed nothing outside existed. Driven in Chromium at 402x700.
+       *
+       * The forward branch needs no equivalent: from the dialog, a plain Tab
+       * lands on the first control by itself.
+       */
+      if (e.shiftKey && (active === first || active === node || !node.contains(active))) {
         e.preventDefault();
         last.focus();
       } else if (!e.shiftKey && (active === last || !node.contains(active))) {
@@ -370,7 +414,12 @@ function GraceEndingDialog({
      */
     <div
       className="pointer-events-auto fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-overlay-backdrop px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] animate-in fade-in-0 duration-300 motion-reduce:animate-none"
-      onClick={close}
+      onPointerDown={(e) => {
+        pressStartedOutside.current = !dialogRef.current?.contains(e.target as Node);
+      }}
+      onClick={() => {
+        if (pressStartedOutside.current) close();
+      }}
     >
       {/* Clicks here bubble to the backdrop above, so tapping beside the card
           still closes it exactly as it did when this was a centred grid. */}

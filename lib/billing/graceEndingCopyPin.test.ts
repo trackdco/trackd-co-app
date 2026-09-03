@@ -173,6 +173,27 @@ describe("CONTROL: the component actually renders from these constants", () => {
     expect(src).not.toContain(SIGNED_CONTINUED);
   });
 
+  /**
+   * ⚠️ EVERY PART MUST REACH THE SCREEN, not just exist in the constants.
+   *
+   * A cold review pointed out the gap: the pins prove the parts rejoin to the
+   * signed sentence and that the component holds no literal copy of it, but
+   * nothing proved the component RENDERS all of them. Dropping `L.end` (" have
+   * changed as well.") in a JSX re-flow would leave every other test green while
+   * the notice stopped saying the two documents had changed at all, which is the
+   * half that keeps the sentence honest about what is NOT accepted.
+   *
+   * ⚠️ This checks the parts are REFERENCED, not the whitespace between them.
+   * That is still eyeballed. A dropped space or full stop is visibly broken on
+   * screen, so it is the low-severity half; a silently dropped clause is not.
+   */
+  it("renders every part of the continued-use sentence", () => {
+    const src = renderedSource();
+    for (const key of Object.keys(GRACE_CONTINUED_USE_PARTS)) {
+      expect(src, `L.${key} is never rendered, so that clause is missing`).toContain(`L.${key}`);
+    }
+  });
+
   it("CONTROL: the stripper leaves the component behind", () => {
     // A stripper that removed everything would make the check above pass by
     // having nothing left to read. This is the shape that bit `graceCopyPin`.

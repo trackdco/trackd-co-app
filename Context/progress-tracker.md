@@ -86,6 +86,51 @@ The design was signed off from an interactive mock. Driving the real component a
    Terms acceptance. Now `overflow-y-auto` on the backdrop with a `min-h-full` flex
    child, verified by scrolling to it in four viewports down to 320x568.
 
+### Five defects a cold review found, all fixed (2026-09-03)
+
+The branch passed tsc, eslint, 1795 tests and a build before this review, and it
+still carried a HIGH bug. Worth remembering what caught each one.
+
+1. **HIGH. The supersede lasted exactly one page load.** It was written as
+   `!showGraceNotice` on the launch notice's condition, and `showGraceNotice`
+   carries the seen-cookie test - so it means "rendering right now", not "this
+   account is superseded". Dismissing the grace notice wrote the cookie, the term
+   evaporated, and the launch notice rendered on the NEXT Home load: 77 accounts
+   would have read "two more weeks on us, until 10 Sept 2026" with a week left.
+   Verbatim the outcome the line existed to prevent, and the comment beside it
+   claimed the two "cannot both render by construction" - true within one render,
+   false across two.
+   ⚠️ **The root cause was that the decision was inline and untestable**, three
+   booleans deep in a server component. It is now `chooseNotice()` in
+   `lib/billing/graceEnding.ts`, pure, keyed on the COHORT (which does not move
+   when a notice is dismissed) and total for it, with the nine-state matrix
+   pinned in `chooseNotice.test.ts`. The fix is structural, not a better `!`.
+2. **MEDIUM. Shift+Tab as the first key press walked out of the dialog** onto a
+   real dashboard control behind the backdrop, because initial focus is the
+   dialog and the dialog is not in `focusable`, so neither wrap branch matched.
+3. **MEDIUM. On the final morning the headline promised 14 days** while the
+   paragraph below already said "After today", for 625ms - the count animates
+   from `countFrom` while the body reads `daysLeft`. The animation is now skipped
+   at 0 and 1 days, where the headline carries no figure anyway.
+4. **LOW-MEDIUM. Selecting the headline and dragging off the card dismissed it**,
+   permanently: `click` fires on the common ancestor, so the card's
+   `stopPropagation` never saw it. `close()` writes the once-ever cookie and
+   records the acceptance, so a stray drag spent the only sighting. The backdrop
+   now requires the press to have STARTED outside.
+5. **LOW. The card opened 5px off the top at 360x560**, because focusing the
+   dialog scrolled the now-scrollable backdrop. `focus({ preventScroll: true })`.
+
+Also corrected: the reduced-motion comment justified `display: none` with a trap
+that does not apply to this element (the band is `left: -140%` inside
+`overflow: hidden`, so it is hidden either way); and three comments said
+"10 Sep" where `en-AU` renders "10 Sept".
+
+**Still open, and it is a copy decision:** "Our Medical Disclaimer and Consumer
+Health Data Privacy Policy have changed as well" can be read at 10px as "and you
+accept those as well", which is the reading Privacy v2.0 SS17 forbids. The
+sentence claims exactly what `recordDocumentAcceptance` writes, so nothing is
+false; "have also been updated" would remove the echo. Adrian's call.
+
 ### Phase 2, agreed and deliberately not built
 
 "Choose a plan" turning the card over into the plans in place, rather than navigating -
