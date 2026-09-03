@@ -153,16 +153,55 @@ export function withBetaNoticeSeen(
  * account's dismissal (D90).
  */
 export function markBetaNoticeSeen(userId: string): void {
+  markNoticeSeen(COOKIE, userId);
+}
+
+/**
+ * ⚠️ THE SAME MACHINERY, UNDER A SECOND COOKIE NAME — and it is EXTRACTED
+ * rather than copied (Adrian, 2026-09-03).
+ *
+ * The seven-day grace notice needs exactly this: a set of account ids, appended
+ * to rather than replaced, capped, and read before written. Every one of those
+ * four properties was paid for by a defect — D90's shared browser, where one
+ * person dismissing a notice destroyed another's record and brought their own
+ * notice back.
+ *
+ * A second copy of this function would be a second place for those four
+ * properties to be got wrong, and the copy is always the one that misses the
+ * next fix. So the COOKIE NAME becomes an argument and there is still one
+ * implementation. {@link betaNoticeSeen} and {@link withBetaNoticeSeen} were
+ * already name-agnostic (they are handed a value, not a jar), so they are
+ * reused unchanged and nothing about the launch notice's behaviour moves.
+ *
+ * ⚠️ SEPARATE COOKIES, DELIBERATELY, not one cookie holding both answers. The
+ * two notices are different announcements: an account may legitimately have
+ * seen the launch notice and not this one, or this one and never that one.
+ * Sharing a jar would make dismissing either silence both.
+ */
+export function markNoticeSeen(cookieName: string, userId: string): void {
   if (typeof document === "undefined") return;
   const current = document.cookie
     .split("; ")
-    .find((c) => c.startsWith(`${COOKIE}=`))
-    ?.slice(COOKIE.length + 1);
+    .find((c) => c.startsWith(`${cookieName}=`))
+    ?.slice(cookieName.length + 1);
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
   document.cookie =
-    `${COOKIE}=${encodeURIComponent(withBetaNoticeSeen(current, userId))}` +
+    `${cookieName}=${encodeURIComponent(withBetaNoticeSeen(current, userId))}` +
     `; path=/; max-age=${MAX_AGE_DAYS * 24 * 60 * 60}; SameSite=Lax${secure}`;
+}
+
+/** Mark the seven-day grace notice seen for this account, in this browser. */
+export function markGraceNoticeSeen(userId: string): void {
+  markNoticeSeen(GRACE_NOTICE_COOKIE, userId);
 }
 
 /** The cookie's name, so the server reader and the writer cannot drift. */
 export const BETA_NOTICE_COOKIE = COOKIE;
+
+/**
+ * The seven-day notice's own jar. Same shape, same reader, same writer.
+ *
+ * ⚠️ Deliberately NOT suffixed onto {@link BETA_NOTICE_COOKIE}'s value. See the
+ * note on {@link markNoticeSeen}: two announcements, two answers.
+ */
+export const GRACE_NOTICE_COOKIE = "trackd_grace_notice_seen";

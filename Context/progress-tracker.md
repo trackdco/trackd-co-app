@@ -5,7 +5,102 @@ rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
-Last updated: 2026-08-29 (a deep link now survives sign-in, at all five doorways; the `next` parser is shared and two weak copies are gone; the subscribe row reaches an account with no entitlement)
+Last updated: 2026-09-03 (the billing gate has been LIVE since 27 Aug and the repo said otherwise; the seven-day grace notice is built on `warning-popup`)
+
+## ⚠️ THE BILLING GATE HAS BEEN ON SINCE 27 AUGUST (2026-09-03)
+
+`next-tasks.md` carried G4 ("set `BILLING_GATE_ENABLED=true`") as an unticked box, and
+this file quoted it as *"the live case as far as this repo says"*. Both were wrong for a
+week, and anything reasoning from them would have concluded that nothing was enforced.
+
+**Proved by behaviour rather than by reading Vercel** (which this machine cannot reach:
+the CLI authenticates as a scope the Trackd project is not under). Five accounts hold a
+`tos` and a `privacy` acceptance at v2.0 with **no matching `disclaimer` row**, written
+27-28 Aug. Exactly one thing in the codebase writes that pairing: `BetaLaunchNotice`'s
+`recordDocumentAcceptance` on dismissal. That notice renders only when the gate is on.
+A signup writes all four documents, so the missing `disclaimer` row is what separates a
+dismissal from a sign-up. The gate went live around 04:00 UTC on 27 Aug, minutes after
+`004` was applied.
+
+### The cohort, measured the same day
+
+| | |
+|---|---|
+| Beta grace rows (`comp` + expiry), all at `2026-09-10T04:00:11Z` | **82** |
+| Free-for-life comps (`comp`, no expiry) | 5 |
+| Live Stripe subscriptions | 2 |
+| Of the 82: have logged a dose, journal entry or photo in 7 days | **2** |
+| ...in 30 days | 8 |
+| ...have never logged anything at all | **67** |
+
+⚠️ **`auth.users.last_sign_in_at` is not an activity measure** and reading it as one is
+how "1 active user" was nearly reported. It only updates on a fresh sign-in, never on a
+session refresh, so a PWA opened daily on a long-lived session never moves it. The table
+above counts real writes.
+
+**So 77 of the 82 had never seen the launch notice, and the reason is not a defect: they
+do not open the app.** That reframes the cohort from "90 beta users" to roughly eight,
+which is a bigger conversation than any modal.
+
+## The seven-day grace notice (2026-09-03) - branch `warning-popup`, NOT merged
+
+`06` announced the fortnight, `07`'s reminder opens two days out, and between them was a
+twelve-day silence with the entire cohort sitting in it. Adrian's call: a one-time popup.
+
+- **It SUPERSEDES the launch notice** rather than queueing behind it. Both were pending
+  for 77 accounts, and the older one reads "you've got two more weeks on us, until 10 Sep
+  2026" - which on 3 Sep is a fortnight announced with a week left in it, and on 9 Sep is
+  "two more weeks" about tomorrow. That is `004`'s contradiction arriving from the other
+  direction. Safe only because the new notice records the same Terms and Privacy
+  acceptance, so the supersede drops no legal step.
+- **The count derives, the prose does not.** `graceDaysLeft` reads the entitlement row in
+  the user's own zone at render, so somebody opening it on Friday reads 6. No number is
+  typed into any signed string.
+- **The copy lives in `lib/billing/noticeCopy.ts` from the first commit**, not in JSX.
+  `graceCopyPin.test.ts` pins the launch notice by scraping its source, which works but
+  ties a legal pin to the component's LINE WRAPPING. This one compares strings.
+- **All four legal documents are named; only two are described as accepted.** Adrian
+  asked for one sentence covering all four. The Consumer Health Data Privacy Policy can
+  never be accepted by continued use (Privacy v2.0 SS17, Washington's My Health My Data
+  Act), and the Medical Disclaimer is already an explicit tick at the welcome gate, so
+  folding it in would downgrade a stronger consent. The second clause says those two have
+  *changed*.
+- **"Choose a plan" is the filled button and sits on the right**, reversing `06` SS3.6's
+  no-pressure hierarchy. Adrian's explicit call, twice; recorded rather than slipped in.
+
+### Three things only rendering it could have found
+
+The design was signed off from an interactive mock. Driving the real component at
+`/preview/grace-notice` found all three, and none was visible on a desktop:
+
+1. **`.focus()` returns `undefined`**, so the launch notice's idiom rewritten as
+   `querySelector(...)?.focus() ?? node?.focus()` always ran BOTH sides and the dialog
+   stole focus straight back off the button. Caught by eslint's `no-unused-expressions`,
+   which is worth noting: it reads as a style rule and it found a behaviour bug.
+2. **Focusing the first button painted an amber ring on "Got it"** - a second amber
+   element on a card allowed one live beat, on the SECONDARY control, making the
+   dismissal read as selected. Focus moved to the dialog, which then needed
+   `outline-none` because a programmatic focus matches `:focus-visible`.
+3. **`grid place-items-center` CLIPPED the card at 360x560**, cutting off the entire
+   legal footer with no way to scroll to it - on the one screen whose small print is a
+   Terms acceptance. Now `overflow-y-auto` on the backdrop with a `min-h-full` flex
+   child, verified by scrolling to it in four viewports down to 320x568.
+
+### Phase 2, agreed and deliberately not built
+
+"Choose a plan" turning the card over into the plans in place, rather than navigating -
+on this notice, the launch notice, and the read-only pop-up, which is the one that
+matters (that person has just been refused a write). Then the two billing rows, then the
+card step as a third face.
+
+It reverses **D28**, which removed exactly this. Adrian's reason is better than the
+reason it went, and of D28's two arguments only one dissolves: the performance one does
+(`loadPricesSafe` sat in every logged-in layout and can be fetched on tap instead), while
+the drift one is real and is answered by mounting the shared `BillingFlowEntry` rather
+than a second price list. ⚠️ It touches `ReadOnlyGate`, the provider above the whole
+logged-in app, and the card face needs the 3D Secure return path BUILT rather than
+discovered: a bank challenge can send the browser away and back, which takes an
+in-memory modal with it.
 
 ## A deep link stopped surviving sign-in, at five doorways (2026-08-29)
 

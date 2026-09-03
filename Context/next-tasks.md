@@ -116,16 +116,52 @@ written, plus the order they now have to happen in.
       Run it on the day the gate actually flips — G3 and G4 are the same morning or
       the notice's date drifts away from the remainder it claims.
 
-- [ ] **G4. Set `BILLING_GATE_ENABLED=true` in Vercel production, then redeploy.**
+- [x] **G4. DONE, and the box was wrong for a week.** Proved by BEHAVIOUR on 2026-09-03,
+      not by reading Vercel: five accounts hold a `tos` + `privacy` acceptance at v2.0
+      with NO matching `disclaimer` row, written 27-28 Aug. That pairing is produced by
+      exactly one thing in the codebase, `BetaLaunchNotice`'s `recordDocumentAcceptance`
+      on dismissal, and that notice only renders when the gate is on. So the gate went
+      live around 04:00 UTC on 27 Aug, minutes after `004` was applied.
+      ⚠️ **The unticked box was itself a hazard.** It is quoted in `progress-tracker.md`
+      as "the live case as far as this repo says", and any work reasoning from it would
+      have concluded nothing was enforced while 82 accounts counted down to read-only.
+
+- [x] ~~**G4 (original).** Set `BILLING_GATE_ENABLED=true` in Vercel production, then redeploy.**~~
       ⚠️ **Adrian does this himself.** The Vercel CLI on this machine authenticates as
       `adrianschimizzi1-8005` and the only project under the `adriandrianco` scope is
       `adn-builders-website` — the Trackd project is not reachable from here. An env
       change needs a redeploy to reach the running deployment.
 
-- [ ] **G5. Verify by BEHAVIOUR, not by the dashboard saying it is set.** The pop-up
+- [x] **G5. DONE by the consent rows above**, which are the named artefact this step
+      asked for: a dismissal cannot exist unless the notice rendered, and the notice
+      cannot render with the gate off.
+
+- [x] ~~**G5 (original).** Verify by BEHAVIOUR, not by the dashboard saying it is set.**~~ The pop-up
       Adrian could not see IS the control: with the gate on, a comp account with no
       seen-cookie must get `BetaLaunchNotice` naming its own date. A restart proves
       nothing; the named artefact does.
+
+### The seven-day grace notice (3 Sep) - branch `warning-popup`, NOT merged
+
+Built and verified, awaiting Adrian's word to merge. `06` announced the fortnight and
+`07` opens two days out; between them sat a twelve-day silence and the whole cohort was
+in it.
+
+- [ ] **Merge `warning-popup` to main.** `next build`, `tsc`, `eslint` and 1795 tests
+      green in a clean worktree off main.
+- [ ] **After merge, look at `/preview/grace-notice?days=7` on the Vercel preview**, and
+      at `?days=0`, which is the only case where the copy changes shape.
+
+**What ships:** `GraceEndingNotice`, its cookie, `graceDaysLeft`, the signed copy in
+`noticeCopy.ts`, two pin/unit test files, three keyframes in `globals.css`, and a
+dev-only preview route.
+
+**Phase 2, agreed and NOT built:** "Choose a plan" turning the card over into the plans
+instead of navigating, on this notice, the launch notice and (the one that matters) the
+read-only pop-up, then the two billing rows, then the card step as a third face. That
+reverses D28 and touches `ReadOnlyGate`, the provider above the whole logged-in app.
+⚠️ The card face needs the 3D Secure return path BUILT rather than discovered: a bank
+challenge can send the browser away and back, which takes an in-memory modal with it.
 
 ### Still outstanding, unblocked by the above
 

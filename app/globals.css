@@ -1914,3 +1914,108 @@ svg ::-moz-selection {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE SEVEN-DAY GRACE NOTICE (components/billing/GraceEndingNotice.tsx).
+
+   Three ENTRANCES on one modal, all one-shot, all finished inside two seconds:
+   the app icon lands, an amber bloom rises behind it, and a single band of light
+   crosses it once. Nothing loops and nothing is left drawn on the icon.
+
+   ⚠️ AN AMBER RING AROUND THE ICON WAS BUILT HERE AND REMOVED (Adrian,
+   2026-09-03). It traced the icon's edge to show how much of the fortnight was
+   left, which was legible and was wrong: it left a PERMANENT amber shape sitting
+   on a card that ui-context.md allows one live beat, and that beat is the count
+   in the headline. A ring that stays is decoration; a light that passes is an
+   entrance. The distinction is the one the motion rules already draw.
+
+   ⚠️ CLASSES, NOT INLINE `animation`. An inline shorthand outranks the
+   reduced-motion block below and cannot be switched off from the stylesheet,
+   which ui-context.md names as the trap. Every rule here is a class.
+   --------------------------------------------------------------------------- */
+
+/* The icon settles from slightly small rather than appearing at full size. */
+@keyframes grace-icon {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-grace-icon {
+  animation: grace-icon 700ms var(--motion-ease) 120ms both;
+}
+
+/* The amber light behind him, arriving once and staying put. */
+@keyframes grace-bloom {
+  from {
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.85;
+  }
+}
+
+.animate-grace-bloom {
+  animation: grace-bloom 1300ms var(--motion-ease) both;
+}
+
+/* The band of light. Slowed from 900ms and roughly halved in brightness on
+   Adrian's note that the first pass was too noticeable: at 17% of --text-primary
+   under an 11px blur it reads as light moving across a surface rather than as a
+   shine effect sitting on top of one. */
+.grace-glint {
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.grace-glint::before {
+  content: "";
+  position: absolute;
+  top: -60%;
+  left: -140%;
+  width: 95%;
+  height: 220%;
+  transform: rotate(18deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--text-primary) 17%, transparent) 45%,
+    color-mix(in srgb, var(--text-primary) 17%, transparent) 55%,
+    transparent
+  );
+  filter: blur(11px);
+  animation: grace-glint 1600ms cubic-bezier(0.33, 0, 0.3, 1) 420ms both;
+}
+
+@keyframes grace-glint {
+  from {
+    left: -140%;
+  }
+  to {
+    left: 160%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-grace-icon,
+  .animate-grace-bloom {
+    animation: none;
+  }
+
+  /* ⚠️ `display: none`, NOT `animation: none`. The glint's band STARTS off the
+     left edge and is only out of sight because it is mid-animation, so killing
+     the animation strands it visible on its first frame as a blurred bar across
+     the icon. ui-context.md names this exact trap for any animation whose
+     resting state is off-screen or transparent. */
+  .grace-glint {
+    display: none;
+  }
+}
