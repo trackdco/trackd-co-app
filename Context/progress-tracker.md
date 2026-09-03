@@ -4016,6 +4016,71 @@ it rather than dropping the guard. Documented in `ui-context.md` and
   topmost element at its own centre, scaleX sampled mid-flight at
   `0.28 / 0.05 / 0 / 0 / 0` rising to `1.00` across the five fields.
 
+## Fifteen parallel sessions, one checkout, four workstreams onto main (2026-09-03)
+
+Roughly fifteen Claude Code sessions ran against ONE shared working tree. Each
+branched from whatever happened to be checked out, so branches absorbed each
+other's commits and the same seven Blocks/Schedule patches ended up on four
+branches at once. Compared with `git patch-id --stable` rather than by message,
+because the hashes differ and the subjects do not.
+
+**Only six commits were unique anywhere.** `blocks/block-photos` and
+`blocks/block-weight` were not copies at all: they share commit OBJECTS with
+`blocks/schedule-weeks` and are strict ancestors of it. `schedule-weeks-rebased`
+is the same seven patches replayed onto the current main tip, so it was the
+canonical one and the other three carried nothing.
+
+Merged in three steps, largest and cleanest first:
+`blocks/schedule-weeks-rebased` -> `warning-popup` -> `profile-display-name`.
+Order does not avoid the one conflict (it is symmetric between the last two), but
+it puts the two branches needing no judgement in first, as verified checkpoints.
+
+### Three things this cost, all of them worth writing down
+
+- **⚠️ A BRANCH THAT COMPILES IN A SHARED CHECKOUT MAY NOT COMPILE ALONE.**
+  `profile-display-name` imported `SIGNED_URL_TTL` from `@/lib/storage/signedUrl`,
+  a module that has NEVER been committed on any branch. It exists only as
+  untracked files belonging to a different session's signed-URL workstream (D47,
+  consolidating three page-local `60 * 60` constants plus a bare `3600` into one
+  five-minute value). That session's files were sitting in the tree, so the
+  display-name session type-checked green and committed one quarter of somebody
+  else's refactor. Reverted to `3600` on the merge so D47 ships whole. This is
+  the failure mode of the shared checkout, and the only thing that catches it is
+  building a branch somewhere the other sessions' untracked files are not.
+
+- **⚠️ `app/globals.css` CANNOT BE CONFLICT-RESOLVED BY HAND HERE.** Two branches
+  each APPEND one self-contained block at end of file. Both blocks open with a
+  byte-identical `/* -------` rule line, so git keeps it ONCE as shared context
+  and the second block is left as a bare comment body with no opener. Both hunks
+  also split mid-rule and share their closing braces as trailing context, so
+  stripping the markers leaves the file three closing braces short. The correct
+  resolution is to rebuild the tail as both blocks whole, then check it against
+  arithmetic: braces `220 + 20 + 17 + 17 = 274`, comment delta unchanged from
+  main's own baseline, every added selector appearing as often as on its source.
+
+- **⚠️ `npm run check` DOES NOT SEE BROKEN CSS.** The malformed `globals.css`
+  above passed `tsc`, `eslint`, `gate:check` and all 1868 tests. The only thing
+  that reported it was `next build`'s CSS optimizer:
+  *"Expected identifier in class selector"*. A CSS change is not verified until
+  `next build` has run on a cleared `.next`.
+
+Also note `npm run check` runs all four steps again: the 19 duplicated
+`node_modules/@types/... 2` folders that were short-circuiting it are gone.
+
+### Held, and what is still owed
+
+- **`safari-handoff-login` is NOT merged**, pending a walk on a real iPhone. Its
+  three unique commits are two code (`app/login/page.tsx`,
+  `app/onboarding/page.tsx`, `components/onboarding/screens/install.tsx`) and one
+  docs. Its fourth apparently-unmerged commit, "The way back in sits under the
+  Begin button", is already on main as `182dd99` under a different hash.
+- The **legal-copy correction** to the grace notice's continued-use sentence was
+  finished but never committed on `warning-popup`. It sat as three uncommitted
+  files in that session's worktree. Carried onto main as its own commit rather
+  than committed under a live session; that worktree can be reset.
+- `blocks/schedule-weeks`, `blocks/block-weight` and `blocks/block-photos` are
+  fully contained in main and are deletable once the deploy is verified.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

@@ -4,14 +4,68 @@ The **windscreen** — the concrete next steps. This file says *what to do next*
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.
 
-Last updated: 2026-08-29 (deep links now survive sign-in at all five doorways;
-G2 CANCELLED by D113; the webhook pile is empty; one UNVERIFIED trial-conversion
-risk still open; TWO NEW ENVIRONMENT BLOCKERS below — `npm run check` cannot pass
-and the working tree does not build)
+Last updated: 2026-09-03 (four parallel workstreams untangled and three of them
+merged to `main` LOCALLY, unpushed — see the top section; both 2026-08-29
+environment blockers are GONE; the Safari handoff is still held; one UNVERIFIED
+trial-conversion risk still open)
 
 ---
 
-## 🔴 TWO ENVIRONMENT BLOCKERS, FOUND 2026-08-29. NEITHER IS MINE TO FIX BLIND.
+## 🟡 THREE MERGES SIT ON LOCAL `main`, UNPUSHED. THE PUSH IS ADRIAN'S CALL.
+
+`main` is four commits ahead of `origin/main` and has NOT been pushed, because a
+push deploys straight to Vercel production. Verified on the merged result:
+`npm run check` all four steps green (1868 tests), and `next build` clean on a
+cleared `.next`.
+
+    8774988  Merge the Blocks and Schedule work
+    68aa58e  Merge the seven-day grace notice for the beta cohort
+    ae03509  The second clause stops echoing the acceptance (legal copy)
+    b83f196  Merge the display name work
+
+- [ ] **Push `main`.** One push, three workstreams, one deploy. The alternative
+      (three pushes) buys per-workstream attribution and costs three production
+      deploys of a beta app; not worth it. `git -C <worktree> push origin main`.
+- [ ] **Watch the deploy, then check three surfaces in production:** Home's
+      greeting (the name from onboarding, not Google's), a block's retrospective
+      (photos open, weight graph, week stepping), and the grace notice on a comp
+      account with an expiry.
+- [ ] **THEN delete the three redundant branches** — `blocks/schedule-weeks`,
+      `blocks/block-weight`, `blocks/block-photos`. All three are fully contained
+      in `main` (checked by patch-id, 0 unmerged patches each). Deleting them
+      BEFORE the deploy is verified would throw away the easy rollback refs, so
+      the order matters.
+
+### ⚠️ Two things other live sessions still need to do
+
+- **The signed-URL session (`lib/storage/`, `lib/media/`, `test/live/`) must
+  commit `lib/storage/signedUrl.ts`.** `profile-display-name` imported it and it
+  has never been committed anywhere, so that branch did not build alone; the
+  import was reverted to a bare `3600` on the merge. When D47 lands it should
+  take `app/(app)/profile/page.tsx` line 44 with it, along with the three
+  page-local `60 * 60` constants in `blocks`, `calendar` and `progress`.
+- **The `warning-popup` worktree can be reset.** Its three uncommitted files (the
+  continued-use legal copy, its signed pin and its test) are on `main` as
+  `ae03509`. Leaving them there means committing the same change twice.
+
+## 🔴 THE SAFARI HANDOFF IS HELD, AND STAYS HELD
+
+`safari-handoff-login` is NOT merged. Three unique commits: two code
+(`app/login/page.tsx`, `app/onboarding/page.tsx`,
+`components/onboarding/screens/install.tsx`) and one docs. It needs the walk on a
+real iPhone before it goes anywhere.
+
+- [ ] Adrian: walk the handoff on a real iPhone (Chrome -> Safari -> sign in ->
+      Add to Home Screen), then say whether it ships.
+
+⚠️ Its fourth apparently-unmerged commit, "The way back in sits under the Begin
+button" (`7fe5ea4`), is ALREADY on main as `182dd99` under a different hash. Do
+not re-apply it, and do not read the branch's commit count as four pending
+changes.
+
+---
+
+## ✅ THE TWO ENVIRONMENT BLOCKERS OF 2026-08-29 ARE BOTH GONE.
 
 Both surfaced while verifying the deep-link fix. Both predate it. Neither is on
 `main` — they are local `node_modules` and uncommitted working-tree state — but
@@ -30,8 +84,9 @@ semantic analysis**, so `tsc --noEmit` looked "clean apart from noise" while
 short-circuits at the first `&&` — **eslint, the gate audit and vitest have not
 been running.**
 
-- [ ] `rm -rf node_modules/@types/*\ 2` (or a clean `npm ci`), then confirm
-      `npm run check` runs all four steps.
+- [x] DONE. The duplicated `@types` folders are gone and `npm run check` runs
+      all four steps (verified 2026-09-03 on the merged `main`: tsc, eslint,
+      gate-audit and 1868 tests).
 
 Proved by excluding the duplicates via an explicit `compilerOptions.types` list:
 the full semantic check then runs and yields exactly the two errors below and
@@ -48,9 +103,8 @@ uncommitted Apple Pay work and **neither import is in HEAD**, so `main` is fine.
 With the duplicate type folders excluded these are the ONLY two type errors in
 the entire project.
 
-- [ ] Adrian: either bump `@stripe/stripe-js` to a version that exports it, or
-      use the type the installed version actually provides. Not guessed at here —
-      it is in-progress work and the right answer depends on the intent.
+- [x] GONE. Neither import is in the working tree any more, and `tsc --noEmit`
+      is clean on the merged `main` (2026-09-03).
 
 ---
 
