@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { SHEET_TITLE } from "@/lib/ui-presets";
 import {
+  comparablePoses,
   dateKeyDaysApart,
   formatPhotoDateShort,
   posePriority,
@@ -19,15 +20,32 @@ import {
  * "after" photo from that pose's timeline, shown side by side with the gap
  * between them. Defaults to the oldest vs the newest of the most-photographed
  * pose.
+ *
+ * `caption` names the set being compared when it is a SUBSET of the user's
+ * photos (a block's window). Without it the poses and dates on offer look like
+ * every photo the user has, which on a block is a lie by omission.
  */
+/**
+ * Chips shown before the row collapses: the three default poses' worth of slots.
+ *
+ * Four was tried first and clipped. A fixed COUNT cannot guarantee a fit, since
+ * "Front relaxed" is twice the width of "Back" and a custom pose can be any
+ * length, so the row wraps rather than scrolls and this number only decides how
+ * often it needs to. At three it is one line for every pose in the catalogue.
+ */
+const POSE_CAP = 3;
+
 export function ComparePhotosSheet({
   open,
   onOpenChange,
   photos,
+  caption,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   photos: ProgressPhoto[];
+  /** One line naming the subset, e.g. "Cut down · 5 Jan to 20 Feb". */
+  caption?: string;
 }) {
   const { cardRef, handleProps, cardStyle } = useSheetDrag(() => onOpenChange(false), open);
 
@@ -36,14 +54,31 @@ export function ComparePhotosSheet({
       .slice()
       .sort((a, b) => a.date.localeCompare(b.date)); // oldest → newest
 
-  const presentPoses = [...new Set(photos.map((p) => p.pose))].sort(
+  // Only the poses that can actually carry a before and after. A pose shot once
+  // put the same photo in both panes, and padded the row with chips that could
+  // not do anything. The fallback keeps the sheet from going empty if it is ever
+  // opened on a set where nothing is comparable.
+  const allPoses = [...new Set(photos.map((p) => p.pose))].sort(
     (a, b) => posePriority(a) - posePriority(b),
   );
-  // Prefer a pose with ≥2 photos so before/after is meaningful.
+  const comparable = comparablePoses(photos);
+  const presentPoses = comparable.length > 0 ? comparable : allPoses;
+
+  /* A pose shot twice in ONE session is offerable (a retake is a legitimate
+     pair) but it is a poor thing to OPEN on: the panes show one session, and
+     the "N days apart" line, the single signal that would say so, is hidden
+     because the gap is zero. So the default prefers a pose photographed on two
+     or more days and falls back to the first only when none exists. */
+  const spansDays = (poseId: string) =>
+    new Set(byPose(poseId).map((p) => p.date)).size > 1;
   const defaultPose =
-    presentPoses.find((id) => byPose(id).length >= 2) ?? presentPoses[0] ?? "all";
+    presentPoses.find(spansDays) ?? presentPoses[0] ?? "all";
 
   const [poseFilter, setPoseFilter] = useState(defaultPose);
+  /** The chip row collapses past `POSE_CAP`. Someone running the full
+   *  bodybuilding catalogue has twenty of these and a scrolling row hid them
+   *  with no affordance at all. */
+  const [posesExpanded, setPosesExpanded] = useState(false);
   const [beforeId, setBeforeId] = useState<string | null>(null);
   const [afterId, setAfterId] = useState<string | null>(null);
 
@@ -53,6 +88,7 @@ export function ComparePhotosSheet({
     if (open) {
       const list = byPose(defaultPose);
       setPoseFilter(defaultPose);
+      setPosesExpanded(false);
       setBeforeId(list[0]?.id ?? null);
       setAfterId(list[list.length - 1]?.id ?? null);
     }
@@ -63,6 +99,17 @@ export function ComparePhotosSheet({
     setPoseFilter(poseId);
     setBeforeId(list[0]?.id ?? null);
     setAfterId(list[list.length - 1]?.id ?? null);
+  }
+
+  // Which chips are on show. The SELECTED pose is always among them, or a
+  // collapsed row would hide the one thing the panes are showing.
+  const hiddenPoses = posesExpanded ? 0 : Math.max(0, presentPoses.length - POSE_CAP);
+  let visiblePoses = presentPoses;
+  if (hiddenPoses > 0) {
+    visiblePoses = presentPoses.slice(0, POSE_CAP);
+    if (!visiblePoses.includes(poseFilter) && presentPoses.includes(poseFilter)) {
+      visiblePoses = [...visiblePoses.slice(0, POSE_CAP - 1), poseFilter];
+    }
   }
 
   const list = byPose(poseFilter);
@@ -97,11 +144,17 @@ export function ComparePhotosSheet({
 
           <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
             <h2 className={SHEET_TITLE}>Compare</h2>
+            {caption && <p className="mt-1 text-sm text-text-muted">{caption}</p>}
 
-            {/* Pose filter */}
+            {/* Pose filter. Capped and wrapped rather than a row that scrolls
+                off the edge: the old row clipped its fourth chip mid-word and
+                said nothing about the seven behind it. */}
             {presentPoses.length > 1 && (
-              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                {presentPoses.map((id) => (
+              /* Wraps, never scrolls. A scrolling row put chips off the edge of
+                 the phone with nothing to say they were there, which is the
+                 whole reason this control was rebuilt. */
+              <div className="mt-3 flex flex-wrap gap-2 pb-1">
+                {visiblePoses.map((id) => (
                   <button
                     key={id}
                     type="button"
@@ -117,6 +170,24 @@ export function ComparePhotosSheet({
                     {poseLabel(id)}
                   </button>
                 ))}
+                {hiddenPoses > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPosesExpanded(true)}
+                    className="shrink-0 rounded-full border border-dashed border-border-strong px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
+                  >
+                    {hiddenPoses} more
+                  </button>
+                )}
+                {posesExpanded && presentPoses.length > POSE_CAP && (
+                  <button
+                    type="button"
+                    onClick={() => setPosesExpanded(false)}
+                    className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:text-foreground"
+                  >
+                    Fewer
+                  </button>
+                )}
               </div>
             )}
 

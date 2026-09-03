@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { CompoundsRow } from "@/components/protocol/CompoundsRow"
-import { ScheduleGrid } from "@/components/protocol/ScheduleGrid"
+import { ScheduleWeeks } from "@/components/protocol/ScheduleWeeks"
 import { StacksView } from "@/components/protocol/StacksView"
 import { CyclesView } from "@/components/protocol/CyclesView"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
@@ -29,7 +29,7 @@ import {
   subscribeDoseLogs,
   type DayLogs,
 } from "@/lib/home/doseLog"
-import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
+import { toDateKey } from "@/lib/home/mockHomeData"
 import type { Stack } from "@/lib/home/stacks"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 
@@ -140,26 +140,9 @@ export function ProtocolScreen({
 
 
   const todayKey = screenToday
-  /** This week, Monday first — what the Schedule grid shows. */
-  const weekDays = useMemo(() => {
-    // Derived FROM todayKey rather than a fresh `new Date()`, so the memo's
-    // dependency is real and the week actually follows midnight.
-    const now = dateKeyToDate(todayKey)
-    const monday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - ((now.getDay() + 6) % 7)
-    )
-    return Array.from(
-      { length: 7 },
-      (_, i) =>
-        new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)
-    )
-    // Keyed on todayKey so the week follows midnight. Frozen at mount, a page
-    // left open across midnight showed a week that no longer contained "today",
-    // and yesterday's outstanding doses flipped to missed under the user.
-  }, [todayKey])
-
+  // The week the Schedule grid draws (and the ones behind it) now lives in
+  // `ScheduleWeeks`, which derives it from `todayKey` so it still follows
+  // midnight rather than freezing at mount.
   // Stock per compound, keyed by the CLIENT id. `listStock` returns rows keyed by
   // `protocol_compounds.id`, which can diverge from the client id, so it is mapped
   // back through the same resolver the stack mirror uses rather than assumed equal.
@@ -255,12 +238,11 @@ export function ProtocolScreen({
       </div>
 
       <div className="animate-home-up" style={delay(85)}>
-        <ScheduleGrid
-          compounds={active}
-          logs={logs}
-          todayKey={todayKey}
-          weekDays={weekDays}
-        />
+        {/* The FULL stack, not `active`. A past week needs the compounds that
+            are no longer current, and `compoundsInWeek` dates them from the
+            `stopped` version Delete writes rather than the undated `archived`
+            flag, so a deleted compound keeps every week it actually ran in. */}
+        <ScheduleWeeks compounds={compounds} logs={logs} todayKey={todayKey} />
       </div>
 
       <div className="animate-home-up" style={delay(115)}>

@@ -22,7 +22,7 @@ import type { StackCompound } from "@/lib/home/stack"
 import { compoundsRunningOn } from "@/lib/progress/running"
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork"
 import type { JournalEntry } from "@/lib/progress/journal"
-import type { ProgressPhoto } from "@/lib/progress/photos"
+import { posePriority, type ProgressPhoto } from "@/lib/progress/photos"
 
 /**
  * A runaway guard on the day walk below, not a product rule. Blocks are bounded
@@ -231,24 +231,67 @@ export function photosAcross(
   }
 }
 
+/** The best photo of a set to lead with: front, then side, then back, then the
+ *  rest of the catalogue in its own order, then customs. `posePriority` is
+ *  already that order, so the preference is the catalogue's rather than a second
+ *  ranking this module invents and lets drift. */
+function leadPhoto(photos: ProgressPhoto[]): ProgressPhoto {
+  return photos.reduce((best, p) =>
+    posePriority(p.pose) < posePriority(best.pose) ? p : best,
+  )
+}
+
 /**
- * The two photos to stand side by side: the same pose where the user shot one at
- * both ends, and failing that whatever each session led with.
+ * The two photos to stand side by side: the earliest and latest shot of ONE
+ * pose, preferring front, then side, then back.
  *
  * Matching the pose matters more than it looks. A front shot beside a back shot
  * is not a comparison, it is two unrelated pictures, and the whole reason the
  * app fixes the photo frame is so successive shots line up.
+ *
+ * Two things this deliberately does NOT do, both because they produced the wrong
+ * pair on Adrian's own block (2026-09-03):
+ *
+ *  - It does not take whichever shared pose came first in the array. A block
+ *    whose sessions both carried a back shot compared backs, because "back" sat
+ *    at index 0. The pose you open a retrospective to see is the front one, so
+ *    the preference is now explicit and ordered rather than incidental.
+ *  - It does not restrict itself to the first and last SESSIONS. Where the
+ *    opening session was front-only and the closing one back-only there was no
+ *    shared pose at all, so it fell through to a front beside a back. Widening to
+ *    every photo in the window finds the front shot in the middle session
+ *    instead: a real comparison over part of the block beats a fake one over all
+ *    of it, and both panes print their own date so the span is never implied.
+ *
+ * A pose only qualifies if it was shot on two or more DAYS in the window. Two
+ * shots of the same pose in one session are one moment photographed twice, not a
+ * change over time.
  */
 export function comparePair(
   span: PhotoSpan,
 ): { before: ProgressPhoto; after: ProgressPhoto } | null {
   if (span.first.length === 0 || span.last.length === 0) return null
-  const sharedPose = span.first.find((f) => span.last.some((l) => l.pose === f.pose))
-  if (sharedPose) {
-    const after = span.last.find((l) => l.pose === sharedPose.pose)
-    if (after) return { before: sharedPose, after }
+
+  const daysByPose = new Map<string, Set<string>>()
+  for (const p of span.all) {
+    const days = daysByPose.get(p.pose) ?? new Set<string>()
+    days.add(p.date)
+    daysByPose.set(p.pose, days)
   }
-  return { before: span.first[0], after: span.last[0] }
+
+  const comparable = span.all.filter((p) => (daysByPose.get(p.pose)?.size ?? 0) > 1)
+  if (comparable.length > 0) {
+    const pose = leadPhoto(comparable).pose
+    // `span.all` is newest first, so the ends of this filter are the latest and
+    // earliest shot of the pose.
+    const shots = comparable.filter((p) => p.pose === pose)
+    return { before: shots[shots.length - 1], after: shots[0] }
+  }
+
+  // No pose was shot on two days, so there is no true comparison to make. Show
+  // each end anyway — two photos from a block is still worth seeing — leading
+  // with the front-most pose each session carried.
+  return { before: leadPhoto(span.first), after: leadPhoto(span.last) }
 }
 
 /* ------------------------------------------------------------------ bloods */

@@ -67,13 +67,26 @@ export default async function PreviewBlocksPage({
     }));
   // Sessions on both sides of the finished block's close date, so every state
   // exercises its own window rather than borrowing the live block's data.
+  //
+  // The pose ORDER here is load-bearing, not decoration. `back` deliberately
+  // leads several sessions, because the retrospective's compare used to take
+  // whichever shared pose came first in the array and therefore compared backs
+  // (Adrian, 2026-09-03). If a regression puts that back, this preview shows it
+  // rather than hiding it behind conveniently front-first mock data.
   const photos: ProgressPhoto[] = [
-    ...session("s1", 3, ["front", "side", "back"]),
-    ...session("s2", 30, ["front", "side"]),
+    ...session("s1", 3, ["back", "side", "front"]),
+    ...session("s2", 30, ["back", "front"]),
     ...session("s3", 74, ["front", "back"]),
-    ...session("s4", 118, ["front", "side", "back"]),
-    ...session("s5", 160, ["front", "side"]),
-    ...session("s6", 280, ["front", "back"]),
+    ...session("s4", 118, ["side", "front", "back"]),
+    ...session("s5", 160, ["back", "side", "front"]),
+    ...session("s6", 280, ["back", "front"]),
+    // Inside "First cut", and shaped like the OTHER failure: the window's first
+    // session is front-only and its last is back-only, so there is no shared
+    // pose at the two ends at all. The pair has to reach into the middle session
+    // to find two fronts rather than standing a front beside a back.
+    ...session("s7", 330, ["back"]),
+    ...session("s8", 380, ["front"]),
+    ...session("s9", 420, ["front"]),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   const bloods: BloodworkPhoto[] = [

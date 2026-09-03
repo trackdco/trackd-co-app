@@ -1,5 +1,7 @@
 "use client"
 
+import { useMemo } from "react"
+
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
 import {
@@ -8,8 +10,9 @@ import {
   FALLBACK_CATEGORY_META,
   type CompoundCategory,
 } from "@/lib/compound-categories"
-import { isDueOnFor, type StackCompound } from "@/lib/home/stack"
-import type { DayLogs } from "@/lib/home/doseLog"
+import { type StackCompound } from "@/lib/home/stack"
+import { type WeekCellState } from "@/lib/protocol/scheduleWeek"
+import { Pause } from "@/components/icons"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 
@@ -28,8 +31,9 @@ const DAY_NAMES = [
   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
 ]
 
-/** What a single day/compound mark is showing. */
-type CellState = "none" | "due" | "logged" | "missed"
+/** What a single day/compound mark is showing. Owned by `scheduleWeek.ts`, which
+ *  is where the states are decided and unit-tested. */
+type CellState = WeekCellState
 
 /**
  * The week at a glance: one row per compound, seven marks across, grouped by
@@ -47,41 +51,77 @@ type CellState = "none" | "due" | "logged" | "missed"
  */
 export function ScheduleGrid({
   compounds,
-  logs,
+  states,
   todayKey,
   weekDays,
+  hideHeading = false,
 }: {
   compounds: StackCompound[]
-  logs: DayLogs
+  /** Compound id → its seven marks. Computed once by `weekMatrix`, which also
+   *  produces the week's figures, so the grid never recomputes what the caller
+   *  has already worked out. */
+  states: Map<string, WeekCellState[]>
   todayKey: string
   /** The seven dates of the week being shown, Monday first. */
   weekDays: Date[]
+  /** Set when a wrapper already titles the section, so the heading is not
+   *  printed twice. `ScheduleWeeks` is currently the only caller and always
+   *  passes it; the branch is kept because the grid is a general component and
+   *  losing its own heading would make it unusable anywhere else. */
+  hideHeading?: boolean
 }) {
   const groups = groupByCategory(compounds)
   const scrolls = compounds.length > SCHEDULE_SCROLL_AFTER_ROWS
+
+  const stateOf = (c: StackCompound, i: number): CellState =>
+    states.get(c.id)?.[i] ?? "none"
+  const anyPaused = useMemo(
+    () => [...states.values()].some((row) => row.includes("paused")),
+    [states],
+  )
 
   if (compounds.length === 0) return null
 
   return (
     <section className="space-y-3">
-      <h2 className={`${CARD_EYEBROW} px-1`}>Schedule</h2>
+      {!hideHeading && <h2 className={`${CARD_EYEBROW} px-1`}>Schedule</h2>}
 
       <div className="rounded-2xl bg-bg-surface p-5">
-      {/* Day header — aligned to the same 7-column track the rows use. */}
-      <div className="flex items-center gap-3">
+      {/* Day header — aligned to the same 7-column track the rows use.
+          `schedule-dayhead` is the FAR layer of the week-step parallax (see
+          globals.css); the groups below are the near one. */}
+      <div className="schedule-dayhead flex items-center gap-3">
         <span className="w-[38%] shrink-0" />
         <div className="grid flex-1 grid-cols-7 gap-1">
-          {weekDays.map((d, i) => (
-            <span
-              key={d.toISOString()}
-              className={cn(
-                "text-center text-[10px] font-medium uppercase tracking-wide",
-                toDateKey(d) === todayKey ? "text-text-muted" : "text-text-subtle"
-              )}
-            >
-              {DAY_INITIALS[i]}
-            </span>
-          ))}
+          {weekDays.map((d, i) => {
+            const isToday = toDateKey(d) === todayKey
+            return (
+              <span
+                key={d.toISOString()}
+                className={cn(
+                  "flex flex-col items-center leading-none",
+                  isToday ? "text-text-muted" : "text-text-subtle"
+                )}
+              >
+                <span className="text-[10px] font-medium uppercase tracking-wide">
+                  {DAY_INITIALS[i]}
+                </span>
+                {/* The DATE, not just the initial. Once the grid can show a week
+                    other than this one, "M T W T F S S" alone says nothing about
+                    WHICH week you are looking at (Adrian, 2026-09-03). Shown on
+                    every week rather than only past ones, so there is no mode to
+                    notice and today's column is dated too. */}
+                <span
+                  className={cn(
+                    "mt-0.5 font-mono text-[9px] tabular-nums",
+                    isToday && "text-foreground"
+                  )}
+                >
+                  {d.getDate()}
+                </span>
+              </span>
+            )
+          })}
         </div>
       </div>
 
@@ -90,7 +130,7 @@ export function ScheduleGrid({
           const meta =
             CATEGORY_META[g.cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
           return (
-            <div key={g.cat} className="mt-3 first:mt-0">
+            <div key={g.cat} className="schedule-group mt-3 first:mt-0">
               {/* The compound type ICON carries the category colour; the label
                   itself is white, so the row reads as a heading rather than as
                   coloured text. Same treatment the dashboard's log card uses. */}
@@ -112,16 +152,12 @@ export function ScheduleGrid({
                     <span className="sr-only">
                       {weekDays
                         .map(
-                          (d, i) =>
-                            `${DAY_NAMES[i]} ${STATE_LABEL[cellState(c, d, logs, todayKey)]}`
+                          (_d, i) => `${DAY_NAMES[i]} ${STATE_LABEL[stateOf(c, i)]}`
                         )
                         .join(", ")}
                     </span>
-                    {weekDays.map((d) => (
-                      <Mark
-                        key={d.toISOString()}
-                        state={cellState(c, d, logs, todayKey)}
-                      />
+                    {weekDays.map((d, i) => (
+                      <Mark key={d.toISOString()} state={stateOf(c, i)} />
                     ))}
                   </div>
                 </div>
@@ -131,7 +167,7 @@ export function ScheduleGrid({
         })}
       </div>
 
-      <Key />
+      <Key showPaused={anyPaused} />
       </div>
     </section>
   )
@@ -148,6 +184,17 @@ export function ScheduleGrid({
  * separates them by shape rather than by a shade of grey.
  */
 function Mark({ state }: { state: CellState }) {
+  // Paused is a GLYPH, not another dot. A row of pause bars reads as
+  // "deliberately off" the length of the week, which is the one thing a row of
+  // faint rest-day dots could never say (Adrian, 2026-09-03). A glyph rather
+  // than a colour also keeps it clear of the one-amber-beat rule.
+  if (state === "paused") {
+    return (
+      <span className="flex h-5 items-center justify-center">
+        <Pause aria-hidden className="h-2.5 w-2.5 text-text-subtle" weight="fill" />
+      </span>
+    )
+  }
   return (
     <span className="flex h-5 items-center justify-center">
       <span
@@ -166,6 +213,7 @@ function Mark({ state }: { state: CellState }) {
 }
 
 const STATE_LABEL: Record<CellState, string> = {
+  paused: "paused",
   logged: "logged",
   due: "due",
   missed: "missed",
@@ -173,11 +221,15 @@ const STATE_LABEL: Record<CellState, string> = {
 }
 
 /** The key, following the injection-site rotation key's pattern. */
-function Key() {
+function Key({ showPaused }: { showPaused: boolean }) {
   const items: { state: CellState; label: string }[] = [
     { state: "logged", label: "Logged" },
     { state: "due", label: "Due" },
     { state: "missed", label: "Missed" },
+    // Only when the week actually contains one. A legend entry for a state
+    // nothing on screen is in is noise, and this key is already four items wide
+    // on a phone.
+    ...(showPaused ? ([{ state: "paused", label: "Paused" }] as const) : []),
     { state: "none", label: "Nothing due" },
   ]
   return (
@@ -190,22 +242,6 @@ function Key() {
       ))}
     </ul>
   )
-}
-
-/**
- * A mark's state, judged by the rule in force ON THAT DAY (`isDueOnFor`), so a
- * schedule changed since does not restate the past.
- */
-function cellState(
-  c: StackCompound,
-  date: Date,
-  logs: DayLogs,
-  todayKey: string
-): CellState {
-  const key = toDateKey(date)
-  if (!isDueOnFor(c, date)) return "none"
-  if (logs[key]?.[c.id]) return "logged"
-  return key < todayKey ? "missed" : "due"
 }
 
 interface Group {

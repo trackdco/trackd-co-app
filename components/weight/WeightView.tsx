@@ -1,25 +1,11 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useOptimistic,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Trash } from "@/components/icons";
-import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
-import {
-  CARD_EYEBROW,
-  DATA_MONO,
-  METRIC_VALUE,
-  PAGE_TITLE,
-  UNIT_SUFFIX,
-} from "@/lib/ui-presets";
+import { CARD_EYEBROW, DATA_MONO, PAGE_TITLE } from "@/lib/ui-presets";
 import { Input } from "@/components/ui/input";
 import {
   dateKeyToDate,
@@ -27,12 +13,11 @@ import {
 } from "@/lib/home/mockHomeData";
 import {
   formatWeight,
-  kgToUnit,
   sanitizeWeightInput,
   unitForPreference,
   unitToKg,
-  type WeightUnit,
 } from "@/lib/weight";
+import { WeightGraph } from "@/components/weight/WeightGraph";
 import { deleteWeight, logWeight } from "@/app/(app)/weight/actions";
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
 
@@ -76,21 +61,6 @@ interface WeightViewProps {
   todayKey: DateKey;
 }
 
-const CHART_HEIGHT = 170;
-const TREND_WINDOW = 7;
-const DIMMED = "opacity-[0.3]";
-
-type WeightMode = "trend" | "scale";
-
-const RANGES: { id: string; label: string; days: number }[] = [
-  { id: "1w", label: "1W", days: 7 },
-  { id: "1m", label: "1M", days: 30 },
-  { id: "3m", label: "3M", days: 90 },
-  { id: "6m", label: "6M", days: 180 },
-  { id: "1y", label: "1Y", days: 365 },
-  { id: "all", label: "All", days: Number.POSITIVE_INFINITY },
-];
-
 const MONTHS_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -118,74 +88,12 @@ function monthLabel(ym: string): string {
   return `${MONTHS_FULL[m - 1]} ${y}`;
 }
 
-/** Trailing simple moving average — the smoothed "trend" that rides out the
- *  day-to-day scale noise. */
-function movingAverage(values: number[], window: number): number[] {
-  return values.map((_, i) => {
-    const slice = values.slice(Math.max(0, i - window + 1), i + 1);
-    return slice.reduce((a, b) => a + b, 0) / slice.length;
-  });
-}
-
-/** Observed width via ResizeObserver — ResponsiveContainer intermittently
- *  measures 0 on mobile Safari, so we size the chart explicitly. */
-function useChartWidth() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0;
-      if (w > 0) setWidth(w);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, width] as const;
-}
-
-interface ChartPoint {
-  i: number;
-  scale: number;
-  trend: number;
-  label: string;
-}
-
-/** Scrub label — recharts injects active/payload while a finger is down. */
-function ScrubTip({
-  active,
-  payload,
-  unit,
-  mode,
-}: {
-  active?: boolean;
-  payload?: { payload: ChartPoint }[];
-  unit: WeightUnit;
-  mode: WeightMode;
-}) {
-  if (!active || !payload?.length) return null;
-  const point = payload[0].payload;
-  const value = mode === "trend" ? point.trend : point.scale;
-  return (
-    <div className="rounded-lg border border-border-default bg-bg-surface-raised px-2.5 py-1.5 shadow-lg">
-      <p className="font-mono text-sm font-medium tabular-nums text-foreground">
-        {value.toFixed(1)} {unit}
-      </p>
-      <p className="text-[11px] text-text-muted">
-        {point.label}
-        {mode === "trend" ? ` · ${TREND_WINDOW}-day avg` : ""}
-      </p>
-    </div>
-  );
-}
-
 /**
  * The Weight view (Context/Feature Specs/08 → C, + 07). Three stacked cards that
- * fade up: log/back-date a reading; the Trend/Scale graph (the inactive series
- * crossfades to dimmed, matching the app's nav fade) with a time-range selector;
- * and the full entry log (edit by re-logging a day, or delete). Bodyweight only,
- * presented neutrally — no good/bad colouring, no paywall copy.
+ * fade up: log/back-date a reading; the Trend/Scale graph, which lives in
+ * `WeightGraph` because a block's weight sheet draws the same one; and the full
+ * entry log (edit by re-logging a day, or delete). Bodyweight only, presented
+ * neutrally — no good/bad colouring, no paywall copy.
  */
 export function WeightView({ entries, unitPreference, todayKey }: WeightViewProps) {
   /** Guarded: logging a weigh-in CREATES data. Deleting one is not guarded. */
@@ -201,11 +109,6 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   const [viewEntries, applyOptimistic] = useOptimistic(entries, applyEntryMutation);
   const [, startTransition] = useTransition();
 
-  // Weight starts on the raw SCALE reading; the user can switch to the smoothed
-  // trend themselves. (We never auto-select trend.)
-  const [mode, setMode] = useState<WeightMode>("scale");
-  const [rangeId, setRangeId] = useState<string>("3m");
-
   // Track-weight form. Editing a past entry loads it here.
   const [dateKey, setDateKey] = useState<DateKey>(todayKey);
   const [value, setValue] = useState("");
@@ -213,55 +116,6 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [busyDelete, setBusyDelete] = useState<string | null>(null);
-
-  // Full chart series (display units), oldest → newest. Trend is the SMA over the
-  // whole series so the window's left edge still has a proper trailing average.
-  const scaleAll = useMemo(
-    () => viewEntries.map((e) => kgToUnit(e.kg, unit)),
-    [viewEntries, unit],
-  );
-  const trendAll = useMemo(
-    () => movingAverage(scaleAll, TREND_WINDOW),
-    [scaleAll],
-  );
-
-  // Window the series to the chosen range (by date, so a sparse log still works).
-  const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[2];
-  const cutoffN =
-    range.days === Number.POSITIVE_INFINITY
-      ? -Infinity
-      : Math.floor(dateKeyToDate(todayKey).getTime() / 86_400_000) - range.days;
-  const windowed: ChartPoint[] = viewEntries
-    .map((e, i) => ({ e, i }))
-    .filter(
-      ({ e }) =>
-        Math.floor(dateKeyToDate(e.key).getTime() / 86_400_000) >= cutoffN,
-    )
-    .map(({ e, i }, j) => ({
-      i: j,
-      scale: Number(scaleAll[i].toFixed(2)),
-      trend: Number(trendAll[i].toFixed(2)),
-      label: shortDate(e.key),
-    }));
-
-  const hasData = windowed.length > 0;
-  const focusedSeries = windowed.map((p) => (mode === "trend" ? p.trend : p.scale));
-  const current = hasData ? focusedSeries[focusedSeries.length - 1] : null;
-  // Null until there are TWO readings: one weigh-in is a value, not a change,
-  // and defaulting to 0 rendered "+0.0 kg over this range" as though the user
-  // had held steady when nothing had been measured twice.
-  const delta =
-    focusedSeries.length > 1
-      ? focusedSeries[focusedSeries.length - 1] - focusedSeries[0]
-      : null;
-  const deltaText =
-    delta === null ? null : `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)}`;
-
-  const allVals = windowed.flatMap((p) => [p.scale, p.trend]);
-  const min = hasData ? Math.min(...allVals) : 0;
-  const max = hasData ? Math.max(...allVals) : 0;
-
-  const [chartRef, chartWidth] = useChartWidth();
 
   // Entry log grouped by month — newest month first, newest entry first within.
   // Months simply stack and scroll (no dropdown), mirroring the journal feed.
@@ -442,183 +296,16 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
       </section>
 
       {/* ── Trend / Scale graph ───────────────────────────────────── */}
-      <section
-        className="animate-home-up rounded-2xl bg-bg-surface p-5"
+      {/* Shared with the block weight sheet. `spanDays` null: this screen is the
+          whole history, so every range stays on offer. */}
+      <WeightGraph
+        entries={viewEntries}
+        unit={unit}
+        anchorKey={todayKey}
+        spanDays={null}
+        className="animate-home-up"
         style={{ animationDelay: "140ms" }}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className={CARD_EYEBROW}>
-              {mode === "trend" ? "Trend" : "Scale"}
-            </p>
-            {current != null ? (
-              <>
-                <div className="mt-1.5 flex items-baseline gap-1.5">
-                  <span className={METRIC_VALUE}>{current.toFixed(1)}</span>
-                  <span className={UNIT_SUFFIX}>{unit}</span>
-                </div>
-                <p className="mt-1 font-mono text-sm text-text-muted">
-                  {deltaText === null ? (
-                    <span className="font-sans">One reading in this range</span>
-                  ) : (
-                    <>
-                      {deltaText} {unit}{" "}
-                      <span className="font-sans">over this range</span>
-                    </>
-                  )}
-                </p>
-              </>
-            ) : (
-              <p className="mt-2 text-sm text-text-muted">No readings in range.</p>
-            )}
-          </div>
-
-          {/* Mode toggle. */}
-          <div className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-xs">
-            {(["trend", "scale"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                aria-pressed={mode === m}
-                className={cn(
-                  "rounded-full px-3 py-1 font-medium transition-colors duration-300 ease-out",
-                  mode === m
-                    ? "bg-bg-surface-raised text-foreground"
-                    : "text-text-muted",
-                )}
-              >
-                {m === "trend" ? "Trend" : "Scale"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div
-          ref={chartRef}
-          className="mt-4 -mx-1 select-none"
-          style={{ touchAction: "pan-y", height: CHART_HEIGHT }}
-        >
-          {hasData && chartWidth > 0 ? (
-            <AreaChart
-              key={rangeId}
-              width={chartWidth}
-              height={CHART_HEIGHT}
-              data={windowed}
-              margin={{ top: 6, right: 6, bottom: 0, left: 6 }}
-            >
-              <defs>
-                {/* Both series get the same treatment — a fill fading from the
-                    line down to the base, "thick to thin" — the shared app graph
-                    style (see Consistency). Only the COLOUR differs between them
-                    (Adrian, 2026-08-07); weight and fill no longer do, so the
-                    two series read as one chart rather than two idioms. */}
-                <linearGradient id="weightTrendFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="var(--chart-trend)" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="weightScaleFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--chart-line)" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="var(--chart-line)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="i" hide />
-              <YAxis hide domain={[min - 0.6, max + 0.6]} />
-              <Tooltip
-                content={<ScrubTip unit={unit} mode={mode} />}
-                cursor={{ stroke: "var(--border-strong)", strokeWidth: 1 }}
-                isAnimationActive={false}
-                position={{ y: 0 }}
-                offset={0}
-              />
-              {/* Raw scale — dims via opacity crossfade when Trend is active.
-                  Same 2.5 stroke and tapered fill as the trend, in its own
-                  periwinkle: the ACTIVE mode is what tells them apart now. */}
-              <Area
-                type="monotone"
-                dataKey="scale"
-                stroke="var(--chart-line)"
-                strokeWidth={2.5}
-                fill="url(#weightScaleFill)"
-                dot={false}
-                activeDot={
-                  mode === "scale"
-                    ? { r: 4, fill: "var(--chart-line)", stroke: "var(--bg-surface)", strokeWidth: 2 }
-                    : false
-                }
-                isAnimationActive
-                animationDuration={450}
-                animationEasing="ease-out"
-                className={cn(
-                  "transition-opacity duration-300 ease-out",
-                  mode === "scale" ? "opacity-100" : DIMMED,
-                )}
-              />
-              {/* Smoothed trend — the prominent filled line. */}
-              <Area
-                type="monotone"
-                dataKey="trend"
-                stroke="var(--chart-trend)"
-                strokeWidth={2.5}
-                fill="url(#weightTrendFill)"
-                dot={false}
-                activeDot={
-                  mode === "trend"
-                    ? { r: 4, fill: "var(--chart-trend)", stroke: "var(--bg-surface)", strokeWidth: 2 }
-                    : false
-                }
-                isAnimationActive
-                animationDuration={450}
-                animationEasing="ease-out"
-                className={cn(
-                  "transition-opacity duration-300 ease-out",
-                  mode === "trend" ? "opacity-100" : DIMMED,
-                )}
-              />
-            </AreaChart>
-          ) : (
-            <div className="flex h-full items-center justify-center text-center text-sm text-text-muted">
-              {entries.length === 0
-                ? "Log your weight to start your trend."
-                : "No readings in this range."}
-            </div>
-          )}
-        </div>
-
-        {/* Legend — the inactive series label dims to match the graph. */}
-        <div className="mt-2 flex items-center gap-4 px-1">
-          <LegendDot
-            color="var(--chart-trend)"
-            label="Trend"
-            dim={mode !== "trend"}
-          />
-          <LegendDot
-            color="var(--chart-line)"
-            label="Scale"
-            dim={mode !== "scale"}
-          />
-        </div>
-
-        {/* Time-range selector — expand the window to see the longer term. */}
-        <div className="mt-4 grid grid-cols-6 gap-1 rounded-full border border-border-default bg-bg-input p-0.5">
-          {RANGES.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setRangeId(r.id)}
-              aria-pressed={rangeId === r.id}
-              className={cn(
-                "rounded-full py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
-                rangeId === r.id
-                  ? "bg-bg-surface-raised text-foreground"
-                  : "text-text-muted",
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </section>
+      />
 
       {/* ── Entry log ─────────────────────────────────────────────── */}
       <section
@@ -683,28 +370,3 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   );
 }
 
-function LegendDot({
-  color,
-  label,
-  dim,
-}: {
-  color: string;
-  label: string;
-  dim: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        "flex items-center gap-1.5 text-[11px] transition-opacity duration-300 ease-out",
-        dim ? "text-text-muted opacity-50" : "text-foreground opacity-100",
-      )}
-    >
-      <span
-        aria-hidden
-        className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: color }}
-      />
-      {label}
-    </span>
-  );
-}

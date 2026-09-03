@@ -91,6 +91,24 @@ export function posePriority(pose: string): number {
   return ORDER.get(pose) ?? 100;
 }
 
+/**
+ * The poses that can carry a before and after, i.e. the ones with at least two
+ * photos. Catalogue order, customs last.
+ *
+ * A pose photographed once has no comparison in it. Offering it put the same
+ * photo in both panes, and on an account with a long pose history it also padded
+ * the compare sheet's chip row with options that could not do anything
+ * (measured: eleven chips, of which three and a half fitted a 402px phone).
+ */
+export function comparablePoses(photos: ProgressPhoto[]): string[] {
+  const count = new Map<string, number>();
+  for (const p of photos) count.set(p.pose, (count.get(p.pose) ?? 0) + 1);
+  return [...count.entries()]
+    .filter(([, n]) => n >= 2)
+    .map(([pose]) => pose)
+    .sort(comparePose);
+}
+
 /** Catalogue poses matching a query, excluding any already chosen. */
 export function searchPoses(query: string, exclude: string[] = []): Pose[] {
   const ex = new Set(exclude);

@@ -15,7 +15,9 @@ import { formatWeight, type WeightUnit } from "@/lib/weight";
 import { deleteProgressPhoto } from "@/app/(app)/progress/actions";
 
 /** Full view of one progress photo, with its pose, date, linked weight, and a
- *  two-tap delete. */
+ *  two-tap delete. The delete is here on every surface that opens it, a block's
+ *  retrospective included: deleting is a correction to a photo you are already
+ *  looking at, so it belongs wherever you are looking at it. */
 export function ProgressPhotoViewer({
   open,
   onOpenChange,

@@ -45,3 +45,52 @@ export function formatWeight(kg: number, unit: WeightUnit): string {
   const rounded = Math.round(kgToUnit(kg, unit) * 100) / 100;
   return String(rounded);
 }
+
+/* ------------------------------------------------------------------ ranges */
+
+export interface WeightRange {
+  id: string;
+  label: string;
+  /** `Infinity` for "All", which means everything on offer rather than a span. */
+  days: number;
+}
+
+/** Every range the weight graph can offer, shortest first. */
+export const WEIGHT_RANGES: WeightRange[] = [
+  { id: "1w", label: "1W", days: 7 },
+  { id: "1m", label: "1M", days: 30 },
+  { id: "3m", label: "3M", days: 90 },
+  { id: "6m", label: "6M", days: 180 },
+  { id: "1y", label: "1Y", days: 365 },
+  { id: "all", label: "All", days: Number.POSITIVE_INFINITY },
+];
+
+/**
+ * The ranges worth offering over a span of `spanDays`, which is how the block
+ * weight graph avoids offering windows its block does not contain.
+ *
+ * A range LONGER than the span shows the same picture as "All" while implying
+ * there is more to see, so the list unlocks progressively: a five day block
+ * offers "All" alone, a forty day block adds 1W and 1M, and a block past ninety
+ * days reveals 3M but still not 6M (Adrian, 2026-09-03).
+ *
+ * `null` means unscoped (the `/weight` page over the user's whole history) and
+ * every range is offered, which is what that screen has always done.
+ *
+ * "All" is always present and always last, because whatever the span is, seeing
+ * the whole of it is the one view that is never redundant.
+ */
+export function rangesForSpan(spanDays: number | null): WeightRange[] {
+  // A COPY. Returning the module array itself handed every caller the same
+  // mutable object, so one that sorted or spliced its result would corrupt the
+  // list for everyone else.
+  if (spanDays === null) return [...WEIGHT_RANGES];
+  const all = WEIGHT_RANGES[WEIGHT_RANGES.length - 1];
+  // Strictly shorter: a range equal to the span IS "All" wearing another label.
+  return [...WEIGHT_RANGES.filter((r) => r.days < spanDays), all];
+}
+
+/** The widest range on offer, i.e. the one a scoped graph should open on. */
+export function defaultRangeFor(spanDays: number | null): string {
+  return spanDays === null ? "3m" : "all";
+}

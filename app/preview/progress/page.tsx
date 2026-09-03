@@ -15,6 +15,7 @@ import {
 import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 import type { AdherencePoint } from "@/lib/progress/consistency";
 import {
+  POSE_CATALOGUE,
   formatPhotoDateShort,
   poseLabel,
   type ProgressPhoto,
@@ -64,10 +65,10 @@ function mockReport(dateKey: string): string {
 export default async function PreviewProgressPage({
   searchParams,
 }: {
-  searchParams: Promise<{ demo?: string }>;
+  searchParams: Promise<{ demo?: string; poses?: string }>;
 }) {
   if (process.env.NODE_ENV === "production") notFound();
-  const { demo } = await searchParams;
+  const { demo, poses: posesState } = await searchParams;
 
   const today = new Date();
   const dk = (daysAgo: number) =>
@@ -203,13 +204,30 @@ export default async function PreviewProgressPage({
       weightKg: w(daysAgo),
       note,
     }));
-  const progressPhotos: ProgressPhoto[] = [
-    ...session("d1", 4, ["front-relaxed", "side-relaxed", "back-relaxed"], "Conditioning coming in — vascularity up, waist tight."),
-    ...session("d2", 12, ["front-relaxed", "side-relaxed", "back-relaxed", "most-muscular"]),
-    ...session("d3", 40, ["front-relaxed", "side-chest"]),
-    ...session("d4", 70, ["front-relaxed", "front-double-biceps"]),
-    ...session("d5", 124, ["front-relaxed", "side-relaxed", "back-relaxed"]),
-  ].sort((a, b) => b.date.localeCompare(a.date)); // newest first, like the page
+  /**
+   * `?poses=many` — a competitor who shoots the whole catalogue every session,
+   * which is the case the compare sheet's chip row is capped for. The default
+   * fixture cannot exercise it: most of its poses appear once, so the
+   * comparable-poses cull alone takes eleven chips down to three.
+   *
+   * Every pose is shot TWICE, on two different days, so all of them survive the
+   * cull and the row genuinely has to collapse.
+   */
+  const manyPoses = posesState === "many";
+  const catalogueSession = (prefix: string, daysAgo: number) =>
+    session(prefix, daysAgo, POSE_CATALOGUE.map((p) => p.id));
+
+  const progressPhotos: ProgressPhoto[] = (
+    manyPoses
+      ? [...catalogueSession("m1", 6), ...catalogueSession("m2", 90)]
+      : [
+          ...session("d1", 4, ["front-relaxed", "side-relaxed", "back-relaxed"], "Conditioning coming in — vascularity up, waist tight."),
+          ...session("d2", 12, ["front-relaxed", "side-relaxed", "back-relaxed", "most-muscular"]),
+          ...session("d3", 40, ["front-relaxed", "side-chest"]),
+          ...session("d4", 70, ["front-relaxed", "front-double-biceps"]),
+          ...session("d5", 124, ["front-relaxed", "side-relaxed", "back-relaxed"]),
+        ]
+  ).sort((a, b) => b.date.localeCompare(a.date)); // newest first, like the page
 
   // Device data for the photo card's Running list. The list resolves what was
   // RUNNING on the photo's date from the protocol AND the dose log: a run now
