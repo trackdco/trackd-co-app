@@ -87,6 +87,7 @@ const BASE: SummaryFacts = {
   namesATrial: false,
   endsOn: null,
   graceEndsOn: null,
+  graceDaysLeft: null,
   courtesyEndsOn: null,
   courtesyRunning: false,
   price: null,
@@ -150,6 +151,18 @@ const f = (over: Partial<SummaryFacts>): SummaryFacts => {
 
 /** The placeholders, put back so the diff is of words rather than of values. */
 const D = "{date}";
+/**
+ * ⚠️ THE COUNT IS SUBSTITUTED THE WAY "{store}" IS, because it cannot be passed
+ * as its own placeholder: `graceDaysLeft` is a NUMBER, so "{n}" will not go in
+ * the way "{date}" and "{price}" do. A real count goes in and is swapped out of
+ * the rendered sentence, which is exactly what the APP STORE line already does.
+ *
+ * ⚠️ NOT 1, and not 0. One renders "1 day left" and zero renders a different
+ * sentence entirely, so either would pin a variant rather than the signed line.
+ */
+const N = 7;
+const withN = (s: string | null | undefined): string | null =>
+  s?.replace(`${N} days left`, "{n} days left") ?? null;
 const P = "{price}";
 const stripe = { source: "stripe" as const, activeUntil: "2027-01-01T00:00:00Z" };
 const compForever = { source: "comp" as const, activeUntil: null };
@@ -163,12 +176,12 @@ const RENDERED: Array<[string, string | null]> = [
   ["TRIAL", manageSummaryFor(f({ entitlement: stripe, subscription: { status: "trialing" }, actionKind: "cancel", endsOn: D, ...YEAR }))],
   ["CANCELLED paid", manageSummaryFor(f({ actionKind: "resume", namesATrial: false, endsOn: D }))],
   ["CANCELLED never charged", manageSummaryFor(f({ actionKind: "resume", namesATrial: true, endsOn: D }))],
-  ["BETA GRACE", manageSummaryFor(f({ entitlement: grace, graceEndsOn: D }))],
+  ["BETA GRACE", withN(manageSummaryFor(f({ entitlement: grace, graceEndsOn: D, graceDaysLeft: N })))],
   ["FREE FOR LIFE", manageSummaryFor(f({ entitlement: compForever }))],
   ["LAPSED", manageSummaryFor(f({ gateEnabled: true }))],
   ["COURTESY", manageSummaryFor(f({ entitlement: stripe, subscription: { status: "trialing", courtesyUntil: "x" }, actionKind: "cancel", courtesyEndsOn: D, ...YEAR }))],
   ["PAST DUE", manageSummaryFor(f({ entitlement: stripe, subscription: { status: "past_due" }, actionKind: "cancel", endsOn: D }))],
-  ["GRACE-ALIGNED", manageSummaryFor(f({ entitlement: grace, subscription: { status: "trialing" }, actionKind: "cancel", graceEndsOn: D, ...YEAR }))],
+  ["GRACE-ALIGNED", withN(manageSummaryFor(f({ entitlement: grace, subscription: { status: "trialing" }, actionKind: "cancel", graceEndsOn: D, graceDaysLeft: N, ...YEAR })))],
   ["APP STORE", manageSummaryFor(f({ entitlement: { source: "apple", activeUntil: null }, actionKind: "store" }))?.replace("the App Store", "{store}") ?? null],
   ["FREE FOR LIFE while charging", manageSummaryFor(f({ entitlement: compForever, subscription: { status: "active" }, actionKind: "cancel", ...YEAR }))],
   ["SUSPENDED", manageSummaryFor(f({ entitlement: null, subscription: { status: "active" }, actionKind: "cancel", accessRevoked: true, accessLive: false, ...YEAR }))],

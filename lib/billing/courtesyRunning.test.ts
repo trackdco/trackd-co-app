@@ -72,6 +72,7 @@ const facts = (over: Partial<SummaryFacts>): SummaryFacts => ({
   subscription: { status: "trialing", courtesyUntil: "2026-09-17T00:00:00Z" },
   actionKind: "cancel",
   namesATrial: false,
+  graceDaysLeft: null,
   endsOn: "17 Sept 2026",
   graceEndsOn: null,
   courtesyEndsOn: "17 Sept 2026",
