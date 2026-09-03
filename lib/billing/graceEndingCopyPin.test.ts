@@ -112,7 +112,15 @@ describe("the seven-day notice's approved copy", () => {
     // ...and both are still NAMED, which is what Adrian asked for.
     expect(s).toContain(GRACE_CONTINUED_USE_PARTS.disclaimer);
     expect(s).toContain(GRACE_CONTINUED_USE_PARTS.chd);
-    expect(s).toContain("have changed as well.");
+    /**
+     * ⚠️ THE SECOND CLAUSE MUST NOT ECHO THE ACCEPTANCE. "have changed as well"
+     * shipped in review and was replaced: nothing in it was false, but "as well"
+     * refers back to the acceptance in the sentence before it, so at 10px it can
+     * be read as "and you accept those as well" - the reading Privacy v2.0 SS17
+     * forbids. Asserted in both directions so the echo cannot come back.
+     */
+    expect(s).toContain("have also been updated.");
+    expect(s, "'as well' echoes the acceptance clause onto two documents that are not accepted").not.toContain("as well");
   });
 
   it("no em dash and no banned word reaches the copy", () => {

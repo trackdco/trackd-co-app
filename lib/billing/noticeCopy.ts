@@ -184,7 +184,21 @@ export const GRACE_CONTINUED_USE_PARTS = {
   disclaimer: "Medical Disclaimer",
   join2: "and",
   chd: "Consumer Health Data Privacy Policy",
-  end: "have changed as well.",
+  /**
+   * ⚠️ "have also been updated", NOT "have changed as well" (Adrian, 2026-09-03,
+   * on a cold review's reading).
+   *
+   * The original claimed nothing false: it named two documents the acceptance
+   * clause deliberately excludes. But "as well" echoes the acceptance in the
+   * sentence before it, and at 10px "...have changed as well" can be read as
+   * "...and you accept those as well" - which is precisely the reading Privacy
+   * v2.0 SS17 forbids. The words carry the ambiguity even though the grammar
+   * does not, and this is the one sentence where that matters.
+   *
+   * "updated" also now matches the first clause's own verb, so the two halves
+   * describe the same event and only one of them attaches an acceptance to it.
+   */
+  end: "have also been updated.",
 } as const;
 
 /**
