@@ -265,6 +265,20 @@ function mergeAndSave(
   const seen = new Set(pgIds)
   const seenNames = new Set(reconciledPg.map((c) => nameKey(c.name)))
   const extras: StackCompound[] = []
+  /** Does the device hold any dose for this compound, on any day? */
+  const hasAnyLog = (id: string): boolean =>
+    Object.values(localLogs).some((day) =>
+      Object.keys(day ?? {}).some((k) => parseSlotKey(k).compoundId === id),
+    )
+  /**
+   * Did the pull actually SAY anything? A failed read fast-fails to an empty
+   * shape rather than throwing, so "Postgres does not have this compound" and
+   * "we could not reach Postgres" arrive here identically. The prune below is
+   * the one rule that deletes a device record outright, so it is the one rule
+   * that must be able to tell them apart, and a pull carrying no compounds at
+   * all is not evidence of anything.
+   */
+  const pullSpoke = pg.stack.length > 0
   const pushExtra = (c: StackCompound, dropStaleCatalogue: boolean): void => {
     if (seen.has(c.id)) return
     // A local record that was matched to a Postgres row by name is already
@@ -274,6 +288,19 @@ function mergeAndSave(
     const name = nameKey(c.name)
     if (seenNames.has(name)) return // a same-name compound is already canonical
     if (dropStaleCatalogue && isCatalogueName(c.name)) return // stale mirror leftover
+    /**
+     * DELETED, never dosed, and Postgres has no row for it. Nothing about this
+     * record is worth carrying: it holds no history, it can never be logged
+     * against again, and the flush above deliberately will not re-create it.
+     *
+     * Keeping it was not harmless. A compound deleted before the app wrote
+     * dated stops has no way to say WHEN it stopped, and one added with a
+     * back-dated start describes days that were never tracked — so a record
+     * with nothing behind it went on drawing rows in the schedule's past weeks
+     * on a device that had already been told, by the only source that knows, to
+     * forget it. Adrian had eleven of these.
+     */
+    if (pullSpoke && c.archived && !hasAnyLog(c.id)) return
     seenNames.add(name)
     extras.push(c)
   }
@@ -324,6 +351,22 @@ function mergeAndSave(
     // Already reconciled onto a Postgres row under a different id — re-pushing it
     // would mint a SECOND row for the same compound.
     if (idRemap.has(c.id)) continue
+    /**
+     * DELETED, never logged, and Postgres has never heard of it. There is
+     * nothing to flush: the flush exists to rescue an offline ADD, and this is
+     * the opposite of one.
+     *
+     * It also has to be skipped, not merely pointless. Pushing it MINTS a row
+     * for a compound the user deleted, which is how a record removed at the
+     * database comes back the next time the app opens — the device would keep
+     * re-creating it forever, and nothing at the far end could tell the
+     * difference between that and a genuine add.
+     *
+     * A deleted compound WITH doses on it still flushes, because its logs need
+     * a row to hang off: `dose_logs.protocol_compound_id` is a foreign key, and
+     * dropping the compound would strand the user's history.
+     */
+    if (c.archived && !hasAnyLog(c.id)) continue
     if (isCatalogueName(c.name)) {
       void pushProtocolCompound(c)
     } else if (!cloudIds.has(c.id)) {

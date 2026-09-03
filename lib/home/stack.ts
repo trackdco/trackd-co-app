@@ -332,6 +332,32 @@ export function isDueOnFor(
 }
 
 /**
+ * Was the app THERE to see this day?
+ *
+ * A dose can only be called missed on a day the app was actually tracking. The
+ * start date is not that day: the add form deliberately lets a start be
+ * back-dated ("I have been running this for three months, I am adding it now"),
+ * and every day between that claimed start and the day the record was created
+ * has no evidence behind it either way. Judging those days against the schedule
+ * manufactures a run that was never observed, and then reports it as failure.
+ *
+ * The concrete case this was written for: three compounds added on 7 August with
+ * a start date of 24 July and not one dose ever logged against them. The
+ * schedule grid drew two weeks of solid missed marks for a fortnight that
+ * predates the records entirely.
+ *
+ * A LOGGED DOSE on such a day is evidence and overrides this — callers test for
+ * one before they test for this, because a back-dated log is the user telling us
+ * what happened, which is exactly what this function is missing.
+ *
+ * Absent `createdAt` means unknown, and unknown cannot rule a day out, so a
+ * record without one behaves exactly as it did before this existed.
+ */
+export function wasObservedOn(c: StackCompound, dateKey: string): boolean {
+  return !c.createdAt || dateKey >= c.createdAt
+}
+
+/**
  * The schedule with its cadence anchor moved to the last resume day, when there
  * has been one. Returns the schedule UNCHANGED when there are no pauses, so a
  * compound that has never been paused allocates nothing and behaves identically.
@@ -642,6 +668,22 @@ export interface StackCompound {
   /** Archived = no longer dosed (hidden from present/future) but history kept.
    *  Reversible. Absent/false = active. */
   archived?: boolean
+  /**
+   * The day this RECORD was created, "YYYY-MM-DD" — mirroring
+   * `protocol_compounds.created_at`. Not the day the run began: that is
+   * {@link Schedule.startDate}, which the user may deliberately back-date
+   * because they were already running the compound before they added it here.
+   *
+   * The two are different KINDS of fact and the distinction is load-bearing. A
+   * start date is a CLAIM the user made; this is the first day the app was
+   * actually there to watch. Nothing before it can honestly be called a missed
+   * dose, because nothing was being tracked — see {@link wasObservedOn}.
+   *
+   * Absent = unknown, which is every record written before this field existed
+   * and every custom compound with no Postgres row. Unknown means "we cannot
+   * rule the day out", so an absent value changes no behaviour at all.
+   */
+  createdAt?: string
   /** Past + current dose/schedule versions, each effective from a day (see
    *  {@link ScheduleVersion}). Absent/empty on a compound never edited, in which
    *  case the fields above ARE the whole history. */
@@ -1479,6 +1521,12 @@ function normalizeCompound(item: unknown): StackCompound | null {
     rotationSites: isInjectable(method) ? rotationSites : [],
     rotationIndex: rawIndex,
     archived: c.archived === true,
+    // Guarded like every other stored field: only a real date key survives, so a
+    // hand-edited or malformed value reads as UNKNOWN rather than as a floor
+    // that silently blanks the compound's history.
+    ...(typeof c.createdAt === "string" && parseDateKey(c.createdAt) !== null
+      ? { createdAt: c.createdAt }
+      : {}),
     ...(normalizeHistory(c.scheduleHistory) ?? {}),
     ...(cycle ? { cycle } : {}),
     // Guarded on the way out of storage so a hand-edited or future-versioned

@@ -974,6 +974,12 @@ function AddCompoundBody({
       // cleared on save. These fields remain vestigial on the model/sync.
       rotationSites: [],
       rotationIndex: 0,
+      // The day the RECORD was made, which is NOT the start date beside it: the
+      // start may be back-dated on purpose, and everything between the two is a
+      // stretch the app was never watching. Kept from the prior record on an
+      // edit or a re-add, because neither creates the compound — moving it
+      // forward on an edit would blank the run that came before.
+      createdAt: source.prior?.createdAt ?? todayKey,
       ...(history ? { scheduleHistory: history } : {}),
       // The compound's CURRENT cycle. On an edit the version above carries the
       // same rule from `versionedFrom`, so the two agree and the change lands on

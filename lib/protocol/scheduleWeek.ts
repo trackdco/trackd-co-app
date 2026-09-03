@@ -18,6 +18,7 @@ import {
   isCycleEnded,
   isDueOnFor,
   resolveScheduleOn,
+  wasObservedOn,
   type StackCompound,
 } from "@/lib/home/stack"
 import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
@@ -129,26 +130,52 @@ function hasDatedStop(c: StackCompound): boolean {
  *     Handing this module the full stack without re-applying the gate gave an
  *     ended compound a permanent row of seven blank cells, which is precisely
  *     the bug `ProtocolScreen` had already been fixed for once.
- *  4. **A delete with no dated trail stops TODAY.** The dated `stopped` version
- *     is what makes history answerable, but it is not guaranteed to exist: a
- *     compound pulled from the cloud carries no schedule history, and
- *     `pushScheduleVersions` no-ops against a database without the versions
- *     table. Archived with no dated stop therefore means "deleted, date
- *     unknown", and the honest reading is that it ran until now: past weeks keep
- *     their rows, and the current week stops claiming doses are due for a
- *     compound the user has deleted.
+ *  4. **A delete with no dated trail says NOTHING, on any day.** The dated
+ *     `stopped` version is what makes history answerable, but it is not
+ *     guaranteed to exist: a compound pulled from the cloud carries no schedule
+ *     history, and `pushScheduleVersions` no-ops against a database without the
+ *     versions table. Archived with no dated stop means "deleted, date unknown",
+ *     and there is no honest way to draw a schedule from that.
+ *
+ *     This used to stop such a compound at TODAY and let it keep every past day,
+ *     on the reasoning that it must have run until it was deleted. That reading
+ *     is wrong in the one direction that matters: it cannot lose, because every
+ *     past day is unlogged and every unlogged day is a miss, so a compound
+ *     deleted last July drew a fresh row of missed doses in every week from then
+ *     until the end of time. Two of Adrian's did exactly that in the CURRENT
+ *     week, having been deleted on 26 and 29 July, before this app wrote dated
+ *     stops at all.
+ *
+ *     Nothing is lost by the stricter reading, because the days such a compound
+ *     genuinely ran are the days it has LOGS on, and `weekCellState` draws those
+ *     from the log rather than from this predicate.
  */
-export function wasRunningOn(
-  c: StackCompound,
-  dateKey: string,
-  todayKey: string,
-): boolean {
+export function wasRunningOn(c: StackCompound, dateKey: string): boolean {
   const resolved = resolveScheduleOn(c, dateKey)
   if (resolved.stopped) return false
   if (resolved.schedule.startDate > dateKey) return false
   if (isCycleEnded(c, dateKey)) return false
-  if (c.archived && !hasDatedStop(c) && dateKey >= todayKey) return false
+  if (c.archived && !hasDatedStop(c)) return false
+  // Before the record existed there was nothing here to track the day with, so
+  // the schedule cannot speak for it. A log on the day can, and every caller
+  // checks for one first.
+  if (!wasObservedOn(c, dateKey)) return false
   return true
+}
+
+/**
+ * Does the day carry a log for this compound, taken or skipped?
+ *
+ * THE OVERRIDE on every rule above. A log is a fact the user entered; the gates
+ * in `wasRunningOn` are inferences about a plan. Where they disagree the fact
+ * wins, which is what lets the strict readings above be strict: they can only
+ * ever remove marks from days that have nothing on them.
+ *
+ * A SKIP counts. It is the user saying "this was due and I did not take it",
+ * which is the app watching the day just as much as a taken dose is.
+ */
+function hasLogOn(c: StackCompound, key: string, logs: DayLogs): boolean {
+  return slotsForDay(c, key, logs[key]).some((s) => s.log != null)
 }
 
 /**
@@ -160,15 +187,21 @@ export function wasRunningOn(
  * the wrong thing to look at, because the row is a week's worth of marks and a
  * compound that ran for three days of it did run that week.
  *
+ * A week the compound has a LOG in earns a row whatever the rules say, which is
+ * how a compound whose delete was never dated keeps the weeks it genuinely ran
+ * in: those weeks have doses in them.
+ *
  * Order is the caller's; grouping into categories stays in the grid.
  */
 export function compoundsInWeek(
   compounds: StackCompound[],
   weekDays: Date[],
-  todayKey: string,
+  logs: DayLogs,
 ): StackCompound[] {
   const keys = weekDays.map(toDateKey)
-  return compounds.filter((c) => keys.some((k) => wasRunningOn(c, k, todayKey)))
+  return compounds.filter((c) =>
+    keys.some((k) => wasRunningOn(c, k) || hasLogOn(c, k, logs)),
+  )
 }
 
 /** What a single day/compound mark shows. `paused` is new: the protocol has
@@ -214,13 +247,19 @@ export function weekCellState(
   todayKey: string,
 ): WeekCellState {
   const key = toDateKey(date)
-  // A day outside the run is blank rather than paused: nothing to pause.
-  if (!wasRunningOn(c, key, todayKey)) return "none"
+  const logged = hasLogOn(c, key, logs)
+  // A day outside the run is blank rather than paused: nothing to pause. A day
+  // the app never observed is blank for a different reason and the same effect:
+  // there is no evidence to draw. Neither can silence an actual LOG, which is
+  // why the override sits in front of both.
+  if (!logged && !wasRunningOn(c, key)) return "none"
   if (isPausedOn(c.pauses, key)) return "paused"
-  if (!isDueOnFor(c, date)) return "none"
+  // Off the schedule but logged anyway (a dose taken on a rest day, a dose that
+  // outlived the rule it was taken under). Drawing it is the only honest answer:
+  // the alternative hides a dose the user definitely took.
+  if (!isDueOnFor(c, date)) return logged ? "logged" : "none"
   const { due, taken } = dayDoses(c, key, logs)
   if (due > 0 && taken >= due) return "logged"
-  if (taken > 0) return key < todayKey ? "missed" : "due"
   return key < todayKey ? "missed" : "due"
 }
 
@@ -277,7 +316,13 @@ export function weekMatrix(
       if (state === "none") continue
       const counts = dayDoses(c, key, logs)
       logged += counts.taken
-      due += key < todayKey ? counts.due : counts.taken
+      /* A dose logged OFF the schedule contributes only ITSELF to the
+         denominator. `logged` is the one state reachable without the day being
+         due, so the slots such a day did not fill were never outstanding and
+         must not read as owed. On an ordinary logged day `taken >= due`, so the
+         min is the due count and nothing changes. */
+      const owed = state === "logged" ? Math.min(counts.due, counts.taken) : counts.due
+      due += key < todayKey ? owed : counts.taken
     }
     states.set(c.id, row)
   }

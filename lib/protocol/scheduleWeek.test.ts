@@ -35,6 +35,8 @@ const WED = "2026-08-19"
 // archived-with-no-dated-stop gate does not fire on the historical assertions.
 const TODAY = "2026-09-03"
 const MON = "2026-08-17"
+/** No doses logged at all, which is the state most of these fixtures are in. */
+const NO_LOGS: DayLogs = {}
 
 describe("week arithmetic", () => {
   it("finds the Monday of any day, including a Sunday", () => {
@@ -88,31 +90,31 @@ describe("a deleted compound keeps the week it was deleted in", () => {
   })
 
   it("was running before the stop and not after", () => {
-    expect(wasRunningOn(stoppedWed, "2026-08-18", TODAY)).toBe(true)
-    expect(wasRunningOn(stoppedWed, WED, TODAY)).toBe(false)
-    expect(wasRunningOn(stoppedWed, "2026-08-20", TODAY)).toBe(false)
+    expect(wasRunningOn(stoppedWed, "2026-08-18")).toBe(true)
+    expect(wasRunningOn(stoppedWed, WED)).toBe(false)
+    expect(wasRunningOn(stoppedWed, "2026-08-20")).toBe(false)
   })
 
   it("keeps its row for the REST of that week, then loses it", () => {
     // Adrian, 2026-09-03: stopped midweek shows for the whole week, gone the
     // next. Membership is decided per week, not per day.
-    expect(compoundsInWeek([stoppedWed], weekDaysFrom(MON), TODAY)).toHaveLength(1)
-    expect(compoundsInWeek([stoppedWed], weekDaysFrom("2026-08-24"), TODAY)).toHaveLength(0)
+    expect(compoundsInWeek([stoppedWed], weekDaysFrom(MON), NO_LOGS)).toHaveLength(1)
+    expect(compoundsInWeek([stoppedWed], weekDaysFrom("2026-08-24"), NO_LOGS)).toHaveLength(0)
   })
 
   it("still holds its row in every earlier week", () => {
-    expect(compoundsInWeek([stoppedWed], weekDaysFrom("2026-06-01"), TODAY)).toHaveLength(1)
+    expect(compoundsInWeek([stoppedWed], weekDaysFrom("2026-06-01"), NO_LOGS)).toHaveLength(1)
   })
 
   it("is NOT erased from the past by the archived flag", () => {
     // The flag is undated. Gating on it would delete the compound from every
     // week it ever ran in, which is the whole bug this avoids.
     const archived = { ...stoppedWed, archived: true }
-    expect(compoundsInWeek([archived], weekDaysFrom("2026-06-01"), TODAY)).toHaveLength(1)
+    expect(compoundsInWeek([archived], weekDaysFrom("2026-06-01"), NO_LOGS)).toHaveLength(1)
   })
 
   it("has no row before its run began", () => {
-    expect(compoundsInWeek([compound()], weekDaysFrom("2025-12-01"), TODAY)).toHaveLength(0)
+    expect(compoundsInWeek([compound()], weekDaysFrom("2025-12-01"), NO_LOGS)).toHaveLength(0)
   })
 })
 
@@ -244,38 +246,53 @@ describe("phantom rows in the CURRENT week", () => {
       },
     } as Partial<StackCompound>)
 
-    expect(wasRunningOn(ended, "2026-02-01", TODAY)).toBe(true)
-    expect(wasRunningOn(ended, "2026-08-19", TODAY)).toBe(false)
-    expect(compoundsInWeek([ended], weekDaysFrom(MON), TODAY)).toHaveLength(0)
+    expect(wasRunningOn(ended, "2026-02-01")).toBe(true)
+    expect(wasRunningOn(ended, "2026-08-19")).toBe(false)
+    expect(compoundsInWeek([ended], weekDaysFrom(MON), NO_LOGS)).toHaveLength(0)
     // And it keeps the weeks it genuinely ran in.
-    expect(compoundsInWeek([ended], weekDaysFrom("2026-02-02"), TODAY)).toHaveLength(1)
+    expect(compoundsInWeek([ended], weekDaysFrom("2026-02-02"), NO_LOGS)).toHaveLength(1)
   })
 
-  it("stops an archived compound with no dated trail at TODAY, not never", () => {
+  it("draws NOTHING for an archived compound whose delete was never dated", () => {
     // A compound pulled from the cloud carries no schedule history, so
-    // `archived` can be the only evidence of a delete. It must not go on
-    // claiming doses are due, and it must not lose the weeks it ran in either.
+    // `archived` can be the only evidence of a delete, and it carries no date.
+    //
+    // This used to stop such a compound at TODAY and hand it every past day, on
+    // the reasoning that it must have run until it was deleted. The reasoning
+    // holds and the consequence did not: no past day has a log, so every past
+    // day was a miss, so the compound drew a fresh row of missed doses in every
+    // week for the rest of time. Two of Adrian's did this in the CURRENT week,
+    // having been deleted in July before dated stops were written at all.
     const noTrail = compound({ archived: true })
     expect(hasDatedStopFixture(noTrail)).toBe(false)
 
-    expect(wasRunningOn(noTrail, "2026-06-01", TODAY)).toBe(true)
-    expect(wasRunningOn(noTrail, TODAY, TODAY)).toBe(false)
+    expect(wasRunningOn(noTrail, "2026-06-01")).toBe(false)
+    expect(wasRunningOn(noTrail, TODAY)).toBe(false)
 
-    // It KEEPS this week's row, because the midweek rule says a compound
-    // stopped partway through a week ran that week. What it must not do is go
-    // on claiming doses from the stop onward.
     const thisWeek = weekDaysFrom(mondayOf(TODAY))
-    expect(compoundsInWeek([noTrail], thisWeek, TODAY)).toHaveLength(1)
-    const states = thisWeek.map((d) => weekCellState(noTrail, d, {} as DayLogs, TODAY))
-    // TODAY is the Thursday of this week; nothing from it onward is due.
-    expect(states.slice(3)).toEqual(["none", "none", "none", "none"])
-    expect(states.slice(0, 3)).toEqual(["missed", "missed", "missed"])
-
-    // And it is gone entirely from next week.
+    expect(compoundsInWeek([noTrail], thisWeek, NO_LOGS)).toHaveLength(0)
     expect(
-      compoundsInWeek([noTrail], weekDaysFrom(shiftWeeks(mondayOf(TODAY), 1)), TODAY),
+      thisWeek.map((d) => weekCellState(noTrail, d, NO_LOGS, TODAY)),
+    ).toEqual(["none", "none", "none", "none", "none", "none", "none"])
+    expect(
+      compoundsInWeek([noTrail], weekDaysFrom(shiftWeeks(mondayOf(TODAY), 1)), NO_LOGS),
     ).toHaveLength(0)
-    expect(compoundsInWeek([noTrail], weekDaysFrom("2026-06-01"), TODAY)).toHaveLength(1)
+    expect(compoundsInWeek([noTrail], weekDaysFrom("2026-06-01"), NO_LOGS)).toHaveLength(0)
+  })
+
+  it("but keeps every day that compound has a LOG on", () => {
+    // The strict reading above is only safe because nothing observed is lost by
+    // it. A dose is a fact the user entered; the delete's missing date is not.
+    const noTrail = compound({ archived: true })
+    const logs = { "2026-06-02": { c1: { id: "l1" } } } as unknown as DayLogs
+    const week = weekDaysFrom("2026-06-01")
+
+    expect(compoundsInWeek([noTrail], week, logs)).toHaveLength(1)
+    expect(weekCellState(noTrail, week[1], logs, TODAY)).toBe("logged")
+    // And still nothing on the days around it, which is the whole point: the
+    // row shows what happened, not a week of invented failure.
+    expect(weekCellState(noTrail, week[0], logs, TODAY)).toBe("none")
+    expect(weekCellState(noTrail, week[2], logs, TODAY)).toBe("none")
   })
 
   it("still trusts a dated stop over the archived flag", () => {
@@ -285,8 +302,8 @@ describe("phantom rows in the CURRENT week", () => {
       archived: true,
       scheduleHistory: recordScheduleStop(compound(), "2026-08-19"),
     })
-    expect(wasRunningOn(dated, "2026-08-18", TODAY)).toBe(true)
-    expect(wasRunningOn(dated, "2026-08-19", TODAY)).toBe(false)
+    expect(wasRunningOn(dated, "2026-08-18")).toBe(true)
+    expect(wasRunningOn(dated, "2026-08-19")).toBe(false)
   })
 })
 
@@ -295,6 +312,60 @@ describe("phantom rows in the CURRENT week", () => {
 function hasDatedStopFixture(c: StackCompound): boolean {
   return (c.scheduleHistory ?? []).some((v) => v.stopped === true)
 }
+
+describe("a back-dated start is a claim, not an observed run", () => {
+  /* Adrian, 2026-09-03. Three compounds added on 7 August carried a start date
+     of 24 July and not one logged dose. The grid drew a fortnight of solid
+     missed marks for days that predate the records entirely, and the weeks
+     before that filled with compounds he had added once to try the app out.
+
+     The start date is a CLAIM ("I have been running this a while"); `createdAt`
+     is the first day the app was actually there. Between the two there is no
+     evidence either way, and "no evidence" must never render as failure. */
+  const backdated = compound({
+    schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: "2026-07-24" },
+    createdAt: "2026-08-07",
+  } as Partial<StackCompound>)
+  const week = weekDaysFrom("2026-07-27") // Mon 27 Jul, wholly before the record
+
+  it("claims no day before the record existed", () => {
+    expect(wasRunningOn(backdated, "2026-08-06")).toBe(false)
+    expect(wasRunningOn(backdated, "2026-08-07")).toBe(true)
+  })
+
+  it("gives that week no row at all rather than a row of misses", () => {
+    expect(compoundsInWeek([backdated], week, NO_LOGS)).toHaveLength(0)
+    expect(week.map((d) => weekCellState(backdated, d, NO_LOGS, TODAY))).toEqual([
+      "none", "none", "none", "none", "none", "none", "none",
+    ])
+  })
+
+  it("counts none of it toward the week's figures", () => {
+    const m = weekMatrix([backdated], week, NO_LOGS, TODAY)
+    expect(m.due).toBe(0)
+    expect(m.logged).toBe(0)
+  })
+
+  it("still honours a back-filled dose, because that IS evidence", () => {
+    // Someone who back-dates the start AND enters the doses is telling us what
+    // happened. Their work counts; the blank days beside it still do not.
+    const logs = { "2026-07-29": { c1: { id: "l1" } } } as unknown as DayLogs
+    expect(compoundsInWeek([backdated], week, logs)).toHaveLength(1)
+    expect(weekCellState(backdated, week[2], logs, TODAY)).toBe("logged")
+    expect(weekCellState(backdated, week[3], logs, TODAY)).toBe("none")
+    expect(weekMatrix([backdated], week, logs, TODAY).logged).toBe(1)
+  })
+
+  it("changes nothing for a record with no creation date", () => {
+    // Absent means UNKNOWN, and unknown cannot rule a day out. Every record
+    // written before this field existed behaves exactly as it did.
+    const legacy = compound({
+      schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: "2026-07-24" },
+    })
+    expect(wasRunningOn(legacy, "2026-08-06")).toBe(true)
+    expect(compoundsInWeek([legacy], week, NO_LOGS)).toHaveLength(1)
+  })
+})
 
 describe("weekMatrix counts only what has come due", () => {
   const daily = compound()

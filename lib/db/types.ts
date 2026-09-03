@@ -605,6 +605,16 @@ export function protocolCompoundToStack(
     rotationSites: pc.rotation_sites ?? [],
     rotationIndex: pc.rotation_index ?? 0,
     archived: !pc.is_active,
+    // The day the RECORD appeared, which Postgres has always stamped and the
+    // device store had no field for. It is the app's own evidence floor: no day
+    // before it can be called a missed dose, because there was nothing here to
+    // miss it with (see `wasObservedOn`). Sliced off the timestamp rather than
+    // derived from it in the device's timezone — a row created at 23:40 UTC
+    // would otherwise be stamped a day late in Sydney and blank the compound's
+    // first day, and a floor is only useful if it never moves.
+    ...(typeof pc.created_at === "string" && pc.created_at.length >= 10
+      ? { createdAt: pc.created_at.slice(0, 10) }
+      : {}),
     // The cycle must come BACK as well as go out. Without this the pulled row has
     // no cycle, hydration overwrites the local record with it, and a cycle the
     // user just set disappears on the next mount/focus.
