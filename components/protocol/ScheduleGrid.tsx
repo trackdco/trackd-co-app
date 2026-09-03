@@ -13,7 +13,6 @@ import {
 import { type StackCompound } from "@/lib/home/stack"
 import { type WeekCellState } from "@/lib/protocol/scheduleWeek"
 import { Pause } from "@/components/icons"
-import type { DayLogs } from "@/lib/home/doseLog"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 

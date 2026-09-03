@@ -297,12 +297,17 @@ const DAYS_PER_YEAR = 365.25
  * How long ago a week was, in words.
  *
  * The unit widens as you go back, because "97 weeks ago" is a number nobody can
- * picture (Adrian, 2026-09-03). Weeks up to twelve, then months, then years, so
- * a step back through three years reads as a scale rather than a tally.
+ * picture. Weeks up to twelve, then months, then a year plus its remainder:
+ * "1 year and 1 week ago", "1 year and 6 months ago" (Adrian, 2026-09-03).
+ *
+ * The remainder is what makes the year rung usable. Rounding into whole years
+ * blurred everything from 51 to 76 weeks into "1 year ago", and months alone
+ * gave "23 months ago", which is precise and reads like an arithmetic problem.
+ * Carrying the remainder keeps both: the year you can picture, and the part of
+ * it you are into.
  *
  * The label is DELIBERATELY approximate and the precise answer sits directly
- * under it: the week's own date range. "3 months ago" orients you, "11 to 17
- * Jun" is the fact. That division is why rounding here is safe.
+ * under it: the week's own date range. That division is why rounding is safe.
  */
 export function relativeWeekLabel(monday: string, thisMonday: string): string {
   const days = daysBetween(monday, thisMonday)
@@ -313,16 +318,26 @@ export function relativeWeekLabel(monday: string, thisMonday: string): string {
   // three months", not a count.
   if (weeks < 12) return `${weeks} weeks ago`
 
-  const months = Math.round(days / DAYS_PER_MONTH)
-  // Twenty-four, not twelve. At twelve the years rung swallowed half a year:
-  // everything from 51 to 76 weeks read "1 year ago", because rounding months
-  // into years is a far coarser step than the months rung beneath it, and the
-  // ladder lost its last useful step. Months carry the whole of the first two
-  // years now, so nothing below "2 years ago" is blurred.
-  if (months < 24) return `${months} months ago`
+  const totalMonths = Math.round(days / DAYS_PER_MONTH)
+  if (totalMonths < 12) return `${totalMonths} months ago`
 
-  // From DAYS rather than from the rounded months, or the 30.44 drift compounds:
-  // via months, exactly three years came out as "2 years ago".
-  const years = Math.round(days / DAYS_PER_YEAR)
-  return years === 1 ? "1 year ago" : `${years} years ago`
+  // Split via total MONTHS rather than by dividing days twice, so the year and
+  // its remainder can never disagree (a separately rounded remainder produced
+  // "1 year and 12 months ago").
+  const years = Math.floor(totalMonths / 12)
+  const months = totalMonths % 12
+  const yearPart = years === 1 ? "1 year" : `${years} years`
+  if (months > 0) {
+    return `${yearPart} and ${months} ${months === 1 ? "month" : "months"} ago`
+  }
+
+  // Under a month past the year, so weeks are the only useful remainder. Clamped
+  // at zero: 364 days rounds to twelve months while sitting just SHORT of a
+  // year, and a negative remainder would read as a week in the future.
+  const pastYear = Math.max(0, days - years * DAYS_PER_YEAR)
+  const remWeeks = Math.round(pastYear / 7)
+  if (remWeeks > 0) {
+    return `${yearPart} and ${remWeeks} ${remWeeks === 1 ? "week" : "weeks"} ago`
+  }
+  return `${yearPart} ago`
 }

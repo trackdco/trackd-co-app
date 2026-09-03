@@ -182,27 +182,37 @@ describe("relativeWeekLabel", () => {
     expect(back(43)).toBe("10 months ago")
   })
 
-  it("carries months through the first two years, then switches to years", () => {
-    // Months run to 23 so the years rung does not swallow half a year: at a
-    // twelve-month switch, everything from 51 to 76 weeks read "1 year ago".
-    expect(back(52)).toBe("12 months ago")
-    expect(back(76)).toBe("17 months ago")
-    expect(back(100)).toBe("23 months ago")
+  it("carries a year plus its remainder, not a blurred year", () => {
+    // Adrian's own example: a year and a week, not "12 months ago" and not the
+    // "1 year ago" that used to swallow everything up to 76 weeks.
+    expect(back(52)).toBe("1 year ago")
+    expect(back(53)).toBe("1 year and 1 week ago")
+    expect(back(54)).toBe("1 year and 2 weeks ago")
+    expect(back(78)).toBe("1 year and 6 months ago")
+    expect(back(100)).toBe("1 year and 11 months ago")
     expect(back(104)).toBe("2 years ago")
     expect(back(156)).toBe("3 years ago")
   })
 
-  it("never blurs more than a year, and lands whole years exactly", () => {
-    // Every distinct label below two years covers at most a month.
-    const seen = new Map<string, number>()
-    for (let w = 12; w <= 103; w++) seen.set(back(w), (seen.get(back(w)) ?? 0) + 1)
-    for (const [label, weeks] of seen) {
-      expect(weeks, `${label} spans ${weeks} weeks`).toBeLessThanOrEqual(5)
+  it("never prints a remainder of twelve months, or a negative one", () => {
+    // The remainder used to be rounded separately from the year, which could
+    // produce "1 year and 12 months ago"; and 364 days rounds to twelve months
+    // while sitting just short of a year, which produced a negative week count.
+    for (let w = 12; w <= 400; w++) {
+      const label = back(w)
+      expect(label).not.toMatch(/and (0|1[2-9]|[2-9]\d) months/)
+      expect(label).not.toMatch(/-/)
+      expect(label).not.toMatch(/and 0 weeks/)
     }
-    // Whole years are exact: computing years via the rounded month count let
-    // the 30.44 drift compound and turned exactly three years into "2 years".
-    for (const y of [2, 3, 4, 5]) {
-      expect(back(Math.round((y * 365.25) / 7))).toBe(`${y} years ago`)
+  })
+
+  it("lands whole years exactly", () => {
+    // Computing years from a rounded month count let the 30.44 drift compound
+    // and turned exactly three years into "2 years ago".
+    for (const y of [1, 2, 3, 4, 5]) {
+      expect(back(Math.round((y * 365.25) / 7))).toBe(
+        y === 1 ? "1 year ago" : `${y} years ago`,
+      )
     }
   })
 
