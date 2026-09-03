@@ -199,6 +199,21 @@ export function HookScreen() {
             standard inset is the house rule, and this screen is not special. */}
         <footer className="shrink-0 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <FlowCta onClick={goNext}>Begin</FlowCta>
+
+          {/* The way back in for someone who already has an account. Small and
+              plain: it is the second thing on the screen, not a rival to the
+              CTA above it. Same treatment as the waitlist screen's sign-in
+              line, so the two logged-out surfaces read as one app. */}
+          <p className="text-center text-[0.8rem] leading-relaxed text-text-muted">
+            Existing user?{" "}
+            <Link
+              href="/login"
+              className="text-foreground underline-offset-4 transition-colors hover:text-text-muted hover:underline"
+            >
+              Sign in
+            </Link>
+          </p>
+
           <p className="text-center text-[0.7rem] leading-relaxed text-text-subtle">
             Paid plan. 18+ only.
           </p>
