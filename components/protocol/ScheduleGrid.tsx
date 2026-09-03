@@ -11,7 +11,7 @@ import {
   type CompoundCategory,
 } from "@/lib/compound-categories"
 import { type StackCompound } from "@/lib/home/stack"
-import { weekCellState, type WeekCellState } from "@/lib/protocol/scheduleWeek"
+import { type WeekCellState } from "@/lib/protocol/scheduleWeek"
 import { Pause } from "@/components/icons"
 import type { DayLogs } from "@/lib/home/doseLog"
 import { toDateKey } from "@/lib/home/mockHomeData"
@@ -52,13 +52,16 @@ type CellState = WeekCellState
  */
 export function ScheduleGrid({
   compounds,
-  logs,
+  states,
   todayKey,
   weekDays,
   hideHeading = false,
 }: {
   compounds: StackCompound[]
-  logs: DayLogs
+  /** Compound id → its seven marks. Computed once by `weekMatrix`, which also
+   *  produces the week's figures, so the grid never recomputes what the caller
+   *  has already worked out. */
+  states: Map<string, WeekCellState[]>
   todayKey: string
   /** The seven dates of the week being shown, Monday first. */
   weekDays: Date[]
@@ -71,33 +74,11 @@ export function ScheduleGrid({
   const groups = groupByCategory(compounds)
   const scrolls = compounds.length > SCHEDULE_SCROLL_AFTER_ROWS
 
-  /**
-   * Every cell's state, computed ONCE per render.
-   *
-   * It used to be called three separate times per cell: once for the row's
-   * screen-reader summary, once for the `<Mark>`, and once more sweeping the
-   * whole grid to decide whether the key needed a Paused entry. Each call runs
-   * `resolveScheduleOn`, which copies and sorts `scheduleHistory`, so a stack of
-   * twenty edited compounds was doing on the order of a thousand array
-   * copy-and-sorts per render, and this component re-renders on every dose-log
-   * notification.
-   */
-  const cells = useMemo(() => {
-    const byCompound = new Map<string, CellState[]>()
-    for (const c of compounds) {
-      byCompound.set(
-        c.id,
-        weekDays.map((d) => weekCellState(c, d, logs, todayKey)),
-      )
-    }
-    return byCompound
-  }, [compounds, weekDays, logs, todayKey])
-
   const stateOf = (c: StackCompound, i: number): CellState =>
-    cells.get(c.id)?.[i] ?? "none"
+    states.get(c.id)?.[i] ?? "none"
   const anyPaused = useMemo(
-    () => [...cells.values()].some((row) => row.includes("paused")),
-    [cells],
+    () => [...states.values()].some((row) => row.includes("paused")),
+    [states],
   )
 
   if (compounds.length === 0) return null

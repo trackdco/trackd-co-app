@@ -1,6 +1,6 @@
 "use client"
 
-import { useLayoutEffect, useRef, useState } from "react"
+import { useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
@@ -14,7 +14,7 @@ import {
   relativeWeekLabel,
   shiftWeeks,
   weekDaysFrom,
-  weekTally,
+  weekMatrix,
 } from "@/lib/protocol/scheduleWeek"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
@@ -137,9 +137,21 @@ export function ScheduleWeeks({
   const canGoBack = daysBetween(floor, monday) >= 7
   const canGoForward = monday < thisMonday
 
-  const weekDays = weekDaysFrom(monday)
-  const rows = compoundsInWeek(compounds, weekDays, todayKey)
-  const tally = weekTally(rows, weekDays, logs, todayKey)
+  /* Memoised on purpose. `weekDaysFrom` and the membership filter both build
+     fresh arrays, and handing those to `ScheduleGrid` meant its own cell memo
+     could never hit: its deps changed identity on every render even when the
+     week had not. */
+  const weekDays = useMemo(() => weekDaysFrom(monday), [monday])
+  const rows = useMemo(
+    () => compoundsInWeek(compounds, weekDays, todayKey),
+    [compounds, weekDays, todayKey],
+  )
+  /* Marks and figures from ONE pass, so the grid does not recompute what the
+     tally already worked out. */
+  const matrix = useMemo(
+    () => weekMatrix(rows, weekDays, logs, todayKey),
+    [rows, weekDays, logs, todayKey],
+  )
 
   const heading = relativeWeekLabel(monday, thisMonday)
 
@@ -165,16 +177,20 @@ export function ScheduleWeeks({
     el.classList.add(cls)
   }, [travel])
 
-  // Every hook above has run, so bailing out here cannot change hook order
-  // between renders.
-  if (compounds.length === 0) return null
+  /* Nothing to show AND nothing behind it. `compounds.length === 0` was the
+     wrong test once this started receiving the full stack including archived
+     ones: a user who deleted their last compound has a non-empty stack and no
+     current rows, so Protocol's resting state became a card announcing that
+     nothing ran this week. Someone with history keeps the section, because
+     stepping back is exactly what they want. */
+  if (rows.length === 0 && !canGoBack) return null
 
   const grid = (
     <div ref={animRef}>
       {rows.length > 0 ? (
         <ScheduleGrid
           compounds={rows}
-          logs={logs}
+          states={matrix.states}
           todayKey={todayKey}
           weekDays={weekDays}
           hideHeading
@@ -205,6 +221,11 @@ export function ScheduleWeeks({
             }
           }}
           aria-expanded={false}
+          /* Without this the accessible name is the button's CONTENT, and the
+             content is the whole grid: every compound's screen-reader week
+             summary, which on a full protocol is ~175 day-and-state phrases
+             read out as the name of one control. */
+          aria-label="Schedule. Open to step back through past weeks"
           /* A div rather than a <button> because the grid scrolls its own rows
              past eight compounds, and a scroll container inside a button is a
              fight on touch. Keyboard and role are carried explicitly instead. */
@@ -280,11 +301,16 @@ export function ScheduleWeeks({
         {grid}
       </div>
 
-      {rows.length > 0 && (
+      {/* A week with nothing due carries no figure. "0 of 0 logged" states a
+          measurement nobody made, which is the same thing `percent()` prints an
+          em dash for and the weight card refuses "+0.0 kg" for. A long-cadence
+          compound, or one paused all week, lands here routinely. */}
+      {(matrix.due > 0 || matrix.pausedDays > 0) && (
         <p className="px-1 font-mono text-[11px] tabular-nums text-text-subtle">
-          {tally.logged} of {tally.due} logged
-          {tally.pausedDays > 0 &&
-            ` · paused ${tally.pausedDays} ${tally.pausedDays === 1 ? "day" : "days"}`}
+          {matrix.due > 0 && `${matrix.logged} of ${matrix.due} logged`}
+          {matrix.due > 0 && matrix.pausedDays > 0 && " · "}
+          {matrix.pausedDays > 0 &&
+            `paused ${matrix.pausedDays} ${matrix.pausedDays === 1 ? "day" : "days"}`}
         </p>
       )}
     </section>

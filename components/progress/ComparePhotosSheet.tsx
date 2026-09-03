@@ -63,7 +63,16 @@ export function ComparePhotosSheet({
   );
   const comparable = comparablePoses(photos);
   const presentPoses = comparable.length > 0 ? comparable : allPoses;
-  const defaultPose = presentPoses[0] ?? "all";
+
+  /* A pose shot twice in ONE session is offerable (a retake is a legitimate
+     pair) but it is a poor thing to OPEN on: the panes show one session, and
+     the "N days apart" line, the single signal that would say so, is hidden
+     because the gap is zero. So the default prefers a pose photographed on two
+     or more days and falls back to the first only when none exists. */
+  const spansDays = (poseId: string) =>
+    new Set(byPose(poseId).map((p) => p.date)).size > 1;
+  const defaultPose =
+    presentPoses.find(spansDays) ?? presentPoses[0] ?? "all";
 
   const [poseFilter, setPoseFilter] = useState(defaultPose);
   /** The chip row collapses past `POSE_CAP`. Someone running the full

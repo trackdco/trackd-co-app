@@ -81,7 +81,10 @@ export const WEIGHT_RANGES: WeightRange[] = [
  * the whole of it is the one view that is never redundant.
  */
 export function rangesForSpan(spanDays: number | null): WeightRange[] {
-  if (spanDays === null) return WEIGHT_RANGES;
+  // A COPY. Returning the module array itself handed every caller the same
+  // mutable object, so one that sorted or spliced its result would corrupt the
+  // list for everyone else.
+  if (spanDays === null) return [...WEIGHT_RANGES];
   const all = WEIGHT_RANGES[WEIGHT_RANGES.length - 1];
   // Strictly shorter: a range equal to the span IS "All" wearing another label.
   return [...WEIGHT_RANGES.filter((r) => r.days < spanDays), all];

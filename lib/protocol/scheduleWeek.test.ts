@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { toDateKey as toKey } from "@/lib/home/mockHomeData"
 import {
   compoundsInWeek,
   firstLoggedDay,
@@ -10,7 +11,7 @@ import {
   wasRunningOn,
   weekCellState,
   weekDaysFrom,
-  weekTally,
+  weekMatrix,
 } from "./scheduleWeek"
 import { recordScheduleStop, type StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
@@ -142,7 +143,7 @@ describe("cell states", () => {
   })
 })
 
-describe("weekTally", () => {
+describe("weekMatrix figures", () => {
   it("counts logged against due and excludes paused from both", () => {
     const paused = compound({
       id: "c2",
@@ -155,7 +156,7 @@ describe("weekTally", () => {
       "2026-08-18": { c1: { id: "b" } },
     } as unknown as DayLogs
 
-    const t = weekTally([compound(), paused], weekDaysFrom(MON), logs, "2026-08-25")
+    const t = weekMatrix([compound(), paused], weekDaysFrom(MON), logs, "2026-08-25")
     expect(t.logged).toBe(2)
     expect(t.due).toBe(7) // the daily compound only; none of the paused week
     expect(t.pausedDays).toBe(7)
@@ -181,10 +182,28 @@ describe("relativeWeekLabel", () => {
     expect(back(43)).toBe("10 months ago")
   })
 
-  it("switches to years rather than counting a hundred weeks", () => {
-    expect(back(52)).toBe("1 year ago")
-    expect(back(100)).toBe("2 years ago")
+  it("carries months through the first two years, then switches to years", () => {
+    // Months run to 23 so the years rung does not swallow half a year: at a
+    // twelve-month switch, everything from 51 to 76 weeks read "1 year ago".
+    expect(back(52)).toBe("12 months ago")
+    expect(back(76)).toBe("17 months ago")
+    expect(back(100)).toBe("23 months ago")
+    expect(back(104)).toBe("2 years ago")
     expect(back(156)).toBe("3 years ago")
+  })
+
+  it("never blurs more than a year, and lands whole years exactly", () => {
+    // Every distinct label below two years covers at most a month.
+    const seen = new Map<string, number>()
+    for (let w = 12; w <= 103; w++) seen.set(back(w), (seen.get(back(w)) ?? 0) + 1)
+    for (const [label, weeks] of seen) {
+      expect(weeks, `${label} spans ${weeks} weeks`).toBeLessThanOrEqual(5)
+    }
+    // Whole years are exact: computing years via the rounded month count let
+    // the 30.44 drift compound and turned exactly three years into "2 years".
+    for (const y of [2, 3, 4, 5]) {
+      expect(back(Math.round((y * 365.25) / 7))).toBe(`${y} years ago`)
+    }
   })
 
   it("never prints a week count above eleven", () => {
@@ -267,7 +286,7 @@ function hasDatedStopFixture(c: StackCompound): boolean {
   return (c.scheduleHistory ?? []).some((v) => v.stopped === true)
 }
 
-describe("weekTally counts only what has come due", () => {
+describe("weekMatrix counts only what has come due", () => {
   const daily = compound()
   const days = weekDaysFrom(MON)
 
@@ -275,13 +294,13 @@ describe("weekTally counts only what has come due", () => {
     // Tuesday, with Monday logged. Reporting "1 of 7" made the user look six
     // doses behind when five had not happened yet.
     const logs = { "2026-08-17": { c1: { id: "a" } } } as unknown as DayLogs
-    const t = weekTally([daily], days, logs, "2026-08-18")
+    const t = weekMatrix([daily], days, logs, "2026-08-18")
     expect(t).toMatchObject({ logged: 1, due: 1 })
   })
 
   it("counts the whole week once the week is past", () => {
     const logs = { "2026-08-17": { c1: { id: "a" } } } as unknown as DayLogs
-    const t = weekTally([daily], days, logs, "2026-09-03")
+    const t = weekMatrix([daily], days, logs, "2026-09-03")
     expect(t).toMatchObject({ logged: 1, due: 7 })
   })
 
@@ -297,9 +316,76 @@ describe("weekTally counts only what has come due", () => {
       id: "c3",
       pauses: [{ id: "p", startedOn: "2026-08-17", endsOn: "2026-08-23" }],
     } as Partial<StackCompound>)
-    const t = weekTally([pausedA, pausedB], days, {} as DayLogs, "2026-09-03")
+    const t = weekMatrix([pausedA, pausedB], days, {} as DayLogs, "2026-09-03")
     expect(t.pausedDays).toBe(7)
     expect(t.due).toBe(0)
     expect(t.logged).toBe(0)
+  })
+})
+
+/**
+ * Both of these were the grid disagreeing with `/progress` about the same week,
+ * found by review on 2026-09-03. The benchmark for each is what
+ * `lib/progress/consistency.ts` reports, because two surfaces stating different
+ * adherence for one week is worse than either being wrong alone.
+ */
+describe("a dose is only logged if it was actually taken", () => {
+  const days = weekDaysFrom(MON)
+  const PAST = "2026-09-03"
+  /** A taken dose and a skipped one, in the shape the store writes. */
+  const taken = { amount: "250", unit: "mg", siteId: null, time24: "09:00" }
+  const skipped = { ...taken, status: "skipped" as const }
+
+  it("does not draw a SKIPPED dose as logged", () => {
+    // A truthiness check on the log counted a skip as taken, so a week of skips
+    // drew seven solid marks and claimed 7 of 7. consistency.ts says in
+    // capitals that a skipped dose is due-and-not-taken, precisely so someone
+    // cannot skip everything and read 100%.
+    const logs = Object.fromEntries(
+      days.map((d) => [toKey(d), { c1: skipped }]),
+    ) as unknown as DayLogs
+
+    const m = weekMatrix([compound()], days, logs, PAST)
+    expect(m.states.get("c1")).toEqual(Array(7).fill("missed"))
+    expect(m).toMatchObject({ logged: 0, due: 7 })
+  })
+
+  it("still draws a TAKEN dose as logged", () => {
+    const logs = Object.fromEntries(
+      days.map((d) => [toKey(d), { c1: taken }]),
+    ) as unknown as DayLogs
+    const m = weekMatrix([compound()], days, logs, PAST)
+    expect(m.states.get("c1")).toEqual(Array(7).fill("logged"))
+    expect(m).toMatchObject({ logged: 7, due: 7 })
+  })
+
+  it("judges a twice-daily compound on EVERY slot, not just slot 0", () => {
+    // `slotKey` leaves slot 0 unsuffixed and puts later doses at `id#1`, so
+    // reading `logs[key][c.id]` could only ever see the morning. Someone who
+    // logged only their evening dose all week read as having missed all seven.
+    const twice = compound({
+      schedule: {
+        cadence: { type: "daily" },
+        timeOfDay: "08:00",
+        laterTimes: ["20:00"],
+        startDate: "2026-01-01",
+      },
+    } as Partial<StackCompound>)
+
+    const eveningOnly = Object.fromEntries(
+      days.map((d) => [toKey(d), { "c1#1": taken }]),
+    ) as unknown as DayLogs
+    const evening = weekMatrix([twice], days, eveningOnly, PAST)
+    expect(evening.logged).toBe(7)
+    expect(evening.due).toBe(14)
+    // Half the doses taken is not a clean sweep, and not a total miss either.
+    expect(evening.states.get("c1")).toEqual(Array(7).fill("missed"))
+
+    const bothSlots = Object.fromEntries(
+      days.map((d) => [toKey(d), { c1: taken, "c1#1": taken }]),
+    ) as unknown as DayLogs
+    const both = weekMatrix([twice], days, bothSlots, PAST)
+    expect(both).toMatchObject({ logged: 14, due: 14 })
+    expect(both.states.get("c1")).toEqual(Array(7).fill("logged"))
   })
 })
