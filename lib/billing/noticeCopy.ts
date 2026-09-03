@@ -70,3 +70,135 @@ export function continuedUseSentence(): string {
   const p = CONTINUED_USE_PARTS;
   return `${p.lead} ${p.terms} ${p.join} ${p.privacy}${p.end}`;
 }
+
+/**
+ * ⚠️ THE SEVEN-DAY GRACE NOTICE'S COPY, IN `lib/` FROM THE START.
+ *
+ * Approved by Adrian, 2026-09-03, across four revisions of a preview he drove on
+ * his own phone. Pinned by `graceEndingCopyPin.test.ts` against
+ * `signed/grace-ending.txt`.
+ *
+ * ## Why it lives here rather than in the JSX
+ *
+ * `graceCopyPin.test.ts` pins the LAUNCH notice by reading its source file,
+ * stripping comments and decoding entities, because that notice's copy is JSX
+ * literals and extracting it would have been a product change. That mechanism
+ * works, and it is fragile in one specific way: the signed fragments have to
+ * match the component's LINE WRAPPING, so re-flowing a paragraph in an editor
+ * breaks a legal pin.
+ *
+ * This file's own doc-block already states the rule that avoids it: *"a signed
+ * string rendered to a user gets a pin, and if it cannot be reached from `lib/`,
+ * moving it here is the first half of the fix"*. So the new notice starts where
+ * the old one ended up, and its pin compares STRINGS rather than source text.
+ *
+ * ## ⚠️ THE COUNT IS NOT IN HERE, AND THAT IS THE POINT
+ *
+ * "7 days" is a NUMBER, computed by `graceDaysLeft` from the entitlement row at
+ * render. It is deliberately absent from every constant below, because the
+ * notice is shown ONCE and may be read on any day of the fortnight: somebody
+ * opening it on Friday must see 6, not the 7 that was true when it was written.
+ * {@link GRACE_NOTICE_PARTS.headLead} is the prose either side of it.
+ *
+ * Same split `06` §3.6 makes and for the same reason: a number derives, prose
+ * does not.
+ */
+export const GRACE_NOTICE_PARTS = {
+  /** The headline, either side of the count. "Your free run will end in 6 days." */
+  headLead: "Your free run will end",
+  headIn: "in",
+  headToday: "today",
+  headTomorrow: "tomorrow",
+
+  /** Body, first paragraph. The date follows `runEnds`. */
+  runEnds: "Your free run ends",
+  thanks: "Thank you for helping make Trackd Co what it has become today.",
+
+  /**
+   * Body, second paragraph. `after` is followed by the short date, `afterToday`
+   * replaces both on the final day so the sentence does not read "After 10 Sep"
+   * to somebody for whom 10 Sep is today.
+   */
+  after: "After",
+  afterToday: "After today",
+  /**
+   * ⚠️ "read only" AS TWO WORDS, matching the launch notice and
+   * `READ_ONLY_MESSAGE` exactly. Three surfaces describe one state and they must
+   * not describe it in three ways.
+   */
+  readOnly:
+    "your account will become read only. You'll still see everything you've logged. " +
+    "You just can't add to it. Nothing will get deleted.",
+
+  /**
+   * Body, third paragraph. Adrian's wording, 2026-09-03.
+   *
+   * ⚠️ It does NOT say "before 10 Sep". The date is already named twice above it,
+   * and a third urgency cue in four lines is the app nagging rather than telling.
+   */
+  cta: "Pick a plan and your account carries on as is.",
+
+  /** The two controls. "Choose a plan" is the filled one and it sits on the RIGHT. */
+  dismiss: "Got it",
+  choose: "Choose a plan",
+} as const;
+
+/**
+ * ⚠️ THE CONTINUED-USE SENTENCE FOR THE SEVEN-DAY NOTICE, AND IT IS A SECOND
+ * SENTENCE RATHER THAN AN EDIT OF {@link CONTINUED_USE_PARTS}.
+ *
+ * The launch notice's sentence is signed, pinned and already shown to real
+ * accounts. Rewording it in place would silently re-word a legal notice five
+ * people have been served, so this is additive and that one is untouched.
+ *
+ * ## ⚠️ ALL FOUR DOCUMENTS ARE NAMED. ONLY TWO ARE ACCEPTED. THAT IS DELIBERATE.
+ *
+ * Adrian asked for one sentence covering all four (2026-09-03). It cannot claim
+ * acceptance of all four, and the reason is not stylistic:
+ *
+ *   Terms of Service      accepted by continued use, and RECORDED.
+ *   Privacy Policy        accepted by continued use, and RECORDED.
+ *   Medical Disclaimer    NOT accepted here. It is an explicit tick at the
+ *                         welcome gate and every account already holds one, so
+ *                         folding it into a continued-use sentence would
+ *                         downgrade a stronger consent we already have.
+ *   Consumer Health Data  NOT accepted here, EVER. Privacy v2.0 §17 says in
+ *                         writing that continued use is never treated as consent
+ *                         to health-data processing, which is Washington's My
+ *                         Health My Data Act. Claiming it would contradict the
+ *                         policy inside the notice announcing that policy.
+ *
+ * So the second sentence says the other two have CHANGED, not that they are
+ * accepted. `recordDocumentAcceptance` still writes `tos` and `privacy` and
+ * nothing else, and this wording is what makes that honest rather than a gap.
+ *
+ * Signed by Adrian as option 2 of three, 2026-09-03.
+ */
+export const GRACE_CONTINUED_USE_PARTS = {
+  lead: "Continuing to use Trackd Co means you accept the updated",
+  terms: "Terms of Service",
+  join: "and",
+  privacy: "Privacy Policy",
+  /** Closes the first sentence and opens the second. No em dash, ever. */
+  mid: ". Our",
+  disclaimer: "Medical Disclaimer",
+  join2: "and",
+  chd: "Consumer Health Data Privacy Policy",
+  end: "have changed as well.",
+} as const;
+
+/**
+ * The whole thing, as a reader hears it once the four links are flattened.
+ *
+ * The component interleaves four `<Link>`s so it cannot render one string, and
+ * it must not hold the words either. These parts rejoin BY CONSTRUCTION and the
+ * pin asserts the rejoin, which is the same shape {@link continuedUseSentence}
+ * uses for the launch notice's two links.
+ */
+export function graceContinuedUseSentence(): string {
+  const p = GRACE_CONTINUED_USE_PARTS;
+  return (
+    `${p.lead} ${p.terms} ${p.join} ${p.privacy}${p.mid} ` +
+    `${p.disclaimer} ${p.join2} ${p.chd} ${p.end}`
+  );
+}
