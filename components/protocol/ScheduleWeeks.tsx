@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
@@ -24,15 +24,28 @@ const MONTHS_SHORT = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ]
 
-function rangeLabel(weekDays: Date[]): string {
+/**
+ * The week's dates, which are the PRECISE half of the header: the label above is
+ * deliberately approximate ("3 months ago") and this is the fact under it.
+ *
+ * So it has to carry a YEAR whenever the week is not in the current one. The
+ * first version printed a year only when a week straddled New Year, which meant
+ * every week of 2024 read "11 to 17 Mar", indistinguishable from a week of this
+ * year, while nothing else on the card said otherwise.
+ */
+function rangeLabel(weekDays: Date[], todayKey: string): string {
   const a = weekDays[0]
   const b = weekDays[6]
   const am = MONTHS_SHORT[a.getMonth()]
   const bm = MONTHS_SHORT[b.getMonth()]
-  const year = a.getFullYear() === b.getFullYear() ? "" : ` ${a.getFullYear()}`
-  return am === bm
-    ? `${a.getDate()} to ${b.getDate()} ${bm}`
-    : `${a.getDate()} ${am}${year} to ${b.getDate()} ${bm}`
+  const thisYear = Number(todayKey.slice(0, 4))
+  // A week straddling New Year needs both years; one wholly in another year
+  // needs its own on the end.
+  const startYear = a.getFullYear() === b.getFullYear() ? "" : ` ${a.getFullYear()}`
+  const endYear = b.getFullYear() === thisYear ? "" : ` ${b.getFullYear()}`
+  return am === bm && !startYear
+    ? `${a.getDate()} to ${b.getDate()} ${bm}${endYear}`
+    : `${a.getDate()} ${am}${startYear} to ${b.getDate()} ${bm}${endYear}`
 }
 
 /**
@@ -114,26 +127,50 @@ export function ScheduleWeeks({
   // week that no longer contains today.
   if (!expanded && monday !== thisMonday) setMonday(thisMonday)
 
+  // `ScheduleGrid` returned null on an empty list, so a brand new account saw no
+  // Schedule section at all. Wrapping it lost that: the section appeared saying
+  // "Nothing was running this week" in the past tense, over a stepper with both
+  // arrows dead. An empty protocol has no schedule to show and no history to
+  // walk, so the section stays absent (the bail-out itself sits below, after every
+  // hook has run).
   const floor = historyFloor(logs, todayKey, blockStart)
   const canGoBack = daysBetween(floor, monday) >= 7
   const canGoForward = monday < thisMonday
 
   const weekDays = weekDaysFrom(monday)
-  const rows = compoundsInWeek(compounds, weekDays)
+  const rows = compoundsInWeek(compounds, weekDays, todayKey)
   const tally = weekTally(rows, weekDays, logs, todayKey)
 
   const heading = relativeWeekLabel(monday, thisMonday)
 
-  /* Keyed on the step counter so tapping "back" twice replays the slide; a bare
-     class change would not restart an animation that is already finished. */
+  /**
+   * Replay the step animation without REMOUNTING the grid.
+   *
+   * This was `key={travel.n}`, which restarted the animation by throwing the
+   * whole subtree away and building it again. That also threw away the compound
+   * list's scroll position, so a user with more than
+   * `SCHEDULE_SCROLL_AFTER_ROWS` compounds was bounced to the top on every tap
+   * of an arrow. Removing the class, forcing a reflow and re-adding it restarts
+   * the animation with the DOM left alone.
+   */
+  const animRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = animRef.current
+    if (!el || !travel) return
+    const cls = travel.dir === "back" ? "animate-schedule-back" : "animate-schedule-forward"
+    el.classList.remove("animate-schedule-back", "animate-schedule-forward")
+    // Reading a layout property flushes the removal, which is what makes the
+    // re-add count as a new animation rather than a no-op.
+    void el.offsetWidth
+    el.classList.add(cls)
+  }, [travel])
+
+  // Every hook above has run, so bailing out here cannot change hook order
+  // between renders.
+  if (compounds.length === 0) return null
+
   const grid = (
-    <div
-      key={travel?.n ?? "rest"}
-      className={cn(
-        travel?.dir === "back" && "animate-schedule-back",
-        travel?.dir === "forward" && "animate-schedule-forward",
-      )}
-    >
+    <div ref={animRef}>
       {rows.length > 0 ? (
         <ScheduleGrid
           compounds={rows}
@@ -221,7 +258,7 @@ export function ScheduleWeeks({
         <div className="min-w-0 text-center">
           <p className="truncate text-sm text-foreground">{heading}</p>
           <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-subtle">
-            {rangeLabel(weekDays)}
+            {rangeLabel(weekDays, todayKey)}
           </p>
         </div>
 
@@ -246,7 +283,8 @@ export function ScheduleWeeks({
       {rows.length > 0 && (
         <p className="px-1 font-mono text-[11px] tabular-nums text-text-subtle">
           {tally.logged} of {tally.due} logged
-          {tally.paused > 0 && ` · ${tally.paused} paused`}
+          {tally.pausedDays > 0 &&
+            ` · paused ${tally.pausedDays} ${tally.pausedDays === 1 ? "day" : "days"}`}
         </p>
       )}
     </section>

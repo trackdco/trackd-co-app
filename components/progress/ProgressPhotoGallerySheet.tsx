@@ -7,7 +7,6 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { CARD_EYEBROW, SHEET_TITLE } from "@/lib/ui-presets";
 import {
-  comparablePoses,
   formatPhotoDateRow,
   groupByMonth,
   poseLabel,
@@ -116,7 +115,12 @@ export function ProgressPhotoGallerySheet({
               )}
             </div>
 
-            {comparablePoses(photos).length > 0 && (
+            {/* Two photos is the gate, as it always was. Gating on
+                `comparablePoses` instead removed Compare from Progress for
+                anyone whose poses were each shot once, which was never the ask:
+                the chip CULL belongs inside the sheet, and its own fallback
+                already covers a set where nothing is comparable. */}
+            {photos.length >= 2 && (
               <button
                 type="button"
                 onClick={onCompare}

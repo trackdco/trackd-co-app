@@ -13,7 +13,11 @@ import {
   notifyStackChanged,
   type StackCompound,
 } from "@/lib/home/stack"
-import { saveDoseLogs, type DayLogs } from "@/lib/home/doseLog"
+import {
+  notifyDoseLogsChanged,
+  saveDoseLogs,
+  type DayLogs,
+} from "@/lib/home/doseLog"
 import type { DoseLog } from "@/lib/home/mockHomeData"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import type { StockItem } from "@/lib/db/inventory"
@@ -226,6 +230,11 @@ export function ProtocolPreview() {
     saveStack(USER, stack)
     saveDoseLogs(USER, logs)
     notifyStackChanged()
+    // `saveDoseLogs` is intentionally silent (doseLog.ts): the mutators notify.
+    // Writing the store directly means this owes the signal itself. Without it
+    // the seeded logs only appeared because `notifyStackChanged` happened to
+    // wake a subscriber in the same component.
+    notifyDoseLogsChanged()
   }, [stack, logs])
 
   if (!mounted) return null

@@ -1,5 +1,7 @@
 "use client"
 
+import { useMemo } from "react"
+
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
 import {
@@ -60,12 +62,43 @@ export function ScheduleGrid({
   todayKey: string
   /** The seven dates of the week being shown, Monday first. */
   weekDays: Date[]
-  /** Set when a wrapper (the week stepper) already titles the section, so the
-   *  heading is not printed twice. */
+  /** Set when a wrapper already titles the section, so the heading is not
+   *  printed twice. `ScheduleWeeks` is currently the only caller and always
+   *  passes it; the branch is kept because the grid is a general component and
+   *  losing its own heading would make it unusable anywhere else. */
   hideHeading?: boolean
 }) {
   const groups = groupByCategory(compounds)
   const scrolls = compounds.length > SCHEDULE_SCROLL_AFTER_ROWS
+
+  /**
+   * Every cell's state, computed ONCE per render.
+   *
+   * It used to be called three separate times per cell: once for the row's
+   * screen-reader summary, once for the `<Mark>`, and once more sweeping the
+   * whole grid to decide whether the key needed a Paused entry. Each call runs
+   * `resolveScheduleOn`, which copies and sorts `scheduleHistory`, so a stack of
+   * twenty edited compounds was doing on the order of a thousand array
+   * copy-and-sorts per render, and this component re-renders on every dose-log
+   * notification.
+   */
+  const cells = useMemo(() => {
+    const byCompound = new Map<string, CellState[]>()
+    for (const c of compounds) {
+      byCompound.set(
+        c.id,
+        weekDays.map((d) => weekCellState(c, d, logs, todayKey)),
+      )
+    }
+    return byCompound
+  }, [compounds, weekDays, logs, todayKey])
+
+  const stateOf = (c: StackCompound, i: number): CellState =>
+    cells.get(c.id)?.[i] ?? "none"
+  const anyPaused = useMemo(
+    () => [...cells.values()].some((row) => row.includes("paused")),
+    [cells],
+  )
 
   if (compounds.length === 0) return null
 
@@ -139,16 +172,12 @@ export function ScheduleGrid({
                     <span className="sr-only">
                       {weekDays
                         .map(
-                          (d, i) =>
-                            `${DAY_NAMES[i]} ${STATE_LABEL[weekCellState(c, d, logs, todayKey)]}`
+                          (_d, i) => `${DAY_NAMES[i]} ${STATE_LABEL[stateOf(c, i)]}`
                         )
                         .join(", ")}
                     </span>
-                    {weekDays.map((d) => (
-                      <Mark
-                        key={d.toISOString()}
-                        state={weekCellState(c, d, logs, todayKey)}
-                      />
+                    {weekDays.map((d, i) => (
+                      <Mark key={d.toISOString()} state={stateOf(c, i)} />
                     ))}
                   </div>
                 </div>
@@ -158,11 +187,7 @@ export function ScheduleGrid({
         })}
       </div>
 
-      <Key
-        showPaused={compounds.some((c) =>
-          weekDays.some((d) => weekCellState(c, d, logs, todayKey) === "paused"),
-        )}
-      />
+      <Key showPaused={anyPaused} />
       </div>
     </section>
   )
@@ -239,10 +264,6 @@ function Key({ showPaused }: { showPaused: boolean }) {
   )
 }
 
-/**
- * A mark's state, judged by the rule in force ON THAT DAY (`isDueOnFor`), so a
- * schedule changed since does not restate the past.
- */
 interface Group {
   cat: string
   compounds: StackCompound[]

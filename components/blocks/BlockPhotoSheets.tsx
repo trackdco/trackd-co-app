@@ -55,8 +55,10 @@ export function BlockPhotoSheets({
   const [compareOpen, setCompareOpen] = useState(false)
   const [viewing, setViewing] = useState<ProgressPhoto | null>(null)
   /** Where the viewer came from, so closing it returns there rather than to the
-   *  retrospective. Same idiom as `ProgressPhotoSection`'s `Return`. */
-  const [viewReturn, setViewReturn] = useState<"gallery" | "compare" | "none">("none")
+   *  retrospective. Same idiom as `ProgressPhotoSection`'s `Return`, minus its
+   *  edit path: the compare sheet exposes no `onView`, so the gallery is the
+   *  only surface a photo can be opened from here. */
+  const [viewReturn, setViewReturn] = useState<"gallery" | "none">("none")
 
   const range = `${formatPhotoDateShort(from)} to ${formatPhotoDateShort(to)}`
   /* Compare keeps the app's own title ("Compare"), so its scope line has to
@@ -65,7 +67,6 @@ export function BlockPhotoSheets({
 
   function returnFromViewer() {
     if (viewReturn === "gallery") onOpenChange(true)
-    else if (viewReturn === "compare") setCompareOpen(true)
     setViewReturn("none")
   }
 

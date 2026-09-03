@@ -770,6 +770,31 @@ hand-rolling animation per screen.
   class. Inline `animation-duration` / `transition-duration` longhands are safe.
   And an animation that ends at `opacity: 0` needs `display: none` under reduce,
   not just `animation: none`, or it strands itself visible on its first frame.
+- **The Schedule history** (Protocol) carries two beats, and they are the app's
+  first sanctioned DIRECTIONAL motion outside `/onboarding`. Both reinforce
+  meaning rather than decorating, which is the only reason they exist:
+
+  - **`animate-schedule-open`** — the card GROWS from its own top edge
+    (`scaleY` 0.94 → 1, 300ms) when tapped, so the thing you touched is visibly
+    the thing that opened. Y only: scaling both axes reads as a zoom, which is a
+    different gesture.
+  - **`animate-schedule-back` / `animate-schedule-forward`** — stepping a week
+    PARALLAXES. Both layers enter from the direction travelled, and the date
+    header (`.schedule-dayhead`) moves further than the compound rows
+    (`.schedule-group`): 26px against 10px, under 220ms. The depth is what makes
+    it read as the calendar moving rather than the card being redrawn. Adrian
+    chose this over a flat slide and a crossfade (2026-09-03) having seen all
+    three side by side.
+
+  **Two layers, never thirty-five.** No per-mark motion: a grid of dots
+  staggering in is decoration, and the ban below exists because movement competes
+  with figures being read. Distances are deliberately small because the animation
+  fires on every tap of an arrow the user may press repeatedly.
+
+  **Restart by class, not by `key`.** These replay via a ref that removes the
+  class, forces a reflow and re-adds it. Remounting the subtree to restart an
+  animation also throws away the grid's scroll position, which is a real bug on
+  a protocol long enough to scroll.
 - **Banned** — ambient / decorative motion: floating particles, meteor
   or hero effects, cursor-follow, scroll-triggered decorative lines.
   These are the clearest "AI-built" tell and steal attention from the data.

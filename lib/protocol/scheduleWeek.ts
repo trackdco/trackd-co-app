@@ -15,6 +15,7 @@
 
 import { isPausedOn } from "@/lib/home/pauses"
 import {
+  isCycleEnded,
   isDueOnFor,
   resolveScheduleOn,
   type StackCompound,
@@ -96,18 +97,46 @@ export function historyFloor(
   return mondayOf(first ?? todayKey)
 }
 
+/** True when the compound carries a DATED record of having been stopped, i.e.
+ *  when its history can place a delete on a day. */
+function hasDatedStop(c: StackCompound): boolean {
+  return (c.scheduleHistory ?? []).some((v) => v.stopped === true)
+}
+
 /**
  * Was the compound being run on this day? Dated, so it stays true for days
  * before a delete.
  *
- * Two gates: the run had begun (its earliest recorded start is on or before the
- * day) and no `stopped` version was in force. Deliberately NOT `isRunning`,
- * which reads the undated `archived` flag.
+ * Four gates, and the last two exist because the first version of this shipped
+ * without them and put phantom rows in the CURRENT week:
+ *
+ *  1. The run had begun (its earliest recorded start is on or before the day).
+ *  2. No `stopped` version was in force.
+ *  3. **Its cycle had not ended by then.** Spec 06 says a compound whose cycle
+ *     has ended behaves exactly like a deleted one, and `isRunning` gates on it.
+ *     Handing this module the full stack without re-applying the gate gave an
+ *     ended compound a permanent row of seven blank cells, which is precisely
+ *     the bug `ProtocolScreen` had already been fixed for once.
+ *  4. **A delete with no dated trail stops TODAY.** The dated `stopped` version
+ *     is what makes history answerable, but it is not guaranteed to exist: a
+ *     compound pulled from the cloud carries no schedule history, and
+ *     `pushScheduleVersions` no-ops against a database without the versions
+ *     table. Archived with no dated stop therefore means "deleted, date
+ *     unknown", and the honest reading is that it ran until now: past weeks keep
+ *     their rows, and the current week stops claiming doses are due for a
+ *     compound the user has deleted.
  */
-export function wasRunningOn(c: StackCompound, dateKey: string): boolean {
+export function wasRunningOn(
+  c: StackCompound,
+  dateKey: string,
+  todayKey: string,
+): boolean {
   const resolved = resolveScheduleOn(c, dateKey)
   if (resolved.stopped) return false
-  return resolved.schedule.startDate <= dateKey
+  if (resolved.schedule.startDate > dateKey) return false
+  if (isCycleEnded(c, dateKey)) return false
+  if (c.archived && !hasDatedStop(c) && dateKey >= todayKey) return false
+  return true
 }
 
 /**
@@ -124,9 +153,10 @@ export function wasRunningOn(c: StackCompound, dateKey: string): boolean {
 export function compoundsInWeek(
   compounds: StackCompound[],
   weekDays: Date[],
+  todayKey: string,
 ): StackCompound[] {
   const keys = weekDays.map(toDateKey)
-  return compounds.filter((c) => keys.some((k) => wasRunningOn(c, k)))
+  return compounds.filter((c) => keys.some((k) => wasRunningOn(c, k, todayKey)))
 }
 
 /** What a single day/compound mark shows. `paused` is new: the protocol has
@@ -148,37 +178,51 @@ export function weekCellState(
 ): WeekCellState {
   const key = toDateKey(date)
   // A day outside the run is blank rather than paused: nothing to pause.
-  if (!wasRunningOn(c, key)) return "none"
+  if (!wasRunningOn(c, key, todayKey)) return "none"
   if (isPausedOn(c.pauses, key)) return "paused"
   if (!isDueOnFor(c, date)) return "none"
   if (logs[key]?.[c.id]) return "logged"
   return key < todayKey ? "missed" : "due"
 }
 
-/** Doses logged and doses due across the week, for the tally under the grid.
- *  Paused days are in neither: they were never due, so counting one as missed
- *  would misstate the user's own adherence. */
+/**
+ * The week's tally, for the line under the grid.
+ *
+ * `due` counts only doses that have ALREADY come due, i.e. logged plus missed. A
+ * dose scheduled for Friday is not something you are behind on on Tuesday, and
+ * counting the whole week's schedule against what has been logged so far
+ * reported "1 of 7 logged" on a Tuesday and made the user look six doses down
+ * when five had not happened yet. This is the same reasoning that keeps paused
+ * doses out of the figure.
+ *
+ * `pausedDays` is DAYS, and named so, because it cannot honestly be doses: a
+ * pause covers a stretch of the calendar and only some of those days would have
+ * carried a dose. Reporting it as a bare number beside a dose count implied one
+ * unit while measuring another.
+ */
 export function weekTally(
   compounds: StackCompound[],
   weekDays: Date[],
   logs: DayLogs,
   todayKey: string,
-): { logged: number; due: number; paused: number } {
+): { logged: number; due: number; pausedDays: number } {
   let logged = 0
   let due = 0
-  let paused = 0
+  const pausedKeys = new Set<string>()
   for (const c of compounds) {
     for (const d of weekDays) {
       const state = weekCellState(c, d, logs, todayKey)
-      if (state === "paused") paused += 1
+      if (state === "paused") pausedKeys.add(toDateKey(d))
+      // Only what has come due. A future "due" mark is a plan, not a shortfall.
       if (state === "logged") {
         logged += 1
         due += 1
+      } else if (state === "missed") {
+        due += 1
       }
-      if (state === "missed" || state === "due") due += 1
     }
   }
-  return { logged, due, paused }
+  return { logged, due, pausedDays: pausedKeys.size }
 }
 
 /* ------------------------------------------------------------------ labels */
