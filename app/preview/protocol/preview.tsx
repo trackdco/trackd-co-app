@@ -7,7 +7,14 @@ import { BottomNav } from "@/components/navigation/bottom-nav"
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab"
 import { useMounted } from "@/components/home/useMounted"
 import { ProtocolScreen } from "@/components/protocol/ProtocolScreen"
-import { saveStack, notifyStackChanged, type StackCompound } from "@/lib/home/stack"
+import {
+  recordScheduleStop,
+  saveStack,
+  notifyStackChanged,
+  type StackCompound,
+} from "@/lib/home/stack"
+import { saveDoseLogs, type DayLogs } from "@/lib/home/doseLog"
+import type { DoseLog } from "@/lib/home/mockHomeData"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import type { StockItem } from "@/lib/db/inventory"
 
@@ -25,9 +32,10 @@ function dayOffset(days: number): string {
   return toDateKey(d)
 }
 
-function buildMock(): { stack: StackCompound[]; stock: StockItem[] } {
-  // Compounds started a fortnight ago, so the schedule grid has history to show.
-  const start = dayOffset(-14)
+function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLogs } {
+  // Ten weeks back, so the week stepper has real history to walk rather than
+  // one week and a wall.
+  const start = dayOffset(-70)
   const stack: StackCompound[] = [
     {
       id: "pv-test-e",
@@ -63,6 +71,68 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[] } {
       rotationIndex: 0,
     },
   ]
+
+  // A PAUSED compound, so the grid's pause glyph has something to draw. Paused
+  // for the whole of last week and still paused, which is the shape that reads
+  // as a row of pause bars rather than a gap.
+  stack.push({
+    id: "pv-nandrolone",
+    name: "Nandrolone",
+    category: "anabolic",
+    method: "im",
+    dose: 200,
+    unit: "mg",
+    schedule: { cadence: { type: "everyOtherDay" }, timeOfDay: "09:00", startDate: start },
+    rotationSites: [],
+    rotationIndex: 0,
+    pauses: [{ id: "pv-pause", startedOn: dayOffset(-13), endsOn: null }],
+  })
+
+  // DELETED MID-WEEK, which is Adrian's rule (2026-09-03): it keeps its row for
+  // the rest of that week and is gone from the next one. Delete writes a dated
+  // `stopped` version AND sets `archived`, so this mirrors both — and the grid
+  // must still show it in every week it actually ran in.
+  const trest: StackCompound = {
+    id: "pv-trestolone",
+    name: "Trestolone",
+    category: "anabolic",
+    method: "im",
+    dose: 50,
+    unit: "mg",
+    schedule: { cadence: { type: "daily" }, timeOfDay: "09:00", startDate: start },
+    rotationSites: [],
+    rotationIndex: 0,
+  }
+  const stoppedOn = dayOffset(-16)
+  stack.push({
+    ...trest,
+    archived: true,
+    scheduleHistory: recordScheduleStop(trest, stoppedOn),
+  })
+
+  // Adrian's own example (2026-09-03): creatine dosed nearly three years ago and
+  // then dropped. It is what gives the week stepper enough depth to show the
+  // label changing unit (weeks, then months, then years), and the two and a half
+  // years of nothing between it and the current run render as empty weeks, which
+  // is the honest answer rather than an error.
+  const creStart = dayOffset(-950)
+  const creatine: StackCompound = {
+    id: "pv-creatine",
+    name: "Creatine",
+    category: "supplement",
+    method: "po",
+    dose: 5,
+    unit: "g",
+    schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: creStart },
+    rotationSites: [],
+    rotationIndex: 0,
+  }
+  stack.push({
+    ...creatine,
+    archived: true,
+    scheduleHistory: recordScheduleStop(creatine, dayOffset(-880)),
+  })
+
   // Mock "stock left" (as v_inventory_math would derive it) for the Stock tab.
   const stock: StockItem[] = [
     {
@@ -118,18 +188,45 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[] } {
       totalBase: 5, // ~30% — shows a low bar
     },
   ]
-  return { stack, stock }
+  // Doses across the run, with a few deliberately skipped so past weeks show
+  // hollow "missed" rings rather than a clean sweep. The EARLIEST key here is
+  // what `historyFloor` uses as the back-stop, so this also decides how far the
+  // stepper can walk.
+  const dose = (amount: string, unit: string, time24: string): DoseLog => ({
+    amount,
+    unit,
+    siteId: null,
+    time24,
+  })
+  const logs: DayLogs = {}
+  for (let d = 950; d >= 880; d--) {
+    // The old creatine run. Its EARLIEST key is what `historyFloor` uses, so
+    // this is also what decides how far back the stepper can walk.
+    if (d % 3 === 0) continue
+    logs[dayOffset(-d)] = { "pv-creatine": dose("5", "g", "08:00") }
+  }
+  for (let d = 70; d >= 0; d--) {
+    const key = dayOffset(-d)
+    const day: Record<string, DoseLog> = {}
+    if (d % 2 === 0 && d % 11 !== 0) day["pv-test-e"] = dose("250", "mg", "09:00")
+    if (d % 9 !== 0) day["pv-ipa"] = dose("200", "mcg", "07:00")
+    if (d > 16 && d % 2 === 0) day["pv-trestolone"] = dose("50", "mg", "09:00")
+    if (Object.keys(day).length > 0) logs[key] = day
+  }
+
+  return { stack, stock, logs }
 }
 
 export function ProtocolPreview() {
   const mounted = useMounted()
-  const { stack, stock } = useMemo(() => buildMock(), [])
+  const { stack, stock, logs } = useMemo(() => buildMock(), [])
 
   // Seed the throwaway preview store (no setState here → no cascading render).
   useEffect(() => {
     saveStack(USER, stack)
+    saveDoseLogs(USER, logs)
     notifyStackChanged()
-  }, [stack])
+  }, [stack, logs])
 
   if (!mounted) return null
   return (

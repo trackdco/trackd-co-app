@@ -673,6 +673,95 @@ svg ::-moz-selection {
 }
 
 /* ---------------------------------------------------------------------------
+   Schedule history motion (Protocol). Two beats, both carrying meaning rather
+   than decorating: the card OPENING, and a week CHANGING.
+   --------------------------------------------------------------------------- */
+
+/* Expand — the card GROWS from its own top edge rather than fading in from
+   nowhere, so the thing you tapped is visibly the thing that opened (Adrian
+   chose this over a plain reveal, 2026-09-03). Scale on Y only: scaling both
+   axes reads as a zoom, which is a different gesture. */
+.animate-schedule-open {
+  animation: schedule-grow 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top center;
+}
+
+/* Stepping a week — PARALLAX (Adrian chose this over a flat slide or a fade,
+   2026-09-03). Both layers enter from the direction you travelled, so going
+   back moves the weeks rightward past you, and the DATE HEADER travels further
+   than the compound rows. The depth is what makes it read as the calendar
+   moving rather than the card being redrawn.
+
+   Two layers only, and no per-mark motion: thirty-five dots staggering in would
+   be decoration, and the ambient-motion ban exists because movement competes
+   with figures you are reading. Distances are small (26px and 10px) and the
+   whole thing is under 220ms, because it fires on every tap of a control the
+   user may hold down. */
+.animate-schedule-back .schedule-dayhead {
+  animation: schedule-back-far 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-schedule-back .schedule-group {
+  animation: schedule-back 190ms ease-out both;
+}
+.animate-schedule-forward .schedule-dayhead {
+  animation: schedule-forward-far 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-schedule-forward .schedule-group {
+  animation: schedule-forward 190ms ease-out both;
+}
+
+@keyframes schedule-grow {
+  from {
+    opacity: 0;
+    transform: scaleY(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes schedule-back-far {
+  from {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes schedule-forward-far {
+  from {
+    opacity: 0;
+    transform: translateX(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes schedule-back {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes schedule-forward {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    THE SAVE OFFER'S FLIP CLOCK (Adrian, 2026-08-25).
 
    One card per digit, MM:SS, with a hinge line through the middle — a split-flap
@@ -1101,6 +1190,11 @@ svg ::-moz-selection {
   .animate-home-up,
   .animate-notice-in,
   .animate-card-shake,
+  .animate-schedule-open,
+  .animate-schedule-back .schedule-dayhead,
+  .animate-schedule-back .schedule-group,
+  .animate-schedule-forward .schedule-dayhead,
+  .animate-schedule-forward .schedule-group,
   .animate-hero-card,
   .animate-hero-tick,
   .animate-hero-line,
