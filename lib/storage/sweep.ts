@@ -208,6 +208,63 @@ async function listFromRows(
   return { ok: true, paths };
 }
 
+/**
+ * ⚠️ EVERY BUCKET THE SWEEP IS ABOUT TO CLAIM IS ACTUALLY THERE AND VISIBLE.
+ *
+ * ## The hole this closes, measured against real Storage (2026-09-03)
+ *
+ *     UNREADABLE bucket   data = null   error = StorageApiError 403
+ *     EMPTY prefix        data = []     error = null
+ *     BUCKET DOES NOT EXIST   data = []     error = null      <-- identical
+ *
+ * `list()` distinguishes "could not read" from "nothing there", which is what
+ * the three-state rests on. It does NOT distinguish "nothing there" from **"this
+ * bucket does not exist"** — both answer an empty array with no error. So a typo
+ * in {@link SWEEP_BUCKETS}, or a bucket renamed or deleted in the dashboard,
+ * would list nothing, find nothing to delete, verify nothing remains, and report
+ * `swept` over a bucket that was never read. That is the same defect class the
+ * three-state exists to prevent, arriving through a different door.
+ *
+ * ## ⚠️ IT TESTS FOR PRESENCE, NOT FOR AN ERROR, AND THAT IS THE WHOLE POINT
+ *
+ * The obvious version checks `error` and moves on. It would fail OPEN, because
+ * of this, also measured:
+ *
+ *     service-role key   data = ["bloodwork","avatars","progress-photos","journal"]   error = null
+ *     invalid key        data = null   error = StorageApiError 403
+ *     ANON key           data = []     error = null      <-- no error, no buckets
+ *
+ * An under-privileged client is not refused by `listBuckets`; it is shown an
+ * empty world. So the test is that **all four expected buckets are PRESENT in
+ * the answer**. That single rule covers the errored read, the empty read and the
+ * short read, and there is no shape left in which "I could not see them" passes
+ * as "they are not there".
+ *
+ * Requires no privilege the sweep does not already need: the service-role client
+ * that has to delete these objects can list them.
+ */
+async function assertBucketsVisible(
+  client: SupabaseClient,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const { data, error } = await client.storage.listBuckets();
+
+  if (error) return { ok: false, reason: `listBuckets failed: ${error.message}` };
+  if (!data) return { ok: false, reason: "listBuckets returned no data and no error" };
+
+  const present = new Set(data.map((b) => b.id));
+  const missing = SWEEP_BUCKETS.filter((b) => !present.has(b));
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      reason:
+        `bucket(s) not visible to this client: ${missing.join(", ")}. ` +
+        `Either they do not exist, or this client cannot see them. ` +
+        `Both are reasons to refuse, never to report a clean sweep.`,
+    };
+  }
+  return { ok: true };
+}
+
 /** What happened to one bucket. `swept` is the only success. */
 export type BucketOutcome =
   | { bucket: SweepBucket; state: "swept"; deleted: number }
@@ -243,6 +300,27 @@ export async function sweepUserStorage(
   const prefix = userId;
   const buckets: BucketOutcome[] = [];
   const refusedOutOfPrefix: string[] = [];
+
+  /**
+   * ⚠️ BEFORE ANYTHING IS LISTED OR DELETED. See {@link assertBucketsVisible}.
+   *
+   * Every bucket resolves to `unknown` on failure rather than the loop being
+   * skipped silently, so the caller is told which buckets were not swept instead
+   * of receiving a short list it has to notice is short.
+   */
+  const visible = await assertBucketsVisible(client);
+  if (!visible.ok) {
+    return {
+      ok: false,
+      userId,
+      buckets: SWEEP_BUCKETS.map((bucket) => ({
+        bucket,
+        state: "unknown" as const,
+        reason: visible.reason,
+      })),
+      refusedOutOfPrefix: [],
+    };
+  }
 
   for (const bucket of SWEEP_BUCKETS) {
     // ── ENUMERATE ────────────────────────────────────────────────────────────

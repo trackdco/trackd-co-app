@@ -34,6 +34,12 @@ interface FakeOpts {
   removeIsALie?: SweepBucket[];
   /** buckets where `remove` errors but the objects DO go */
   removeErrorsButWorks?: SweepBucket[];
+  /** buckets `listBuckets` does NOT report — renamed, deleted, or invisible */
+  bucketsNotVisible?: SweepBucket[];
+  /** `listBuckets` itself errors */
+  listBucketsFails?: boolean;
+  /** `listBuckets` answers [] with no error, which is what an anon key does */
+  listBucketsEmpty?: boolean;
 }
 
 /**
@@ -64,6 +70,18 @@ function fakeClient(opts: FakeOpts) {
     calls,
     store,
     storage: {
+      async listBuckets() {
+        if (opts.listBucketsFails) {
+          return { data: null, error: { message: "Invalid Compact JWS" } };
+        }
+        // An anon key answers [] with NO error - measured, not assumed.
+        if (opts.listBucketsEmpty) return { data: [], error: null };
+        const hidden = new Set(opts.bucketsNotVisible ?? []);
+        return {
+          data: SWEEP_BUCKETS.filter((b) => !hidden.has(b)).map((id) => ({ id, name: id })),
+          error: null,
+        };
+      },
       from(bucket: SweepBucket) {
         return {
           async list(dir: string, { limit, offset }: { limit: number; offset: number }) {
@@ -234,6 +252,10 @@ describe("⚠️ COULD NOT READ IS NOT EMPTY", () => {
     const c = {
       ...inner,
       storage: {
+        // Overriding `storage` replaces the whole object, so the bucket
+        // existence check needs its own passthrough or the sweep refuses before
+        // it ever reaches the case under test.
+        listBuckets: inner.storage.listBuckets.bind(inner.storage),
         from(bucket: SweepBucket) {
           const real = inner.storage.from(bucket);
           return {
@@ -263,6 +285,56 @@ describe("⚠️ COULD NOT READ IS NOT EMPTY", () => {
     expect(r.ok).toBe(false);
     // And it did NOT delete on a half-known enumeration.
     expect([...c.store.get("journal")]).toEqual([`${USER}/a/p.jpg`]);
+  });
+});
+
+describe("⚠️ A BUCKET THAT IS NOT THERE IS NOT A BUCKET THAT IS EMPTY", () => {
+  // Measured against real Storage: a missing bucket answers `data: [], error:
+  // null` from list() - byte-identical to an empty one. Without the existence
+  // check the sweep reported `swept` over a bucket it never read.
+  it("refuses when a bucket is missing, and deletes NOTHING", async () => {
+    const c = fakeClient({
+      objects: { journal: [`${USER}/a/p.jpg`], bloodwork: [`${USER}/b/r.pdf`] },
+      bucketsNotVisible: ["avatars"],
+    });
+    const r = await sweepUserStorage(c, USER);
+
+    expect(r.ok).toBe(false);
+    expect(r.buckets.map((b) => b.state)).toEqual(["unknown", "unknown", "unknown", "unknown"]);
+    expect(r.buckets[0]).toMatchObject({ reason: expect.stringContaining("avatars") });
+    // ⚠️ It refused BEFORE touching anything. A half-swept account is worse than
+    // an unswept one, and the caller can retry once the bucket is back.
+    expect([...c.store.get("journal")]).toEqual([`${USER}/a/p.jpg`]);
+    expect([...c.store.get("bloodwork")]).toEqual([`${USER}/b/r.pdf`]);
+    expect(c.calls.remove).toBe(0);
+  });
+
+  it("⚠️ refuses an UNDER-PRIVILEGED client, which is shown an empty world", async () => {
+    // The measured trap: an anon key does not get an error from listBuckets, it
+    // gets []. A check that only tested `error` would have failed OPEN here and
+    // reported all four swept.
+    const c = fakeClient({ objects: { journal: [`${USER}/a/p.jpg`] }, listBucketsEmpty: true });
+    const r = await sweepUserStorage(c, USER);
+
+    expect(r.ok).toBe(false);
+    expect(r.buckets.every((b) => b.state === "unknown")).toBe(true);
+    expect(c.calls.remove).toBe(0);
+    expect([...c.store.get("journal")]).toEqual([`${USER}/a/p.jpg`]);
+  });
+
+  it("refuses when listBuckets itself errors", async () => {
+    const c = fakeClient({ listBucketsFails: true });
+    const r = await sweepUserStorage(c, USER);
+    expect(r.ok).toBe(false);
+    expect(r.buckets.every((b) => b.state === "unknown")).toBe(true);
+  });
+
+  it("still refuses BY ID before it ever asks about buckets", async () => {
+    // Ordering: an invalid id must not even reach the network.
+    const c = fakeClient({});
+    await expect(sweepUserStorage(c, "not-a-uuid")).rejects.toThrow(/BY ID ONLY/);
+    expect(c.calls.list).toBe(0);
+    expect(c.calls.remove).toBe(0);
   });
 });
 

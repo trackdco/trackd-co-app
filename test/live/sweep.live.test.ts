@@ -163,6 +163,33 @@ describe("⚠️ the assumptions the sweep rests on, measured against real Stora
     expect(data).toEqual([])
   })
 
+  it("⚠️ a MISSING bucket is indistinguishable from an empty one", async () => {
+    // The hole the existence check exists for. Both answer `[], null`, so
+    // nothing downstream of list() can tell them apart - which is why the check
+    // is at the bucket layer instead.
+    const missing = await admin.storage.from("does-not-exist").list("x", { limit: 100, offset: 0 })
+    expect(missing.error).toBeNull()
+    expect(missing.data).toEqual([])
+  })
+
+  it("⚠️ listBuckets shows an UNDER-PRIVILEGED client an empty world, not an error", async () => {
+    // Why the check tests for PRESENCE rather than for an error. An anon key is
+    // not refused here; it is shown nothing. A check that only inspected
+    // `error` would fail open on exactly this client.
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!anonKey) return // nothing to measure in this environment
+
+    const anon = createClient(URL_, anonKey, { auth: { autoRefreshToken: false, persistSession: false } })
+    const seen = await anon.storage.listBuckets()
+    expect(seen.error, "an anon key is not refused by listBuckets").toBeNull()
+    expect(seen.data, "it is shown an empty world instead").toEqual([])
+
+    // And the service role, which the sweep actually uses, sees all four.
+    const mine = await admin.storage.listBuckets()
+    expect(mine.error).toBeNull()
+    expect(new Set((mine.data ?? []).map((b) => b.id))).toEqual(new Set(SWEEP_BUCKETS))
+  })
+
   it("list() is ONE level deep and marks folders with a null id", async () => {
     await seedObjects(userId)
     const { data, error } = await admin.storage.from("journal").list(userId, { limit: 100, offset: 0 })
