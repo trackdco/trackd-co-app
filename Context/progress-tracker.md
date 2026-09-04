@@ -4127,6 +4127,27 @@ six rows across two other beta accounts, five of them carrying real doses — wa
 backfilled with a baseline at its first dose and a stop at its deactivation day.
 `still_undated` is now 0.
 
+A `/code-review high` pass caught five more, all fixed before the merge and all
+the same shape — a rule that was right in principle reaching further than its
+evidence:
+
+- The floor could move FORWARD. `created_at` is stamped when the ROW is
+  inserted, which for the batch migration, an offline add and a push refused by
+  the read-only gate is long after the day the app started watching. The merge
+  now takes the EARLIER of the pulled and the local floor, because too-early
+  only declines to blank while too-late deletes.
+- The same asymmetry a second time: `created_at.slice(0, 10)` is the UTC day, a
+  day late for anyone west of UTC adding in the evening. Now the earlier of the
+  UTC day and the device's own.
+- The off-schedule branch drew a SKIP as a dose taken, which is the one thing
+  `dayDoses` is written to prevent. `taken`, never `logged`.
+- The device prune could not see a custom compound's doses, which live in the
+  jsonb mirror — so a reinstall would have dropped a deleted custom carrying
+  months of history. Both sources are checked.
+- `hasLogOn` resolved the schedule to answer a key lookup, roughly doubling the
+  cost the single-pass `weekMatrix` exists to remove. `loggedCountFor` instead,
+  and `weekCellState` now resolves a day in one slot pass rather than two.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

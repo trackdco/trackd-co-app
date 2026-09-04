@@ -22,7 +22,7 @@ import {
   type StackCompound,
 } from "@/lib/home/stack"
 import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
-import { slotsForDay, type DayLogs } from "@/lib/home/doseLog"
+import { loggedCountFor, slotsForDay, type DayLogs } from "@/lib/home/doseLog"
 
 const DAY_MS = 86_400_000
 
@@ -171,11 +171,19 @@ export function wasRunningOn(c: StackCompound, dateKey: string): boolean {
  * wins, which is what lets the strict readings above be strict: they can only
  * ever remove marks from days that have nothing on them.
  *
- * A SKIP counts. It is the user saying "this was due and I did not take it",
- * which is the app watching the day just as much as a taken dose is.
+ * A SKIP counts HERE and nowhere else. It is the user saying "this was due and
+ * I did not take it", which is the app watching the day just as much as a taken
+ * dose is — but it is emphatically not a dose taken, and `weekCellState` keeps
+ * the two apart when it comes to drawing the mark.
+ *
+ * ⚠️ `loggedCountFor`, NOT `slotsForDay`. This runs once per compound per day of
+ * the week on a component that re-renders on every dose-log notification, and
+ * `slotsForDay` resolves the schedule to build the slots — the exact cost the
+ * single-pass `weekMatrix` was written to remove (measured at 1100 sorts and
+ * 20ms). A log is keyed by compound id and needs no schedule to find.
  */
 function hasLogOn(c: StackCompound, key: string, logs: DayLogs): boolean {
-  return slotsForDay(c, key, logs[key]).some((s) => s.log != null)
+  return loggedCountFor(logs[key], c.id) > 0
 }
 
 /**
@@ -214,7 +222,7 @@ function dayDoses(
   c: StackCompound,
   key: string,
   logs: DayLogs,
-): { due: number; taken: number } {
+): { due: number; taken: number; logged: boolean } {
   const slots = slotsForDay(c, key, logs[key])
   // `status !== "skipped"` is the same test `lib/progress/consistency.ts` uses,
   // and it is the whole point: a SKIPPED dose is due-and-not-taken. A bare
@@ -222,7 +230,10 @@ function dayDoses(
   // seven solid marks and claimed perfect adherence, which is exactly what that
   // module's own comment says must never happen.
   const taken = slots.filter((s) => s.log != null && s.log.status !== "skipped").length
-  return { due: slots.length, taken }
+  // Whether the day was WITNESSED, which a skip satisfies and `taken` does not.
+  // Returned from the same pass so the caller never walks the slots twice.
+  const logged = slots.some((s) => s.log != null)
+  return { due: slots.length, taken, logged }
 }
 
 /**
@@ -247,18 +258,27 @@ export function weekCellState(
   todayKey: string,
 ): WeekCellState {
   const key = toDateKey(date)
-  const logged = hasLogOn(c, key, logs)
+  // ONE slot pass for the whole decision. `logged` witnesses the day (a skip
+  // counts); `taken` is what was actually put in the body (a skip does not).
+  const { due, taken, logged } = dayDoses(c, key, logs)
   // A day outside the run is blank rather than paused: nothing to pause. A day
   // the app never observed is blank for a different reason and the same effect:
   // there is no evidence to draw. Neither can silence an actual LOG, which is
   // why the override sits in front of both.
   if (!logged && !wasRunningOn(c, key)) return "none"
   if (isPausedOn(c.pauses, key)) return "paused"
-  // Off the schedule but logged anyway (a dose taken on a rest day, a dose that
-  // outlived the rule it was taken under). Drawing it is the only honest answer:
-  // the alternative hides a dose the user definitely took.
-  if (!isDueOnFor(c, date)) return logged ? "logged" : "none"
-  const { due, taken } = dayDoses(c, key, logs)
+  /* Off the schedule but logged anyway: a dose taken on a rest day, or one that
+     outlived the rule it was taken under. Drawing a TAKEN dose is the only
+     honest answer, because the alternative hides something the user definitely
+     did.
+
+     ⚠️ `taken`, never `logged`. A SKIP on a day nothing was due is not a dose
+     taken and must not draw as one — the same defect `dayDoses` above is
+     written to prevent, which a bare "was anything logged" test walked straight
+     back into. There is no cell state for it and there should not be: the day
+     was not due, so it can be neither missed nor taken, and blank is what the
+     grid already says about a day that asked nothing of you. */
+  if (!isDueOnFor(c, date)) return taken > 0 ? "logged" : "none"
   if (due > 0 && taken >= due) return "logged"
   return key < todayKey ? "missed" : "due"
 }

@@ -199,6 +199,29 @@ function mergeAndSave(
     // cycle the user just set. Postgres wins when it actually knows one; the
     // device's own cycle survives when it does not.
     if (!merged.cycle && loc?.cycle) merged = { ...merged, cycle: loc.cycle }
+    /**
+     * The EVIDENCE FLOOR takes the EARLIER of the two, never the pulled one.
+     *
+     * `created_at` is stamped when the ROW is inserted, and the row is very
+     * often inserted long after the compound was added on the device: the
+     * `pushProtocolBatch` migration created every existing user's rows at once,
+     * an offline add lands whenever the connection comes back, and a push
+     * refused by the read-only gate lands whenever the account is paid up
+     * again. In all three the Postgres stamp is LATER than the day the app
+     * actually started watching.
+     *
+     * Overwriting with it would move the floor forward, and `wasObservedOn`
+     * would then blank genuinely observed missed doses out of the schedule grid
+     * and out of consistency — quietly, and for every already-migrated user.
+     * A floor that is too early only ever declines to blank; it is the safe
+     * direction, so it is the one taken whenever the two disagree.
+     */
+    const floors = [merged.createdAt, loc?.createdAt].filter(
+      (d): d is string => typeof d === "string",
+    )
+    if (floors.length > 0) {
+      merged = { ...merged, createdAt: floors.reduce((a, b) => (a < b ? a : b)) }
+    }
     // PAUSES, same bargain as the cycle and the version trail. Postgres is
     // canonical when it returns any — a reinstall must get the user's pauses
     // back — and the device's own survive when it returns none, which is every
@@ -265,10 +288,21 @@ function mergeAndSave(
   const seen = new Set(pgIds)
   const seenNames = new Set(reconciledPg.map((c) => nameKey(c.name)))
   const extras: StackCompound[] = []
-  /** Does the device hold any dose for this compound, on any day? */
+  /**
+   * Does ANY source hold a dose for this compound, on any day?
+   *
+   * Both the device cache and the jsonb mirror, because the prune below runs
+   * over both extra sources and they do not carry the same history. A custom
+   * compound's doses live in the MIRROR, so on a reinstall — the one moment
+   * the device cache is empty and the mirror is the whole record — checking
+   * the device alone would report "never dosed" for a deleted custom carrying
+   * months of them, and drop it while its logs were still being merged back in.
+   */
   const hasAnyLog = (id: string): boolean =>
-    Object.values(localLogs).some((day) =>
-      Object.keys(day ?? {}).some((k) => parseSlotKey(k).compoundId === id),
+    [localLogs, cloud.doseLogs].some((src) =>
+      Object.values(src).some((day) =>
+        Object.keys(day ?? {}).some((k) => parseSlotKey(k).compoundId === id),
+      ),
     )
   /**
    * Did the pull actually SAY anything? A failed read fast-fails to an empty

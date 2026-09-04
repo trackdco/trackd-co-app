@@ -15,7 +15,7 @@ import {
   type DateKey,
 } from "@/lib/home/mockHomeData";
 import { isDueOnFor, wasObservedOn, type StackCompound } from "@/lib/home/stack";
-import { slotsForDay, type DayLogs } from "@/lib/home/doseLog";
+import { loggedCountFor, slotsForDay, type DayLogs } from "@/lib/home/doseLog";
 
 export interface AdherencePoint {
   key: DateKey;
@@ -177,8 +177,10 @@ function adherenceOn(
   const dueCompounds = compounds.filter(
     (c) =>
       isDueOnFor(c, date) &&
-      (wasObservedOn(c, key) ||
-        slotsForDay(c, key, dayLogs).some((s) => s.log != null)),
+      // `loggedCountFor`, not `slotsForDay`: this only asks WHETHER the day
+      // carries a dose, which is a key lookup, and resolving the schedule to
+      // answer it would cost a sort per compound per day of the walk.
+      (wasObservedOn(c, key) || loggedCountFor(dayLogs, c.id) > 0),
   );
 
   // Counted in DOSES, not compounds. `dueIds.filter((id) => dayLogs[id])` tested

@@ -574,6 +574,25 @@ export function injectionSiteToLocal(
 }
 
 /**
+ * The evidence floor for a `protocol_compounds` row, as a local "YYYY-MM-DD",
+ * or `null` when the row carries no usable timestamp (in which case the record
+ * simply has no floor and behaves as it always did).
+ *
+ * See the call site for why this is the earlier of the UTC day and the device's
+ * own day rather than either one of them.
+ */
+function createdAtFloor(createdAt: unknown): { createdAt: string } | null {
+  if (typeof createdAt !== "string" || createdAt.length < 10) return null
+  const utcDay = createdAt.slice(0, 10)
+  const at = new Date(createdAt)
+  if (Number.isNaN(at.getTime())) return { createdAt: utcDay }
+  const localDay = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(
+    at.getDate(),
+  ).padStart(2, "0")}`
+  return { createdAt: localDay < utcDay ? localDay : utcDay }
+}
+
+/**
  * A `protocol_compounds` row (+ its joined catalogue name/category) → a live
  * `StackCompound`, so the Home flip can present Postgres data through the existing
  * store shape with no UI change. The inverse of {@link stackCompoundToProtocolInsert}.
@@ -608,13 +627,20 @@ export function protocolCompoundToStack(
     // The day the RECORD appeared, which Postgres has always stamped and the
     // device store had no field for. It is the app's own evidence floor: no day
     // before it can be called a missed dose, because there was nothing here to
-    // miss it with (see `wasObservedOn`). Sliced off the timestamp rather than
-    // derived from it in the device's timezone — a row created at 23:40 UTC
-    // would otherwise be stamped a day late in Sydney and blank the compound's
-    // first day, and a floor is only useful if it never moves.
-    ...(typeof pc.created_at === "string" && pc.created_at.length >= 10
-      ? { createdAt: pc.created_at.slice(0, 10) }
-      : {}),
+    // miss it with (see `wasObservedOn`).
+    //
+    // ⚠️ THE EARLIER OF THE TWO READINGS OF THE SAME INSTANT, and that is the
+    // whole subtlety. `created_at` is UTC; the day the user was standing in is
+    // their local one, and the two disagree either side of midnight. Slicing the
+    // UTC string alone is a day LATE for anyone west of UTC who adds something
+    // in the evening, which blanks the compound's real first day. Deriving the
+    // local day alone moves the floor if the user later changes timezone.
+    //
+    // Taking the earlier is safe in a way neither is on its own, because the two
+    // errors are not symmetrical: a floor that is too early merely declines to
+    // blank a day it could have blanked, while a floor that is too late erases a
+    // day the app genuinely watched. Only one of those can lose data.
+    ...(createdAtFloor(pc.created_at) ?? {}),
     // The cycle must come BACK as well as go out. Without this the pulled row has
     // no cycle, hydration overwrites the local record with it, and a cycle the
     // user just set disappears on the next mount/focus.

@@ -367,6 +367,55 @@ describe("a back-dated start is a claim, not an observed run", () => {
   })
 })
 
+describe("a SKIP never draws as a dose taken, on or off the schedule", () => {
+  /* `dayDoses` has always kept the two apart. The off-schedule branch added
+     alongside the evidence rule tested "was anything logged", which let a skip
+     on a day nothing was due draw a solid taken mark — the exact defect that
+     module's own comment forbids, walked back in through a new door. */
+  const twiceWeekly = compound({
+    schedule: {
+      cadence: { type: "daysOfWeek", days: [1, 4] },
+      timeOfDay: "08:00",
+      startDate: "2026-01-01",
+    },
+  } as Partial<StackCompound>)
+  const week = weekDaysFrom(MON) // Mon 17 Aug; the compound is due Mon and Thu
+
+  it("leaves an off-schedule skip blank rather than logged", () => {
+    // Tuesday is not a dose day for this compound.
+    const skipped = {
+      "2026-08-18": { c1: { id: "l1", status: "skipped" } },
+    } as unknown as DayLogs
+    expect(weekCellState(twiceWeekly, week[1], skipped, TODAY)).toBe("none")
+  })
+
+  it("still draws an off-schedule dose that was TAKEN", () => {
+    const taken = { "2026-08-18": { c1: { id: "l1" } } } as unknown as DayLogs
+    expect(weekCellState(twiceWeekly, week[1], taken, TODAY)).toBe("logged")
+  })
+
+  it("counts an off-schedule skip toward neither figure", () => {
+    const skipped = {
+      "2026-08-18": { c1: { id: "l1", status: "skipped" } },
+    } as unknown as DayLogs
+    const m = weekMatrix([twiceWeekly], week, skipped, TODAY)
+    expect(m.logged).toBe(0)
+    // Monday and Thursday are the only due doses in the week; the Tuesday skip
+    // adds nothing to the denominator, because nothing was due on Tuesday.
+    expect(m.due).toBe(2)
+  })
+
+  it("but a skip still WITNESSES the day, so the row survives", () => {
+    // The compound is deleted with no dated stop, which alone would blank it
+    // everywhere. The skip is proof the app was there, so the week keeps it.
+    const noTrail = { ...twiceWeekly, archived: true }
+    const skipped = {
+      "2026-08-18": { c1: { id: "l1", status: "skipped" } },
+    } as unknown as DayLogs
+    expect(compoundsInWeek([noTrail], week, skipped)).toHaveLength(1)
+  })
+})
+
 describe("weekMatrix counts only what has come due", () => {
   const daily = compound()
   const days = weekDaysFrom(MON)
