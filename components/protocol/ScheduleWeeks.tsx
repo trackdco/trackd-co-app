@@ -143,8 +143,8 @@ export function ScheduleWeeks({
      week had not. */
   const weekDays = useMemo(() => weekDaysFrom(monday), [monday])
   const rows = useMemo(
-    () => compoundsInWeek(compounds, weekDays, todayKey),
-    [compounds, weekDays, todayKey],
+    () => compoundsInWeek(compounds, weekDays, logs),
+    [compounds, weekDays, logs],
   )
   /* Marks and figures from ONE pass, so the grid does not recompute what the
      tally already worked out. */

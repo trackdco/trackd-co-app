@@ -120,3 +120,54 @@ describe("consistency counts DOSES, and a skip is not a dose taken", () => {
     expect(pts[0]).toMatchObject({ due: 0, logged: 0, pct: null })
   })
 })
+
+/**
+ * A back-dated start is a claim about the past; it is not a stretch the app
+ * observed. Counting it made consistency a statement about days nobody tracked,
+ * and always in the same direction, because a day with no app on it has no logs.
+ */
+describe("consistency only counts days the app was there for", () => {
+  const daily = (over: Partial<StackCompound> = {}): StackCompound => ({
+    id: "c1",
+    name: "Vitamin D3",
+    category: "supplement",
+    method: "po",
+    dose: 5000,
+    unit: "iu",
+    schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: "2026-07-01" },
+    rotationSites: [],
+    rotationIndex: 0,
+    ...over,
+  })
+
+  it("ignores days before the record was created", () => {
+    // Added on 10 July, start back-dated to 1 July, nothing logged. The nine
+    // days in between are unknown, not missed.
+    const c = daily({ createdAt: "2026-07-10" })
+    const pts = computeAdherenceOver([c], {}, "2026-07-01", "2026-07-09")
+    expect(pts.every((p) => p.due === 0)).toBe(true)
+    expect(overallPct(pts)).toBeNull()
+  })
+
+  it("counts from the day the record existed", () => {
+    const c = daily({ createdAt: "2026-07-10" })
+    const pts = computeAdherenceOver([c], {}, "2026-07-10", "2026-07-11")
+    expect(pts.map((p) => p.due)).toEqual([1, 1])
+    expect(overallPct(pts)).toBe(0)
+  })
+
+  it("counts a back-filled dose on an unobserved day", () => {
+    // The user entered it, so it happened, so it counts. The blank days around
+    // it still do not.
+    const c = daily({ createdAt: "2026-07-10" })
+    const logs = { "2026-07-03": { c1: { id: "l1" } } } as never
+    const pts = computeAdherenceOver([c], logs, "2026-07-01", "2026-07-05")
+    expect(pts.map((p) => p.due)).toEqual([0, 0, 1, 0, 0])
+    expect(overallPct(pts)).toBe(100)
+  })
+
+  it("changes nothing for a record with no creation date", () => {
+    const pts = computeAdherenceOver([daily()], {}, "2026-07-01", "2026-07-03")
+    expect(pts.map((p) => p.due)).toEqual([1, 1, 1])
+  })
+})

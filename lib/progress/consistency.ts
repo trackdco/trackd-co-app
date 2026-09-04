@@ -14,7 +14,7 @@ import {
   resolveDateKey,
   type DateKey,
 } from "@/lib/home/mockHomeData";
-import { isDueOnFor, type StackCompound } from "@/lib/home/stack";
+import { isDueOnFor, wasObservedOn, type StackCompound } from "@/lib/home/stack";
 import { slotsForDay, type DayLogs } from "@/lib/home/doseLog";
 
 export interface AdherencePoint {
@@ -159,10 +159,27 @@ function adherenceOn(
   key: DateKey,
 ): AdherencePoint {
   const date = dateKeyToDate(key);
+  const dayLogs = logs[key] ?? {};
   // Judged by the rule in force on that day — consistency must not be
   // recomputed against a schedule the user only adopted later.
-  const dueCompounds = compounds.filter((c) => isDueOnFor(c, date));
-  const dayLogs = logs[key] ?? {};
+  //
+  // ⚠️ AND ONLY FOR DAYS THE APP WAS THERE FOR. A start date may be back-dated
+  // on purpose ("I have been running this for three months"), and every day
+  // between that start and the day the record was created has no evidence
+  // behind it. Counting them made the percentage a statement about a stretch
+  // nobody tracked, always in the same direction: the doses were never logged,
+  // because there was nothing to log them with, so back-dating a start by a
+  // month silently deducted a month of misses from the user's figure.
+  //
+  // A LOG on the day overrides it, and has to: someone who back-dates a start
+  // AND back-fills the doses is telling us exactly what happened, and their
+  // work must count. See `wasObservedOn`.
+  const dueCompounds = compounds.filter(
+    (c) =>
+      isDueOnFor(c, date) &&
+      (wasObservedOn(c, key) ||
+        slotsForDay(c, key, dayLogs).some((s) => s.log != null)),
+  );
 
   // Counted in DOSES, not compounds. `dueIds.filter((id) => dayLogs[id])` tested
   // slot 0 alone, so a twice-daily compound counted once and its morning dose

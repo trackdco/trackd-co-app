@@ -4081,6 +4081,52 @@ Also note `npm run check` runs all four steps again: the 19 duplicated
 - `blocks/schedule-weeks`, `blocks/block-weight` and `blocks/block-photos` are
   fully contained in main and are deletable once the deploy is verified.
 
+## The schedule stopped inventing history (2026-09-03)
+
+Adrian stepped the Schedule grid back through his own weeks and found compounds
+he was not running: Testosterone Cypionate and 5-Amino-1MQ in the CURRENT week,
+and roughly a dozen ancillaries filling the weeks behind it, every one of them
+marked missed. Postgres was right the whole time — his account held three
+active compounds — so this was the view fabricating a past, not the store
+losing one.
+
+Two independent causes, both now closed at the cause:
+
+1. **A delete with no dated stop claimed every past day.** `wasRunningOn` treated
+   "archived, date unknown" as "it ran until today", which cannot lose: no past
+   day has a log, so every past day was a miss, forever. Both of the current
+   week's ghosts were deleted in July, before the app wrote dated stops at all.
+   It now claims NO day, and the days such a compound genuinely ran are drawn
+   from its logs instead.
+2. **A back-dated start was read as an observed run.** The add form deliberately
+   lets a start sit in the past, and nothing recorded when the app actually
+   started watching. Three of Adrian's compounds were added on 7 August with a
+   start of 24 July and no dose ever logged, and the grid drew a fortnight of
+   solid misses for days that predate the records. `StackCompound.createdAt`
+   (mirroring `protocol_compounds.created_at`) is now the evidence floor:
+   `wasObservedOn` refuses to call anything before it a miss.
+
+**The rule both share, and the one to hold on to: a logged dose is evidence and
+the schedule is an inference.** Where they disagree the log wins, so both
+readings above can be strict without ever hiding something the user entered.
+
+The same gate went into `lib/progress/consistency.ts`, which had the identical
+back-dating flaw and always in the user's disfavour — back-dating a start by a
+month silently deducted a month of misses from the figure.
+
+Two sync holes were closed alongside it, because the database fix would not have
+held without them: the hydration flush no longer MINTS a `protocol_compounds`
+row for a deleted, never-logged compound (that is how a purged record comes
+back), and the merge now PRUNES such a record from the device when the pull
+confirms Postgres has no row for it.
+
+Data, applied to prod: Adrian's eleven test compounds (all inactive, all with
+zero dose logs) were hard-deleted; Creatine was kept, being deleted but real.
+Every remaining inactive compound in the database that lacked a dated stop —
+six rows across two other beta accounts, five of them carrying real doses — was
+backfilled with a baseline at its first dose and a stop at its deactivation day.
+`still_undated` is now 0.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth
