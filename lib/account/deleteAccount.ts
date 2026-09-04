@@ -137,9 +137,45 @@ export const liveSteps: DeletionSteps = {
     const { error } = await adminClient().auth.admin.deleteUser(userId);
     // ⚠️ The Supabase client RETURNS this error rather than throwing it.
     // Destructuring and ignoring it is how a teardown silently does nothing.
-    if (error) throw new Error(`auth user delete failed: ${error.message}`);
+    if (error && !alreadyGone(error)) {
+      throw new Error(`auth user delete failed: ${error.message}`);
+    }
   },
 };
+
+/**
+ * ⚠️ "THIS USER DOES NOT EXIST" IS THE GOAL STATE, NOT A FAILURE.
+ *
+ * ## The defect this exists for, found by driving it
+ *
+ * The live drive ran a deletion twice on the same id — the retry a half-failed
+ * deletion makes, and the one §5 requires to "complete cleanly". The second run
+ * swept correctly, deleted no rows because there were none, and then **failed on
+ * `delete-auth-user` with "User not found"**.
+ *
+ * The user-visible consequence is the worst available lie. The action turns any
+ * failure into *"Your account could not be deleted. Nothing has been removed."*
+ * — so somebody retrying after a partial failure would be told their data was
+ * intact **at the exact moment it had all just been erased.** They would go
+ * looking for an account that no longer exists.
+ *
+ * ## Why this is narrow, and why it is not "ignore the error"
+ *
+ * Only absence counts. A 404, or Supabase's `user_not_found` code, means the
+ * post-condition this step exists to achieve is already true — there is nothing
+ * to do and nothing went wrong. Every other error still throws, including a
+ * network failure, a permission problem and a 500, because none of those tells
+ * us the user is gone.
+ *
+ * ⚠️ Deliberately NOT a message match alone. `error.message` is vendor prose and
+ * can be reworded in a patch release; the status and code are the contract. The
+ * message is checked last and only as a fallback.
+ */
+function alreadyGone(error: { status?: number; code?: string; message?: string }): boolean {
+  if (error.status === 404) return true;
+  if (error.code === "user_not_found") return true;
+  return /user not found/i.test(error.message ?? "");
+}
 
 /**
  * Run the four steps in order, stopping at the first failure.

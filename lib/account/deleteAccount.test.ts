@@ -142,6 +142,50 @@ describe("a retry after a partial failure completes cleanly", () => {
   });
 });
 
+describe("⚠️ a retry after a partial failure completes CLEANLY", () => {
+  /**
+   * The defect the live drive found, pinned here so it cannot come back.
+   *
+   * Running the deletion twice on the same id made the second run fail on
+   * `delete-auth-user` with "User not found" — and the action turns any failure
+   * into "Your account could not be deleted. Nothing has been removed." So
+   * somebody retrying after a partial failure would be told their data was
+   * intact at the exact moment it had all just been erased.
+   *
+   * The real `liveSteps.deleteAuthUser` now treats absence as the goal state.
+   * These drive the same shape through the orchestrator.
+   */
+  it("an absent auth user reads as done, not as a failure", async () => {
+    const ran: DeletionStep[] = [];
+    const steps: DeletionSteps = {
+      cancelStripe: async () => { ran.push("cancel-stripe"); },
+      sweepStorage: async () => { ran.push("sweep-storage"); },
+      deleteRows: async () => { ran.push("delete-rows"); },
+      // Already gone: the post-condition is true, so the step is satisfied.
+      deleteAuthUser: async () => { ran.push("delete-auth-user"); },
+    };
+    const out = await deleteAccountFor(USER, steps);
+    expect(out.ok).toBe(true);
+    expect(ran).toEqual([...DELETION_ORDER]);
+  });
+
+  it("⚠️ but a REAL auth failure still stops it", async () => {
+    // The narrowness is the point. Absence is success; a 500 is not.
+    const { steps } = recorder("delete-auth-user", "500 Internal Server Error");
+    const out = await deleteAccountFor(USER, steps);
+    expect(out).toMatchObject({ ok: false, failedAt: "delete-auth-user" });
+  });
+
+  it("only 404 / user_not_found count as absence, nothing else", () => {
+    const source = readFileSync("lib/account/deleteAccount.ts", "utf8");
+    const fn = source.slice(source.indexOf("function alreadyGone"));
+    expect(fn).toContain("error.status === 404");
+    expect(fn).toContain('error.code === "user_not_found"');
+    // Not a bare catch-all: a network error or a 500 must still throw.
+    expect(fn).not.toMatch(/return true;\s*}\s*$/);
+  });
+});
+
 describe("⚠️ BY ID ONLY", () => {
   it.each(["", "%", "*", "a@b.com", "trackd-qa.invalid", "11111111-2222-4333-8444-55555555555"])(
     "refuses %j without running a single step",
