@@ -16,10 +16,9 @@ import {
 } from "@/lib/progress/journal";
 import { markerAppliesTo } from "@/lib/progress/markerApplicability";
 import type { ProgressPhoto } from "@/lib/progress/photos";
+import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 
 export const metadata: Metadata = { title: "Progress · Trackd Co" };
-
-const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every page load
 
 // Progress tab root. The (app) layout already enforced auth + the 18+/ToS gate.
 // This server wrapper fetches each section's user-scoped data (RLS does the

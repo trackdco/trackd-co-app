@@ -14,10 +14,9 @@ import {
 } from "@/lib/progress/journal";
 import type { CalendarPhoto } from "@/lib/calendar/calendar";
 import { bodySexFor } from "@/lib/db/types";
+import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 
 export const metadata: Metadata = { title: "Calendar · Trackd Co" };
-
-const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every page load
 
 /**
  * The Calendar tab's route — reached from the calendar shortcut on the Dashboard

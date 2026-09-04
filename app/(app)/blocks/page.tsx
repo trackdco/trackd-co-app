@@ -8,11 +8,10 @@ import { toDateKey } from "@/lib/home/mockHomeData";
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
 import type { JournalEntry } from "@/lib/progress/journal";
 import type { ProgressPhoto } from "@/lib/progress/photos";
+import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 
 // A tab title is a user-facing string, so the no-em-dash rule applies to it too.
 export const metadata: Metadata = { title: "Blocks · Trackd Co" };
-
-const SIGNED_URL_TTL = 60 * 60; // 1h — regenerated on every page load
 
 /**
  * A ceiling on every per-user read here.
