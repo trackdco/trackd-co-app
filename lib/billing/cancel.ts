@@ -406,11 +406,33 @@ export async function applyCancelFlag(
  * above. Stripe does not refund the remainder and this does not ask it to; that
  * is a support decision, made by a person, with the invoice in front of them.
  *
- * ## Idempotent
+ * ## Idempotent — and ⚠️ NOT for the reason this comment used to give
  *
- * A subscription Stripe has already ended returns its `canceled` object rather
- * than erroring, and an account with no subscription returns an empty list. Safe
- * to run again if a deletion is retried.
+ * It said: "a subscription Stripe has already ended returns its `canceled`
+ * object rather than erroring". That is true of Stripe and it is **not where the
+ * idempotence comes from**, because on a retry that call is never made.
+ *
+ * The retry finds nothing to cancel. {@link liveSubscriptionsForUser} filters on
+ * {@link BILLABLE_STATUSES}, and `canceled` is not in that set — nor is
+ * `incomplete_expired`. So a subscription this function ended on the first run is
+ * **filtered out of the second run's list entirely** and `subscriptions.cancel()`
+ * is not called on it at all. The status filter is the mechanism; Stripe's
+ * tolerance is a backstop behind it.
+ *
+ * That distinction is not pedantry. It says where to look when a retry
+ * misbehaves: at the STATUS SET, not at Stripe's response. Widening
+ * `BILLABLE_STATUSES` to include a terminal status would make every retry
+ * re-issue a cancel, and the only thing standing between that and an error is
+ * Stripe's tolerance — which is a vendor behaviour this project does not control
+ * and has never measured.
+ *
+ * Stripe's tolerance does still cover one real case: a subscription that turns
+ * `canceled` BETWEEN the list and the cancel, which is two concurrent deletion
+ * retries racing. That window is why the loop below catches per-id rather than
+ * letting one failure abort the sweep.
+ *
+ * An account with no `billing_customers` row returns an empty list before Stripe
+ * is contacted at all. Safe to run again if a deletion is retried.
  */
 export async function cancelNowForUser(userId: string): Promise<{
   cancelled: string[];
