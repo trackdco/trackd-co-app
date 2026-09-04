@@ -1,0 +1,85 @@
+-- ============================================================
+--  Take TRUNCATE off the two PostgREST API roles.
+--
+--  ⚠️ WRITTEN, NOT RUN. Hand-applied by Adrian. (Audit, 2026-09-03.)
+--
+--  WHAT WAS FOUND, from production rather than from a migration file:
+--    has_table_privilege('anon',          <table>, 'TRUNCATE')  -> true, 41/41
+--    has_table_privilege('authenticated', <table>, 'TRUNCATE')  -> true, 41/41
+--
+--  ⚠️ RLS DOES NOT RESTRICT TRUNCATE. Row-level security gates rows; TRUNCATE
+--  is a table-level privilege that removes every row without consulting a
+--  policy. So the own-rows model that protects `dose_logs`, `lab_panels`,
+--  `progress_photos` and the rest says nothing at all about this verb.
+--
+--  ── WHERE IT CAME FROM ──────────────────────────────────────────────────
+--  NOT from a mistake in this project. It is Supabase's platform default, and
+--  it was noticed and written down at the time — `grants/001_api_role_grants
+--  .sql` lines 11-12 say the defaults "do NOT auto-grant DML to
+--  anon/authenticated (they carry only REFERENCES/TRIGGER/TRUNCATE)". That
+--  migration then granted the DML it needed and left the inherited three alone.
+--
+--  ── WHAT WOULD BREAK IF THIS WERE APPLIED: NOTHING ──────────────────────
+--  Searched every tracked file for a SQL TRUNCATE. There is not one. Every
+--  match in the repository is the Tailwind class `truncate` or the local
+--  text-shortening helper in `components/blocks/BlockRetrospective.tsx:571`.
+--  Nothing in the app, the harness, the seeds or the migrations issues a
+--  TRUNCATE as either role.
+--
+--  ⚠️ AND IT IS NOT REACHABLE TODAY, WHICH IS WHY THIS IS HARDENING RATHER
+--  THAN AN INCIDENT. PostgREST exposes no TRUNCATE verb, so there is no known
+--  path from a browser to this privilege. What is being removed is a standing
+--  capability that nothing needs and that RLS would not catch if a path to it
+--  ever appeared — a new RPC with SECURITY DEFINER, a future Data API feature,
+--  or a direct connection using the anon role.
+--
+--  REFERENCES and TRIGGER are deliberately left alone. REFERENCES only allows
+--  creating a foreign key toward the table, which requires CREATE on a schema
+--  these roles do not have; TRIGGER likewise needs table ownership in practice.
+--  Neither destroys data. This migration changes exactly one thing.
+-- ============================================================
+
+REVOKE TRUNCATE ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+
+-- ⚠️ FUTURE TABLES ARE NOT COVERED BY THE LINE ABOVE, and that is the half a
+-- one-shot REVOKE always misses. `ALTER DEFAULT PRIVILEGES` in this project
+-- (`grants/002_service_role_grants.sql:23-24`) names only `service_role`, so no
+-- project migration re-grants TRUNCATE — but the PLATFORM default is what put
+-- it there in the first place, and a table created through the Supabase
+-- dashboard may inherit it again.
+--
+-- So this states the intent explicitly for anything created later by the role
+-- that applies migrations. It is a no-op where nothing was going to be granted.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRUNCATE ON TABLES FROM anon, authenticated;
+
+
+-- ============================================================
+--  VERIFY — run this AFTER, and read the numbers rather than the absence of
+--  an error. A REVOKE on a privilege that was not held succeeds silently, so
+--  "no error" proves nothing on its own.
+--
+--  EXPECTED: two rows, both with truncate_on = 0, and select_on/insert_on
+--  UNCHANGED from the values in the comment beside each.
+-- ============================================================
+-- select 'anon' as role,
+--        count(*) filter (where has_table_privilege('anon', c.oid, 'TRUNCATE')) as truncate_on,   -- expect 0 (was 41)
+--        count(*) filter (where has_table_privilege('anon', c.oid, 'SELECT'))   as select_on,     -- expect 1, unchanged
+--        count(*) filter (where has_table_privilege('anon', c.oid, 'INSERT'))   as insert_on      -- expect 1, unchanged
+--   from pg_class c join pg_namespace n on n.oid = c.relnamespace
+--  where n.nspname = 'public' and c.relkind = 'r'
+--  union all
+-- select 'authenticated',
+--        count(*) filter (where has_table_privilege('authenticated', c.oid, 'TRUNCATE')),          -- expect 0 (was 41)
+--        count(*) filter (where has_table_privilege('authenticated', c.oid, 'SELECT')),            -- expect 40, unchanged
+--        count(*) filter (where has_table_privilege('authenticated', c.oid, 'INSERT'))             -- expect 30, unchanged
+--   from pg_class c join pg_namespace n on n.oid = c.relnamespace
+--  where n.nspname = 'public' and c.relkind = 'r';
+--
+--  ⚠️ IF select_on OR insert_on MOVED, STOP AND ROLL BACK. This migration must
+--  change one verb. A drop in either of those columns means the REVOKE reached
+--  further than intended and the app is about to start returning 42501
+--  "permission denied for table", which is the exact failure
+--  `grants/001_api_role_grants.sql` was written to fix.
+--
+--  ROLLBACK, if ever needed (it restores a privilege nothing uses):
+--    GRANT TRUNCATE ON ALL TABLES IN SCHEMA public TO anon, authenticated;
