@@ -6,6 +6,7 @@ import { entitlementFacts } from "@/lib/billing/entitlements";
 import { billingGateEnabled } from "@/lib/billing/gate";
 import { planLabelFor } from "@/lib/billing/manage";
 import { accountNameFor } from "@/lib/profile/name";
+import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Profile · Trackd Co" };
@@ -41,7 +42,7 @@ export default async function ProfilePage() {
   if (profile?.avatar_path) {
     const { data: signed } = await supabase.storage
       .from("avatars")
-      .createSignedUrl(profile.avatar_path, 3600);
+      .createSignedUrl(profile.avatar_path, SIGNED_URL_TTL);
     avatarUrl = signed?.signedUrl ?? null;
   }
 
