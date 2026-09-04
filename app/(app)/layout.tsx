@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
 import { ReadOnlyProvider } from "@/components/billing/ReadOnlyGate";
+import { SignedImageRecovery } from "@/components/media/SignedImageRecovery";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { SyncStatusNotice } from "@/components/notifications/SyncStatusNotice";
 import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
@@ -109,6 +110,9 @@ export default async function AppLayout({
       <BottomNav />
       <QuickActionsFab userId={user.id} unit={unit} bodySex={bodySex} />
       <SyncStatusNotice />
+      {/* Re-signs a storage image whose five-minute URL expired while the tab
+          sat open. Error-driven, never scheduled — see the component. */}
+      <SignedImageRecovery />
       <ServiceWorkerRegistrar />
       {/* Portrait fallback for the browser case the manifest cannot reach. Waits
           for a SUSTAINED landscape and can be dismissed — see the component. */}
