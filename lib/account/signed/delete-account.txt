@@ -1,0 +1,8 @@
+Are you sure you want to delete your account?
+All of your compounds, doses, photos, bloodwork and metrics will be completely erased and unrecoverable.
+Type DELETE to confirm
+DELETE
+Yes, delete my account
+I'd rather stay
+You have a refund request open. Deleting your account will remove it, and we will not be able to follow up with you here.
+Your subscription will be cancelled. Any remaining paid time ends when your account is deleted, and no further charges will be made.

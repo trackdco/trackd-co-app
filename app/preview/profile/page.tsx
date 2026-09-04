@@ -58,6 +58,13 @@ export default async function PreviewProfilePage({
           hasName={!bare}
           email="adrian@trackdco.app"
           planLabel="Beta · Pro"
+          // Both conditional blocks in the deletion dialog default to ABSENT
+          // here, which is the shape every real account has today: no comp
+          // account holds a Stripe customer, and spec 10 was never built so no
+          // refund request can exist. Both branches are driven for real rather
+          // than eyeballed here.
+          hasBillableSubscription={false}
+          hasOpenRefundRequest={false}
           physical={
             bare
               ? {

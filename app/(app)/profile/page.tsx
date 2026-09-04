@@ -6,6 +6,8 @@ import { entitlementFacts } from "@/lib/billing/entitlements";
 import { billingGateEnabled } from "@/lib/billing/gate";
 import { planLabelFor } from "@/lib/billing/manage";
 import { accountNameFor } from "@/lib/profile/name";
+import { hasOpenRefundRequest } from "@/lib/account/openRefundRequest";
+import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
 import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 import { createClient } from "@/lib/supabase/server";
 
@@ -142,6 +144,26 @@ export default async function ProfilePage() {
     .eq("user_id", user!.id)
     .order("updated_at", { ascending: false })
     .limit(1);
+  /**
+   * ⚠️ WHAT THE DELETION SCREEN NEEDS, AND ONLY THAT.
+   *
+   * D59 renders the money line only when a live subscription or trial exists,
+   * and BILLABLE_STATUSES is the right question to ask - it is precisely the set
+   * cancelNowForUser will end, so the sentence describes what the deletion is
+   * about to do rather than approximating it.
+   *
+   * Read from the MIRROR, which is display and decides nothing. The cancel
+   * itself asks Stripe. A stale mirror can only show or hide one sentence; it
+   * cannot leave a subscription running.
+   */
+  const hasBillableSubscription = BILLABLE_STATUSES.has(
+    (subRow?.[0]?.status as string | undefined) ?? "",
+  );
+
+  // D56. Through the caller OWN RLS-scoped client - a user may select their own
+  // beta_feedback rows, so this needs no service role.
+  const openRefundRequest = await hasOpenRefundRequest(supabase, user!.id);
+
   const courtesyUntil = await courtesyUntilFor(user!.id);
   const planLabel = planLabelFor(
     entitlement,
@@ -164,6 +186,8 @@ export default async function ProfilePage() {
       hasName={hasName}
       email={email}
       planLabel={planLabel}
+      hasBillableSubscription={hasBillableSubscription}
+      hasOpenRefundRequest={openRefundRequest}
       physical={{
         displayName,
         sex: profile?.sex ?? null,

@@ -16,7 +16,7 @@ import { InstallAppRow } from "@/components/profile/InstallAppRow";
 import { PhysicalCard, type PhysicalInitial } from "@/components/profile/PhysicalCard";
 import { ProfileFeedbackRow } from "@/components/profile/ProfileFeedbackRow";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
-import { DeleteAccountRequest } from "@/components/auth/delete-account-request";
+import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
@@ -46,6 +46,8 @@ export function ProfileScreen({
   email,
   planLabel,
   physical,
+  hasBillableSubscription,
+  hasOpenRefundRequest,
 }: {
   userId: string;
   initials: string;
@@ -55,6 +57,10 @@ export function ProfileScreen({
   email: string;
   planLabel: string;
   physical: PhysicalInitial;
+  /** D59 money line: only when a live subscription or trial exists. */
+  hasBillableSubscription: boolean;
+  /** D56 warning: only when an open refund request exists. */
+  hasOpenRefundRequest: boolean;
 }) {
   return (
     <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
@@ -179,7 +185,11 @@ export function ProfileScreen({
         <div className="overflow-hidden rounded-2xl border border-accent-destructive/40">
           <SignOutConfirm variant="row" />
           <DangerDivider />
-          <DeleteAccountRequest email={email} variant="row" />
+          <DeleteAccountDialog
+            hasBillableSubscription={hasBillableSubscription}
+            hasOpenRefundRequest={hasOpenRefundRequest}
+            variant="row"
+          />
         </div>
       </div>
 
