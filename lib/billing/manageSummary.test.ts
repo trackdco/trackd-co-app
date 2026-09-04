@@ -34,6 +34,7 @@ const BASE: SummaryFacts = {
   namesATrial: false,
   endsOn: null,
   graceEndsOn: null,
+  graceDaysLeft: null,
   courtesyEndsOn: null,
   courtesyRunning: false,
   price: null,
@@ -188,11 +189,11 @@ describe("⚠️ the twelve signed sentences, each from its own state", () => {
   it("BETA GRACE", () => {
     expect(
       say(
-        f({ entitlement: grace, graceEndsOn: "27 Aug 2026" }),
+        f({ entitlement: grace, graceEndsOn: "27 Aug 2026", graceDaysLeft: 7 }),
         "beta-grace",
       ),
     ).toBe(
-      "You've got 14 days on us until 27 Aug 2026, and you'll need a plan after that to keep adding.",
+      "You've got 7 days left on us until 27 Aug 2026, and you'll need a plan after that to keep adding.",
     );
   });
 
@@ -249,11 +250,12 @@ describe("⚠️ the twelve signed sentences, each from its own state", () => {
         graceEndsOn: "27 Aug 2026",
         price: "$69.99 USD",
         interval: "year",
+        graceDaysLeft: 7,
       }),
       "grace-aligned",
     );
     expect(sentence).toBe(
-      "You've got 14 days on us until 27 Aug 2026, and then your Pro plan starts at $69.99 USD a year.",
+      "You've got 7 days left on us until 27 Aug 2026, and then your Pro plan starts at $69.99 USD a year.",
     );
     // ⚠️ D36's absolute rule, on the surface most likely to break it.
     expect(sentence!.toLowerCase()).not.toContain("trial");
@@ -382,12 +384,51 @@ describe("⚠️ the substitutions come from their sources, never typed", () => 
     ).toContain("$3.99 USD a week");
   });
 
-  it("the 14 is BETA_GRACE_DAYS and moves with it", () => {
-    const sentence = manageSummaryFor(f({ entitlement: grace, graceEndsOn: "27 Aug 2026" }))!;
-    expect(sentence).toContain(`${BETA_GRACE_DAYS} days on us`);
-    // The signed copy says fourteen; this asserts the SOURCE agrees rather than
-    // asserting the literal, so changing the grant changes the sentence.
-    expect(BETA_GRACE_DAYS).toBe(14);
+  /**
+   * ⚠️ THIS TEST USED TO PIN THE SENTENCE TO `BETA_GRACE_DAYS`, AND THAT WAS THE
+   * DEFECT RATHER THAN THE GUARD AGAINST IT (Adrian, 2026-09-03).
+   *
+   * It asserted the sentence contained "14 days on us" and that the constant was
+   * 14, so the copy and the grant could not disagree. Both held, and the sentence
+   * was still wrong every day but the first: the fortnight's LENGTH is not how
+   * much of it is left. On 3 September, with a week to go, Manage said fourteen.
+   *
+   * So the pin is inverted. The count comes from the row via `graceDaysLeft`, and
+   * what is asserted now is that the fortnight's length can NEVER appear here by
+   * construction.
+   */
+  it("the count ticks down and is never the grant's length", () => {
+    const on = (graceDaysLeft: number) =>
+      manageSummaryFor(f({ entitlement: grace, graceEndsOn: "27 Aug 2026", graceDaysLeft }))!;
+
+    expect(on(7)).toContain("7 days left on us");
+    expect(on(6)).toContain("6 days left on us");
+    expect(on(13)).toContain("13 days left on us");
+
+    // "1 days" is what a bare interpolation renders on the second-to-last day.
+    expect(on(1)).toContain("1 day left on us");
+    expect(on(1)).not.toContain("1 days");
+
+    // Zero is a real answer, and it changes the sentence rather than saying "0".
+    expect(on(0)).toBe("Your free run ends today, and you'll need a plan after that to keep adding.");
+    expect(on(0)).not.toContain("0 days");
+
+    // ⚠️ The old bug, pinned: the grant's length must never be the figure unless
+    // that genuinely is how many days are left.
+    expect(on(7)).not.toContain(`${BETA_GRACE_DAYS} days`);
+  });
+
+  /**
+   * ⚠️ A COUNT THAT COULD NOT BE RESOLVED WITHHOLDS THE SENTENCE. `=== null` let
+   * `undefined` through and rendered "You've got undefined days left on us".
+   */
+  it("withholds the sentence when the count is missing", () => {
+    expect(manageSummaryFor(f({ entitlement: grace, graceEndsOn: "27 Aug 2026" }))).toBeNull();
+    expect(
+      manageSummaryFor(
+        f({ entitlement: grace, graceEndsOn: "27 Aug 2026", graceDaysLeft: undefined as unknown as number }),
+      ),
+    ).toBeNull();
   });
 
   it("⚠️ Rule 0: a sentence whose substitution is missing does NOT render", () => {
@@ -1011,12 +1052,12 @@ describe("⚠️ no em dash, and no smart punctuation, anywhere in the set", () 
       f({ entitlement: stripe, subscription: { status: "trialing" }, actionKind: "cancel", endsOn: "1 Jan 2027", price: "$69.99 USD", interval: "year" }),
       f({ actionKind: "resume", namesATrial: false, endsOn: "1 Jan 2027" }),
       f({ actionKind: "resume", namesATrial: true, endsOn: "1 Jan 2027" }),
-      f({ entitlement: grace, graceEndsOn: "27 Aug 2026" }),
+      f({ entitlement: grace, graceEndsOn: "27 Aug 2026", graceDaysLeft: 7 }),
       f({ entitlement: compForever }),
       f({ gateEnabled: true }),
       f({ entitlement: stripe, subscription: { status: "trialing", courtesyUntil: "x" }, actionKind: "cancel", courtesyEndsOn: "17 Sept 2026", price: "$69.99 USD", interval: "year" }),
       f({ entitlement: stripe, subscription: { status: "past_due" }, actionKind: "cancel", endsOn: "1 Jan 2027" }),
-      f({ entitlement: grace, subscription: { status: "trialing" }, actionKind: "cancel", graceEndsOn: "27 Aug 2026", price: "$69.99 USD", interval: "year" }),
+      f({ entitlement: grace, subscription: { status: "trialing" }, actionKind: "cancel", graceEndsOn: "27 Aug 2026", graceDaysLeft: 7, price: "$69.99 USD", interval: "year" }),
       f({ entitlement: { source: "apple", activeUntil: null }, actionKind: "store" }),
       f({ entitlement: compForever, subscription: { status: "active" }, actionKind: "cancel", price: "$69.99 USD", interval: "year" }),
     ];
