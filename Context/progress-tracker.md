@@ -4184,16 +4184,25 @@ key not beginning `sk_test_`, proven by running it. **Founder-run.**
 
 **§5's bar is not met while this stands.**
 
-### ⚠️ AWAITING SIGNATURE — four new user-facing strings
+### ~~AWAITING SIGNATURE~~ SIGNED 2026-09-05 — four failure strings
 
-`DELETE_ACCOUNT_FAILURE_COPY` in `lib/account/deleteCopy.ts`. Marked unsigned,
-held apart from the signed set, excluded from the pin. They replace a sentence
-that was FALSE in three of the four failure states, so they are an improvement on
-what shipped, but they are not signed. The five pre-existing unsigned strings the
-UI lane catalogued (including `"Delete my account"`, the trigger label, which
-earlier counts missed) are still unsigned and still unpinned.
+`DELETE_ACCOUNT_FAILURE_COPY` in `lib/account/deleteCopy.ts`. Signed by Adrian
+and now pinned byte for byte with the other eight; the signed record carries
+twelve lines. A new test asserts only `nothingRemoved` may claim nothing was
+removed, since it is returned solely when the FIRST step failed.
 
-### ⚠️ FOUNDER / LEGAL LANE — the policy in force describes the flow this replaces
+⚠️ **He shortened `partlyDeleted` from the draft** to *"There were some issues
+with the deletion of your account. Please try again."* The draft said outright
+that data had already been removed. The defect that mattered is closed either way
+- the old sentence CLAIMED nothing was removed, which was false there, and this
+claims nothing at all - but it does NOT affirmatively disclose the partial state,
+so somebody could close the tab believing their account is intact. Raised with
+him; his call as copy owner; recorded at the constant. **Do not re-expand it.**
+
+The five older unsigned strings the UI lane catalogued (including
+`"Delete my account"`, the trigger label) are still unsigned and unpinned.
+
+### ~~FOUNDER / LEGAL LANE~~ RESOLVED AS v2.1, DRAFTED, NOT YET APPLIED
 
 Accepted by all ~99 accounts on 27 Aug 2026, and false on ship:
 
@@ -4203,11 +4212,30 @@ Accepted by all ~99 accounts on 27 Aug 2026, and false on ship:
   process your request rather than… automatically".
 - `legal-v2/terms.md:200` — "deletion requests are processed by a person."
 
-Sharper: the signed dialog copy says everything "will be completely erased and
-unrecoverable", while `privacy.md:125` says **"Deleting your account does not
+Sharper: the signed dialog copy said everything "will be completely erased and
+unrecoverable", while `privacy.md:125` said **"Deleting your account does not
 remove it either"** of the device-local copy, which §7 says holds compounds,
-schedules, dose logs, date of birth and sex. Two signed artefacts contradicting
-each other. **Not a code defect. Not the builder's call.**
+schedules, dose logs, date of birth and sex. **The POLICY was the accurate one**;
+the screen overstated.
+
+**Adrian ruled 2026-09-05.** Make the promise true rather than trim it (**D116**),
+and say "immediate" without the 30-day hedge, because Apple requires deletion to
+be native in the app and a 30-day manual promise writes around the problem
+instead of fixing it. Versioned **2.1**, overriding the whole-version rule
+(**D115**).
+
+Fifteen edits across `privacy.md`, `terms.md` and `consumer-health-data.md`.
+Zero em dashes. The medical disclaimer stays at 2.0 - it says nothing about
+deletion, and `legal-acceptance.ts:64-73` reads each doc_type's version
+independently, so divergent versions are supported rather than drift.
+
+⚠️ **NOT APPLIED. Two founder steps, in order:** `node
+scripts/legal-v2-1-ingest.mjs` (inserts three rows DORMANT, refusing if any
+superseded sentence, em dash or missing new text is found), then
+`supabase/legal/015_legal_documents_v2_1.sql` (one transaction, refuses if the
+three rows are absent). Dormant-then-flip is the v2.0 pattern: the partial unique
+index `(doc_type) WHERE is_current` means a client-side demote and promote would
+leave a window with NO current row and `/privacy` would 404.
 
 ### Accepted deliberately, not fixed
 
@@ -4273,8 +4301,9 @@ Written down rather than left implicit, per §5.
 
 ### Gates after the fixes
 
-`tsc` clean · eslint clean · 95 files / 1992 tests · `gate:check` clean
-(32/2/71) · `next build` exit 0.
+`tsc` clean · eslint clean · **96 files / 2010 tests** · `gate:check` clean
+(32/2/71) · `next build` exit 0. The count moved from 1992 by 13 tests for the
+device sweep and 5 for the extended copy pin.
 
 ⚠️ The build was NOT run on a cleared `.next`: another session's `next dev` is
 live on 3100 and owns it. No styles were touched, so the CSS trap that warning

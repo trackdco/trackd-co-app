@@ -30,18 +30,22 @@ after the fixes: tsc, eslint, 95 files / 1992 tests, gate:check (32/2/71),
       comes back `void`, the finding drops to LOW and is recorded, not fixed.
       Paste the verdict back.
 
-- [ ] **⚠️ ADRIAN: sign or rewrite four strings.**
-      `DELETE_ACCOUNT_FAILURE_COPY` in `lib/account/deleteCopy.ts`. They replace
-      a sentence that was false in three of four failure states. Marked unsigned
-      and excluded from the pin. Once signed, pin them alongside the other eight.
-      The five older unsigned strings the UI lane catalogued are still unsigned.
+- [x] ~~Sign the four failure strings.~~ Done 2026-09-05, pinned, twelve lines
+      in the signed record. Five older strings remain unsigned.
 
-- [ ] **⚠️ ADRIAN / LEGAL: the policy in force describes the flow this
-      replaces.** `legal-v2/privacy.md:135`, `:137` and `terms.md:200` all
-      describe email-to-support deletion processed by a person within 30 days,
-      and `privacy.md:125` says account deletion does NOT remove the device-local
-      copy while the signed dialog copy says everything is "completely erased and
-      unrecoverable". Accepted by ~99 accounts on 27 Aug 2026. Not a code defect.
+- [ ] **⚠️ ADRIAN: publish legal v2.1.** Two steps, in this order, both yours:
+
+          node scripts/legal-v2-1-ingest.mjs          # inserts DORMANT
+          supabase/legal/015_legal_documents_v2_1.sql # paste into SQL Editor
+
+      The ingest refuses if any document still carries a superseded sentence, an
+      em dash, or is missing its new text. **If it refuses, STOP and do not apply
+      the migration.** Then run the migration's ▶ VERIFY block and read the rows:
+      expect FOUR current rows, three at 2.1 and the medical disclaimer at 2.0.
+
+- [x] ~~The legal conflict.~~ Ruled 2026-09-05: D116 make the promise true, D115
+      point releases. Drafted as v2.1 across three documents, committed, awaiting
+      the two commands above.
 
 - [ ] **Drive it at 390x844 on `http://localhost:3100`.** Still not ticked, and
       no source review substitutes for it. Focus behaviour after a FAILED
