@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { deleteMyAccount } from "@/app/(app)/profile/delete-account-action";
 import {
   DELETE_ACCOUNT_COPY as COPY,
+  DELETE_ACCOUNT_FAILURE_COPY,
   DELETE_ACCOUNT_MONEY_LINE,
   deletionConfirmed,
 } from "@/lib/account/deleteCopy";
@@ -71,6 +72,8 @@ export function DeleteAccountDialog({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  /** ⚠️ The control a RETRY means. See the restore branch in the effect below. */
+  const confirmRef = useRef<HTMLButtonElement | null>(null);
   /** Guards the same-tick double fire `pending` cannot: `useTransition` has not
    *  committed within the same tick, so `disabled` is still false. */
   const inFlight = useRef(false);
@@ -103,6 +106,37 @@ export function DeleteAccountDialog({
     if (!didFocus.current) {
       didFocus.current = true;
       (inputRef.current ?? node)?.focus();
+    } else if (!pending && node && !node.contains(document.activeElement)) {
+      /**
+       * ⚠️ FOCUS GOES TO THE CONTROL THAT RETRIES, NOT TO WHATEVER HAD IT.
+       *
+       * Submitting disables the input AND both buttons in the same commit, so
+       * whichever of them held focus is disabled and the browser drops focus to
+       * `<body>` - outside a dialog still asserting `aria-modal="true"`. When
+       * the request then FAILS, nothing put it back: `didFocus` is already
+       * true, so the open-branch above does not re-run.
+       *
+       * ⚠️ NOT "restore whatever had it before". `CancelSubscription` tried
+       * that and a cold review measured it wrong: **WebKit does not focus a
+       * `<button>` on tap**, so on the iPhone the capture returned the DISMISS
+       * control, and the restore landed the user on the button that ABANDONS
+       * the action, under a message reading "Please try again". One Enter threw
+       * the whole thing away.
+       *
+       * The confirm button is held by ref instead. It is the control the
+       * failure is about and the one a retry means, and it is the same answer
+       * on every engine.
+       */
+      const retry = confirmRef.current;
+      if (retry && !retry.disabled) {
+        retry.focus();
+      } else {
+        (
+          node.querySelector<HTMLElement>(
+            "button:not([disabled]), input:not([disabled])",
+          ) ?? node
+        ).focus();
+      }
     }
 
     const focusableIn = (n: HTMLElement) =>
@@ -116,7 +150,10 @@ export function DeleteAccountDialog({
       // ⚠️ Escape is refused mid-flight. The request is already in the air and
       // closing would leave somebody staring at a profile screen with no idea
       // whether their account is being erased.
-      if (e.key === "Escape" && !pending) {
+      // ⚠️ `inFlight` AS WELL AS `pending`. `useTransition` has not committed
+      // in the same tick as the submit, so `pending` is still false and Escape
+      // would close over a request already in the air - see the backdrop.
+      if (e.key === "Escape" && !pending && !inFlight.current) {
         close();
         return;
       }
@@ -161,12 +198,31 @@ export function DeleteAccountDialog({
         // On success this never returns - the action signs the browser out and
         // redirects to the public homepage. Only a failure comes back.
         const result = await deleteMyAccount(typed);
-        setError(result.error);
+        /**
+         * ⚠️ OPTIONAL, BECAUSE THE SUCCESS PATH MAY RESOLVE THIS WITH NOTHING.
+         *
+         * `redirect()` throws on the SERVER; on the client the action runtime
+         * handles the navigation rather than rethrowing here. If the promise
+         * resolves to `undefined` before the navigation paints, `result.error`
+         * throws a TypeError, the `digest` guard below does not match it, and
+         * the catch renders "Nothing has been removed" at the exact moment the
+         * account HAS been removed. Costs nothing to rule out.
+         */
+        setError(result?.error ?? null);
       } catch (e) {
         // ⚠️ `redirect()` throws a control-flow signal Next re-throws. Anything
         // else is a real failure and must not read as success.
         if (e && typeof e === "object" && "digest" in e) throw e;
-        setError("Your account could not be deleted. Nothing has been removed. Please try again.");
+        /**
+         * ⚠️ IT DOES NOT SAY WHAT WAS REMOVED, BECAUSE IT DOES NOT KNOW.
+         *
+         * This duplicated the action's sentence verbatim, which meant two copies
+         * of a claim that was already false in three of the four failure states,
+         * and no pin covering either. Reaching here means the request itself
+         * failed, so how far the server got is genuinely unknown - and the one
+         * thing that must not be asserted is that nothing happened.
+         */
+        setError(DELETE_ACCOUNT_FAILURE_COPY.unknown);
       } finally {
         inFlight.current = false;
       }
@@ -194,7 +250,16 @@ export function DeleteAccountDialog({
           <div
             className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
             onClick={() => {
-              if (!pending) close();
+              /**
+               * ⚠️ `inFlight` AS WELL AS `pending`, AND THE REF IS WHY IT
+               * EXISTS. A backdrop tap in the SAME TICK as the confirm closed
+               * the dialog mid-request on `CancelSubscription`, and the failure
+               * then had nowhere to render its message - leaving somebody on a
+               * profile screen with no idea whether their account was being
+               * erased, which is the exact state the Escape guard above names.
+               * `pending` cannot cover it: `useTransition` has not committed.
+               */
+              if (!pending && !inFlight.current) close();
             }}
           >
             <div
@@ -202,7 +267,21 @@ export function DeleteAccountDialog({
               role="dialog"
               aria-modal="true"
               aria-labelledby="delete-account-title"
-              aria-describedby="delete-account-body"
+              /**
+               * ⚠️ THE MONEY LINE AND THE REFUND WARNING ARE PART OF WHAT THIS
+               * DIALOG SAYS. Named only the body, a screen reader announced the
+               * title and the body and NOT the one sentence on the screen about
+               * money. Both are present at open rather than appearing later, so
+               * they belong in the description rather than in a live region.
+               */
+              aria-describedby={[
+                "delete-account-body",
+                hasBillableSubscription ? "delete-account-money" : null,
+                hasOpenRefundRequest ? "delete-account-refund" : null,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              aria-busy={pending}
               tabIndex={-1}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg outline-none animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
@@ -225,7 +304,10 @@ export function DeleteAccountDialog({
                   sentence about a subscription somebody does not have is noise
                   on the one screen where clarity matters most. */}
               {hasBillableSubscription ? (
-                <p className="mt-3 text-sm leading-relaxed text-text-muted">
+                <p
+                  id="delete-account-money"
+                  className="mt-3 text-sm leading-relaxed text-text-muted"
+                >
                   {DELETE_ACCOUNT_MONEY_LINE}
                 </p>
               ) : null}
@@ -233,7 +315,7 @@ export function DeleteAccountDialog({
               {/* ⚠️ D56. Only when an open refund request exists. */}
               {hasOpenRefundRequest ? (
                 <p
-                  role="alert"
+                  id="delete-account-refund"
                   className="mt-3 rounded-xl border border-accent-destructive/40 p-3 text-sm leading-relaxed text-text-muted"
                 >
                   {COPY.refundWarning}
@@ -280,6 +362,7 @@ export function DeleteAccountDialog({
                   {COPY.dismiss}
                 </button>
                 <button
+                  ref={confirmRef}
                   type="button"
                   onClick={submit}
                   disabled={!armed || pending}

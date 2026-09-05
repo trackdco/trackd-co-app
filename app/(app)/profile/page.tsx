@@ -145,20 +145,51 @@ export default async function ProfilePage() {
     .order("updated_at", { ascending: false })
     .limit(1);
   /**
-   * ⚠️ WHAT THE DELETION SCREEN NEEDS, AND ONLY THAT.
+   * ⚠️ D59's MONEY LINE ASKS ITS OWN QUESTION, AND FAILS OPEN.
    *
-   * D59 renders the money line only when a live subscription or trial exists,
-   * and BILLABLE_STATUSES is the right question to ask - it is precisely the set
-   * cancelNowForUser will end, so the sentence describes what the deletion is
-   * about to do rather than approximating it.
+   * ## Not `subRow`, and that is the fix
    *
-   * Read from the MIRROR, which is display and decides nothing. The cancel
-   * itself asks Stripe. A stale mirror can only show or hide one sentence; it
-   * cannot leave a subscription running.
+   * `subRow` above is ordered by `updated_at` and takes ONE row, because the
+   * plan-label pill wants the most recently touched subscription. **"Does a
+   * billable subscription exist" is a different question**, and answering it
+   * from that row is precisely the defect `cancel.ts:28-46` records as
+   * MEASURED: the mirror write bumped `updated_at` on the row it had just
+   * cancelled, so `limit(1)` pinned to the dead one while a live subscription
+   * was still running. A user holding a live yearly plus an older `canceled`
+   * trial would see NO money line, type DELETE, and forfeit paid time never
+   * having read the sentence D59 exists to show them.
+   *
+   * So it asks the narrow question directly, the way `screenFacts.ts:200`
+   * already does on the billing screen.
+   *
+   * ## ⚠️ A FAILED READ SHOWS THE LINE
+   *
+   * `error` was discarded here, which collapsed "there is no subscription"
+   * into "I could not check" and hid a money disclosure from somebody who may
+   * be about to forfeit paid time. **Absent is not unknown.** The direction that
+   * costs less when wrong is showing the sentence to somebody who has no
+   * subscription - the same ruling, for the same reason, as
+   * `openRefundRequest.ts:64-69` twenty lines below. A null `data` with no
+   * error is a read that did not happen and takes the same branch.
+   *
+   * The cancel itself still asks Stripe. This only decides one sentence.
    */
-  const hasBillableSubscription = BILLABLE_STATUSES.has(
-    (subRow?.[0]?.status as string | undefined) ?? "",
-  );
+  const { data: billableRows, error: billableError } = await supabase
+    .from("subscriptions")
+    .select("status")
+    .eq("user_id", user!.id)
+    .in("status", [...BILLABLE_STATUSES])
+    .limit(1);
+
+  if (billableError) {
+    console.error(
+      "[delete] billable-subscription check failed, showing the money line anyway:",
+      billableError.message,
+    );
+  }
+
+  const hasBillableSubscription =
+    billableError || !billableRows ? true : billableRows.length > 0;
 
   // D56. Through the caller OWN RLS-scoped client - a user may select their own
   // beta_feedback rows, so this needs no service role.

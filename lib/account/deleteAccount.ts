@@ -137,14 +137,46 @@ export const liveSteps: DeletionSteps = {
     const { error } = await adminClient().auth.admin.deleteUser(userId);
     // ⚠️ The Supabase client RETURNS this error rather than throwing it.
     // Destructuring and ignoring it is how a teardown silently does nothing.
-    if (error && !alreadyGone(error)) {
-      throw new Error(`auth user delete failed: ${error.message}`);
-    }
+    if (!error) return;
+
+    /**
+     * ⚠️ AN ERROR IS NOT THE VERDICT. THE POST-CONDITION IS, SO ASK.
+     *
+     * This used to read the error's SHAPE and treat any 404 as "already gone".
+     * Two cold reviews found the same hole: a 404 from a misrouted admin URL - a
+     * wrong `NEXT_PUBLIC_SUPABASE_URL`, a proxy change, an auth API path change -
+     * is indistinguishable from "this user does not exist", and it would have
+     * read as SUCCESS after `deleteRows` had already cascaded everything away.
+     *
+     * So the shape is no longer trusted. The question "is this user gone" is put
+     * to the server directly, which is the same standard `sweep.ts` holds itself
+     * to: verified by re-reading, never by the delete's return value.
+     */
+    if (await authUserIsGone(userId)) return;
+    throw new Error(`auth user delete failed: ${error.message}`);
   },
 };
 
 /**
- * ⚠️ "THIS USER DOES NOT EXIST" IS THE GOAL STATE, NOT A FAILURE.
+ * ⚠️ SUPABASE'S OWN "THIS USER DOES NOT EXIST", AND NOTHING WIDER.
+ *
+ * Exported so its narrowness is tested against BEHAVIOUR rather than against
+ * this file's source text. The test that used to guard it read the source and
+ * could not fail; see `deleteAccount.test.ts`.
+ *
+ * ⚠️ NOT a bare `status === 404` and NOT a message match. `error.message` is
+ * vendor prose that can be reworded in a patch release, and a bare 404 is what
+ * a misrouted admin endpoint returns for EVERY user. The code is the contract.
+ */
+export function isUserNotFound(
+  error: { status?: number; code?: string; message?: string } | null,
+): boolean {
+  return error?.code === "user_not_found";
+}
+
+/**
+ * ⚠️ "THIS USER DOES NOT EXIST" IS THE GOAL STATE, NOT A FAILURE — BUT IT IS
+ * ESTABLISHED BY READING, NOT BY GUESSING FROM AN ERROR.
  *
  * ## The defect this exists for, found by driving it
  *
@@ -153,28 +185,24 @@ export const liveSteps: DeletionSteps = {
  * swept correctly, deleted no rows because there were none, and then **failed on
  * `delete-auth-user` with "User not found"**.
  *
- * The user-visible consequence is the worst available lie. The action turns any
- * failure into *"Your account could not be deleted. Nothing has been removed."*
- * — so somebody retrying after a partial failure would be told their data was
- * intact **at the exact moment it had all just been erased.** They would go
- * looking for an account that no longer exists.
+ * The user-visible consequence is the worst available lie: the action turns a
+ * failure into a sentence claiming nothing was removed, so somebody retrying
+ * after a partial failure would be told their data was intact **at the exact
+ * moment it had all just been erased.**
  *
- * ## Why this is narrow, and why it is not "ignore the error"
+ * ## ⚠️ ONLY A SUCCESSFUL READ THAT ANSWERS "NO USER" PROVES ABSENCE
  *
- * Only absence counts. A 404, or Supabase's `user_not_found` code, means the
- * post-condition this step exists to achieve is already true — there is nothing
- * to do and nothing went wrong. Every other error still throws, including a
- * network failure, a permission problem and a 500, because none of those tells
- * us the user is gone.
- *
- * ⚠️ Deliberately NOT a message match alone. `error.message` is vendor prose and
- * can be reworded in a patch release; the status and code are the contract. The
- * message is checked last and only as a fallback.
+ * An ERRORED read cannot tell "this user is gone" from "I could not ask", so it
+ * only counts when the server names the reason as `user_not_found`. A network
+ * failure, a 500, a permission problem and a misrouted URL all answer `false`
+ * and the deletion stops — which is the recoverable direction, because the
+ * alternative is reporting a deletion complete while `auth.users` still holds
+ * the person's email, phone and credentials.
  */
-function alreadyGone(error: { status?: number; code?: string; message?: string }): boolean {
-  if (error.status === 404) return true;
-  if (error.code === "user_not_found") return true;
-  return /user not found/i.test(error.message ?? "");
+async function authUserIsGone(userId: string): Promise<boolean> {
+  const { data, error } = await adminClient().auth.admin.getUserById(userId);
+  if (error) return isUserNotFound(error);
+  return !data?.user;
 }
 
 /**

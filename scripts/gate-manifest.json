@@ -50,6 +50,7 @@
     "app/(app)/profile/actions.ts#clearAvatar",
     "app/(app)/profile/actions.ts#setAvatarPath",
     "app/(app)/profile/actions.ts#updatePhysical",
+    "app/(app)/profile/delete-account-action.ts#deleteMyAccount",
     "app/(app)/progress/actions.ts#deleteBloodworkPhoto",
     "app/(app)/progress/actions.ts#deleteJournalEntry",
     "app/(app)/progress/actions.ts#deleteProgressPhoto",

@@ -89,3 +89,80 @@ export const DELETE_ACCOUNT_MONEY_LINE =
 export function deletionConfirmed(typed: string): boolean {
   return typed === DELETE_ACCOUNT_COPY.placeholder;
 }
+
+/**
+ * ⚠️ NOT SIGNED. AWAITING ADRIAN'S SIGNATURE. NOT COVERED BY THE PIN TEST.
+ *
+ * ## Why these exist, and what was wrong before
+ *
+ * The action returned ONE sentence for every failure:
+ *
+ *     "Your account could not be deleted. Nothing has been removed. Please try again."
+ *
+ * That is true only when the FIRST step fails. `16-account-deletion.md` §3.2
+ * runs the steps in order and stops at the first failure, so a failure at step
+ * two means the Stripe subscription is **already cancelled, immediately, with
+ * the remaining paid time forfeited and no refund** (§3.3), and a failure at
+ * step three or four means files and rows are **already gone**. Telling those
+ * people "Nothing has been removed" is false about their money and false about
+ * their data, at the one moment they are deciding whether to act.
+ *
+ * Two independent cold reviews found it, and `deleteAccount.ts` already
+ * described the defect in a comment while only the narrowest instance of it had
+ * been fixed.
+ *
+ * ## ⚠️ THEY ARE KEYED ON HOW FAR THE DELETION GOT, NOT ON THE ERROR
+ *
+ * The orchestrator returns `stepsRun` precisely so the caller can say something
+ * true. The mapping lives in `delete-account-action.ts`.
+ *
+ * ## Held to the same rules as the signed set
+ *
+ * No em dashes. Straight apostrophes. British spelling, matching
+ * {@link DELETE_ACCOUNT_MONEY_LINE}'s "cancelled". They name no internal detail:
+ * the underlying database or Stripe string is in the server log, never on the
+ * screen.
+ */
+export const DELETE_ACCOUNT_FAILURE_COPY = {
+  /**
+   * Stopped at `cancel-stripe`. Nothing ran after it, so this is the one case
+   * where the original sentence was already true.
+   */
+  nothingRemoved:
+    "Your account could not be deleted. Nothing has been removed. Please try again.",
+
+  /**
+   * Stopped at `sweep-storage`. The cancellation SUCCEEDED and is not undone by
+   * retrying, so it is named rather than left for them to discover on a card
+   * statement. Their data is untouched, which is the recoverable state §3.9
+   * describes.
+   *
+   * ⚠️ "ANY subscription on your account", NOT "your subscription". The cancel
+   * step succeeds TRIVIALLY for somebody who has none - `cancelNowForUser`
+   * returns an empty list and the step is satisfied - and every comp account on
+   * this project is that shape. Naming a subscription outright would state a
+   * falsehood to most of the people who could see this sentence, which is the
+   * same class of defect it was written to remove.
+   */
+  cancelledOnly:
+    "Your account could not be deleted, and your data is still here. Any " +
+    "subscription on your account has already been cancelled and no further " +
+    "charges will be made. Please try again to finish.",
+
+  /**
+   * Stopped at `delete-rows` or `delete-auth-user`. Files, and possibly rows,
+   * are already gone. It must not read as "nothing happened", because the one
+   * thing this person must not do is assume their account is intact and walk
+   * away from a half-finished deletion.
+   */
+  partlyDeleted:
+    "Some of your data has already been removed and any subscription on your " +
+    "account has been cancelled, but the deletion did not finish. Please try " +
+    "again to complete it.",
+
+  /**
+   * The client caught something it cannot classify. It asserts NOTHING about
+   * what was removed, because it does not know.
+   */
+  unknown: "Your account could not be deleted. Please try again.",
+} as const;

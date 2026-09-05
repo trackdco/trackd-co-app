@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import {
   deleteAccountFor,
   DELETION_ORDER,
+  isUserNotFound,
   type DeletionStep,
   type DeletionSteps,
 } from "./deleteAccount";
@@ -176,13 +177,27 @@ describe("⚠️ a retry after a partial failure completes CLEANLY", () => {
     expect(out).toMatchObject({ ok: false, failedAt: "delete-auth-user" });
   });
 
-  it("only 404 / user_not_found count as absence, nothing else", () => {
-    const source = readFileSync("lib/account/deleteAccount.ts", "utf8");
-    const fn = source.slice(source.indexOf("function alreadyGone"));
-    expect(fn).toContain("error.status === 404");
-    expect(fn).toContain('error.code === "user_not_found"');
-    // Not a bare catch-all: a network error or a 500 must still throw.
-    expect(fn).not.toMatch(/return true;\s*}\s*$/);
+  /**
+   * ⚠️ BEHAVIOUR, NOT SOURCE TEXT.
+   *
+   * This read the file and asserted on substrings. A cold review showed the
+   * slice ran to END OF FILE rather than to the end of the function, and that
+   * the catch-all guard had no `m` flag - so replacing the body with a bare
+   * `return true`, which would report ANY auth failure as success, passed all
+   * three assertions. The predicate is exported now so it can simply be called.
+   */
+  it("only Supabase's user_not_found counts as absence, nothing else", () => {
+    expect(isUserNotFound({ code: "user_not_found" })).toBe(true);
+
+    // ⚠️ A bare 404 is what a MISROUTED admin endpoint returns for every user.
+    expect(isUserNotFound({ status: 404 })).toBe(false);
+    // Vendor prose is not the contract.
+    expect(isUserNotFound({ message: "User not found" })).toBe(false);
+    // None of these says the user is gone.
+    expect(isUserNotFound({ status: 500, message: "boom" })).toBe(false);
+    expect(isUserNotFound({ code: "unexpected_failure" })).toBe(false);
+    expect(isUserNotFound({})).toBe(false);
+    expect(isUserNotFound(null)).toBe(false);
   });
 });
 
@@ -229,9 +244,24 @@ describe("the server action", () => {
     .replace(/(^|[^:])\/\/.*$/gm, "$1");
 
   it("has EXACTLY ONE export", () => {
-    // A second export here is a second public endpoint, and the helpers this
-    // flow attracts are exactly the ones that would take a user id.
-    const exports = source.match(/^export\s+(async\s+)?function\s+(\w+)/gm) ?? [];
+    /**
+     * A second export here is a second public endpoint, and the helpers this
+     * flow attracts are exactly the ones that would take a user id.
+     *
+     * ⚠️ EVERY EXPORT FORM, not just `export function`. A cold review showed
+     * the original pattern matched only the declaration form, so
+     * `export const sweepUser = async (userId) => {}`, `export default async
+     * function nukeUser` and `export { nukeUser }` each still counted ONE and
+     * the test passed - and those are precisely the id-taking shapes it exists
+     * to catch. A guard that cannot fail is worse than no guard, because it is
+     * read as proof.
+     */
+    const exports = [
+      ...source.matchAll(/^export\s+(?:async\s+)?function\s+(\w+)/gm),
+      ...source.matchAll(/^export\s+(?:const|let|var)\s+(\w+)/gm),
+      ...source.matchAll(/^export\s+default\b/gm),
+      ...source.matchAll(/^export\s*\{/gm),
+    ].map((m) => m[0]);
     expect(exports).toHaveLength(1);
     expect(exports[0]).toContain("deleteMyAccount");
   });

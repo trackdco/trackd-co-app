@@ -2,7 +2,11 @@
 
 import { redirect } from "next/navigation";
 
-import { deleteAccountFor } from "@/lib/account/deleteAccount";
+import {
+  deleteAccountFor,
+  type DeletionStep,
+} from "@/lib/account/deleteAccount";
+import { DELETE_ACCOUNT_FAILURE_COPY } from "@/lib/account/deleteCopy";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -75,6 +79,36 @@ import { createClient } from "@/lib/supabase/server";
 /** The phrase, exact and case-sensitive. `delete` is not `DELETE`. */
 const CONFIRMATION = "DELETE";
 
+/**
+ * ⚠️ WHAT TO SAY, DECIDED BY HOW FAR THE DELETION GOT.
+ *
+ * ⚠️ NOT EXPORTED. This file has exactly one export by design - every export of
+ * a `"use server"` module is a publicly dispatchable HTTP endpoint - and a copy
+ * helper is no reason to add a second.
+ *
+ * §3.2 stops at the first failing step, so `failedAt` says exactly which of the
+ * four states the account is in, and each of them is a different true sentence.
+ * The single sentence this replaced claimed "Nothing has been removed" in all
+ * four, which was false in three of them: by the time the sweep can fail the
+ * Stripe subscription is already cancelled with the remaining paid time gone,
+ * and by the time the row delete can fail the files are already destroyed.
+ */
+function failureCopyFor(failedAt: DeletionStep): string {
+  switch (failedAt) {
+    case "cancel-stripe":
+      // Nothing ran after it. The account is entirely untouched.
+      return DELETE_ACCOUNT_FAILURE_COPY.nothingRemoved;
+    case "sweep-storage":
+      // The cancel succeeded. Data is intact; the money is not coming back.
+      return DELETE_ACCOUNT_FAILURE_COPY.cancelledOnly;
+    case "delete-rows":
+    case "delete-auth-user":
+      // Files, and possibly rows, are already gone. It must not read as
+      // "nothing happened", or somebody walks away from a half-deleted account.
+      return DELETE_ACCOUNT_FAILURE_COPY.partlyDeleted;
+  }
+}
+
 export async function deleteMyAccount(
   confirmation: string,
 ): Promise<{ ok: false; error: string }> {
@@ -112,14 +146,18 @@ export async function deleteMyAccount(
      * all of their data. Signing them out here would strand them outside an
      * account that still exists.
      *
+     * ⚠️ "INTACT" IS TRUE OF THE ACCOUNT, NOT OF EVERYTHING. Only a failure at
+     * the FIRST step leaves nothing removed. Later ones have already cancelled
+     * the subscription, and later still have already destroyed files. The
+     * account still exists and they stay signed in either way, which is why the
+     * sign-out below is not reached - but the SENTENCE must say which of those
+     * happened, and {@link failureCopyFor} is what decides that.
+     *
      * The message names no internal detail. `outcome.error` carries a database
      * or Stripe string and is already in the server log; putting it on the
      * screen would show somebody a PostgREST complaint at the worst moment.
      */
-    return {
-      ok: false,
-      error: "Your account could not be deleted. Nothing has been removed. Please try again.",
-    };
+    return { ok: false, error: failureCopyFor(outcome.failedAt) };
   }
 
   /**
