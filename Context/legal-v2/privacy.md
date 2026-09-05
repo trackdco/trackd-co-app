@@ -1,6 +1,6 @@
 Privacy Policy
-VERSION 2.0 · EFFECTIVE 27 August 2026
-Supersedes v1.3.
+VERSION 2.1 · EFFECTIVE 5 September 2026
+Supersedes v2.0.
 
 This Privacy Policy explains how Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia ("Trackd Co", "Trackd", "we", "us", "our"), collects, uses, stores, and shares your personal information when you use the Trackd Co application and the website at trackdco.app (the "Service"). It forms part of, and should be read with, our Terms of Service and Medical Disclaimer.
 
@@ -122,9 +122,9 @@ Three things about that copy matter, and we would rather you know them than not:
 
 - It is not encrypted by us. Anyone with access to an unlocked device or to your browser profile could read it.
 - **Signing out does not remove it.** It stays in that browser under your account, and is read again if you sign in on the same device. Another person signing in with a different account will not see your data through the app, but your data is still physically present in that browser's storage.
-- **Deleting your account does not remove it either.** Account deletion happens on our servers and cannot reach your browser's storage.
+- **Deleting your account clears it on the device you delete from.** When you delete your account, we remove this working copy from the browser you delete it in, as part of the deletion. We cannot reach a copy in another browser, or on another device you have signed in on.
 
-To remove the on-device copy, clear the site data for trackdco.app in your browser, or delete the app from your device if you installed it to your home screen. If you share a device with anyone, do this when you have finished.
+To remove the on-device copy without deleting your account, or to remove it from a browser or device other than the one you delete your account in, clear the site data for trackdco.app there, or delete the app from that device if you installed it to your home screen. If you share a device with anyone, do this when you have finished.
 
 ## 8. Data retention and deletion
 
@@ -132,9 +132,9 @@ We keep your data while your account is active. If your account becomes read onl
 
 **Deleting things inside the app.** When you delete a compound or a cycle, it stops appearing in your protocol and no further doses are scheduled for it, but the doses you have already logged are kept, so your history stays intact. The underlying record is marked inactive in our database rather than erased, and it stays there until you delete your account. Deleting an individual logged dose, a journal entry, a body-metric entry, a bloodwork image, or a progress photo removes it permanently, including the underlying file where there is one.
 
-**Full account deletion.** You can request full deletion of your account at any time, including while your account is read only, using the in-app "Delete my account" control, which opens a pre-filled email to support@trackdco.app for you to send. One-tap self-service deletion is planned. Your right to delete is absolute: it does not depend on your subscription, on paying us, or on anything else.
+**Full account deletion.** You can delete your account yourself at any time, including while your account is read only, using the in-app "Delete my account" control. You type DELETE to confirm, and the deletion runs immediately. Your right to delete is absolute: it does not depend on your subscription, on paying us, or on anything else.
 
-When you ask, we delete your account data and remove your uploaded files as part of processing your request. We do this as soon as reasonably practicable, and typically within 30 days. Your uploaded files (bloodwork images, progress photos, journal photos, and avatars) are held in private storage that only you can reach, and removing them is a step we carry out when we process your request rather than something that happens automatically the moment you send it. Records we are required to keep are retained for as long as the law requires, including payment and transaction records, some of which are held by our payment processor rather than by us. Those are listed immediately below.
+When you confirm, the deletion runs there and then. Nothing is queued for a person to process later. We cancel any active subscription first, then remove your uploaded files (bloodwork images, progress photos, journal photos, and avatars) from the private storage they are held in, then delete your records, then the working copy in the browser you are deleting from, and last of all your login. Each step has to succeed before the next one starts, so a deletion either completes or stops and can be run again. If you cannot complete it yourself, email us at support@trackdco.app and we will finish it. Records we are required to keep are retained for as long as the law requires, including payment and transaction records, some of which are held by our payment processor rather than by us. Those are listed immediately below.
 
 **What deletion does not reach.** We would rather be exact about this than reassuring:
 
@@ -143,7 +143,7 @@ When you ask, we delete your account data and remove your uploaded files as part
 - **Backups.** Residual copies of database records may remain in our encrypted backups until those backups are overwritten in the normal cycle.
 - **Server logs.** Diagnostic log lines held by our hosting provider may contain your internal user identifier until they age out of that provider's retention period.
 - **Waitlist records.** If you joined the waitlist, the email address you gave us there is stored separately from your account and is not removed by account deletion. Ask us at support@trackdco.app and we will delete it too.
-- **Your own device.** As described in Section 7, the copy in your browser is not affected by account deletion.
+- **Another browser or device.** Deleting your account clears the working copy in the browser you delete it in. A copy in any other browser, or on any other device you have signed in on, is not reached. Section 7 explains how to clear it.
 
 ## 9. Security
 
@@ -232,7 +232,7 @@ Some US states have consumer-health-data laws, including Washington's My Health 
 - withdraw your consent to our collection and processing of it; and
 - have it deleted.
 
-To exercise any of these, use the in-app "Delete my account" control or contact us at support@trackdco.app. When you ask us to delete, we delete your account data and remove your uploaded files as part of processing your request, as soon as reasonably practicable and typically within 30 days. Our service providers do not hold separate copies of your health data, and residual copies age out of our encrypted backups on their normal cycle. Records we must keep by law are listed, with reasons, in Section 8 of the Privacy Policy; none of them contain your health data.
+To exercise any of these, use the in-app "Delete my account" control or contact us at support@trackdco.app. Deleting your account removes your account data and your uploaded files immediately. Our service providers do not hold separate copies of your health data, and residual copies age out of our encrypted backups on their normal cycle. Records we must keep by law are listed, with reasons, in Section 8 of the Privacy Policy; none of them contain your health data.
 
 Withdrawing your consent means closing your account, because the Service cannot operate without processing this information. We will explain that to you before acting on your request.
 

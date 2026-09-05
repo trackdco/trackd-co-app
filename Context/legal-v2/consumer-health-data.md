@@ -1,5 +1,5 @@
 Consumer Health Data Privacy Policy
-VERSION 2.0 · EFFECTIVE 27 August 2026
+VERSION 2.1 · EFFECTIVE 5 September 2026
 
 This is the consumer health data notice for Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), covering the Trackd Co application and the website at trackdco.app. It is published separately so that you can find it easily, and the same text appears as Section 16 of our Privacy Policy. Read it alongside the full Privacy Policy, which describes everything else we do with your information.
 
@@ -30,7 +30,7 @@ Some US states have consumer-health-data laws, including Washington's My Health 
 - withdraw your consent to our collection and processing of it; and
 - have it deleted.
 
-To exercise any of these, use the in-app "Delete my account" control or contact us at support@trackdco.app. When you ask us to delete, we delete your account data and remove your uploaded files as part of processing your request, as soon as reasonably practicable and typically within 30 days. Our service providers do not hold separate copies of your health data, and residual copies age out of our encrypted backups on their normal cycle. Records we must keep by law are listed, with reasons, in Section 8 of the Privacy Policy; none of them contain your health data.
+To exercise any of these, use the in-app "Delete my account" control or contact us at support@trackdco.app. Deleting your account removes your account data and your uploaded files immediately. Our service providers do not hold separate copies of your health data, and residual copies age out of our encrypted backups on their normal cycle. Records we must keep by law are listed, with reasons, in Section 8 of the Privacy Policy; none of them contain your health data.
 
 Withdrawing your consent means closing your account, because the Service cannot operate without processing this information. We will explain that to you before acting on your request.
 

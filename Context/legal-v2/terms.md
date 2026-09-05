@@ -1,6 +1,6 @@
 Terms of Service
-VERSION 2.0 · EFFECTIVE 27 August 2026
-Supersedes v1.3.
+VERSION 2.1 · EFFECTIVE 5 September 2026
+Supersedes v2.0.
 
 These Terms of Service ("Terms") are a legal agreement between you ("you" or "User") and Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia ("Trackd Co", "Trackd", "we", "us" or "our"). They govern your access to and use of the Trackd Co application, the website at trackdco.app, and all related features and services (together, the "Service").
 
@@ -193,11 +193,11 @@ You may stop using the Service and delete your account at any time. We may suspe
 
 On termination, your right to use the Service ends.
 
-You can always delete your data. You can delete individual records from within the Service at any time, including while your account is read only, and you can ask us to delete your whole account at any time by contacting support@trackdco.app. That right is not conditional on paying us, on the state of your subscription, or on anything else.
+You can always delete your data. You can delete individual records from within the Service at any time, including while your account is read only, and you can delete your whole account at any time using the "Delete my account" control in the Service, or by contacting support@trackdco.app. That right is not conditional on paying us, on the state of your subscription, or on anything else.
 
-When you ask us to delete your account, we delete your account data and remove your uploaded files as part of processing your request, as soon as reasonably practicable and typically within 30 days. Records we are required to keep are retained for as long as the law requires. That includes payment and transaction records, some of which are held by our payment processor rather than by us. The full detail of what is removed, what is retained, and when, is in the Privacy Policy.
+When you delete your account, we remove your account data and your uploaded files immediately, and we clear the working copy held in the browser you delete it in. Records we are required to keep are retained for as long as the law requires. That includes payment and transaction records, some of which are held by our payment processor rather than by us. The full detail of what is removed, what is retained, and when, is in the Privacy Policy.
 
-Cancelling and deleting are two different things. If you ask us to delete your account while a subscription is active, we cancel that subscription as part of processing your request, before your account is removed, so that you are not charged for an account you have deleted. If you want billing to stop immediately, cancel in the Service first: cancellation is instant and self-service, while deletion requests are processed by a person.
+Cancelling and deleting are two different things. If you ask us to delete your account while a subscription is active, we cancel that subscription as part of processing your request, before your account is removed, so that you are not charged for an account you have deleted. Both cancelling and deleting are instant and self-service.
 
 ## 25. Changes to these Terms
 

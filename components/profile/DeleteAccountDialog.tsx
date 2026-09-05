@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 
 import { deleteMyAccount } from "@/app/(app)/profile/delete-account-action";
+import { clearDeviceDataFor } from "@/lib/account/clearDeviceData";
 import {
   DELETE_ACCOUNT_COPY as COPY,
   DELETE_ACCOUNT_FAILURE_COPY,
@@ -54,10 +55,21 @@ import { DANGER_ROW } from "@/lib/ui-presets";
  * screen exists for.
  */
 export function DeleteAccountDialog({
+  userId,
   hasBillableSubscription,
   hasOpenRefundRequest,
   variant = "row",
 }: {
+  /**
+   * ⚠️ FOR THE DEVICE SWEEP ONLY, AND IT IS NOT AN ACTION ARGUMENT.
+   *
+   * The server action still takes NO user id and resolves the account from the
+   * verified session. This id never leaves the browser: it is the key prefix
+   * `clearDeviceDataFor` matches on to remove this user's local stores once the
+   * deletion has actually succeeded. Passing it to a client component is not the
+   * thing §3.8 forbids; passing it to a `"use server"` export would be.
+   */
+  userId: string;
   /** D59's money line renders only when a live subscription or trial exists. */
   hasBillableSubscription: boolean;
   /** D56's warning renders only when an open refund request exists. */
@@ -199,20 +211,41 @@ export function DeleteAccountDialog({
         // redirects to the public homepage. Only a failure comes back.
         const result = await deleteMyAccount(typed);
         /**
-         * ⚠️ OPTIONAL, BECAUSE THE SUCCESS PATH MAY RESOLVE THIS WITH NOTHING.
+         * ⚠️ ONLY A FAILURE COMES BACK, AND THE SHAPE IS CHECKED RATHER THAN
+         * ASSUMED.
          *
          * `redirect()` throws on the SERVER; on the client the action runtime
          * handles the navigation rather than rethrowing here. If the promise
-         * resolves to `undefined` before the navigation paints, `result.error`
-         * throws a TypeError, the `digest` guard below does not match it, and
-         * the catch renders "Nothing has been removed" at the exact moment the
-         * account HAS been removed. Costs nothing to rule out.
+         * resolves to `undefined` before the navigation paints, reading
+         * `result.error` would throw a TypeError, the `digest` guard below
+         * would not match it, and the catch would render a failure message at
+         * the exact moment the account HAS been deleted.
+         *
+         * So an answer WITH an error is the failure, and anything else is the
+         * success the redirect is already acting on.
          */
-        setError(result?.error ?? null);
+        if (result?.error) {
+          setError(result.error);
+        } else {
+          clearDeviceDataFor(userId);
+        }
       } catch (e) {
         // ⚠️ `redirect()` throws a control-flow signal Next re-throws. Anything
         // else is a real failure and must not read as success.
-        if (e && typeof e === "object" && "digest" in e) throw e;
+        if (e && typeof e === "object" && "digest" in e) {
+          /**
+           * ⚠️ THIS IS THE SUCCESS PATH, NOT AN ERROR PATH. `redirect()` reports
+           * itself by throwing a signal Next re-throws, so it is the only
+           * success signal this function ever sees when the action does throw.
+           *
+           * Cleared in BOTH places deliberately. Which of the two the runtime
+           * takes is a version-dependent detail this component must not bet a
+           * signed erasure promise on, and the sweep is idempotent - removing an
+           * absent key is a no-op - so running it twice costs nothing.
+           */
+          clearDeviceDataFor(userId);
+          throw e;
+        }
         /**
          * ⚠️ IT DOES NOT SAY WHAT WAS REMOVED, BECAUSE IT DOES NOT KNOW.
          *

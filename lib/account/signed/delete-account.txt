@@ -6,3 +6,7 @@ Yes, delete my account
 I'd rather stay
 You have a refund request open. Deleting your account will remove it, and we will not be able to follow up with you here.
 Your subscription will be cancelled. Any remaining paid time ends when your account is deleted, and no further charges will be made.
+Your account could not be deleted at this time. Nothing has been removed. Please try again.
+Your account could not be deleted, and your data is still here. Any subscription on your account has already been cancelled and no further charges will be made. Please give it a few minutes and try again to finish.
+There were some issues with the deletion of your account. Please try again.
+Your account could not be deleted at this time. Please try again.

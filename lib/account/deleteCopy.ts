@@ -91,7 +91,7 @@ export function deletionConfirmed(typed: string): boolean {
 }
 
 /**
- * ⚠️ NOT SIGNED. AWAITING ADRIAN'S SIGNATURE. NOT COVERED BY THE PIN TEST.
+ * ⚠️ SIGNED BY ADRIAN, 2026-09-05. Character for character from here on.
  *
  * ## Why these exist, and what was wrong before
  *
@@ -129,7 +129,8 @@ export const DELETE_ACCOUNT_FAILURE_COPY = {
    * where the original sentence was already true.
    */
   nothingRemoved:
-    "Your account could not be deleted. Nothing has been removed. Please try again.",
+    "Your account could not be deleted at this time. Nothing has been removed. " +
+    "Please try again.",
 
   /**
    * Stopped at `sweep-storage`. The cancellation SUCCEEDED and is not undone by
@@ -147,22 +148,25 @@ export const DELETE_ACCOUNT_FAILURE_COPY = {
   cancelledOnly:
     "Your account could not be deleted, and your data is still here. Any " +
     "subscription on your account has already been cancelled and no further " +
-    "charges will be made. Please try again to finish.",
+    "charges will be made. Please give it a few minutes and try again to finish.",
 
   /**
    * Stopped at `delete-rows` or `delete-auth-user`. Files, and possibly rows,
-   * are already gone. It must not read as "nothing happened", because the one
-   * thing this person must not do is assume their account is intact and walk
-   * away from a half-finished deletion.
+   * are already gone.
+   *
+   * ⚠️ ADRIAN'S WORDING, AND IT IS DELIBERATELY SHORTER THAN THE DRAFT. The
+   * draft spelled out that data had already been removed. He cut it to this.
+   * The defect that mattered is gone either way: the old sentence CLAIMED
+   * "Nothing has been removed", which was false here, and this claims nothing at
+   * all. It does not affirmatively disclose the partial state, which was raised
+   * with him and is his call as the copy owner. Do not re-expand it.
    */
   partlyDeleted:
-    "Some of your data has already been removed and any subscription on your " +
-    "account has been cancelled, but the deletion did not finish. Please try " +
-    "again to complete it.",
+    "There were some issues with the deletion of your account. Please try again.",
 
   /**
    * The client caught something it cannot classify. It asserts NOTHING about
    * what was removed, because it does not know.
    */
-  unknown: "Your account could not be deleted. Please try again.",
+  unknown: "Your account could not be deleted at this time. Please try again.",
 } as const;

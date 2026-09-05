@@ -1,9 +1,12 @@
 /**
  * ⚠️ THE SIGNED DELETION COPY, PINNED BYTE FOR BYTE.
  *
- * Eight strings, all signed: seven by Adrian on 2026-09-03
+ * Twelve strings, all signed: seven by Adrian on 2026-09-03
  * (`Context/progress-tracker.md:3043`) and the money line as D59, quoted
- * verbatim at `billing-16-account-deletion.md:128`.
+ * verbatim at `billing-16-account-deletion.md:128`. The last four are the
+ * failure messages, signed by Adrian on 2026-09-05 after three cold reviews
+ * found that the single sentence they replaced claimed "Nothing has been
+ * removed" in three failure states where that was false.
  *
  * This suite exists because "signed copy is character-for-character sacred" is
  * not a property anybody can hold in their head across a refactor. It compares
@@ -22,6 +25,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DELETE_ACCOUNT_COPY,
+  DELETE_ACCOUNT_FAILURE_COPY,
   DELETE_ACCOUNT_MONEY_LINE,
   deletionConfirmed,
 } from "./deleteCopy";
@@ -40,12 +44,34 @@ const INORDER: [string, string][] = [
   ["dismiss", DELETE_ACCOUNT_COPY.dismiss],
   ["refundWarning", DELETE_ACCOUNT_COPY.refundWarning],
   ["moneyLine", DELETE_ACCOUNT_MONEY_LINE],
+  // Signed 2026-09-05. Keyed on which step the deletion stopped at.
+  ["nothingRemoved", DELETE_ACCOUNT_FAILURE_COPY.nothingRemoved],
+  ["cancelledOnly", DELETE_ACCOUNT_FAILURE_COPY.cancelledOnly],
+  ["partlyDeleted", DELETE_ACCOUNT_FAILURE_COPY.partlyDeleted],
+  ["unknown", DELETE_ACCOUNT_FAILURE_COPY.unknown],
 ];
 
 describe("the signed strings", () => {
-  it("there are exactly eight, and no more crept in", () => {
-    expect(signed).toHaveLength(8);
+  it("there are exactly twelve, and no more crept in", () => {
+    expect(signed).toHaveLength(12);
     expect(Object.keys(DELETE_ACCOUNT_COPY)).toHaveLength(7);
+    expect(Object.keys(DELETE_ACCOUNT_FAILURE_COPY)).toHaveLength(4);
+  });
+
+  /**
+   * ⚠️ NO FAILURE MESSAGE MAY CLAIM NOTHING WAS REMOVED.
+   *
+   * The defect that produced this set: one sentence said "Nothing has been
+   * removed" after EVERY failure, and by the time the sweep can fail the
+   * subscription is already cancelled, and by the time the row delete can fail
+   * the files are destroyed. Only `nothingRemoved` may say it, and only because
+   * it is returned solely when the FIRST step failed and nothing ran after it.
+   */
+  it("only the first-step message claims nothing was removed", () => {
+    const claimants = Object.entries(DELETE_ACCOUNT_FAILURE_COPY)
+      .filter(([, v]) => /nothing has been removed/i.test(v))
+      .map(([k]) => k);
+    expect(claimants).toEqual(["nothingRemoved"]);
   });
 
   it.each(INORDER)("%s matches the signed file byte for byte", (name, value) => {

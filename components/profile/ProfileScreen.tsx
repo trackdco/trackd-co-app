@@ -186,6 +186,7 @@ export function ProfileScreen({
           <SignOutConfirm variant="row" />
           <DangerDivider />
           <DeleteAccountDialog
+            userId={userId}
             hasBillableSubscription={hasBillableSubscription}
             hasOpenRefundRequest={hasOpenRefundRequest}
             variant="row"
