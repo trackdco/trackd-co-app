@@ -4148,6 +4148,148 @@ evidence:
   cost the single-pass `weekMatrix` exists to remove. `loggedCountFor` instead,
   and `weekCellState` now resolves a day in one slot pass rather than two.
 
+## Spec 16 account deletion — the cold reviews (2026-09-05)
+
+Three independent cold agents, on money/races, gate/entitlements and the UI at
+390x844. None was told what the others covered, nor what was already known, so a
+re-find measures depth rather than repeats a briefing. All three re-found known
+items unprompted.
+
+**0 CRITICAL. Five HIGH found; four fixed in `33b40d2`, one open.**
+
+Three separate lanes independently found the SAME defect — the D59 money line
+decided by `limit(1)` off a row selection borrowed from the plan-label pill,
+with `error` discarded. That convergence is the strongest evidence the round
+produced.
+
+### ⚠️ STILL OPEN — the one HIGH, and it is on the payments path
+
+**Does `stripe.subscriptions.cancel()` leave an `incomplete` subscription's
+first invoice payable?** `incomplete` is in `BILLABLE_STATUSES`
+(`cancel.ts:188`) so deletion reaches it; `voidOpenInvoiceFor` has exactly one
+caller (`cancel.ts:374`) and it is the USER cancel path, not this one. D76
+(`cancel.ts:326-336`) records the invoice staying payable ~23 hours and anything
+settling it flipping the subscription `active` — but D76 reasons about
+`cancel_at_period_end`, NOT the immediate cancel, and says so, so it does not
+settle this.
+
+If the invoice survives, somebody who abandons a 3DS challenge, deletes, then
+finishes the challenge in a stale tab is charged after `billing_customers` has
+cascaded away — §3.2's unattributable chargeback.
+
+**`scripts/probe-incomplete-invoice-on-cancel.mjs` settles it.** Stripe test
+mode ONLY, imports no Supabase, so it cannot write a test-mode customer id into
+the production billing tables — the specific risk that was held back. Refuses any
+key not beginning `sk_test_`, proven by running it. **Founder-run.**
+
+**§5's bar is not met while this stands.**
+
+### ⚠️ AWAITING SIGNATURE — four new user-facing strings
+
+`DELETE_ACCOUNT_FAILURE_COPY` in `lib/account/deleteCopy.ts`. Marked unsigned,
+held apart from the signed set, excluded from the pin. They replace a sentence
+that was FALSE in three of the four failure states, so they are an improvement on
+what shipped, but they are not signed. The five pre-existing unsigned strings the
+UI lane catalogued (including `"Delete my account"`, the trigger label, which
+earlier counts missed) are still unsigned and still unpinned.
+
+### ⚠️ FOUNDER / LEGAL LANE — the policy in force describes the flow this replaces
+
+Accepted by all ~99 accounts on 27 Aug 2026, and false on ship:
+
+- `legal-v2/privacy.md:135` — the control "opens a pre-filled email to
+  support@trackdco.app… One-tap self-service deletion is planned."
+- `legal-v2/privacy.md:137` — "typically within 30 days", files removed "when we
+  process your request rather than… automatically".
+- `legal-v2/terms.md:200` — "deletion requests are processed by a person."
+
+Sharper: the signed dialog copy says everything "will be completely erased and
+unrecoverable", while `privacy.md:125` says **"Deleting your account does not
+remove it either"** of the device-local copy, which §7 says holds compounds,
+schedules, dose logs, date of birth and sex. Two signed artefacts contradicting
+each other. **Not a code defect. Not the builder's call.**
+
+### Accepted deliberately, not fixed
+
+Written down rather than left implicit, per §5.
+
+- **A webhook reaching `syncSubscription` after deletion 500-loops rather than
+  going unattributed.** `resolveUserId` (`sync.ts:74-76`) falls back to
+  subscription metadata, so it returns the DELETED uuid instead of `null` and the
+  `unattributed` branch never fires; the upsert then violates
+  `subscriptions.user_id → profiles(id)` and the route 500s on every redelivery.
+  Found by two lanes. Verified NOT to affect the flow's own
+  `customer.subscription.deleted`, which `endSubscription` handles cleanly.
+  Untouched because the fix belongs in the webhook's own spec, not this one.
+- **No server-side concurrency control on deletion.** The only guard is a
+  per-component ref. Two tabs can both enter `cancel-stripe`. Bounded — the
+  second run finds nothing live and reports success — but the boundedness rests
+  on Stripe tolerating a repeat cancel, which is unmeasured.
+- **An upload landing between the sweep's verify-listing and the end of the flow
+  survives forever.** Sub-second window, needs a second surface open. The same
+  shape as the 845,660-byte production orphan already recorded here.
+- **`deleteRows` does not verify its post-condition.** A DELETE matching zero
+  rows returns no error. Repaired in practice by step 4's cascade from
+  `auth.users`; a retry is legitimately a zero-row delete, so there is no clean
+  assertion to make. The auth step WAS fixed, because there absence was being
+  inferred from an error shape.
+- **The exit can be permanently blocked** by one out-of-prefix row-map path, an
+  invisible bucket, or >1000 subscription objects — each failing closed with a
+  message inviting an infinite retry. Failing closed is right; there is no
+  escalation path. All four current writers validate the owner segment
+  server-side, so no writer can produce the first case today.
+- **The sweep ignores a fifth bucket.** Add one without updating
+  `SWEEP_BUCKETS` and deletions report `swept` over a bucket never read.
+- **`lib/auth.ts:43-49` discards a `profiles` read error** and redirects to
+  `/welcome`, so a transient failure reads as "has not accepted the terms" — on
+  the only path to the delete control. Pre-existing, outside this diff.
+- UI: no body-scroll lock or `overscroll-contain`; press-inside/release-outside
+  closes the dialog; `transition-colors`/`transition-opacity` not neutralised
+  under reduced motion; `text-[var(--state-error)]` instead of the mapped
+  `text-state-error`; the dead `variant="link"` branch is malformed. The iOS
+  keyboard covers the confirm button, mitigated only by the undiscoverable
+  return key.
+
+### What the reviews CLEARED, by tracing rather than by reading comments
+
+- **The exemption is real.** The action's full 12-module transitive import graph
+  contains no gate module and no gate call. There is no root `middleware.ts` —
+  Next 16 renames it `proxy.ts`, which is refresh-only. `app/(app)/layout.tsx`
+  redirects on auth and 18+/ToS only.
+- All 34 user-scoped tables in the repo cascade from `profiles` or `auth.users`.
+  The two survivors, `webhook_events` and `waitlist`, are disclosed at
+  `privacy.md:142` and `:145`.
+- All four `ROW_MAP` columns verified against the schema; all four bucket ids
+  match. `refusedOutOfPrefix` is unreachable from any current writer.
+- `adminClient` is `server-only`, reads the key lazily and THROWS when unset —
+  failing closed at `sweep-storage`, with Stripe already cancelled and
+  everything else intact.
+- `cancel.ts` is comment-only in the diff, so Step 3's "do not modify it" holds.
+- The dialog escapes `.animate-home-up`'s containing block by portalling to
+  `document.body`; z-order 60 > FAB 46 > nav 40. Tap targets 48/44/44px. The
+  `grid place-items-center` top-clipping trap does NOT apply (it is a flex bug;
+  this is a grid with `overflow-y-auto`). Signed copy renders byte for byte with
+  zero em dashes outside comments.
+
+### Gates after the fixes
+
+`tsc` clean · eslint clean · 95 files / 1992 tests · `gate:check` clean
+(32/2/71) · `next build` exit 0.
+
+⚠️ The build was NOT run on a cleared `.next`: another session's `next dev` is
+live on 3100 and owns it. No styles were touched, so the CSS trap that warning
+exists for is not in play — but a cleared build is still owed before ship.
+
+⚠️ `gate:check` was RED on this branch before this round, while the handover
+recorded it green. `deleteMyAccount` had landed in UNGATED and the manifest was
+never blessed. The code was always right; the record was not.
+
+### Still not ticked
+
+Driving at 390x844 on `http://localhost` — no browser automation available in
+that session, so the review lanes reason from source and say so. The live Stripe
+cancel branch remains unexercised. `BILLING_GATE_ENABLED` remains CANNOT CHECK.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

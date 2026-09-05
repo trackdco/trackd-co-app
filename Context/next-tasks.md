@@ -11,6 +11,53 @@ trial-conversion risk still open)
 
 ---
 
+## 🔴 SPEC 16 — THE COLD REVIEWS CAME BACK. ONE HIGH IS OPEN, AND IT IS ADRIAN'S.
+
+Branch `deletion/steps-1-2`, 14 commits ahead of `origin/main`, unpushed. Three
+independent cold lanes ran; 0 CRITICAL, 5 HIGH, four fixed in `33b40d2`. Gates
+after the fixes: tsc, eslint, 95 files / 1992 tests, gate:check (32/2/71),
+`next build` exit 0. **§5's bar is NOT met while the item below stands.**
+
+- [ ] **⚠️ ADRIAN: run the Stripe probe.** One command, test mode only, no
+      Supabase, refuses any key that is not `sk_test_`:
+
+          node --env-file=.env.local scripts/probe-incomplete-invoice-on-cancel.mjs
+
+      It answers whether `subscriptions.cancel()` leaves an `incomplete`
+      subscription's first invoice payable. If the invoice comes back `open`,
+      that is a CONFIRMED payments defect and the deletion path must void it the
+      way `cancel.ts:374` already does for the user cancel path (D76). If it
+      comes back `void`, the finding drops to LOW and is recorded, not fixed.
+      Paste the verdict back.
+
+- [ ] **⚠️ ADRIAN: sign or rewrite four strings.**
+      `DELETE_ACCOUNT_FAILURE_COPY` in `lib/account/deleteCopy.ts`. They replace
+      a sentence that was false in three of four failure states. Marked unsigned
+      and excluded from the pin. Once signed, pin them alongside the other eight.
+      The five older unsigned strings the UI lane catalogued are still unsigned.
+
+- [ ] **⚠️ ADRIAN / LEGAL: the policy in force describes the flow this
+      replaces.** `legal-v2/privacy.md:135`, `:137` and `terms.md:200` all
+      describe email-to-support deletion processed by a person within 30 days,
+      and `privacy.md:125` says account deletion does NOT remove the device-local
+      copy while the signed dialog copy says everything is "completely erased and
+      unrecoverable". Accepted by ~99 accounts on 27 Aug 2026. Not a code defect.
+
+- [ ] **Drive it at 390x844 on `http://localhost:3100`.** Still not ticked, and
+      no source review substitutes for it. Focus behaviour after a FAILED
+      deletion is the specific thing to watch — that is what H-C fixed and it is
+      the one path a browser settles. Open `localhost`, never `127.0.0.1`.
+      ⚠️ A dev server is already running on 3100 and is NOT this session's.
+
+- [ ] **`next build` on a cleared `.next`.** The last build was not cleared,
+      because another session's dev server owns the directory. No styles were
+      touched, so the CSS trap is not in play, but the cleared build is owed.
+
+- [ ] **Re-run the three cold lanes on the fixed tree** once the above closes.
+      §5 asks for reviews that come back clean, not for one round.
+
+---
+
 ## 🟡 THREE MERGES SIT ON LOCAL `main`, UNPUSHED. THE PUSH IS ADRIAN'S CALL.
 
 `main` is four commits ahead of `origin/main` and has NOT been pushed, because a
