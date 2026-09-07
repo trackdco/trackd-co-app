@@ -59,11 +59,16 @@ export async function saveTimezone(tz: string): Promise<{ ok: boolean }> {
 export interface ReminderPrefsInput {
   doseRemindersOn: boolean;
   missedOn: boolean;
+  /** One of the `unlogged_wait` enum labels. */
+  unloggedWait: string;
   lowStockOn: boolean;
   reminderTime: string; // "HH:MM"
   quietStart: string; // "HH:MM"
   quietEnd: string; // "HH:MM"
 }
+
+/** The `unlogged_wait` enum labels, in the order the settings screen offers them. */
+const UNLOGGED_WAITS = ["min_30", "hour_1", "hour_2", "hour_4"];
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const toDbTime = (v: string, fallback: string) =>
@@ -84,6 +89,12 @@ export async function saveReminderPrefs(
       .update({
         dose_reminders_on: Boolean(input.doseRemindersOn),
         unlogged_alert_on: Boolean(input.missedOn),
+        // VALIDATED against the enum rather than passed through: the column is a
+        // Postgres enum, so an unrecognised string is a failed write for the
+        // whole row, taking the user's other changes down with it.
+        unlogged_alert_wait: UNLOGGED_WAITS.includes(input.unloggedWait)
+          ? input.unloggedWait
+          : "hour_2",
         low_inventory_alert_on: Boolean(input.lowStockOn),
         reminder_time: toDbTime(input.reminderTime, "09:00:00"),
         quiet_start: toDbTime(input.quietStart, "22:00:00"),

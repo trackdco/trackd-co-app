@@ -15,6 +15,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   dueUnlogged,
+  loggedDayOf,
+  overdueUnlogged,
+  waitMinutes,
   localParts,
   lowStock,
   doseReminderMessage,
@@ -55,6 +58,26 @@ export interface RunResult {
   sent: number;
   dueCount: number;
   lowCount: number;
+  /**
+   * How many of today's due doses were found ALREADY LOGGED.
+   *
+   * Reported beside `dueCount` because that pair IS the question this runner
+   * answers, and either number alone is unfalsifiable. A night when the user
+   * logged all three doses and was nagged for three anyway reads, in a response
+   * carrying only `sent: 1`, exactly like a night they logged nothing. That is
+   * why one such night took a database forensic to reconstruct rather than being
+   * legible in the cron's own output.
+   */
+  loggedCount: number;
+  /**
+   * Reads that FAILED, by name. Absent or empty when everything was readable.
+   *
+   * Supabase does not throw on a failed read; it returns `{ data: null, error }`,
+   * and `data ?? []` turns that into a confident empty answer. For the dose logs
+   * that empty answer MEANS "you have logged nothing today" — a claim about the
+   * user assembled out of our own outage, and one that errs toward nagging.
+   */
+  unreadable?: string[];
   reason?: string;
   /**
    * What happened to the trial reminder: `"sent"`, or the reason it was not.
@@ -93,6 +116,8 @@ interface UserData {
   notificationsEnabled: boolean;
   compounds: ReminderCompound[];
   loggedTodayIds: Set<string>;
+  /** Reads that came back with an error, by name. See {@link RunResult.unreadable}. */
+  unreadable: string[];
   stock: LowStockItem[];
   todayKey: string;
   nowMinutes: number;
@@ -560,7 +585,7 @@ async function collectUserData(
     supabase
       .from("notification_preferences")
       .select(
-        "dose_reminders_on, unlogged_alert_on, low_inventory_alert_on, reminder_time, missed_cutoff_time, quiet_start, quiet_end, low_stock_days, last_dose_reminder_on, last_missed_nudge_on, last_low_stock_on",
+        "dose_reminders_on, unlogged_alert_on, low_inventory_alert_on, reminder_time, missed_cutoff_time, unlogged_alert_wait, quiet_start, quiet_end, low_stock_days, last_dose_reminder_on, last_missed_nudge_on, last_low_stock_on",
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -594,7 +619,11 @@ async function collectUserData(
       // counts against the consistency percentage (`lib/progress/consistency.ts`
       // explains why those are different questions), but a push saying "you
       // haven't logged this" about a dose you deliberately skipped is just wrong.
-      .select("protocol_compound_id, taken_at, status")
+      // `logged_for` RIDES ALONG, and it is the column that actually answers
+      // "which day was this dose for" (`supabase/protocol/011`). See the day
+      // resolution below for why deriving that from `taken_at` is a different
+      // question with a different answer.
+      .select("protocol_compound_id, taken_at, logged_for, status")
       .eq("user_id", userId)
       .gte("taken_at", since),
     supabase
@@ -656,6 +685,36 @@ async function collectUserData(
   ]);
 
   /**
+   * Which of the five reads failed.
+   *
+   * COLLECTED, NOT THROWN, because the five are not equally load-bearing and a
+   * single `throw` would make them so: a failed inventory read must not cost the
+   * user their dose reminder. Each consumer decides what it cannot proceed
+   * without, and `runForUser` withholds only the messages whose inputs are gone.
+   *
+   * The pauses and versions reads stay TOLERANT of their migrations not being
+   * applied, which is the bargain their own comments strike above. What changes
+   * is that the failure is no longer invisible: it is named in the response
+   * instead of silently widening what gets announced.
+   */
+  const unreadable: string[] = [];
+  for (const [name, res] of [
+    ["compounds", pcRes],
+    ["dose_logs", logRes],
+    ["inventory", invRes],
+    ["pauses", pauseRes],
+    ["schedule_versions", verRes],
+  ] as const) {
+    if (res.error) {
+      unreadable.push(name);
+      console.error(
+        `[reminders] ${name} unreadable for ${userId} (${res.error.message}); ` +
+          "this run withholds anything that depends on it",
+      );
+    }
+  }
+
+  /**
    * Pauses as SPANS, grouped by compound — not as a "paused today" boolean.
    *
    * The boolean answered only the first of the three things a pause does. The
@@ -712,6 +771,9 @@ async function collectUserData(
       interval_days: (r.interval_days as number | null) ?? null,
       first_dose_on: r.first_dose_on as string,
       end_date: (r.end_date as string | null) ?? null,
+      // The day's own times, so `overdueUnlogged` can measure the user's wait
+      // FROM the dose rather than from a fixed hour of the evening.
+      doseTimes: (r.dose_times as (string | null)[] | null) ?? [],
       // Resolved with the SAME mapper the client uses, so the two cannot read
       // the same seven columns differently.
       cycle: cycleRuleFromColumns(r as Partial<CycleColumns>),
@@ -723,16 +785,35 @@ async function collectUserData(
     };
   });
 
-  // Everything RESOLVED today, taken or skipped. Named for what it gates: the
-  // "you have not logged this" nudge.
+  /**
+   * Everything RESOLVED today, taken or skipped. Named for what it gates: the
+   * "you have not logged this" nudge.
+   *
+   * ⚠️ THE STORED DAY WINS. `logged_for` is the user-local day the dose belongs
+   * to (`supabase/protocol/011`), written by the device that knew where the user
+   * was standing. Deriving the day from `taken_at` answers a different question:
+   * "which day was this INSTANT, in the timezone the profile says they are in
+   * now". The two disagree for anyone who has travelled since, and for every
+   * BACK-DATED dose, whose `taken_at` is when it was entered while
+   * `logged_for` is the day it was entered FOR. A dose logged this morning for
+   * yesterday would be counted as today, and yesterday would keep nagging.
+   *
+   * This is the same precedence `hydrateProtocol` applies when it folds rows
+   * into `DayLogs`, and for the same reason: a day is a fact that was recorded,
+   * not one to recompute. `taken_at` stays the fallback for rows written before
+   * 011, exactly as the client's own fallback chain does.
+   */
   const loggedTodayIds = new Set<string>();
   for (const row of logRes.data ?? []) {
     const r = row as Record<string, unknown>;
-    const takenAt = r.taken_at as string | null;
-    if (!takenAt) continue;
-    if (localParts(new Date(takenAt), tz).dateKey === todayKey) {
-      loggedTodayIds.add(r.protocol_compound_id as string);
-    }
+    const day = loggedDayOf(
+      {
+        logged_for: r.logged_for as string | null,
+        taken_at: r.taken_at as string | null,
+      },
+      tz,
+    );
+    if (day === todayKey) loggedTodayIds.add(r.protocol_compound_id as string);
   }
 
   // Stitch each active vial to its v_inventory_math runway.
@@ -782,6 +863,7 @@ async function collectUserData(
     notificationsEnabled: Boolean(profile.notifications_enabled),
     compounds,
     loggedTodayIds,
+    unreadable,
     stock,
     todayKey,
     nowMinutes,
@@ -881,13 +963,28 @@ async function sendMessages(
 export async function runForUser(
   supabase: Client,
   userId: string,
-  opts: { force?: boolean; now?: Date } = {},
+  opts: { force?: boolean; now?: Date; dryRun?: boolean } = {},
 ): Promise<RunResult> {
   const force = opts.force ?? false;
+  /**
+   * Work everything out and SEND NOTHING.
+   *
+   * This exists because the runner's first real defect could not be diagnosed
+   * from outside it. Every input was in the database, every gate read correctly
+   * on paper, and the one number that would have identified the failure was
+   * computed and discarded. The only way to observe it was to wait for 8pm and
+   * push a real notification at a real person.
+   *
+   * A dry run reads exactly what a live run reads and reports exactly what it
+   * decided, while writing nothing and delivering nothing: no push, no stamp, no
+   * trial claim. So "what would you do for this user right now" becomes a
+   * question you can ask, rather than one you answer by waiting.
+   */
+  const dryRun = opts.dryRun ?? false;
   const now = opts.now ?? new Date();
 
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
-    return { ok: false, sent: 0, dueCount: 0, lowCount: 0, reason: "vapid-unconfigured" };
+    return { ok: false, sent: 0, dueCount: 0, lowCount: 0, loggedCount: 0, reason: "vapid-unconfigured" };
   }
 
   const data = await collectUserData(supabase, userId, now);
@@ -899,7 +996,7 @@ export async function runForUser(
   // exists to remove.
   if (!force && !data.notificationsEnabled) {
     return {
-      ok: true, sent: 0, dueCount: 0, lowCount: 0, reason: "disabled",
+      ok: true, sent: 0, dueCount: 0, lowCount: 0, loggedCount: 0, reason: "disabled",
       trialReminder: data.trial ? "notifications-disabled" : undefined,
     };
   }
@@ -908,7 +1005,7 @@ export async function runForUser(
   const quietEnd = toMinutes((p.quiet_end as string) ?? "08:00:00");
   if (!force && inQuietHours(data.nowMinutes, quietStart, quietEnd)) {
     return {
-      ok: true, sent: 0, dueCount: 0, lowCount: 0, reason: "quiet-hours",
+      ok: true, sent: 0, dueCount: 0, lowCount: 0, loggedCount: 0, reason: "quiet-hours",
       trialReminder: data.trial ? "quiet-hours" : undefined,
     };
   }
@@ -916,6 +1013,30 @@ export async function runForUser(
   const due = dueUnlogged(data.compounds, data.loggedTodayIds, data.todayKey);
   const lowDays = Number(p.low_stock_days ?? 7);
   const low = lowStock(data.stock, data.todayKey, lowDays);
+
+  /**
+   * ⚠️ WHEN WE COULD NOT CHECK, WE DO NOT NAG. FAIL CLOSED.
+   *
+   * Both dose messages are assertions about the USER: "this is due" and "you
+   * have not logged it". Each needs two readable facts — what is due
+   * (`compounds`) and what is already done (`dose_logs`) — and a failure in
+   * either does not weaken the claim, it INVERTS it. `data ?? []` on a failed
+   * dose-log read produces an empty logged set, which reads as "you have logged
+   * nothing today" and nags the user for every dose they have already taken.
+   *
+   * The direction of the error is what settles this. Withholding a reminder
+   * costs a nudge the user usually does not need, on a day that comes round
+   * again tomorrow. Sending a false one tells somebody they failed at the thing
+   * this app exists to help them do, using our outage as the evidence. Those are
+   * not comparable, so the tie does not go to sending.
+   *
+   * LOW STOCK IS DELIBERATELY NOT GATED ON `dose_logs`: its inputs are the
+   * inventory read and the runway view, and it makes no claim about what the
+   * user did today. It is gated on its own read instead, just below.
+   */
+  const cannotJudgeDoses =
+    data.unreadable.includes("dose_logs") || data.unreadable.includes("compounds");
+  const cannotJudgeStock = data.unreadable.includes("inventory");
 
   const messages: PushMessage[] = [];
   /**
@@ -934,6 +1055,8 @@ export async function runForUser(
 
   const reminderMin = toMinutes((p.reminder_time as string) ?? "09:00:00");
   const missedMin = toMinutes((p.missed_cutoff_time as string) ?? "20:00:00");
+  /** How long past a dose's own time before it counts as still unlogged. */
+  const waitMin = waitMinutes(p.unlogged_alert_wait);
 
   /**
    * WHEN THE TRIAL REMINDER MAY FIRE, WHICH IS NOT ALWAYS `reminder_time`.
@@ -970,9 +1093,9 @@ export async function runForUser(
    * their access is ending, and the person that matters most to is exactly the
    * one who can no longer write.
    */
-  const doseOn = data.canWrite && p.dose_reminders_on !== false;
-  const missedOn = data.canWrite && p.unlogged_alert_on !== false;
-  const lowOn = data.canWrite && p.low_inventory_alert_on !== false;
+  const doseOn = data.canWrite && p.dose_reminders_on !== false && !cannotJudgeDoses;
+  const missedOn = data.canWrite && p.unlogged_alert_on !== false && !cannotJudgeDoses;
+  const lowOn = data.canWrite && p.low_inventory_alert_on !== false && !cannotJudgeStock;
 
   if (force) {
     // Test send: real content if any, else a friendly confirmation. A read only
@@ -998,8 +1121,25 @@ export async function runForUser(
         stamps.push({ column: "last_dose_reminder_on", value: data.todayKey, tag: m.tag });
       }
     }
-    if (missedOn && due.length > 0 && data.nowMinutes >= missedMin && p.last_missed_nudge_on !== data.todayKey) {
-      const m = missedNudgeMessage(due);
+    /**
+     * THE UNLOGGED NUDGE, MEASURED FROM THE DOSE RATHER THAN FROM THE CLOCK.
+     *
+     * It used to fire at `missed_cutoff_time` about everything still unlogged,
+     * which meant a compound due at 21:00 was reported "still unlogged" at 20:00,
+     * an hour before it was due at all. `unlogged_alert_wait` has been in the
+     * schema all along to answer exactly this and was read by nothing.
+     *
+     * `overdueUnlogged` narrows `due` to what is genuinely late, so the count in
+     * the message is a count of late doses. The cutoff survives as the fallback
+     * for a compound with NO dose time, which has no moment to measure from.
+     *
+     * ⚠️ ONE NUDGE A DAY, unchanged: `last_missed_nudge_on` is a single column
+     * and the first overdue dose spends it. That is a real trade against the old
+     * fixed sweep, which caught the whole day at once — see the branch notes.
+     */
+    const overdue = overdueUnlogged(due, data.nowMinutes, waitMin, missedMin);
+    if (missedOn && overdue.length > 0 && p.last_missed_nudge_on !== data.todayKey) {
+      const m = missedNudgeMessage(overdue);
       if (m) {
         messages.push(m);
         stamps.push({ column: "last_missed_nudge_on", value: data.todayKey, tag: m.tag });
@@ -1123,6 +1263,18 @@ export async function runForUser(
         const m = trialReminderMessage(data.trial, data.tz, ending);
         if (!m) {
           trialReason = "no-message";
+        } else if (dryRun) {
+          /**
+           * ⚠️ A DRY RUN MUST NOT CLAIM THE TRIAL REMINDER.
+           *
+           * The claim is a WRITE, and it is taken before the send precisely so a
+           * duplicate cannot go out. Taken by a rehearsal that then returns
+           * without sending, it would be a claim on a reminder nobody received —
+           * and since the dry run also returns before the release below, it would
+           * burn the one warning a user gets that money is about to leave their
+           * account. Reported rather than performed.
+           */
+          trialReason = "dry-run-would-send";
         } else if (await claimTrialReminder(supabase, userId, verdict.forDate, data.trialSentFor)) {
           /**
            * SENT FIRST, not last.
@@ -1144,6 +1296,22 @@ export async function runForUser(
         trialReason = verdict.reason;
       }
     }
+  }
+
+  // A dry run stops HERE: everything above is reads and arithmetic, everything
+  // below sends or writes. Reported as `reason: "dry-run"` so a caller can never
+  // mistake a rehearsal for a delivery.
+  if (dryRun) {
+    return {
+      ok: true,
+      sent: 0,
+      dueCount: due.length,
+      lowCount: low.length,
+      loggedCount: data.loggedTodayIds.size,
+      ...(data.unreadable.length > 0 ? { unreadable: data.unreadable } : {}),
+      reason: "dry-run",
+      trialReminder: trialReason,
+    };
   }
 
   const report = await sendMessages(supabase, userId, messages);
@@ -1190,6 +1358,8 @@ export async function runForUser(
     sent: report.total,
     dueCount: due.length,
     lowCount: low.length,
+    loggedCount: data.loggedTodayIds.size,
+    ...(data.unreadable.length > 0 ? { unreadable: data.unreadable } : {}),
     trialReminder: trialOutcome ?? trialReason,
   };
 }

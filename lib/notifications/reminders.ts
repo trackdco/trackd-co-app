@@ -21,6 +21,16 @@ export interface ReminderCompound {
   id: string;
   name: string;
   /**
+   * The day's scheduled dose times, "HH:MM[:SS]", in schedule order. An element
+   * may be null: that is the stored "no time set" state, not a missing value.
+   *
+   * Needed because `unlogged_alert_wait` is measured FROM the dose's own time,
+   * so a nudge cannot know whether a dose is overdue without knowing when it was
+   * due. Empty or all-null means the compound has no time, and
+   * {@link overdueUnlogged} falls back to the day's cutoff for it.
+   */
+  doseTimes?: (string | null)[];
+  /**
    * The compound's pauses (`supabase/protocol/018`), passed as SPANS rather than
    * as a "paused today" boolean.
    *
@@ -107,7 +117,7 @@ export interface ReminderCompound {
  * `reminders.test.ts` asserts every `CYCLE_COLUMNS` entry appears here.
  */
 export const PC_REMINDER_SELECT =
-  "id, schedule_type, days_of_week, interval_days, first_dose_on, end_date, cycle_anchor, cycle_on_days, cycle_off_days, cycle_end_type, cycle_end_date, cycle_end_rounds, cycle_colour, compounds(name)";
+  "id, schedule_type, days_of_week, interval_days, first_dose_on, end_date, dose_times, cycle_anchor, cycle_on_days, cycle_off_days, cycle_end_type, cycle_end_date, cycle_end_rounds, cycle_colour, compounds(name)";
 
 export interface LowStockItem {
   name: string;
@@ -178,6 +188,31 @@ export function localParts(now: Date, tz: string): { dateKey: string; minutes: n
     dateKey: `${get("year")}-${get("month")}-${get("day")}`,
     minutes: hour * 60 + Number(get("minute")),
   };
+}
+
+/**
+ * Which LOCAL DAY a dose_logs row belongs to.
+ *
+ * `logged_for` is the day the device recorded the dose FOR, written by the one
+ * machine that knew where the user was standing (`supabase/protocol/011`). It
+ * wins outright. `taken_at` is only consulted for rows written before that
+ * column existed, and consulting it is a genuinely different question — "which
+ * day was this INSTANT, in the timezone the profile claims now" — whose answer
+ * diverges for anyone who has since travelled, and for every back-dated dose,
+ * where the instant of entry and the day it was entered for are days apart.
+ *
+ * Pure, and exported, because the runner used to answer this inline from
+ * `taken_at` alone and nothing could test that it was wrong.
+ */
+export function loggedDayOf(
+  row: { logged_for?: string | null; taken_at?: string | null },
+  tz: string,
+): string | null {
+  if (row.logged_for) return row.logged_for;
+  if (!row.taken_at) return null;
+  const at = new Date(row.taken_at);
+  if (Number.isNaN(at.getTime())) return null;
+  return localParts(at, tz).dateKey;
 }
 
 /* --------------------------------------------------------------- schedule */
@@ -279,6 +314,68 @@ export function isDueToday(c: ReminderCompound, todayKey: string): boolean {
     default:
       return false;
   }
+}
+
+/**
+ * How long after a dose's own time the "still unlogged" nudge waits, in minutes.
+ *
+ * Mirrors the `unlogged_wait` enum. The column has existed since the
+ * notification schema was written and, until now, NOTHING in the codebase read
+ * it: the nudge fired at a fixed `missed_cutoff_time` regardless, so a user who
+ * asked to be told two hours late was told at 8pm whatever they chose. It was
+ * also unreachable from the settings screen, so nobody could have chosen at all.
+ */
+export const UNLOGGED_WAIT_MINUTES: Record<string, number> = {
+  min_30: 30,
+  hour_1: 60,
+  hour_2: 120,
+  hour_4: 240,
+};
+
+/** The stored wait as minutes, defaulting to two hours (the column's default). */
+export function waitMinutes(pref: unknown): number {
+  return UNLOGGED_WAIT_MINUTES[String(pref)] ?? UNLOGGED_WAIT_MINUTES.hour_2;
+}
+
+/**
+ * Of the due-and-unlogged compounds, the ones actually OVERDUE by now.
+ *
+ * A dose is overdue once its own scheduled time plus the user's chosen wait has
+ * passed. This is the difference between "you have not logged your evening dose"
+ * at nine in the morning, which is not true yet, and the same sentence at eight
+ * at night, which is.
+ *
+ * ⚠️ A COMPOUND WITH NO DOSE TIME FALLS BACK TO `cutoffMin`. The time is
+ * optional by design (`Schedule.timeOfDay` may be ""), and "unset plus two
+ * hours" is not a time. The day's cutoff is the honest answer for those: it is
+ * the one moment we can say the day is late enough to ask about.
+ *
+ * Returns the subset, so the message names only what is genuinely late rather
+ * than counting doses that are still to come.
+ */
+export function overdueUnlogged(
+  due: ReminderCompound[],
+  nowMinutes: number,
+  waitMin: number,
+  cutoffMin: number,
+): ReminderCompound[] {
+  return due.filter((c) => {
+    const times = (c.doseTimes ?? []).filter(
+      (t): t is string => typeof t === "string" && t.length > 0,
+    );
+    if (times.length === 0) return nowMinutes >= cutoffMin;
+    // The LAST of the day's times: a twice-daily compound is not "still
+    // unlogged" until its final dose has come and gone, or the morning slot
+    // would nag about a compound whose evening dose is still ahead.
+    const last = times.reduce((a, b) => (toMin(b) > toMin(a) ? b : a));
+    return nowMinutes >= toMin(last) + waitMin;
+  });
+}
+
+/** "HH:MM[:SS]" → minutes since midnight. Local to this module's pure maths. */
+function toMin(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
 }
 
 /** Active compounds due today that have NOT been logged today. */

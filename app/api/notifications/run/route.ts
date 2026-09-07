@@ -83,30 +83,71 @@ async function handle(req: Request) {
     targetIds = (profs ?? []).map((p) => p.id as string);
   }
 
+  /**
+   * DIAGNOSTIC MODE: `?dryRun=1`, optionally with `&userId=<uuid>`.
+   *
+   * Reads and decides exactly as a live run does, and sends nothing. It exists
+   * because this endpoint's response was the only window into the runner and it
+   * had been painted over: `dueCount` and `lowCount` were computed on every tick
+   * and dropped on the floor here, so a night the runner announced three
+   * unlogged doses that were all sitting logged in the database left no trace
+   * anywhere. `userId` narrows it to one account, which is what you want when
+   * reproducing a report rather than surveying everybody.
+   */
+  const params = new URL(req.url).searchParams;
+  const dryRun = params.get("dryRun") === "1";
+  const onlyUser = params.get("userId");
+  if (onlyUser) {
+    targetIds = targetIds.filter((id) => id === onlyUser);
+  }
+
   let sent = 0;
   const results: Array<{
     id: string;
     sent: number;
+    dueCount?: number;
+    loggedCount?: number;
+    lowCount?: number;
+    unreadable?: string[];
     reason?: string;
     trialReminder?: string;
   }> = [];
   for (const id of targetIds) {
     try {
-      const r = await runForUser(supabase, id, { force: false });
+      const r = await runForUser(supabase, id, { force: false, dryRun });
       sent += r.sent;
       // `trialReminder` rides along because this response is the ONLY output the
       // cron has, and the trial reminder is a promise two screens make out loud.
       // Without it, "nobody was reminded" and "the reminder is broken" look
       // identical from outside — which is how the promise went unkept for four
       // days without anything noticing.
-      results.push({ id, sent: r.sent, reason: r.reason, trialReminder: r.trialReminder });
+      /**
+       * `dueCount` and `loggedCount` RIDE ALONG, and they are the pair that
+       * makes this response falsifiable.
+       *
+       * They were computed and discarded, which meant "the user was nagged
+       * because they logged nothing" and "the user was nagged because we could
+       * not read what they logged" produced byte-identical output. The second of
+       * those happened. `unreadable` names the failed read when there was one,
+       * so the two can never be confused again.
+       */
+      results.push({
+        id,
+        sent: r.sent,
+        dueCount: r.dueCount,
+        loggedCount: r.loggedCount,
+        lowCount: r.lowCount,
+        ...(r.unreadable?.length ? { unreadable: r.unreadable } : {}),
+        reason: r.reason,
+        trialReminder: r.trialReminder,
+      });
     } catch (e) {
       console.error("[cron] runForUser failed", id, e);
       results.push({ id, sent: 0, reason: "error" });
     }
   }
 
-  return NextResponse.json({ ran: targetIds.length, sent, results });
+  return NextResponse.json({ ran: targetIds.length, sent, dryRun, results });
 }
 
 export async function POST(req: Request) {
