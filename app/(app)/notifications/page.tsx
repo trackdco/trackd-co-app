@@ -39,7 +39,7 @@ export default async function NotificationsSettingsPage() {
     supabase
       .from("notification_preferences")
       .select(
-        "dose_reminders_on, unlogged_alert_on, low_inventory_alert_on, reminder_time, quiet_start, quiet_end",
+        "dose_reminders_on, unlogged_alert_on, low_inventory_alert_on, reminder_time, unlogged_alert_wait, quiet_start, quiet_end",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
@@ -67,6 +67,7 @@ export default async function NotificationsSettingsPage() {
         initial={{
           doseRemindersOn: prefs?.dose_reminders_on ?? true,
           missedOn: prefs?.unlogged_alert_on ?? true,
+          unloggedWait: (prefs?.unlogged_alert_wait as string | null) ?? "hour_2",
           lowStockOn: prefs?.low_inventory_alert_on ?? true,
           reminderTime: hhmm(prefs?.reminder_time, "09:00"),
           quietStart: hhmm(prefs?.quiet_start, "22:00"),

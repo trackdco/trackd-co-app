@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { CircleNotch } from "@/components/icons";
 
 import { CARD_EYEBROW } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 import {
   saveReminderPrefs,
   saveTimezone,
@@ -13,6 +14,7 @@ import {
 export interface ReminderPrefsInitial {
   doseRemindersOn: boolean;
   missedOn: boolean;
+  unloggedWait: string;
   lowStockOn: boolean;
   reminderTime: string; // "HH:MM"
   quietStart: string; // "HH:MM"
@@ -49,6 +51,7 @@ export function ReminderSettings({
 
   const [doseRemindersOn, setDose] = useState(initial.doseRemindersOn);
   const [missedOn, setMissed] = useState(initial.missedOn);
+  const [unloggedWait, setUnloggedWait] = useState(initial.unloggedWait);
   const [lowStockOn, setLowStock] = useState(initial.lowStockOn);
   const [reminderTime, setReminderTime] = useState(initial.reminderTime);
   const [quietStart, setQuietStart] = useState(initial.quietStart);
@@ -62,6 +65,7 @@ export function ReminderSettings({
     const input: ReminderPrefsInput = {
       doseRemindersOn,
       missedOn,
+      unloggedWait,
       lowStockOn,
       reminderTime,
       quietStart,
@@ -93,6 +97,22 @@ export function ReminderSettings({
           on={missedOn}
           onToggle={() => setMissed((v) => !v)}
         />
+        {/* Only meaningful while the nudge is on, so it appears with it rather
+            than sitting there greyed out making a promise it cannot keep. */}
+        {missedOn ? (
+          <ChoiceRow
+            label="Nudge after"
+            hint="Measured from when the dose was due, not from a fixed hour."
+            value={unloggedWait}
+            onChange={setUnloggedWait}
+            options={[
+              { value: "min_30", label: "30 min" },
+              { value: "hour_1", label: "1 hr" },
+              { value: "hour_2", label: "2 hr" },
+              { value: "hour_4", label: "4 hr" },
+            ]}
+          />
+        ) : null}
         <SwitchRow
           label="Low stock"
           // ONE setting covering every container the user owns, so it cannot
@@ -185,6 +205,58 @@ function SwitchRow({
           }`}
         />
       </button>
+    </div>
+  );
+}
+
+/**
+ * A short list of choices as pills, the selected one in white.
+ *
+ * White rather than amber, per the one-amber-moment rule: amber is reserved for
+ * what is LIVE and the switches above already carry it on this screen. A
+ * selected option is settled state, not a due moment.
+ */
+function ChoiceRow({
+  label,
+  hint,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="py-3">
+      <span className="text-xs uppercase tracking-[0.18em] text-text-muted">
+        {label}
+      </span>
+      <div role="radiogroup" aria-label={label} className="mt-2 flex gap-2">
+        {options.map((o) => {
+          const on = o.value === value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onChange(o.value)}
+              className={cn(
+                "flex-1 rounded-full px-3 py-2 font-mono text-xs tabular-nums transition-opacity active:scale-[0.98]",
+                on
+                  ? "bg-accent-primary text-bg-base"
+                  : "bg-bg-input text-text-muted hover:text-foreground",
+              )}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+      {hint ? <p className="mt-2 text-xs text-text-subtle">{hint}</p> : null}
     </div>
   );
 }

@@ -4148,6 +4148,68 @@ evidence:
   cost the single-pass `weekMatrix` exists to remove. `loggedCountFor` instead,
   and `weekCellState` now resolves a day in one slot pass rather than two.
 
+## The runner nagged about doses that were already logged (2026-09-07)
+
+At 20:00 Sydney Adrian was told "3 doses are still unlogged today". All three
+were in Postgres, with `logged_for = 2026-09-07`, against the three active
+compounds; the last had landed an hour earlier. The due side was right and the
+already-logged side came back empty.
+
+**It could not be diagnosed from outside the runner, and that is the first thing
+fixed.** `dueCount` and `lowCount` were computed on every tick and dropped by
+the route, so "nagged because they logged nothing" and "nagged because we could
+not read what they logged" produced byte-identical output. `pg_net` times out at
+5s and most ticks record `status_code: null`, so even the discarded JSON usually
+never landed. The response now carries `dueCount`, `loggedCount` and a named
+`unreadable` list, and `?dryRun=1&userId=` decides everything and sends nothing.
+
+**Two defects, either of which produces the symptom, both fixed:**
+
+- **`logRes.error` was never checked.** `data ?? []` turns a failed dose-log read
+  into a confident "you have logged nothing today". The runner already treated
+  `subRes.error` and `graceRes.error` as unknown states; the four reads that
+  decide whether to nag were unchecked. It now **fails closed**: no dose message
+  goes out while the facts behind it are unreadable. The direction of the error
+  is the whole argument. A withheld reminder costs a nudge on a day that comes
+  round again; a false one tells somebody they failed at the thing the app exists
+  to help them do, on the evidence of our own outage.
+- **The day was derived from `taken_at` instead of read from `logged_for`.**
+  Extracted as `loggedDayOf` so it is testable, which it was not before. The
+  derivation answers a different question and diverges for anyone who has
+  travelled and for every back-dated dose.
+
+**`unlogged_alert_wait` now exists in the app, not just in the schema.** It and
+`dose_reminder_lead` had been columns with enums that NOTHING read and no screen
+could set. The nudge is measured from the dose's own time plus the user's wait
+rather than from a fixed evening hour, so a compound due at 21:00 is no longer
+reported "still unlogged" at 20:00. `missed_cutoff_time` survives as the fallback
+for a compound with no dose time, which has no moment to measure from.
+
+**The resurrection had a second door.** `hydrateProtocol`'s flush was guarded on
+3 September; `pushProtocolBatch` was not, and it replays the WHOLE device stack
+including deleted compounds. That is what rebuilt Adrian's eleven purged records
+twenty minutes after they were deleted, with a fresh `created_at` years off the
+real one. Both writers now share one rule, pinned by a test that reads both
+files: a compound earns a Postgres row unless it was deleted and never dosed.
+
+### Open, and deliberately not decided here
+
+- **`dose_reminder_lead` is still unread.** Its only coherent meaning is a
+  per-dose reminder, which this runner does not do and which would multiply
+  everyone's notifications. That is a product call, not a repair.
+- **One nudge a day is unchanged**, and the wait makes it a real trade:
+  `last_missed_nudge_on` is a single column, so the first overdue dose spends
+  it, where the old fixed sweep caught the whole day at once.
+- **Adrian's eleven were NOT re-purged.** Deleting them while the guard is only
+  on a branch would invite the same rebuild. The purge is a step to run AFTER
+  this merges, not before.
+- **`hardening/003_force_row_level_security.sql` must not be run before this
+  merges.** Forcing RLS makes the service role's reads return zero rows, and
+  until the fail-closed change is live that reads as "nobody logged anything"
+  and nags every user for every dose.
+- **`CRON_SECRET` is in plaintext in `cron.job.command`**, readable by anyone
+  with database access. Rotation is Adrian's.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

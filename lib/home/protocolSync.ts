@@ -439,6 +439,13 @@ export async function pushProtocolBatch(
     // local stack with two same-name entries). Keep the first; map any later
     // entry's dose logs onto that canonical row so no log is lost.
     const canonicalByCompound = new Map<string, Meta>()
+    /**
+     * Which client compounds this migration is actually carrying doses for.
+     *
+     * Built once, because the guard below needs it per compound and scanning the
+     * entries inside the loop would be quadratic on a long history.
+     */
+    const withDoses = new Set(doseEntries.map((e) => e.clientCompoundId))
     let skippedCustom = 0
     for (const c of stack) {
       const compoundId = idByName.get(c.name)
@@ -446,6 +453,27 @@ export async function pushProtocolBatch(
         skippedCustom++
         continue
       }
+      /**
+       * ⚠️ DELETED, NEVER DOSED. THIS IS THE RESURRECTION PATH.
+       *
+       * The migration replays the device's stack into Postgres, and it replayed
+       * ALL of it, deleted compounds included. So a compound the user removed
+       * came back as a row — inactive and invisible, but present, and stamped
+       * with a fresh `created_at` that is years off its real one. Eleven of
+       * Adrian's, hard-deleted from the database on 3 September, were rebuilt by
+       * this loop twenty minutes later.
+       *
+       * `hydrateProtocol`'s flush was given exactly this guard and this one was
+       * missed, which is the whole lesson: there are TWO paths that mint a
+       * `protocol_compounds` row from the device, and a rule applied to one of
+       * them is not a rule.
+       *
+       * A deleted compound WITH doses still goes up, because
+       * `dose_logs.protocol_compound_id` is a foreign key and its history has to
+       * hang off something. That is the only reason a deleted compound needs a
+       * row at all, so it is the only case that gets one.
+       */
+      if (c.archived && !withDoses.has(c.id)) continue
       const existing = canonicalByCompound.get(compoundId)
       if (existing) {
         meta.set(c.id, existing)
