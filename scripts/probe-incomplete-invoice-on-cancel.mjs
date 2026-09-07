@@ -2,6 +2,31 @@
  * ⚠️ DOES `subscriptions.cancel()` LEAVE AN `incomplete` SUBSCRIPTION'S FIRST
  * INVOICE PAYABLE? A ONE-QUESTION PROBE AGAINST STRIPE TEST MODE.
  *
+ * ## ✅ ANSWERED. MEASURED 2026-09-07 AGAINST REAL STRIPE TEST MODE. NO, IT DOES NOT.
+ *
+ *     subscription sub_1UCzoIEmCWV24GLCBATCHwjQ   status incomplete
+ *     invoice      in_1UCzoJEmCWV24GLCplYnyN9x   status open      (before)
+ *     -> subscriptions.cancel()
+ *     subscription status AFTER   incomplete_expired
+ *     invoice      status AFTER   void            amount_due 6999 gbp
+ *
+ * **The deletion path is SAFE and needs no change.** The finding that prompted
+ * this (a cold review's HIGH-2: a user who abandons a 3DS challenge, deletes
+ * their account, then finishes the challenge in a stale tab gets charged after
+ * `billing_customers` has cascaded away) cannot happen, because there is no
+ * payable invoice left to finish.
+ *
+ * ⚠️ TWO THINGS THE MEASUREMENT SETTLED, NOT ONE. The subscription lands on
+ * `incomplete_expired`, NOT `canceled` - which is exactly the status
+ * `cancel.ts:185-186` deliberately excludes from `BILLABLE_STATUSES` on the
+ * grounds that "Stripe has finished with those and they can never charge". So a
+ * RETRY of `cancelNowForUser` also sees nothing billable and does not re-issue
+ * a cancel. The idempotence argument holds on this path too.
+ *
+ * ⚠️ IT IS A VENDOR BEHAVIOUR WE DEPEND ON AND DO NOT CONTROL. Re-run this probe
+ * if Stripe's API version is pinned forward or the cancel call changes. That is
+ * the whole reason it is a committed script rather than a one-off paste.
+ *
  * ▶ HOW TO RUN THIS
  *
  *     node --env-file=.env.local scripts/probe-incomplete-invoice-on-cancel.mjs

@@ -4162,7 +4162,7 @@ decided by `limit(1)` off a row selection borrowed from the plan-label pill,
 with `error` discarded. That convergence is the strongest evidence the round
 produced.
 
-### ⚠️ STILL OPEN — the one HIGH, and it is on the payments path
+### ~~STILL OPEN~~ ✅ CLOSED 2026-09-07 BY MEASUREMENT — the last HIGH
 
 **Does `stripe.subscriptions.cancel()` leave an `incomplete` subscription's
 first invoice payable?** `incomplete` is in `BILLABLE_STATUSES`
@@ -4177,12 +4177,24 @@ If the invoice survives, somebody who abandons a 3DS challenge, deletes, then
 finishes the challenge in a stale tab is charged after `billing_customers` has
 cascaded away — §3.2's unattributable chargeback.
 
-**`scripts/probe-incomplete-invoice-on-cancel.mjs` settles it.** Stripe test
-mode ONLY, imports no Supabase, so it cannot write a test-mode customer id into
-the production billing tables — the specific risk that was held back. Refuses any
-key not beginning `sk_test_`, proven by running it. **Founder-run.**
+**ANSWERED: Stripe VOIDS the invoice on cancel.** Adrian ran the probe on
+2026-09-07. Measured: an `incomplete` subscription with an `open` 6999 gbp
+invoice, cancelled the way `cancelNowForUser` does, left the subscription
+`incomplete_expired` and the invoice **`void`**. There is no payable invoice for
+an abandoned 3DS challenge to settle, so the charge-after-deletion state cannot
+occur. **No code change. HIGH-2 drops to LOW and is recorded as a vendor
+dependency**, in the probe script's own header alongside the numbers.
 
-**§5's bar is not met while this stands.**
+⚠️ It settled a second thing. The subscription lands on `incomplete_expired`,
+not `canceled` — which is precisely the status `cancel.ts:185-186` excludes from
+`BILLABLE_STATUSES` because "Stripe has finished with those and they can never
+charge". So a retry finds nothing billable and does not re-cancel; the
+idempotence argument holds on the `incomplete` path too.
+
+⚠️ **Re-run the probe if Stripe's API version is pinned forward, or if the cancel
+call changes.** It is a committed script for that reason.
+
+**✅ NO CRITICAL AND NO HIGH REMAIN. §5's payments bar is met.**
 
 ### ~~AWAITING SIGNATURE~~ SIGNED 2026-09-05 — four failure strings
 
@@ -4202,7 +4214,7 @@ him; his call as copy owner; recorded at the constant. **Do not re-expand it.**
 The five older unsigned strings the UI lane catalogued (including
 `"Delete my account"`, the trigger label) are still unsigned and unpinned.
 
-### ~~FOUNDER / LEGAL LANE~~ RESOLVED AS v2.1, DRAFTED, NOT YET APPLIED
+### ~~FOUNDER / LEGAL LANE~~ ✅ v2.1 IS LIVE (applied 2026-09-07)
 
 Accepted by all ~99 accounts on 27 Aug 2026, and false on ship:
 
@@ -4229,13 +4241,23 @@ Zero em dashes. The medical disclaimer stays at 2.0 - it says nothing about
 deletion, and `legal-acceptance.ts:64-73` reads each doc_type's version
 independently, so divergent versions are supported rather than drift.
 
-⚠️ **NOT APPLIED. Two founder steps, in order:** `node
-scripts/legal-v2-1-ingest.mjs` (inserts three rows DORMANT, refusing if any
-superseded sentence, em dash or missing new text is found), then
-`supabase/legal/015_legal_documents_v2_1.sql` (one transaction, refuses if the
-three rows are absent). Dormant-then-flip is the v2.0 pattern: the partial unique
-index `(doc_type) WHERE is_current` means a client-side demote and promote would
-leave a window with NO current row and `/privacy` would 404.
+✅ **APPLIED BY ADRIAN 2026-09-07**, ingest then migration. Both VERIFY blocks
+were run and pass, confirmed against production:
+
+| doc_type | version | is_current | chars |
+|---|---|---|---|
+| `terms_of_service` | **2.1** | true | 25,553 |
+| `privacy_policy` | **2.1** | true | 31,536 |
+| `consumer_health_data` | **2.1** | true | 4,284 |
+| `medical_disclaimer` | 2.0 | true | 7,283 |
+
+`says_30_days`, `says_by_person`, `says_email`, `says_device_survives` and
+`has_em_dash` are **false on all four**, and exactly one current row exists per
+doc_type. The three char counts are byte-identical to `Context/legal-v2/*.md`,
+which is what makes the files the source of truth rather than a stale copy.
+
+`consent_records` will stamp 2.1 from now on, because `legal-acceptance.ts` reads
+the live version rather than a literal.
 
 ### Accepted deliberately, not fixed
 

@@ -13,35 +13,27 @@ trial-conversion risk still open)
 
 ## 🔴 SPEC 16 — THE COLD REVIEWS CAME BACK. ONE HIGH IS OPEN, AND IT IS ADRIAN'S.
 
-Branch `deletion/steps-1-2`, 14 commits ahead of `origin/main`, unpushed. Three
-independent cold lanes ran; 0 CRITICAL, 5 HIGH, four fixed in `33b40d2`. Gates
-after the fixes: tsc, eslint, 95 files / 1992 tests, gate:check (32/2/71),
-`next build` exit 0. **§5's bar is NOT met while the item below stands.**
+Branch `deletion/steps-1-2`, unpushed. Three independent cold lanes ran;
+0 CRITICAL, 5 HIGH. Four were fixed in `33b40d2`; the fifth was **answered by
+measurement on 2026-09-07 and needed no code change**. Gates: tsc, eslint,
+96 files / 2010 tests, gate:check (32/2/71), `next build` exit 0.
 
-- [ ] **⚠️ ADRIAN: run the Stripe probe.** One command, test mode only, no
-      Supabase, refuses any key that is not `sk_test_`:
+**✅ NO CRITICAL AND NO HIGH REMAIN. The payments bar is met.** What is left is
+the two §5 boxes that need a browser, and then the re-run.
 
-          node --env-file=.env.local scripts/probe-incomplete-invoice-on-cancel.mjs
-
-      It answers whether `subscriptions.cancel()` leaves an `incomplete`
-      subscription's first invoice payable. If the invoice comes back `open`,
-      that is a CONFIRMED payments defect and the deletion path must void it the
-      way `cancel.ts:374` already does for the user cancel path (D76). If it
-      comes back `void`, the finding drops to LOW and is recorded, not fixed.
-      Paste the verdict back.
+- [x] ~~Run the Stripe probe.~~ Done 2026-09-07. **Stripe VOIDS the invoice on
+      cancel** (`incomplete` -> `incomplete_expired`, invoice `open` -> `void`),
+      so the deletion path is safe and unchanged. Recorded with the numbers in
+      the probe script's header. Re-run it if Stripe's API version is pinned
+      forward or the cancel call changes.
 
 - [x] ~~Sign the four failure strings.~~ Done 2026-09-05, pinned, twelve lines
       in the signed record. Five older strings remain unsigned.
 
-- [ ] **⚠️ ADRIAN: publish legal v2.1.** Two steps, in this order, both yours:
-
-          node scripts/legal-v2-1-ingest.mjs          # inserts DORMANT
-          supabase/legal/015_legal_documents_v2_1.sql # paste into SQL Editor
-
-      The ingest refuses if any document still carries a superseded sentence, an
-      em dash, or is missing its new text. **If it refuses, STOP and do not apply
-      the migration.** Then run the migration's ▶ VERIFY block and read the rows:
-      expect FOUR current rows, three at 2.1 and the medical disclaimer at 2.0.
+- [x] ~~Publish legal v2.1.~~ Applied 2026-09-07. Verified against production:
+      four current rows, three at 2.1 and the medical disclaimer still at 2.0,
+      one current row per doc_type, no superseded sentence and no em dash in any
+      of them, char counts byte-identical to `Context/legal-v2/*.md`.
 
 - [x] ~~The legal conflict.~~ Ruled 2026-09-05: D116 make the promise true, D115
       point releases. Drafted as v2.1 across three documents, committed, awaiting
