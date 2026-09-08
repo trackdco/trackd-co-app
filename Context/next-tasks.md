@@ -186,9 +186,11 @@ the entire project.
 Adrian has asked for the gate ON in production with the grace **14 days out, not 4**.
 Everything below is ordered, and the order is the whole safety.
 
-⚠️ **Read `Context/LAUNCH-MORNING-RUNBOOK.md` §P10-P13 first.** This is not a second
-copy of it — it is the three things that have CHANGED underneath it since it was
-written, plus the order they now have to happen in.
+⚠️ **The runbook this pointed at is GONE.** `Context/LAUNCH-MORNING-RUNBOOK.md` was a
+launch-DAY procedure for 27 August 2026; the launch happened, and the file was deleted
+on 2026-09-08. It is in git history if that sequence is ever wanted again. Everything
+below stands on its own: it is the three things that CHANGED underneath that runbook,
+plus the order they now have to happen in.
 
 ### What changed underneath the runbook
 
@@ -1507,6 +1509,13 @@ under the iOS status bar.
 - `markPastDue`'s clawback has no memory, so a later entitling event can hand the
   unpaid period back. Reachable only on top of CRITICAL 4, which is now fixed;
   durable memory needs a column.
+- ⚠️ **THE COURTESY CLAWBACK, and suspect this FIRST if anyone reports losing access
+  they were promised.** Reproduced on a test clock: a save-offer grant is silently
+  undone by Stripe's own retry, destroying **up to 11 days** while the screen still
+  shows the granted date. It needs a subscriber whose first charge fails, who then
+  cancels, accepts the offer, and is retried. Ruled not a launch blocker; the
+  earliest any real account could reach it was **3 September 2026, now passed**.
+  Carried out of `LAUNCH-MORNING-RUNBOOK.md` before that file was deleted.
 - `syncSubscription` can still write `active_until = NULL`, which reads as never
   expires. `endSubscription` refuses exactly this; the sync has no equivalent.
 - Profile's plan pill reads the mirror with no status filter, ordered by
@@ -1944,6 +1953,18 @@ the next navigation.
 today — the caller reports `trial-over` — but it makes `RunResult.trialReminder`
 report trial reasons for users who have no trial, and an expired comp sorts
 first under the runner's `order("active_until").limit(1)`.
+
+### 8. 🔴 THE WAITLIST PAGE STILL SAYS THE APP IS FREE, AND IT HAS NOT BEEN SINCE 27 AUG
+
+`app/waitlist/page.tsx:83` reads **"Free while it's in beta · 18+"**. That went from
+true to false the morning the gate flipped, and it is still there twelve days later.
+Nothing breaks, but the first person who reads it has been told the wrong price by the
+front page before they ever reach checkout.
+
+**This is Adrian's copy to change, not an agent's** — it is user-facing signed copy and
+the standing law is that it is character-for-character his. Say the word and it changes.
+(Carried out of `LAUNCH-MORNING-RUNBOOK.md` before that file was deleted; it was the one
+item in there that was still live.)
 
 ### 7. THE STRIPE PORTAL'S SECOND CANCEL BUTTON
 
@@ -2959,10 +2980,10 @@ execution on a second throwaway account:
 ## ⚠️ Known, judged, NOT fixed
 
 - **`/progress` still fetches and signs EVERY progress photo with no `limit`.**
-  Carried deliberately at Adrian's instruction. The review did not find it to be
-  worse than he thought, but nothing measured the real cost either, because the
-  third review agent (the cold execution pass) had not reported when this
-  session wrote up.
+  Carried deliberately at Adrian's instruction. **Now measured** (2026-08-01, in
+  the onboarding session): 34 signed URLs and a **119KB document at 32 photos**.
+  The client only ever fetches one image, so the cost is entirely server-side,
+  and it grows for the life of the account with no ceiling.
 - **The block start-date fix is still unverified on a real phone.** Desktop
   Chrome does not emit the empty change events an iOS wheel picker does. The
   onboarding date field was verified against a SIMULATED empty event
@@ -2972,6 +2993,10 @@ execution on a second throwaway account:
 - **The journal date fix is the same shape** and was reasoned from the code
   path, not driven on a phone. It is a strict improvement either way: it removes
   a coercion, so the worst case is that the event never fires.
+- **The Running list's 145px pop-in was tried and deliberately backed out.**
+  Reserving the height removes the jump for a user who IS running something and
+  creates an upward collapse for one who is not. Recorded so it does not get
+  "fixed" a second time.
 
 
 These were found by review and deliberately left. Each needs a decision, not a
