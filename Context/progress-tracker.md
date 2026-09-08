@@ -4423,6 +4423,62 @@ would make it reachable.
 `tsc` clean · eslint clean · **97 files / 2022 tests** · `gate:check` clean
 (32/2/71) · `next build` exit 0.
 
+## SPEC 16 — THE LAST FIX ON THIS PATH (2026-09-08)
+
+Adrian accepted the stop, then authorised **ONE** change on the grounds that both
+causes were named precisely rather than mysterious. **This is the last fix on
+this path; anything found after it is recorded and handed to reviewers.**
+
+### HIGH-1 fixed — the confirmation read REPORTS, it does not GATE
+
+`verify-erased` left `DELETION_ORDER`. The gating steps are the three that can
+still protect somebody: cancel, sweep, delete the auth user. The read now runs
+after the loop, inside a `try`, and its failure is carried on the outcome as
+`verification` instead of turning `ok` false.
+
+**The property, stated as a property:** once the auth delete has succeeded, the
+sign-out, the cookie clear, the device wipe and the redirect all run **regardless
+of what the confirmation read returns.** Not "the read passes".
+
+⚠️ It can still fail, and loudly. It still throws; `deleteAccountFor` catches it,
+records it, and logs `ERASURE UNVERIFIED` with the user id. **Where the loud part
+lands: the server log, and nowhere else.** The person is gone and can read
+nothing. Nothing pages anybody on it today - the push alerter at
+`lib/billing/reconcile/alert.ts` is bound to spec 11's reconciliation report, so
+routing this into it is its own decision and was not taken inside a stop.
+
+**Two-sided control**, because deleting the check would satisfy the first half:
+a failed read must still complete every cleanup AND still be recorded. Proven
+able to fail - re-gating the action on `verification` reddens exactly the three
+property tests, and restoring makes them green.
+
+### MEDIUM-2 fixed — the comment, not the mechanism
+
+`cascadeCoverage.ts` and `deleteAccount.ts` both claimed the guard "fails the
+BUILD". Measured false: no `.github`, no `.husky`, no active git hook, and
+`npm run build` is `next build` plus a compounds prebuild. Both now say what
+actually runs it - `npm test` and `npm run check` - and that **nothing runs it
+automatically.**
+
+### MEDIUM-1 recorded, NOT widened
+
+On Adrian's ruling: widening a read is where this project introduces new failure
+modes, and this was found inside a stop. The four proven-invisible shapes are now
+in `cascadeCoverage.ts`'s own header: a reference with no column list, quoted
+identifiers, a composite key, and **a table with no foreign key at all** - which
+is the exact case its opening paragraph claims to catch. Production re-measured
+the same day: 41 foreign keys, all cascading. A gap in the guard, not a live
+defect.
+
+### ⚠️ An environment artefact worth knowing about
+
+`tsc` began exiting 1 on two errors in `.next/types/*.d 2.ts`. Those files were
+created at 18:44, when a `next build` ran, and are byte-identical duplicates made
+by whatever on this machine also produces the `* 2.md` spec twins and `* 2.ts`
+lib twins. `.next` is gitignored build output. The strays were removed and `tsc`
+returned to 0. **Expect this to recur after any build on this machine**, and do
+not read it as a type error in the tree.
+
 ## ⚠️ SPEC 16 — STOPPING RULE TRIGGERED 2026-09-08. NOT FIXED FORWARD.
 
 The narrow re-verify on the A1/C1 changes found a defect **in the A1 fix itself**.

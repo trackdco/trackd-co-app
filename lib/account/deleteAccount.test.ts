@@ -14,7 +14,7 @@
  *
  * The first is a support email. The second is a chargeback nobody can trace.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
 import {
@@ -27,9 +27,18 @@ import {
 
 const USER = "11111111-2222-4333-8444-555555555555";
 
-/** Records what actually ran, and can be told to fail at one named step. */
-function recorder(failAt?: DeletionStep, failWith = "boom") {
-  const ran: DeletionStep[] = [];
+/**
+ * Records what actually ran, and can be told to fail at one named step.
+ *
+ * `verifyErased` is tracked in the same `ran` list but is NOT a `DeletionStep`,
+ * because it cannot stop the deletion. `failVerify` breaks it separately.
+ */
+function recorder(
+  failAt?: DeletionStep,
+  failWith = "boom",
+  failVerify?: string,
+) {
+  const ran: string[] = [];
   const step = (name: DeletionStep) => async () => {
     if (name === failAt) throw new Error(failWith);
     ran.push(name);
@@ -38,17 +47,20 @@ function recorder(failAt?: DeletionStep, failWith = "boom") {
     cancelStripe: step("cancel-stripe"),
     sweepStorage: step("sweep-storage"),
     deleteAuthUser: step("delete-auth-user"),
-    verifyErased: step("verify-erased"),
+    verifyErased: async () => {
+      if (failVerify) throw new Error(failVerify);
+      ran.push("verify-erased");
+    },
   };
   return { ran, steps };
 }
 
 describe("the happy path", () => {
-  it("runs all four, in the spec's order", async () => {
+  it("runs the three gating steps in the spec's order, then verifies", async () => {
     const { ran, steps } = recorder();
     const out = await deleteAccountFor(USER, steps);
 
-    expect(out).toEqual({ ok: true, stepsRun: [...DELETION_ORDER] });
+    expect(out).toEqual({ ok: true, stepsRun: [...DELETION_ORDER], verification: { ok: true } });
     expect(ran).toEqual(["cancel-stripe", "sweep-storage", "delete-auth-user", "verify-erased"]);
   });
 
@@ -75,6 +87,12 @@ describe("the happy path", () => {
     const { ran, steps } = recorder();
     await deleteAccountFor(USER, steps);
     expect(ran.indexOf("delete-auth-user")).toBeLessThan(ran.indexOf("verify-erased"));
+  });
+
+  it("a clean run reports the erasure as verified", async () => {
+    const { steps } = recorder();
+    const out = await deleteAccountFor(USER, steps);
+    expect(out).toMatchObject({ ok: true, verification: { ok: true } });
   });
 
   it("the verification is LAST, and it is a read rather than a delete", async () => {
@@ -130,23 +148,64 @@ describe("⚠️ BREAKING EACH STEP — nothing after it may run", () => {
     // Nothing after it ran, so nothing cascaded and no verification claimed it did.
     expect(ran).not.toContain("verify-erased");
   });
+});
 
-  /**
-   * ⚠️ A VERIFICATION STEP THAT CANNOT FAIL IS A STEP THAT RUNS, DOES NOTHING
-   * AND EXITS 0. This drives it failing, so the fourth step's failure is a state
-   * the orchestrator actually reports rather than a branch nothing reaches.
-   */
-  it("a failed VERIFICATION is reported rather than swallowed", async () => {
-    const { ran, steps } = recorder("verify-erased", "the account is not fully erased");
+/**
+ * ⚠️ THE CONFIRMATION READ REPORTS. IT DOES NOT GATE.
+ *
+ * The property, stated as a property rather than an outcome: **once the auth
+ * delete has succeeded, everything after it happens regardless of what the
+ * verification returns.** Not "the verification passes".
+ *
+ * The defect: it used to be the fourth gating step, so a transient error on any
+ * one of its six reads returned `{ok: false}` for an account that was ALREADY
+ * GONE - withholding the sign-out, the cookie clear, the device wipe and the
+ * redirect from somebody who could no longer reach any of them.
+ *
+ * ⚠️ TWO-SIDED ON PURPOSE. Deleting the check outright would satisfy "the
+ * cleanup still runs", so the failure must also still be RECORDED.
+ */
+describe("⚠️ a failed verification does not withhold anything", () => {
+  it("still reports the deletion as DONE, so every cleanup downstream runs", async () => {
+    const { steps } = recorder(undefined, "boom", "profiles: 1 row(s) remain");
+    const out = await deleteAccountFor(USER, steps);
+
+    // `ok: true` is what the action reads before it signs out, clears the
+    // cookies and redirects. This is the whole fix.
+    expect(out.ok).toBe(true);
+    expect(out.ok === true && out.stepsRun).toEqual([...DELETION_ORDER]);
+  });
+
+  it("⚠️ AND STILL RECORDS THE FAILURE — a deleted check would pass the test above", async () => {
+    const { steps } = recorder(undefined, "boom", "profiles: 1 row(s) remain");
     const out = await deleteAccountFor(USER, steps);
 
     expect(out).toMatchObject({
-      ok: false,
-      failedAt: "verify-erased",
-      error: "the account is not fully erased",
+      ok: true,
+      verification: { ok: false, error: "profiles: 1 row(s) remain" },
     });
-    expect(ran).toEqual(["cancel-stripe", "sweep-storage", "delete-auth-user"]);
   });
+
+  it("shouts about it in the server log, which is the only audience left", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { steps } = recorder(undefined, "boom", "profiles: 1 row(s) remain");
+    await deleteAccountFor(USER, steps);
+
+    const shouted = spy.mock.calls.flat().join(" ");
+    expect(shouted).toContain("ERASURE UNVERIFIED");
+    expect(shouted).toContain(USER);
+    spy.mockRestore();
+  });
+
+  it("a verification that PASSES is unchanged", async () => {
+    const { ran, steps } = recorder();
+    const out = await deleteAccountFor(USER, steps);
+    expect(out).toMatchObject({ ok: true, verification: { ok: true } });
+    expect(ran).toContain("verify-erased");
+  });
+});
+
+describe("⚠️ BREAKING EACH STEP, continued", () => {
 
   it.each([...DELETION_ORDER])("failing at %s never reports ok", async (failAt) => {
     const { steps } = recorder(failAt);
@@ -174,8 +233,8 @@ describe("a retry after a partial failure completes cleanly", () => {
     const second = recorder();
     const out = await deleteAccountFor(USER, second.steps);
 
-    expect(out).toEqual({ ok: true, stepsRun: [...DELETION_ORDER] });
-    expect(second.ran).toEqual([...DELETION_ORDER]);
+    expect(out).toEqual({ ok: true, stepsRun: [...DELETION_ORDER], verification: { ok: true } });
+    expect(second.ran).toEqual([...DELETION_ORDER, "verify-erased"]);
   });
 });
 
@@ -193,7 +252,7 @@ describe("⚠️ a retry after a partial failure completes CLEANLY", () => {
    * These drive the same shape through the orchestrator.
    */
   it("an absent auth user reads as done, not as a failure", async () => {
-    const ran: DeletionStep[] = [];
+    const ran: string[] = [];
     const steps: DeletionSteps = {
       cancelStripe: async () => { ran.push("cancel-stripe"); },
       sweepStorage: async () => { ran.push("sweep-storage"); },
@@ -203,7 +262,7 @@ describe("⚠️ a retry after a partial failure completes CLEANLY", () => {
     };
     const out = await deleteAccountFor(USER, steps);
     expect(out.ok).toBe(true);
-    expect(ran).toEqual([...DELETION_ORDER]);
+    expect(ran).toEqual([...DELETION_ORDER, "verify-erased"]);
   });
 
   it("⚠️ but a REAL auth failure still stops it", async () => {

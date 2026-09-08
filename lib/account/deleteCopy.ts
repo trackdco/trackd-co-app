@@ -151,8 +151,8 @@ export const DELETE_ACCOUNT_FAILURE_COPY = {
     "charges will be made. Please give it a few minutes and try again to finish.",
 
   /**
-   * Stopped at `delete-auth-user` or `verify-erased`. Files, and possibly rows,
-   * are already gone.
+   * Stopped at `delete-auth-user`. Files are already gone; the rows are not,
+   * because the cascade fires only on a successful delete.
    *
    * ⚠️ ADRIAN'S WORDING, AND IT IS DELIBERATELY SHORTER THAN THE DRAFT. The
    * draft spelled out that data had already been removed. He cut it to this.

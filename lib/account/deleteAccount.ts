@@ -57,21 +57,26 @@ import { sweepUserStorage, describeSweep } from "@/lib/storage/sweep";
  */
 
 /** The four steps, in order. Also the vocabulary the result speaks. */
-export type DeletionStep =
-  | "cancel-stripe"
-  | "sweep-storage"
-  | "delete-auth-user"
-  | "verify-erased";
+/**
+ * ⚠️ THE STEPS THAT CAN STOP THE DELETION. The verification is deliberately NOT
+ * one of them - see {@link DeletionOutcome} and {@link DeletionSteps.verifyErased}.
+ */
+export type DeletionStep = "cancel-stripe" | "sweep-storage" | "delete-auth-user";
 
 export const DELETION_ORDER: readonly DeletionStep[] = [
   "cancel-stripe",
   "sweep-storage",
   "delete-auth-user",
-  "verify-erased",
 ] as const;
 
+/**
+ * ⚠️ REPORTED, NEVER GATING. The confirmation read runs after the account is
+ * already gone, so it cannot withhold anything - see `deleteAccountFor`.
+ */
+export type Verification = { ok: true } | { ok: false; error: string };
+
 export type DeletionOutcome =
-  | { ok: true; stepsRun: DeletionStep[] }
+  | { ok: true; stepsRun: DeletionStep[]; verification: Verification }
   | { ok: false; failedAt: DeletionStep; error: string; stepsRun: DeletionStep[] };
 
 /**
@@ -85,6 +90,10 @@ export interface DeletionSteps {
   cancelStripe(userId: string): Promise<void>;
   sweepStorage(userId: string): Promise<void>;
   deleteAuthUser(userId: string): Promise<void>;
+  /**
+   * ⚠️ IT STILL THROWS, AND THROWING STILL DOES NOT STOP ANYTHING. It runs after
+   * the account is gone, so `deleteAccountFor` catches it and reports it.
+   */
   verifyErased(userId: string): Promise<void>;
 }
 
@@ -196,14 +205,15 @@ export const liveSteps: DeletionSteps = {
   },
 
   /**
-   * ⚠️ FOURTH AND LAST. A READ, AND IT CAN FAIL. THAT IS THE POINT.
+   * ⚠️ LAST, AND IT REPORTS RATHER THAN GATES. A READ THAT CAN FAIL.
    *
-   * §5 asks the order be proven by breaking each step, so the fourth step has to
-   * be capable of reporting a failure. **A verification step that cannot fail is
-   * a step that runs, does nothing and exits 0** — the instrument shape this
-   * project deleted from the launch runbook rather than fixed.
+   * **A verification that cannot fail is a step that runs, does nothing and
+   * exits 0**, so this still throws when it finds something. What changed is who
+   * catches it: `deleteAccountFor` does, and records it, because by the time
+   * this runs the account is already gone and withholding the cleanup would
+   * punish somebody for a failed READ. See the call site for the defect that
+   * taught us that.
    *
-   * So this READS the account back and throws if anything of it is still there.
    * It deletes nothing: by the time it runs the cascade has either taken
    * everything or the step before it threw and this never ran.
    *
@@ -220,8 +230,11 @@ export const liveSteps: DeletionSteps = {
    * 30-table cascade and `blocks` hangs off `auth.users` directly, so between
    * them the two cascade paths are both exercised on every single deletion.
    * Enumerating all thirty-four here would be a second list to keep in sync with
-   * the schema; that job belongs to `cascadeCoverage.test.ts`, which fails the
-   * BUILD if any foreign key to `profiles` or `auth.users` stops cascading.
+   * the schema; that job belongs to `cascadeCoverage.test.ts`, which goes red if
+   * any foreign key to `profiles` or `auth.users` stops cascading. ⚠️ It runs
+   * under `npm test` and `npm run check` and **nothing runs it automatically** -
+   * `npm run build` does not. Its own header carries the detail and the four
+   * shapes it cannot see.
    */
   async verifyErased(userId) {
     const client = adminClient();
@@ -344,7 +357,6 @@ export async function deleteAccountFor(
     "cancel-stripe": steps.cancelStripe.bind(steps),
     "sweep-storage": steps.sweepStorage.bind(steps),
     "delete-auth-user": steps.deleteAuthUser.bind(steps),
-    "verify-erased": steps.verifyErased.bind(steps),
   };
 
   for (const step of DELETION_ORDER) {
@@ -361,6 +373,53 @@ export async function deleteAccountFor(
     }
   }
 
-  console.warn(`[delete] ${userId} deleted: ${stepsRun.join(" -> ")}`);
-  return { ok: true, stepsRun };
+  /**
+   * ⚠️ THE CONFIRMATION READ. IT REPORTS. IT DOES NOT GATE. THAT IS THE WHOLE
+   * POINT AND IT IS THE OPPOSITE OF EVERY STEP ABOVE IT.
+   *
+   * ## The defect this shape exists for
+   *
+   * It used to be the fourth step in the loop, so a throw returned
+   * `{ok: false}`. But by the time it runs **the auth user is already gone and
+   * the cascade has already taken every row.** Any transient error on any one of
+   * its six reads then returned the action BEFORE the sign-out, before the
+   * cookie clear, before the device wipe and before the redirect - so somebody
+   * whose account no longer existed was told to "try again" at a screen they
+   * could no longer reach, their on-device health data survived in breach of
+   * D116, and their session cookie stayed put.
+   *
+   * Failing closed protects somebody when there is still something to protect.
+   * Here there is not: the account is gone either way, and withholding the
+   * cleanup protects nobody and costs them the four promises above.
+   *
+   * ## ⚠️ IT MUST STILL BE ABLE TO FAIL, AND LOUDLY
+   *
+   * A read that cannot report a problem is a step that runs, does nothing and
+   * exits 0. So it still throws, the throw is still caught here, and the outcome
+   * still carries it — `ok: true` says the deletion ran, `verification` says
+   * whether we could confirm it.
+   *
+   * ⚠️ **WHERE THE LOUD PART LANDS.** The person is gone and can read nothing, so
+   * the only audience is the server log: this `console.error`, greppable on
+   * `ERASURE UNVERIFIED`. **Nothing pages anybody on it today.** A push alerter
+   * exists (`lib/billing/reconcile/alert.ts`) but it is bound to spec 11's
+   * reconciliation report, so routing this into it is its own decision and is
+   * not taken here.
+   */
+  let verification: Verification = { ok: true };
+  try {
+    await steps.verifyErased(userId);
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[delete] ⚠️ ERASURE UNVERIFIED for ${userId}: ${error}. The account WAS deleted; the confirmation read did not complete. Check by hand.`,
+    );
+    verification = { ok: false, error };
+  }
+
+  console.warn(
+    `[delete] ${userId} deleted: ${stepsRun.join(" -> ")}` +
+      (verification.ok ? " (verified)" : " (UNVERIFIED)"),
+  );
+  return { ok: true, stepsRun, verification };
 }

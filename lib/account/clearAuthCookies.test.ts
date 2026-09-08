@@ -114,6 +114,55 @@ describe("⚠️ THE OTHER SIDE — the normal path still works", () => {
   });
 });
 
+/**
+ * ⚠️ THE PROPERTY, STATED AS A PROPERTY RATHER THAN AN OUTCOME.
+ *
+ * **Once the auth delete has succeeded, the sign-out, the cookie clear and the
+ * redirect all happen regardless of what the confirmation read returned.** Not
+ * "the confirmation read passes".
+ *
+ * The defect: the read used to be a gating step, so a transient error on any one
+ * of its six reads returned {ok:false} for an account that was ALREADY GONE -
+ * withholding all three from somebody who could no longer reach any of them, and
+ * withholding the device wipe too, since that hangs off the redirect.
+ */
+describe("⚠️ an UNVERIFIED erasure still gets every cleanup", () => {
+  it("clears the cookies even though the confirmation read failed", async () => {
+    outcomeRef.current = {
+      ok: true,
+      stepsRun: ["cancel-stripe", "sweep-storage", "delete-auth-user"],
+      verification: { ok: false, error: "profiles: 1 row(s) remain" },
+    };
+    withSignOut({ error: null });
+    await runDeletion();
+    expect(jarRef.current.names().filter((n) => n.startsWith("sb-"))).toEqual([]);
+  });
+
+  it("still redirects, which is what triggers the device wipe", async () => {
+    outcomeRef.current = {
+      ok: true,
+      stepsRun: ["cancel-stripe", "sweep-storage", "delete-auth-user"],
+      verification: { ok: false, error: "profiles: 1 row(s) remain" },
+    };
+    withSignOut({ error: null });
+    // `runDeletion` swallows the redirect and answers undefined; a FAILURE would
+    // come back as an object with an error, which is the state under test.
+    await expect(runDeletion()).resolves.toBeUndefined();
+  });
+
+  it("does all of that even when signOut ALSO failed", async () => {
+    outcomeRef.current = {
+      ok: true,
+      stepsRun: ["cancel-stripe", "sweep-storage", "delete-auth-user"],
+      verification: { ok: false, error: "auth user: could not verify (503)" },
+    };
+    withSignOut({ error: { message: "503" } });
+    const result = await runDeletion();
+    expect(result).toBeUndefined();
+    expect(jarRef.current.names().filter((n) => n.startsWith("sb-"))).toEqual([]);
+  });
+});
+
 describe("⚠️ it does NOT clear cookies for a deletion that failed", () => {
   it("a stopped deletion leaves the session alone, because the account still exists", async () => {
     outcomeRef.current = { ok: false, failedAt: "sweep-storage", error: "boom", stepsRun: ["cancel-stripe"] };

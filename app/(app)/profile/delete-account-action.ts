@@ -153,17 +153,16 @@ function failureCopyFor(failedAt: DeletionStep): string {
       // The cancel succeeded. Rows are intact; the money is not coming back.
       return DELETE_ACCOUNT_FAILURE_COPY.cancelledOnly;
     case "delete-auth-user":
-    case "verify-erased":
       /**
-       * Files are already gone by here, because the sweep runs before both.
+       * Files are already gone by here, because the sweep runs first. Every ROW
+       * survives, though - the cascade fires only on a successful delete - so
+       * the account still works and the retry is reachable. Something of theirs
+       * HAS gone, so this must not read as "nothing happened", or somebody walks
+       * away from a half-deleted account.
        *
-       * `delete-auth-user` failing leaves every ROW intact - the cascade only
-       * fires on a successful delete - so the account still works and the retry
-       * is reachable. `verify-erased` failing means the delete reported success
-       * and the read back disagreed. Either way something of theirs has gone and
-       * the deletion did not finish, which is what this sentence says. It must
-       * not read as "nothing happened", or somebody walks away from a
-       * half-deleted account.
+       * ⚠️ There is no case for the confirmation read, deliberately: it runs
+       * after the account is already gone and cannot fail the deletion, so it
+       * never reaches a user. See `deleteAccountFor`.
        */
       return DELETE_ACCOUNT_FAILURE_COPY.partlyDeleted;
   }

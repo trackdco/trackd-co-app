@@ -39,7 +39,15 @@ the two §5 boxes that need a browser, and then the re-run.
       point releases. Drafted as v2.1 across three documents, committed, awaiting
       the two commands above.
 
-- [ ] **⚠️ ADRIAN: STOPPING RULE TRIGGERED. Rule on HIGH-1 before any more code.**
+- [x] ~~STOPPING RULE TRIGGERED, ruled 2026-09-08.~~ One change authorised and
+      made: the confirmation read now reports rather than gates. **That was the
+      LAST fix on this path.** Anything found from here is recorded and handed to
+      reviewers, not patched.
+
+- [ ] **⚠️ Reviewer 3 goes back in on the changed paths.** Adrian writes that
+      prompt. Do not pre-empt it.
+
+- [ ] ~~ADRIAN: STOPPING RULE TRIGGERED.~~ superseded
       The A1 reorder fixed step 3's terminal state and created one at step 4: a
       transient error in `verify-erased` leaves the account fully erased while
       the user is told to retry something that cannot exist, the device copy is

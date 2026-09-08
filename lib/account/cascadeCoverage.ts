@@ -15,8 +15,22 @@ import { join } from "node:path";
  * deletion. Silently. Nobody would be told, and the person who deleted their
  * account would be told it was complete.
  *
- * So this enumerates them from the repository's own SQL and fails the build if
- * any one of them does not cascade.
+ * So this enumerates them from the repository's own SQL and fails if any one of
+ * them does not cascade.
+ *
+ * ## ⚠️ WHAT ACTUALLY RUNS IT, AND WHEN
+ *
+ * This said "fails the build". **That was false**, and a wrong sentence about
+ * when a safety net fires is exactly what the next person relies on. Measured:
+ * there is no `.github`, no `.husky` and no active git hook in this repository,
+ * and `npm run build` is `next build` with a compounds-seed prebuild. It does
+ * not run tests.
+ *
+ * It runs when somebody types `npm test` (`vitest run`) or `npm run check`
+ * (`tsc && eslint && gate:check && vitest run`). **Nothing runs it
+ * automatically.** So a migration adding a non-cascading foreign key turns
+ * nothing red until the suite is run by hand, and the honest guard against that
+ * is the standing rule that the suite is run before anything ships.
  *
  * ## ⚠️ IT REFUSES TO PASS ON AN EMPTY ENUMERATION
  *
@@ -33,6 +47,26 @@ import { join } from "node:path";
  * here and cannot be seen. The production `pg_constraint` read on 2026-09-08
  * covering all 41 constraints is the complement to this, and that one is a
  * point-in-time measurement rather than a standing check.
+ *
+ * ## ⚠️ FOUR SHAPES IT IS BLIND TO. MEASURED, NOT GUESSED.
+ *
+ * A cold review ran this module's own regex over fixtures. Each of these
+ * produces ZERO matches, so the scan reports a clean tree:
+ *
+ *     references profiles on delete no action      no column list, valid Postgres
+ *     references "public"."profiles"("id")         quoted identifiers, pg_dump style
+ *     foreign key (a,b) references profiles(id,x)  composite key
+ *     create table audit_events (user_id uuid)     NO foreign key at all
+ *
+ * ⚠️ **The last one is the case this comment's own opening claims to catch**, and
+ * it does not. A new user-scoped table with no foreign key would survive a
+ * deletion, and `verifyErased` reads only five tables, so nothing would say so.
+ *
+ * **Deliberately NOT widened**, on the founder's ruling of 2026-09-08: widening
+ * a read is where this project introduces new failure modes, and this was
+ * recorded during a stop rather than fixed inside one. Production is clean today
+ * - 41 foreign keys, all cascading, re-measured the same day - so this is a gap
+ * in the standing guard, not a live defect.
  */
 
 /** Where the schema lives. */
