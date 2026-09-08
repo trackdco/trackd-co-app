@@ -39,7 +39,18 @@ the two §5 boxes that need a browser, and then the re-run.
       point releases. Drafted as v2.1 across three documents, committed, awaiting
       the two commands above.
 
-- [ ] **⚠️ ADRIAN: rule on A1.** Step 4 failing strands the user outside the app
+- [ ] **⚠️ ADRIAN: STOPPING RULE TRIGGERED. Rule on HIGH-1 before any more code.**
+      The A1 reorder fixed step 3's terminal state and created one at step 4: a
+      transient error in `verify-erased` leaves the account fully erased while
+      the user is told to retry something that cannot exist, the device copy is
+      never cleared (breaking D116) and the cookies are never cleared. Two
+      consecutive rounds have now had a fix generate a defect, so **nothing was
+      fixed forward.** Options were reported in chat 2026-09-08.
+
+- [x] ~~Rule on A1.~~ Ruled 2026-09-08, option 1, built in `9c36f24`. The
+      confirmation was measured on a seeded account first. See HIGH-1 above.
+
+- [ ] ~~ADRIAN: rule on A1.~~ superseded Step 4 failing strands the user outside the app
       with no route to the retry the copy promises. Options and costs reported in
       chat 2026-09-08. **Nothing built** — the choice was reserved, and whatever
       it is, it changes money-adjacent teardown behaviour and carries a

@@ -4423,6 +4423,86 @@ would make it reachable.
 `tsc` clean · eslint clean · **97 files / 2022 tests** · `gate:check` clean
 (32/2/71) · `next build` exit 0.
 
+## ⚠️ SPEC 16 — STOPPING RULE TRIGGERED 2026-09-08. NOT FIXED FORWARD.
+
+The narrow re-verify on the A1/C1 changes found a defect **in the A1 fix itself**.
+That is the second consecutive round in which a fix generated a defect, so the
+standing rule applies and **nothing here was fixed**. Reported for a ruling.
+
+    round 1 fix (33b40d2, dae9832)  ->  generated B1, the `"digest" in e` bug
+    round 2 fix (9c36f24, the A1 reorder)  ->  generated HIGH-1 below
+
+### ⚠️ HIGH-1 — the unreachable-retry state was MOVED one step, not removed
+
+**CONFIRMED**, and verified independently of the reviewer.
+
+`delete-auth-user` succeeds, so the account and all 33 tables are genuinely
+gone. `verify-erased` then does six fresh network reads, and **any transient
+error on any one of them** makes it throw. `deleteAccountFor` returns
+`{ok:false, failedAt:"verify-erased"}`, so the action returns at
+`delete-account-action.ts:238` **before** `signOut`, before `clearAuthCookies`
+and before `redirect`.
+
+The consequences, all traced in code:
+
+- The user reads `partlyDeleted` — *"There were some issues... Please try
+  again."* — and **the retry does not exist**: the account is gone, so the layout
+  redirects to `/login` and the action's own `getUser` guard refuses.
+- `clearDeviceDataFor` has **exactly one call site**
+  (`DeleteAccountDialog.tsx:262`, inside the redirect branch), so it never runs.
+  **D116's promise is broken in this path**: the on-device compounds, dose logs,
+  date of birth and sex survive permanently.
+- The auth cookies are never cleared, which is the very residue C1 was built for.
+
+⚠️ **This is the same failure CLASS as A1, relocated from step 3 to step 4.** A1
+was fixed correctly - a failed auth delete now destroys nothing - and the new
+fourth step introduced its own version of it.
+
+### MEDIUM-2 — "fails the BUILD" is FALSE, in a comment I wrote
+
+**CONFIRMED.** `cascadeCoverage.ts:26` and `deleteAccount.ts:224` both claim a
+regression turns the build red. It does not: there is **no `.github`, no
+`.husky`, no active git hook**, and `build` is `next build` with a compounds
+prebuild. The suite runs only when somebody types `npm test` or `npm run check`.
+The guard works; the sentence describing when it fires is untrue.
+
+### MEDIUM-1 — the cascade scanner is narrower than its own doc claims
+
+**CONFIRMED by running its regex over fixtures.** Invisible to it, all silently
+reporting a clean tree:
+
+    references profiles on delete no action     (no column list, valid Postgres)
+    references "public"."profiles"("id")        (quoted identifiers, pg_dump style)
+    foreign key (a,b) references profiles(...)  (composite)
+    create table audit_events (user_id uuid)    (NO foreign key at all)
+
+The last is the important one and is **exactly the fear `cascadeCoverage.ts:12-16`
+states in its own words**. Combined with `verify-erased` reading only 5 of 33
+tables, a new user-scoped table with no FK would survive a deletion and the user
+would be told the erasure completed.
+
+⚠️ Not a live defect: production `pg_constraint` holds **41 FKs to `profiles`/
+`auth.users` and all 41 cascade**, re-measured during this review. This is about
+the standing guard, not today's schema.
+
+### LOW-1 — the new sweep exception text still makes the claim its comment forbids
+
+The comment says it must not say "nothing has been deleted"; the string says "the
+deletion stopped before any data was deleted", which is the same claim reworded
+and is false about the sweep itself, since a partial sweep has already destroyed
+objects. Server log only; the user reads `cancelledOnly`.
+
+### What the re-verify CLEARED
+
+The ordering is enforced and cannot be skipped or reordered; `deleteAccountFor`
+has one caller and cannot have `liveSteps` substituted in production; **a failed
+auth delete genuinely destroys no rows** (all 41 FKs cascade, so it is one atomic
+`DELETE`); `verify-erased` cannot report success over an errored read; the
+redirect signal and device wipe are reachable only on a real completed deletion,
+with no failure path reaching the wipe; the cookie clear is correctly gated
+behind a successful deletion, catches the chunks, spares unrelated cookies, and
+its `path` normalisation actually lands.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth
