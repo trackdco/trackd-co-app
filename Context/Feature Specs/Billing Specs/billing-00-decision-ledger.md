@@ -49,9 +49,19 @@ one-deletion-flow-for-everyone ruling.
 ~~**⚠️ UPDATED 3 Sep 2026 — next free decision number: `D115`. Next free question
 number: `Q108`.**~~ **D115 and D116** were taken 2026-09-05.
 
-**⚠️ UPDATED 5 Sep 2026 — next free decision number: `D117`. Next free question
-number: `Q108`.** ⚠️ **`D112` STILL REMAINS FREE AND DELIBERATELY NOT TAKEN.**
-So the LOWEST free number and the NEXT free number are still not the same. D114 was taken on the founder's instruction to take the LOWEST
+~~**⚠️ UPDATED 5 Sep 2026 — next free decision number: `D117`. Next free question
+number: `Q108`.**~~ **D117, D118 and Q108** were taken 2026-09-08.
+
+**⚠️ UPDATED 8 Sep 2026 — next free decision number: `D119`. Next free question
+number: `Q109`.**
+
+⚠️ **`D112` STILL REMAINS FREE AND DELIBERATELY NOT TAKEN**, so the LOWEST free
+number and the NEXT free number are STILL not the same. The round that produced
+D117 and D118 was instructed to "take the lowest free decision numbers"; the
+lowest free is `D112`, and it was NOT taken, because the founder's earlier
+ruling reserves it as the ledger holder's question and a later instruction to
+take the lowest number is not obviously a reversal of that. **Flagging rather
+than assuming. Say the word and D117/D118 renumber to D112/D117.** D114 was taken on the founder's instruction to take the LOWEST
 free number and report it. ⚠️ **`D112` REMAINS FREE AND WAS DELIBERATELY NOT
 TAKEN** — it has been the unclaimed hole since 26 Aug, and the founder ruled on
 2026-09-03 that its status is the ledger holder's question rather than something
@@ -210,6 +220,8 @@ as a dependency.
 | D114 | **ONE DELETION FLOW FOR EVERYONE. No comp branch, no warning on the public deletion page, no change to the refusal rule. A comp-list member who deletes and returns gets a HAND-APPLIED re-grant from Adrian** | 16, seam to 01 and 06 | Adrian, 2026-09-03. Taken as the LOWEST FREE number on the founder's instruction; `D112` was NOT taken because its status is the ledger holder's question (see the 27 Aug marker above). **The trap, named so nobody rediscovers it as a bug.** Deletion is precisely what produces `comp.kind === "absent"`: the `entitlements` row cascades from `profiles`, so a returning comp-list member has no row to read. `app/onboarding/billing-actions.ts:373-378` then fires `(comp.kind === "absent" || comp.kind === "unknown") && betaGrantFor(user.email).kind === "comp"` and answers `already-subscribed`. **So they are read-only once the gate is on AND the app refuses to sell to them** - the file's own comment at `:357` describes this state in its own words: *"They could never buy their way out"*. ⚠️ **The repair is MANUAL because D113 closed the automatic one**: `POST /api/billing/beta-grace` is not to be re-run, so nothing re-issues the grant on signup. `betaGrantFor` at `billing-actions.ts:226` sets a COPY flag only and grants nothing. **Measured 2026-09-03: 87 comp rows, and ZERO of them hold a `billing_customers` row**, so the Stripe-cancel step of a deletion is a no-op success for every comp account. The ruling accepts this cost rather than branching the flow: `privacy.md:135` says the right to delete *"does not depend on your subscription, on paying us, or on anything else"*, and a comp-only branch would be the product treating its most-favoured users differently at the exit |
 | D115 | **LEGAL DOCUMENTS TAKE POINT RELEASES FOR MINOR CHANGES. `2.0` -> `2.1`, NOT `2.0` -> `3.0`. Adrian calls the major bumps** | 16, and every future legal change | Adrian, 2026-09-05. **This OVERRIDES the written rule** at `supabase/legal/001_legal_documents.sql:29-31`, which says each later change to a document bumps it "a whole version (1.0 -> 2.0 -> 3.0)". His reasoning: a whole number is for a release the size of billing, which is what v2.0 was, and the spec 16 deletion changes are small and factual. He will say when the next major bump happens. ⚠️ There was already a precedent the written rule did not describe: **`v1.3` exists** (`supabase/legal/009_legal_documents_v1_3.sql`), so practice had diverged from the rule before this. ⚠️ **The rule text itself has NOT been edited**, because `001_legal_documents.sql` is an APPLIED migration and rewriting the history of what was applied is worse than a comment that is out of date; `015_legal_documents_v2_1.sql` cites this decision at the point of use instead. Per-doc versions are a supported state, not drift: `app/(app)/legal-acceptance.ts:64-73` reads each `doc_type`'s current version independently, which is why the medical disclaimer stays at 2.0 while three documents move to 2.1 |
 | D116 | **DELETING AN ACCOUNT CLEARS THE DEVICE-LOCAL COPY IN THE BROWSER IT IS DELETED FROM, and the Privacy Policy says so. The promise is made TRUE rather than trimmed** | 16, seam to the privacy policy | Adrian, 2026-09-05, choosing option B over softening the copy. **The conflict, found by a cold review.** The deletion screen said everything *"will be completely erased and unrecoverable"* while `privacy.md:125` said *"Deleting your account does not remove it either"* of the browser copy - and **the Privacy Policy was the accurate one.** `privacy.md` §7 names that copy as holding compounds, schedules, dose logs, one-off logs, custom compounds, and onboarding answers including **date of birth and sex**. Two signed documents contradicting each other, with the leaving user reading the one that overstated. ⚠️ **It reaches ONE browser and the policy is explicit about that** - a copy in another browser or on another device is unreachable from the client, and §7 and §8 both say so rather than implying a completeness that cannot be delivered. ⚠️ **The sweep matches on the user id rather than a key list** (`lib/account/clearDeviceData.ts`): twelve user-scoped key builders embed the id, and a hardcoded list would silently miss any store added later. `trackd.onboarding.v1` is removed too despite not being user-scoped, because it holds the DOB and sex §7 names. **An empty or non-UUID id is refused before a single key is read**, because `"anything".includes("")` is true and would sweep a DIFFERENT signed-in account's data on a shared device |
+| D117 | **AN OUT-OF-PREFIX ROW-MAP PATH PERMANENTLY BLOCKS THAT ACCOUNT'S DELETION, AND THAT IS ACCEPTED, NOT FIXED** | 16 | Claude 2026-09-08 on the founder's instruction to record it. `sweep.ts:344-345` REFUSES to delete a row-map path outside the user's own prefix and `:379-381` forces `ok:false` for it, so `deleteAccountFor` stops at `sweep-storage` **every time, for that account, forever** - while the copy invites a retry that can never succeed. ⚠️ **Refusing is still correct**: the alternative is deleting a file that belongs to a DIFFERENT user, and a permanently undeletable account is recoverable by hand where somebody else's destroyed bloodwork is not. ⚠️ **The app cannot currently produce the state**, which is why a cold reviewer looked at it and correctly did not file it: all four writers validate the owner segment server-side (`app/(app)/profile/actions.ts:27-29`, `app/(app)/progress/actions.ts:73`, `:225-226`, `:589`, `:643`), and Storage RLS independently enforces `(storage.foldername(name))[1] = auth.uid()::text`. **What would change this:** any new writer that composes a storage path without validating the first segment, a backfill or migration that writes `storage_path` directly, or a support tool that moves objects between prefixes. Any of those makes this reachable and it becomes a defect that needs the escalation path §3.9 says does not exist |
+| D118 | **WAITLIST ROWS SURVIVE ACCOUNT DELETION, DELIBERATELY, AND ARE ALREADY DISCLOSED** | 16, seam to the privacy policy | Claude 2026-09-08, recorded not built. `public.waitlist` (`supabase/waitlist/001_waitlist.sql:17`) is keyed on EMAIL with no foreign key to `profiles` or `auth.users`, so the cascade cannot reach it and the storage sweep has nothing to do with it. It is **out of this spec's lens**: the row predates the account and is not health data. ⚠️ **It is disclosed rather than hidden** - `legal-v2/privacy.md:145` names it in "what deletion does not reach" and tells the reader to email support to have it removed too, which is the erasure route. `webhook_events` is the other FK-less survivor and is disclosed at `:142`. **Do not build a waitlist sweep**: joining a deleted account back to a waitlist row would mean matching on email, and matching on anything but an id is what destroyed sixteen fixtures on this project once already |
 
 ## ⚠️ Q107 — AN ACCEPTED GAP UNDER §9g (founder, 20 Aug 2026). DO NOT BUILD THE NARROWING.
 
@@ -340,6 +352,30 @@ does.
 ---
 
 ## Questions
+
+**`Q108` — what should a FAILED SIGN-OUT do to a completed deletion?** Taken
+2026-09-08, **UNANSWERED, and deliberately not decided by the builder.**
+
+`delete-account-action.ts` discarded `signOut()`'s error. It now READS it and
+logs it, and changes no behaviour, pending this ruling.
+
+**The distinction is real and is proven from the installed `@supabase/auth-js`:**
+`_signOut` returns early with a non-null `error` and **never reaches
+`_removeSession()`** on a session-read error, or on an admin error that is not
+404/401/403. Only the clean path clears the session and answers `{error: null}`.
+
+**Why it matters more than it looks.** The access token stays cryptographically
+valid until it expires, and Storage's INSERT policy is signature-checked, so a
+second tab left open can still upload into the prefix the sweep just cleared -
+producing an object with no row and no user, the same orphan shape `sweep.ts`
+documents live instances of.
+
+**Why the builder did not choose.** By the time sign-out runs, all four steps
+have succeeded and the account is GONE. There is nothing to fail back to, and
+returning a failure would tell somebody to retry a deletion that has already
+completed - which is the exact class of untruth the failure copy was rewritten
+to remove. Failing the deletion is probably worse than the residue, but "probably
+worse" is not a ruling.
 
 | # | Subject | Blocks | Status |
 |---|---|---|---|

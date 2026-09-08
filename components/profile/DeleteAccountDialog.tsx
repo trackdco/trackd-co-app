@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 
 import { deleteMyAccount } from "@/app/(app)/profile/delete-account-action";
 import { clearDeviceDataFor } from "@/lib/account/clearDeviceData";
+import { isRedirectSignal } from "@/lib/account/redirectSignal";
 import {
   DELETE_ACCOUNT_COPY as COPY,
   DELETE_ACCOUNT_FAILURE_COPY,
@@ -211,49 +212,67 @@ export function DeleteAccountDialog({
         // redirects to the public homepage. Only a failure comes back.
         const result = await deleteMyAccount(typed);
         /**
-         * ⚠️ ONLY A FAILURE COMES BACK, AND THE SHAPE IS CHECKED RATHER THAN
-         * ASSUMED.
+         * ⚠️ REACHING HERE AT ALL MEANS THE DELETION DID **NOT** SUCCEED.
          *
-         * `redirect()` throws on the SERVER; on the client the action runtime
-         * handles the navigation rather than rethrowing here. If the promise
-         * resolves to `undefined` before the navigation paints, reading
-         * `result.error` would throw a TypeError, the `digest` guard below
-         * would not match it, and the catch would render a failure message at
-         * the exact moment the account HAS been deleted.
+         * Measured in the installed Next 16.2.7 rather than reasoned about, and
+         * two cold reviewers disagreed about it, so the source is cited:
+         * `client/components/router-reducer/reducers/server-action-reducer.js`
+         * REJECTS the action promise when the response carries a redirect
+         * (`:215-233`) and only `resolve()`s when there is none (`:237`). It
+         * also discards the action's own return value on a redirect
+         * (`:140`, `actionResult = redirectLocation ? undefined : response.a`).
          *
-         * So an answer WITH an error is the failure, and anything else is the
-         * success the redirect is already acting on.
+         * `deleteMyAccount` redirects on success, so **the success path always
+         * lands in the `catch` below and never here.** This branch sees only a
+         * returned failure.
+         *
+         * ⚠️ SO NOTHING HERE MAY CLEAR THE DEVICE. It used to, on the reasoning
+         * that the runtime might resolve instead of reject; it does not, and a
+         * clear on this path would have destroyed on-device health data for an
+         * account that still exists.
+         *
+         * An answer we cannot read is not a success either. It gets the same
+         * honest sentence as any other failure we cannot classify.
          */
         if (result?.error) {
           setError(result.error);
         } else {
-          clearDeviceDataFor(userId);
+          setError(DELETE_ACCOUNT_FAILURE_COPY.unknown);
         }
       } catch (e) {
-        // ⚠️ `redirect()` throws a control-flow signal Next re-throws. Anything
-        // else is a real failure and must not read as success.
-        if (e && typeof e === "object" && "digest" in e) {
-          /**
-           * ⚠️ THIS IS THE SUCCESS PATH, NOT AN ERROR PATH. `redirect()` reports
-           * itself by throwing a signal Next re-throws, so it is the only
-           * success signal this function ever sees when the action does throw.
-           *
-           * Cleared in BOTH places deliberately. Which of the two the runtime
-           * takes is a version-dependent detail this component must not bet a
-           * signed erasure promise on, and the sweep is idempotent - removing an
-           * absent key is a no-op - so running it twice costs nothing.
-           */
+        /**
+         * ⚠️ THE REDIRECT SIGNAL IS THE ONLY SUCCESS SIGNAL THIS FUNCTION GETS,
+         * AND IT IS IDENTIFIED BY THE DIGEST'S **VALUE**, NEVER ITS PRESENCE.
+         *
+         * This read `"digest" in e`, and React attaches a digest to server
+         * errors too. Measured against the installed Next 16.2.7:
+         *
+         *     redirect      digest = "NEXT_REDIRECT;replace;/;307;"
+         *     server crash  digest = "3849572013"
+         *     `"digest" in e`   TRUE for BOTH
+         *
+         * So a crashed action was read as a completed deletion: the device copy
+         * was wiped for an account that still existed, and the failure message
+         * never rendered. See {@link isRedirectSignal}, whose test builds its
+         * fixture with Next's own `getRedirectError`.
+         */
+        if (isRedirectSignal(e)) {
+          // The deletion completed and the navigation is already in flight. This
+          // is the ONLY place the device copy may be cleared.
           clearDeviceDataFor(userId);
           throw e;
         }
         /**
          * ⚠️ IT DOES NOT SAY WHAT WAS REMOVED, BECAUSE IT DOES NOT KNOW.
          *
-         * This duplicated the action's sentence verbatim, which meant two copies
-         * of a claim that was already false in three of the four failure states,
-         * and no pin covering either. Reaching here means the request itself
-         * failed, so how far the server got is genuinely unknown - and the one
-         * thing that must not be asserted is that nothing happened.
+         * Reaching here means the request itself failed, so how far the server
+         * got is genuinely unknown, and the one thing that must not be asserted
+         * is that nothing happened.
+         *
+         * ⚠️ This was previously unreachable for a SERVER-SIDE failure, which is
+         * the commonest way to get here: such an error carries a digest, so the
+         * presence test above swallowed it as a success and rethrew. Signed copy
+         * that rendered to nobody. The value test restores it.
          */
         setError(DELETE_ACCOUNT_FAILURE_COPY.unknown);
       } finally {

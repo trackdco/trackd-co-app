@@ -4341,6 +4341,88 @@ Driving at 390x844 on `http://localhost` — no browser automation available in
 that session, so the review lanes reason from source and say so. The live Stripe
 cancel branch remains unexercised. `BILLING_GATE_ENABLED` remains CANNOT CHECK.
 
+## Spec 16 — cold review ROUND TWO (2026-09-08)
+
+Three fresh cold reviews on the fixed tree. **No CRITICAL.** Reviewer 3 drove the
+ordering against real Stripe and produced a data-only failure: Stripe cancelled
+while `profiles`, the auth user and every photo row survived. The four-step order
+is genuinely enforced and every step is idempotent.
+
+Four findings. **Two fixed, two reported for a ruling.**
+
+### ✅ B1 fixed — the success test also passed for every crash
+
+`DeleteAccountDialog` tested `"digest" in e` to recognise the redirect that means
+"deleted". React attaches a digest to server errors too, so a crashed action read
+as a completed deletion: the device copy was wiped for an account that still
+existed, and the failure sentence never rendered.
+
+⚠️ **The two reviewers disagreed about which branch runs on success, and it was
+settled by reading the INSTALLED runtime rather than by argument.** Reviewer 2 was
+right. `next/dist/client/components/router-reducer/reducers/server-action-reducer.js`
+**rejects** the action promise when the response carries a redirect (`:215-233`)
+and only `resolve()`s when there is none (`:237`); it also discards the action's
+own return value on a redirect (`:140`). So the success path always lands in the
+`catch`, and the `else` was dead.
+
+Measured shapes, same Next 16.2.7:
+
+    redirect      digest = "NEXT_REDIRECT;replace;/;307;"
+    server crash  digest = "3849572013"
+    `"digest" in e`   TRUE for BOTH
+
+`lib/account/redirectSignal.ts` compares the VALUE. Its test builds the fixture
+with **Next's own `getRedirectError`**, so a format change breaks a test loudly
+instead of breaking the erasure promise quietly. **The control is two-sided**: a
+real redirect MUST still clear, or a predicate returning `false` for everything
+would pass. `DELETE_ACCOUNT_FAILURE_COPY.unknown` is now reachable for a
+server-side failure; it previously rendered to nobody.
+
+### ✅ C2 fixed — an errored auth read claimed the user was signed out
+
+`getUser()`'s error was discarded, so an Auth server having a bad minute told a
+signed-in person "You need to be signed in to delete your account." It refuses
+either way, so this failed SAFE and was a copy defect. **Absent is not unknown**:
+an errored read now returns the `unknown` sentence, which claims nothing.
+
+### ⚠️ A1 — REPORTED, NOT BUILT. Awaiting a ruling
+
+Step 4 failing leaves a terminal state: `profiles` is gone, so `lib/auth.ts:50`
+computes `passedGate` false, `app/(app)/layout.tsx:50` redirects to `/welcome`,
+and `ProfileScreen` — the only render site of the dialog — is inside `(app)` and
+unreachable. **The retry the copy promises does not exist.** Options and costs
+were reported for a ruling; nothing built, because the founder reserved the
+choice. Carries a confirmation step when built.
+
+### ⚠️ C1 / Q108 — the sign-out error is now READ, and the policy is unruled
+
+`signOut()`'s error was discarded. Proven distinguishable from the installed
+`@supabase/auth-js`: `_signOut` returns early with a non-null error and **never
+reaches `_removeSession()`** on a session-read error or a non-404/401/403 admin
+error, so the cookie survives while the action reports success. It is now read
+and logged, and **no behaviour changed**, because failing a deletion that has
+already completed is probably worse than the residue and "probably worse" is not
+a ruling. See `Q108`.
+
+### Also fixed, cheap
+
+- `profile/page.tsx` asserted `user!.id` on a value that is provably sometimes
+  null. Guarded with the house pattern from `dashboard/page.tsx:65-70`; all eight
+  assertions in the file removed by narrowing.
+- The sweep's thrown message said "so nothing has been deleted", which is FALSE
+  once step one has cancelled Stripe. Exception text only, corrected.
+
+### Accepted, not fixed
+
+`D117` the out-of-prefix row-map path, and `D118` waitlist rows surviving
+deletion. Both recorded in the ledger with the reasoning and, for D117, what
+would make it reachable.
+
+### Gates
+
+`tsc` clean · eslint clean · **97 files / 2022 tests** · `gate:check` clean
+(32/2/71) · `next build` exit 0.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth

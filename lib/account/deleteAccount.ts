@@ -107,8 +107,21 @@ export const liveSteps: DeletionSteps = {
       // The full per-bucket detail goes to the log; the thrown message is what
       // a person reads. A partial sweep must never be reported as done.
       console.error("[delete] sweep did not complete:\n" + describeSweep(result));
+      /**
+       * ⚠️ IT DOES NOT SAY "NOTHING HAS BEEN DELETED", BECAUSE THAT IS FALSE.
+       *
+       * The sweep is step TWO. By the time it can fail, step one has already
+       * cancelled the subscription at Stripe, immediately and without a refund.
+       * The old text asserted the opposite, which is the same class of untruth
+       * the failure copy was rewritten to remove - and this string is a
+       * developer-facing exception message, so it was missed by that pass.
+       *
+       * What the USER reads is `DELETE_ACCOUNT_FAILURE_COPY.cancelledOnly`,
+       * chosen by `failureCopyFor` from the step that failed. This text goes to
+       * the server log.
+       */
       throw new Error(
-        "Your files could not all be removed, so nothing has been deleted. Please try again.",
+        "Your files could not all be removed, so the deletion stopped before any data was deleted. Please try again.",
       );
     }
   },

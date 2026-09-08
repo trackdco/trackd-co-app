@@ -39,6 +39,17 @@ the two §5 boxes that need a browser, and then the re-run.
       point releases. Drafted as v2.1 across three documents, committed, awaiting
       the two commands above.
 
+- [ ] **⚠️ ADRIAN: rule on A1.** Step 4 failing strands the user outside the app
+      with no route to the retry the copy promises. Options and costs reported in
+      chat 2026-09-08. **Nothing built** — the choice was reserved, and whatever
+      it is, it changes money-adjacent teardown behaviour and carries a
+      confirmation step. Take a decision number when ruled.
+
+- [ ] **⚠️ ADRIAN: rule on `Q108`.** What should a failed sign-out do to a
+      deletion that has already completed? The error is now read and logged and
+      no behaviour changed. The residue is a still-valid access token that a
+      second open tab can use to upload into the just-swept prefix.
+
 - [ ] **Drive it at 390x844 on `http://localhost:3100`.** Still not ticked, and
       no source review substitutes for it. Focus behaviour after a FAILED
       deletion is the specific thing to watch — that is what H-C fixed and it is

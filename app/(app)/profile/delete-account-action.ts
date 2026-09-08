@@ -121,11 +121,29 @@ export async function deleteMyAccount(
    */
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
+  /**
+   * ⚠️ ABSENT IS NOT UNKNOWN. A read that FAILED is not "you are not signed in".
+   *
+   * `error` was discarded here, so an Auth server having a bad minute told a
+   * signed-in person *"You need to be signed in to delete your account."* - a
+   * sentence that is false, and that sends somebody who is trying to leave off
+   * to a login screen they are already past.
+   *
+   * It refuses either way, so this fails in the SAFE direction and is a COPY
+   * defect rather than an access one. The honest answer for a read that did not
+   * answer is the one that claims nothing.
+   */
+  if (userError) {
+    console.error("[delete] getUser failed, refusing without naming a sign-in state:", userError.message);
+    return { ok: false, error: DELETE_ACCOUNT_FAILURE_COPY.unknown };
+  }
+
   if (!user) {
-    // An anonymous caller, or one whose account is already gone. Both get the
-    // same nothing — no enumeration, no detail.
+    // Genuinely nobody: an anonymous caller, or one whose account is already
+    // gone. Both get the same nothing — no enumeration, no detail.
     return { ok: false, error: "You need to be signed in to delete your account." };
   }
 
@@ -161,12 +179,39 @@ export async function deleteMyAccount(
   }
 
   /**
-   * ⚠️ FIRE AND FORGET IS NOT ACCEPTABLE HERE, so it is awaited. If the cookie
-   * survives, the next request carries a credential for an account that no
-   * longer exists — harmless for access, because `getUser()` fails, but it means
-   * the redirect lands on a homepage that may still render as signed-in.
+   * ⚠️ FIRE AND FORGET IS NOT ACCEPTABLE HERE, so it is awaited AND READ.
+   *
+   * ## A failed sign-out is distinguishable, and it was being discarded
+   *
+   * `_signOut` in the installed `@supabase/auth-js` returns early with a
+   * non-null `error` and **never reaches `_removeSession()`** on a session-read
+   * error, or on an admin error that is not 404/401/403. Only the clean path
+   * clears the session and answers `{ error: null }`. So the two ARE separable,
+   * and this used to throw the answer away.
+   *
+   * ## Why the residue matters more than it looks
+   *
+   * The access token stays cryptographically valid until it expires, and
+   * Storage's INSERT policy is signature-checked. So a second tab left open can
+   * still upload into the prefix the sweep just cleared - producing an object
+   * with no row and no user, which is exactly the orphan shape `sweep.ts`
+   * documents live instances of on production.
+   *
+   * ## ⚠️ LOGGED, NOT ACTED ON, AND THAT IS DELIBERATE PENDING A RULING
+   *
+   * Failing the whole deletion over a sign-out is probably worse than the
+   * residue: the account is already gone, so there is nothing left to fail back
+   * to, and the failure copy would tell somebody to retry a deletion that has
+   * already completed. Adrian has not ruled what this should DO, so this makes
+   * the distinction exist and observable and changes no behaviour. See the open
+   * item in `Context/next-tasks.md`.
    */
-  await supabase.auth.signOut();
+  const { error: signOutError } = await supabase.auth.signOut();
+  if (signOutError) {
+    console.error(
+      `[delete] ${user.id} deleted, but signOut failed and the session may survive: ${signOutError.message}`,
+    );
+  }
 
   // Throws internally, so nothing below runs and the function never returns on
   // the success path.

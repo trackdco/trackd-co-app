@@ -29,13 +29,20 @@ export default async function ProfilePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // The (app) layout redirects an unauthenticated user, but layout and page
+  // render concurrently in the App Router — so the page can't lean on that and
+  // must guard itself, or `user.id` below throws (and is logged server-side)
+  // before the redirect lands. Render nothing; the layout's redirect is the
+  // actual response. Same pattern as `dashboard/page.tsx:65-70`.
+  if (!user) return null;
+
   const { data: profile } = await supabase
     .from("profiles")
     // `tier` is no longer read: the plan label comes from `entitlements`.
     .select(
       "created_at, sex, date_of_birth, height_cm, weight_kg, goal, units_preference, avatar_path, display_name",
     )
-    .eq("id", user!.id)
+    .eq("id", user.id)
     .maybeSingle();
 
   // The avatar bucket is private — display via a short-lived signed URL. A fresh
@@ -57,7 +64,7 @@ export default async function ProfilePage() {
     // Scoped explicitly, like every other read on this page. RLS already answers
     // for it; defence in depth is the house pattern and this was the one query
     // that relied on the backstop alone.
-    .eq("profile_id", user!.id)
+    .eq("profile_id", user.id)
     .order("logged_for", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -141,7 +148,7 @@ export default async function ProfilePage() {
   const { data: subRow } = await supabase
     .from("subscriptions")
     .select("status")
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .order("updated_at", { ascending: false })
     .limit(1);
   /**
@@ -177,7 +184,7 @@ export default async function ProfilePage() {
   const { data: billableRows, error: billableError } = await supabase
     .from("subscriptions")
     .select("status")
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .in("status", [...BILLABLE_STATUSES])
     .limit(1);
 
@@ -193,9 +200,9 @@ export default async function ProfilePage() {
 
   // D56. Through the caller OWN RLS-scoped client - a user may select their own
   // beta_feedback rows, so this needs no service role.
-  const openRefundRequest = await hasOpenRefundRequest(supabase, user!.id);
+  const openRefundRequest = await hasOpenRefundRequest(supabase, user.id);
 
-  const courtesyUntil = await courtesyUntilFor(user!.id);
+  const courtesyUntil = await courtesyUntilFor(user.id);
   const planLabel = planLabelFor(
     entitlement,
     subRow?.[0]
@@ -210,7 +217,7 @@ export default async function ProfilePage() {
 
   return (
     <ProfileScreen
-      userId={user!.id}
+      userId={user.id}
       initials={getInitials(accountName, email)}
       avatarUrl={avatarUrl}
       displayName={accountName ?? (email || "Your account")}
