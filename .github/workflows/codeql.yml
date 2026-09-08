@@ -1,0 +1,38 @@
+# CodeQL — staged by the security audit (2026-09-08), NOT yet enabled.
+# This workflow file is inert until GitHub Actions and code scanning are turned on
+# for the repo (Settings -> Code security -> Code scanning). Review before enabling.
+# It adds zero third-party actions beyond GitHub's own official CodeQL steps.
+name: "CodeQL"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "27 4 * * 1" # Mondays, 04:27 UTC
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["javascript-typescript"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
