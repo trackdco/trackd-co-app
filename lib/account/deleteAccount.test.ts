@@ -37,8 +37,8 @@ function recorder(failAt?: DeletionStep, failWith = "boom") {
   const steps: DeletionSteps = {
     cancelStripe: step("cancel-stripe"),
     sweepStorage: step("sweep-storage"),
-    deleteRows: step("delete-rows"),
     deleteAuthUser: step("delete-auth-user"),
+    verifyErased: step("verify-erased"),
   };
   return { ran, steps };
 }
@@ -49,26 +49,38 @@ describe("the happy path", () => {
     const out = await deleteAccountFor(USER, steps);
 
     expect(out).toEqual({ ok: true, stepsRun: [...DELETION_ORDER] });
-    expect(ran).toEqual(["cancel-stripe", "sweep-storage", "delete-rows", "delete-auth-user"]);
+    expect(ran).toEqual(["cancel-stripe", "sweep-storage", "delete-auth-user", "verify-erased"]);
   });
 
   it("⚠️ Stripe is cancelled BEFORE anything is deleted", async () => {
     const { ran, steps } = recorder();
     await deleteAccountFor(USER, steps);
-    expect(ran.indexOf("cancel-stripe")).toBeLessThan(ran.indexOf("delete-rows"));
+    expect(ran.indexOf("cancel-stripe")).toBeLessThan(ran.indexOf("delete-auth-user"));
     expect(ran.indexOf("cancel-stripe")).toBeLessThan(ran.indexOf("sweep-storage"));
   });
 
-  it("⚠️ storage objects go BEFORE any database row — the rows are the map", async () => {
+  /**
+   * ⚠️ §3.2's reason is unchanged by the reorder: the ROWS ARE THE MAP to the
+   * objects, so the sweep must finish before anything can destroy them. The row
+   * delete is now the CASCADE from `delete-auth-user`, so that is the step the
+   * sweep has to precede.
+   */
+  it("⚠️ storage objects go BEFORE the rows are cascaded away", async () => {
     const { ran, steps } = recorder();
     await deleteAccountFor(USER, steps);
-    expect(ran.indexOf("sweep-storage")).toBeLessThan(ran.indexOf("delete-rows"));
+    expect(ran.indexOf("sweep-storage")).toBeLessThan(ran.indexOf("delete-auth-user"));
   });
 
-  it("the auth user is removed LAST", async () => {
+  it("the auth user is removed before anything can verify it", async () => {
     const { ran, steps } = recorder();
     await deleteAccountFor(USER, steps);
-    expect(ran[ran.length - 1]).toBe("delete-auth-user");
+    expect(ran.indexOf("delete-auth-user")).toBeLessThan(ran.indexOf("verify-erased"));
+  });
+
+  it("the verification is LAST, and it is a read rather than a delete", async () => {
+    const { ran, steps } = recorder();
+    await deleteAccountFor(USER, steps);
+    expect(ran[ran.length - 1]).toBe("verify-erased");
   });
 });
 
@@ -91,25 +103,49 @@ describe("⚠️ BREAKING EACH STEP — nothing after it may run", () => {
     // ⚠️ Cancelled, but the rows and the auth user survive - so the person still
     // has their account and their data, and only their subscription has ended.
     expect(ran).toEqual(["cancel-stripe"]);
-    expect(ran).not.toContain("delete-rows");
     expect(ran).not.toContain("delete-auth-user");
+    expect(ran).not.toContain("verify-erased");
   });
 
-  it("a failed ROW DELETE stops the auth-user delete", async () => {
-    const { ran, steps } = recorder("delete-rows");
-    const out = await deleteAccountFor(USER, steps);
-
-    expect(out).toMatchObject({ ok: false, failedAt: "delete-rows" });
-    expect(ran).toEqual(["cancel-stripe", "sweep-storage"]);
-    expect(ran).not.toContain("delete-auth-user");
-  });
-
-  it("a failed AUTH-USER delete is reported rather than swallowed", async () => {
+  /**
+   * ⚠️ THE FINDING THIS REORDER EXISTS FOR.
+   *
+   * When the row delete came third and this came fourth, a failure here left
+   * `profiles` deleted and the auth user alive - so the gate failed, the app
+   * redirected to `/welcome`, and the dialog that offers the retry was
+   * unreachable. The retry the copy promises did not exist.
+   *
+   * Now the cascade fires only on a SUCCESSFUL auth delete, so a failure here
+   * has destroyed no rows at all and the account still works. Measured on a
+   * seeded account against production 2026-09-08: `profiles` present,
+   * `is_18_plus` and `tos_accepted_at` intact, the gate passing, and the retry
+   * completing cleanly.
+   */
+  it("a failed AUTH-USER delete destroys NO rows, so the retry stays reachable", async () => {
     const { ran, steps } = recorder("delete-auth-user");
     const out = await deleteAccountFor(USER, steps);
 
     expect(out).toMatchObject({ ok: false, failedAt: "delete-auth-user" });
-    expect(ran).toEqual(["cancel-stripe", "sweep-storage", "delete-rows"]);
+    expect(ran).toEqual(["cancel-stripe", "sweep-storage"]);
+    // Nothing after it ran, so nothing cascaded and no verification claimed it did.
+    expect(ran).not.toContain("verify-erased");
+  });
+
+  /**
+   * ⚠️ A VERIFICATION STEP THAT CANNOT FAIL IS A STEP THAT RUNS, DOES NOTHING
+   * AND EXITS 0. This drives it failing, so the fourth step's failure is a state
+   * the orchestrator actually reports rather than a branch nothing reaches.
+   */
+  it("a failed VERIFICATION is reported rather than swallowed", async () => {
+    const { ran, steps } = recorder("verify-erased", "the account is not fully erased");
+    const out = await deleteAccountFor(USER, steps);
+
+    expect(out).toMatchObject({
+      ok: false,
+      failedAt: "verify-erased",
+      error: "the account is not fully erased",
+    });
+    expect(ran).toEqual(["cancel-stripe", "sweep-storage", "delete-auth-user"]);
   });
 
   it.each([...DELETION_ORDER])("failing at %s never reports ok", async (failAt) => {
@@ -161,7 +197,7 @@ describe("⚠️ a retry after a partial failure completes CLEANLY", () => {
     const steps: DeletionSteps = {
       cancelStripe: async () => { ran.push("cancel-stripe"); },
       sweepStorage: async () => { ran.push("sweep-storage"); },
-      deleteRows: async () => { ran.push("delete-rows"); },
+      verifyErased: async () => { ran.push("verify-erased"); },
       // Already gone: the post-condition is true, so the step is satisfied.
       deleteAuthUser: async () => { ran.push("delete-auth-user"); },
     };

@@ -9,7 +9,7 @@ import { sweepUserStorage, describeSweep } from "@/lib/storage/sweep";
  * §3.2 — "the order, which is the whole spec".
  *
  *     1. Cancel at Stripe.   2. Delete the storage objects.
- *     3. Delete the database rows.   4. Delete the auth user.
+ *     3. Delete the auth user, which CASCADES the rows.   4. Verify, by reading.
  *
  * ## Why Stripe is first
  *
@@ -57,13 +57,17 @@ import { sweepUserStorage, describeSweep } from "@/lib/storage/sweep";
  */
 
 /** The four steps, in order. Also the vocabulary the result speaks. */
-export type DeletionStep = "cancel-stripe" | "sweep-storage" | "delete-rows" | "delete-auth-user";
+export type DeletionStep =
+  | "cancel-stripe"
+  | "sweep-storage"
+  | "delete-auth-user"
+  | "verify-erased";
 
 export const DELETION_ORDER: readonly DeletionStep[] = [
   "cancel-stripe",
   "sweep-storage",
-  "delete-rows",
   "delete-auth-user",
+  "verify-erased",
 ] as const;
 
 export type DeletionOutcome =
@@ -80,8 +84,8 @@ export type DeletionOutcome =
 export interface DeletionSteps {
   cancelStripe(userId: string): Promise<void>;
   sweepStorage(userId: string): Promise<void>;
-  deleteRows(userId: string): Promise<void>;
   deleteAuthUser(userId: string): Promise<void>;
+  verifyErased(userId: string): Promise<void>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -127,24 +131,46 @@ export const liveSteps: DeletionSteps = {
   },
 
   /**
-   * ⚠️ THIRD. ONE delete, and the cascade does the rest.
+   * ⚠️ THIRD. ONE DELETE, AND THE CASCADE TAKES THE ROWS WITH IT.
    *
-   * Every user-scoped table declares `ON DELETE CASCADE` from `profiles(id)` or
-   * `auth.users(id)` — verified against production `pg_constraint`, 38
-   * constraints, no exceptions. So deleting this single row removes the lot, and
-   * enumerating tables here would be a second list to keep in sync with the
-   * schema and to get wrong.
-   */
-  async deleteRows(userId) {
-    const { error } = await adminClient().from("profiles").delete().eq("id", userId);
-    if (error) throw new Error(`profiles delete failed: ${error.message}`);
-  },
-
-  /**
-   * ⚠️ FOURTH AND LAST. Removing the auth user cascades `profiles` again
-   * (harmlessly, it is already gone) and revokes every refresh token the account
-   * holds, which is what makes the sign-out that follows final rather than
-   * cosmetic.
+   * ## Why this is now third, where the row delete used to be
+   *
+   * It used to delete the `profiles` row here and the auth user last. A cold
+   * review found that ordering had a TERMINAL failure state: when the row delete
+   * succeeded and the auth delete then threw, `profiles` was gone, so
+   * `lib/auth.ts` computed `passedGate` false, `app/(app)/layout.tsx` redirected
+   * to `/welcome`, and `ProfileScreen` — the only place the deletion dialog is
+   * rendered — sits inside `(app)` and was therefore unreachable. **The retry the
+   * copy promises did not exist.** Re-accepting the terms could not rescue it
+   * either, because the `consent_records` insert has a foreign key to `profiles`
+   * and failed 23503 forever.
+   *
+   * ## The intermediate state does not exist any more, rather than being rarer
+   *
+   * Deleting the auth user removes everything on its own, in ONE statement, so
+   * there is no window between "rows gone" and "auth user gone" to be stranded
+   * in. Measured on a seeded account against production on 2026-09-08 rather
+   * than derived from `pg_constraint`: `billing_customers`, `subscriptions`,
+   * `entitlements`, `blocks` and `profiles` each held one row, the auth user was
+   * deleted and nothing else, and all five read back zero.
+   *
+   * ⚠️ **`blocks` and `block_targets` hang off `auth.users` DIRECTLY, not off
+   * `profiles`.** The old row delete never reached them; only this step does.
+   *
+   * ## If it fails, nothing has been deleted from the database
+   *
+   * The cascade fires only on a successful delete, so a failure here leaves the
+   * account whole — measured the same day: `profiles` present, `is_18_plus` and
+   * `tos_accepted_at` intact so the gate passes, the app renders, the dialog is
+   * reachable, and the retry completed cleanly.
+   *
+   * ⚠️ Their uploaded FILES are already gone by this point, because §3.2 puts
+   * the sweep first and that has not changed. "Whole" is true of the account and
+   * its rows, not of storage. That is the pre-existing trade §3.2 accepts, and
+   * `DELETE_ACCOUNT_FAILURE_COPY.partlyDeleted` is what the user reads.
+   *
+   * It also revokes every refresh token, which is what makes the sign-out that
+   * follows final rather than cosmetic.
    */
   async deleteAuthUser(userId) {
     const { error } = await adminClient().auth.admin.deleteUser(userId);
@@ -159,7 +185,7 @@ export const liveSteps: DeletionSteps = {
      * Two cold reviews found the same hole: a 404 from a misrouted admin URL - a
      * wrong `NEXT_PUBLIC_SUPABASE_URL`, a proxy change, an auth API path change -
      * is indistinguishable from "this user does not exist", and it would have
-     * read as SUCCESS after `deleteRows` had already cascaded everything away.
+     * read as SUCCESS while the cascade had already taken every row.
      *
      * So the shape is no longer trusted. The question "is this user gone" is put
      * to the server directly, which is the same standard `sweep.ts` holds itself
@@ -168,7 +194,85 @@ export const liveSteps: DeletionSteps = {
     if (await authUserIsGone(userId)) return;
     throw new Error(`auth user delete failed: ${error.message}`);
   },
+
+  /**
+   * ⚠️ FOURTH AND LAST. A READ, AND IT CAN FAIL. THAT IS THE POINT.
+   *
+   * §5 asks the order be proven by breaking each step, so the fourth step has to
+   * be capable of reporting a failure. **A verification step that cannot fail is
+   * a step that runs, does nothing and exits 0** — the instrument shape this
+   * project deleted from the launch runbook rather than fixed.
+   *
+   * So this READS the account back and throws if anything of it is still there.
+   * It deletes nothing: by the time it runs the cascade has either taken
+   * everything or the step before it threw and this never ran.
+   *
+   * ## ⚠️ A READ THAT ERRORED IS A FAILURE, NOT AN EMPTY TABLE
+   *
+   * Absent is not unknown. Every read here has three outcomes — rows, no rows,
+   * or could-not-ask — and only the middle one passes. A read that 500s must
+   * never be recorded as "verified empty", which is the exact way a verification
+   * step becomes decorative.
+   *
+   * ## Why these tables and not all thirty-four
+   *
+   * The money-adjacent ones plus the two roots. `profiles` is the root of the
+   * 30-table cascade and `blocks` hangs off `auth.users` directly, so between
+   * them the two cascade paths are both exercised on every single deletion.
+   * Enumerating all thirty-four here would be a second list to keep in sync with
+   * the schema; that job belongs to `cascadeCoverage.test.ts`, which fails the
+   * BUILD if any foreign key to `profiles` or `auth.users` stops cascading.
+   */
+  async verifyErased(userId) {
+    const client = adminClient();
+    const problems: string[] = [];
+
+    // The auth user itself. Only a definite "no user" passes.
+    const { data, error } = await client.auth.admin.getUserById(userId);
+    if (error) {
+      if (!isUserNotFound(error)) {
+        problems.push(`auth user: could not verify (${error.message})`);
+      }
+    } else if (data?.user) {
+      problems.push("auth user: still exists");
+    }
+
+    for (const [table, column] of VERIFIED_EMPTY) {
+      const { count, error: readError } = await client
+        .from(table)
+        .select("*", { count: "exact", head: true })
+        .eq(column, userId);
+
+      if (readError) {
+        problems.push(`${table}: could not verify (${readError.message})`);
+        continue;
+      }
+      // ⚠️ A null count is a read that did not answer, not a zero.
+      if (count === null || count === undefined) {
+        problems.push(`${table}: read returned no count and no error`);
+        continue;
+      }
+      if (count > 0) problems.push(`${table}: ${count} row(s) remain`);
+    }
+
+    if (problems.length > 0) {
+      throw new Error(`the account is not fully erased: ${problems.join("; ")}`);
+    }
+  },
 };
+
+/**
+ * What {@link liveSteps.verifyErased} reads back, and the column that owns the
+ * row. Both cascade roots are represented: `profiles` heads the thirty-table
+ * cascade, and `blocks` hangs off `auth.users` directly.
+ */
+const VERIFIED_EMPTY: ReadonlyArray<readonly [string, string]> = [
+  ["profiles", "id"],
+  ["billing_customers", "user_id"],
+  ["subscriptions", "user_id"],
+  ["entitlements", "user_id"],
+  ["blocks", "user_id"],
+] as const;
 
 /**
  * ⚠️ SUPABASE'S OWN "THIS USER DOES NOT EXIST", AND NOTHING WIDER.
@@ -239,8 +343,8 @@ export async function deleteAccountFor(
   const run: Record<DeletionStep, (id: string) => Promise<void>> = {
     "cancel-stripe": steps.cancelStripe.bind(steps),
     "sweep-storage": steps.sweepStorage.bind(steps),
-    "delete-rows": steps.deleteRows.bind(steps),
     "delete-auth-user": steps.deleteAuthUser.bind(steps),
+    "verify-erased": steps.verifyErased.bind(steps),
   };
 
   for (const step of DELETION_ORDER) {

@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
@@ -93,18 +94,77 @@ const CONFIRMATION = "DELETE";
  * Stripe subscription is already cancelled with the remaining paid time gone,
  * and by the time the row delete can fail the files are already destroyed.
  */
+/**
+ * ⚠️ CLEAR THE AUTH COOKIES OURSELVES, BECAUSE `signOut()` SOMETIMES DOES NOT.
+ *
+ * ## What was wrong with trusting it
+ *
+ * `_signOut` in `@supabase/auth-js` returns early with a non-null `error` and
+ * **never reaches `_removeSession()`** on a session-read error, or on an admin
+ * error that is not 404/401/403. So on a 500 or a retryable fetch failure the
+ * cookie SURVIVES while this action reports the deletion succeeded.
+ *
+ * ## Why the residue is worth code rather than a shrug
+ *
+ * The access token stays valid, and Storage's INSERT policy is signature-checked
+ * rather than row-checked. So a second tab left open can still upload into the
+ * prefix the sweep just cleared, producing an object with no row and no user -
+ * the orphan shape `sweep.ts` documents live instances of on production.
+ *
+ * ## ⚠️ WHAT THIS DOES NOT FIX (Q108)
+ *
+ * **The access token stays cryptographically valid until it expires.** That is a
+ * property of a signed JWT and no cookie clear can revoke it: a token already
+ * copied out of the browser keeps working until expiry. Deleting the auth user
+ * revokes the REFRESH token, so the session cannot be extended, which bounds the
+ * exposure to one token lifetime. **The configured lifetime is a Supabase
+ * dashboard setting and CANNOT BE CHECKED from this repository.**
+ *
+ * ## Matched by name, so chunked cookies go too
+ *
+ * `@supabase/ssr` splits a large session across `...auth-token.0`,
+ * `...auth-token.1` and so on. Deleting only the unsuffixed name would leave the
+ * chunks, so every `sb-*auth-token*` cookie is removed. Nothing else is
+ * touched - this is somebody's browser, not ours to tidy.
+ */
+async function clearAuthCookies(): Promise<void> {
+  try {
+    const jar = await cookies();
+    for (const cookie of jar.getAll()) {
+      if (/^sb-.*auth-token/.test(cookie.name)) jar.delete(cookie.name);
+    }
+  } catch (error) {
+    // A cookie write is only permitted in an action or a route handler, and this
+    // IS one - but the deletion has already completed and must not be reported
+    // as failed because the jar refused.
+    console.error(
+      "[delete] could not clear auth cookies:",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
 function failureCopyFor(failedAt: DeletionStep): string {
   switch (failedAt) {
     case "cancel-stripe":
       // Nothing ran after it. The account is entirely untouched.
       return DELETE_ACCOUNT_FAILURE_COPY.nothingRemoved;
     case "sweep-storage":
-      // The cancel succeeded. Data is intact; the money is not coming back.
+      // The cancel succeeded. Rows are intact; the money is not coming back.
       return DELETE_ACCOUNT_FAILURE_COPY.cancelledOnly;
-    case "delete-rows":
     case "delete-auth-user":
-      // Files, and possibly rows, are already gone. It must not read as
-      // "nothing happened", or somebody walks away from a half-deleted account.
+    case "verify-erased":
+      /**
+       * Files are already gone by here, because the sweep runs before both.
+       *
+       * `delete-auth-user` failing leaves every ROW intact - the cascade only
+       * fires on a successful delete - so the account still works and the retry
+       * is reachable. `verify-erased` failing means the delete reported success
+       * and the read back disagreed. Either way something of theirs has gone and
+       * the deletion did not finish, which is what this sentence says. It must
+       * not read as "nothing happened", or somebody walks away from a
+       * half-deleted account.
+       */
       return DELETE_ACCOUNT_FAILURE_COPY.partlyDeleted;
   }
 }
@@ -209,9 +269,19 @@ export async function deleteMyAccount(
   const { error: signOutError } = await supabase.auth.signOut();
   if (signOutError) {
     console.error(
-      `[delete] ${user.id} deleted, but signOut failed and the session may survive: ${signOutError.message}`,
+      `[delete] ${user.id} deleted, but signOut reported: ${signOutError.message}. Clearing the cookies directly.`,
     );
   }
+
+  /**
+   * ⚠️ UNCONDITIONAL, AND AFTER `signOut` RATHER THAN INSTEAD OF IT.
+   *
+   * `signOut` still does the useful server-side work when it can. This is the
+   * part that must be true whether or not it succeeded, so it does not sit
+   * behind `if (signOutError)` - a clean-looking `signOut` that failed to write
+   * the response cookie would slip through that branch.
+   */
+  await clearAuthCookies();
 
   // Throws internally, so nothing below runs and the function never returns on
   // the success path.

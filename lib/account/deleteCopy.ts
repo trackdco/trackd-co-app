@@ -151,7 +151,7 @@ export const DELETE_ACCOUNT_FAILURE_COPY = {
     "charges will be made. Please give it a few minutes and try again to finish.",
 
   /**
-   * Stopped at `delete-rows` or `delete-auth-user`. Files, and possibly rows,
+   * Stopped at `delete-auth-user` or `verify-erased`. Files, and possibly rows,
    * are already gone.
    *
    * ⚠️ ADRIAN'S WORDING, AND IT IS DELIBERATELY SHORTER THAN THE DRAFT. The
