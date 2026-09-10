@@ -82,6 +82,7 @@ export function InstallHomeScreenPopup({
       }}
     >
       <SheetContent
+        data-desktop="dialog"
         side="bottom"
         className="gap-0 rounded-t-3xl border-border-default bg-bg-surface px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
       >

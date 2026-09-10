@@ -22,7 +22,11 @@ export const metadata: Metadata = { title: "Calculator · Trackd Co" };
  */
 export default function CalculatorPage() {
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
+    <div
+      data-screen="calculator"
+      data-desktop-layout="column"
+      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+    >
       <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
         <PageScrollTitle title="Calculator" />
       </div>

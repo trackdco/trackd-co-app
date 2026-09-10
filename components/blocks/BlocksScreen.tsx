@@ -119,7 +119,11 @@ export function BlocksScreen({
   if (selected) {
     const window = blockWindow(selected, todayKey)
     return (
-      <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
+      <div
+      data-screen="blocks"
+      data-desktop-layout="wide"
+      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+    >
         <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
           <Link
             href="/blocks"
@@ -186,7 +190,11 @@ export function BlocksScreen({
 
   // ── The list ─────────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
+    <div
+      data-screen="blocks"
+      data-desktop-layout="wide"
+      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+    >
       <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
         <PageScrollTitle title="Blocks" />
       </div>

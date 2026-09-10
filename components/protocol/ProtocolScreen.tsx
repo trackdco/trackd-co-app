@@ -211,13 +211,17 @@ export function ProtocolScreen({
   const delay = (ms: number) => ({ animationDelay: `${ms}ms` })
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
-      <div className="animate-home-up" style={delay(0)}>
+    <div
+      data-screen="protocol"
+      data-desktop-layout="grid"
+      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+    >
+      <div data-area="title" className="animate-home-up" style={delay(0)}>
         <PageScrollTitle title="Protocol" />
       </div>
 
 
-      <div className="animate-home-up" style={delay(55)}>
+      <div data-area="compounds" className="animate-home-up" style={delay(55)}>
         <CompoundsRow
           compounds={active}
           stockByCompound={stockByCompound ?? new Map()}
@@ -237,7 +241,7 @@ export function ProtocolScreen({
         />
       </div>
 
-      <div className="animate-home-up" style={delay(85)}>
+      <div data-area="schedule" className="animate-home-up" style={delay(85)}>
         {/* The FULL stack, not `active`. A past week needs the compounds that
             are no longer current, and `compoundsInWeek` dates them from the
             `stopped` version Delete writes rather than the undated `archived`
@@ -245,7 +249,7 @@ export function ProtocolScreen({
         <ScheduleWeeks compounds={compounds} logs={logs} todayKey={todayKey} />
       </div>
 
-      <div className="animate-home-up" style={delay(115)}>
+      <div data-area="stacks" className="animate-home-up" style={delay(115)}>
         <StacksView
           userId={userId}
           previewCompounds={previewCompounds}
@@ -253,7 +257,7 @@ export function ProtocolScreen({
         />
       </div>
 
-      <div className="animate-home-up" style={delay(145)}>
+      <div data-area="cycles" className="animate-home-up" style={delay(145)}>
         <CyclesView userId={userId} previewStack={previewCompounds} />
       </div>
 

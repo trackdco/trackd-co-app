@@ -9,6 +9,9 @@ import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { SyncStatusNotice } from "@/components/notifications/SyncStatusNotice";
 import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
 import { RotationNotice } from "@/components/layout/RotationNotice";
+import { DesktopSidebar } from "@/components/desktop/DesktopSidebar";
+import { DesktopRail } from "@/components/desktop/DesktopRail";
+import { DesktopKeyboard } from "@/components/desktop/DesktopKeyboard";
 import { getSessionContext } from "@/lib/auth";
 import {
   gateWithDestination,
@@ -78,8 +81,26 @@ export default async function AppLayout({
 
   return (
     <ReadOnlyProvider canWrite={canWrite}>
-    <div className="flex min-h-dvh flex-col">
+    {/*
+      THE SHELL. One DOM, two placements.
+
+      Phone: a flex column, header then main, with the fixed nav and FAB over
+      the top. Exactly what it has always been; nothing in `desktop.css` matches.
+
+      Laptop (>=1024px AND a pointer): a three-column grid, sidebar / main /
+      rail. The header, the bottom nav and the FAB collapse and the two new
+      columns appear. All of that is CSS applied on the FIRST paint with no
+      JavaScript in the path, which is why there is no hydration flash and no
+      second render tree to keep in step. See `app/desktop.css`.
+    */}
+    <div data-desktop-shell className="flex min-h-dvh flex-col">
+      {/* Desktop only. `hidden` is its phone state and the desktop stylesheet
+          gives it `display: flex`, so on a phone it draws nothing and announces
+          nothing: there is never a second nav in the accessibility tree. */}
+      <DesktopSidebar userId={user.id} />
+
       <header
+        data-app-header
         className="flex items-center justify-between border-b border-border/60 px-5"
         style={{
           paddingTop: "max(0.75rem, env(safe-area-inset-top))",
@@ -107,8 +128,15 @@ export default async function AppLayout({
         {children}
       </main>
 
+      {/* The rail: today's actionable state, and the column every bottom sheet
+          docks into on desktop (`data-desktop="rail"`). Desktop only. */}
+      <DesktopRail userId={user.id} unit={unit} bodySex={bodySex} />
+
       <BottomNav />
       <QuickActionsFab userId={user.id} unit={unit} bodySex={bodySex} />
+      {/* Keyboard shortcuts. Listener-only, renders nothing, and every handler
+          returns early unless the desktop query matches. */}
+      <DesktopKeyboard />
       <SyncStatusNotice />
       {/* Re-signs a storage image whose five-minute URL expired while the tab
           sat open. Error-driven, never scheduled — see the component. */}

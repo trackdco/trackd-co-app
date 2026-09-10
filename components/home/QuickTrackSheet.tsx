@@ -120,6 +120,7 @@ export function QuickTrackSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        data-desktop="rail"
         side="bottom"
         // No auto-focus — this sheet is tap-only, so don't raise the keypad.
         onOpenAutoFocus={(e) => e.preventDefault()}

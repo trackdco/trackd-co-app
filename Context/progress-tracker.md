@@ -1,5 +1,76 @@
 # Progress Tracker
 
+## ✅ DESKTOP IS BUILT (2026-09-10) — branch `desktop-app`, NOT merged
+
+Trackd runs on a laptop. Adrian's brief: make it look like a computer-native app,
+not a phone layout taken to a computer, and **change nothing about the phone**.
+
+**The phone-only gate is GONE.** Until today `app/layout.tsx` wrapped everything
+in `DesktopGate`: at >=1024px the shell was hidden and a "grab your phone"
+interstitial stood in its place, for signed-in users too. `/login` was not on its
+exemption list, so **a laptop visitor could not sign in at all**. Both
+`desktop-gate.tsx` and `desktop-interstitial.tsx` are deleted, along with their
+two `/preview` routes. The QR code (the one useful part) moved into Profile as
+"Get it on your phone", desktop only.
+
+### Where it stops and starts
+
+`(min-width: 1024px) and (pointer: fine)`. Room AND a pointer. An iPad in
+landscape on touch keeps the phone layout, which is the better design for it;
+a laptop, a desktop and an iPad with a trackpad get the shell. Measured across
+four device profiles.
+
+### How it is built, and why the phone cannot regress
+
+**One DOM, two placements.** No screen was rebuilt, no component duplicated, no
+`isDesktop ? <A/> : <B/>` anywhere. Each screen's children carry a `data-area`
+name and `app/desktop.css` places those names into a grid. The entire desktop
+layer is ONE file, entirely inside one media query, so a phone parses it and
+matches nothing.
+
+**`lib/desktop/desktopLayer.test.ts` pins that.** It parses `desktop.css` and
+fails if any rule sits outside the media query, or if the query in CSS and the
+one in `lib/desktop/breakpoint.ts` ever disagree. Verified to fail on a
+deliberately planted rule, so it is a guard rather than a decoration.
+
+### What is new (has no phone equivalent, so nothing to regress)
+
+`components/desktop/`: `DesktopSidebar`, `DesktopRail`, `CommandPalette`,
+`DesktopKeyboard`, `PhoneHandoffPrompt`. The rail composes the SAME pure helpers
+Home does (`isDueOnFor`, `resolveScheduleOn`, `slotsForDay`, `computeNextDose`),
+so "due" cannot mean two things.
+
+### What changed for the user, and it is all controls, not capability
+
+Bottom nav -> sidebar. FAB -> the rail's quick actions plus the palette. Bottom
+sheets -> the rail (32 of them), a centred dialog (a handful), or a full-window
+viewer (photos). Drag-to-dismiss is gone above the breakpoint. **No feature was
+removed and none was added** beyond the palette and the keyboard shortcuts, both
+of which are shortcuts to actions that already existed.
+
+### ⚠️ ONE KNOWN GAP, and it is Adrian's call
+
+26 of the 40 sheets pass `showCloseButton={false}`, so once the drag handle is
+hidden those have **no visible close control** on desktop. Escape works, clicking
+away works, and every one still shows its own primary action, but there is no
+"x". The clean fix is one line in `components/ui/sheet.tsx`, which is PROTECTED
+by `ai-workflow-rules.md`, so it was flagged rather than done quietly. The
+alternatives were all worse and are written up in `app/desktop.css` section 4.
+
+### Verified
+
+`tsc` clean, `eslint` clean, `vitest` 2047/2047 across 100 files, `gate:check`
+clean, `next build` passes. Every screen rendered and looked at in a real browser
+at 1512px and at 390px; the phone output is unchanged.
+
+### ⚠️ `next.config.ts` gained an env-gated dev escape hatch
+
+`TRACKD_TURBOPACK_ROOT`. Turbopack refuses to resolve above its project root, so
+a worktree whose `node_modules` symlinks back to the main checkout cannot start.
+**Unset by default — the `turbopack` key is absent, not empty — so Vercel and CI
+are byte-identical to before.** Only needed to run dev from a worktree.
+
+
 Records the **state** of the build: what's done + the decisions behind it — the
 rear-view mirror. Forward steps live in `Context/next-tasks.md`. The full
 blow-by-blow history of every spec is in git; this file keeps only what a future

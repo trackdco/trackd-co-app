@@ -257,6 +257,7 @@ export function StockPreview() {
 
       <Sheet open={moment !== null} onOpenChange={(o) => !o && setMoment(null)}>
         <SheetContent
+          data-desktop="rail"
           side="bottom"
           className="rounded-t-3xl border-border-default bg-bg-surface"
         >

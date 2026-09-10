@@ -180,6 +180,7 @@ export function PauseSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        data-desktop="rail"
         side="bottom"
         onOpenAutoFocus={(e) => e.preventDefault()}
         className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"

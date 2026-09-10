@@ -91,7 +91,7 @@ export function ScheduleGrid({
           `schedule-dayhead` is the FAR layer of the week-step parallax (see
           globals.css); the groups below are the near one. */}
       <div className="schedule-dayhead flex items-center gap-3">
-        <span className="w-[38%] shrink-0" />
+        <span data-schedule-namecol className="w-[38%] shrink-0" />
         <div className="grid flex-1 grid-cols-7 gap-1">
           {weekDays.map((d, i) => {
             const isToday = toDateKey(d) === todayKey
@@ -142,7 +142,7 @@ export function ScheduleGrid({
               </span>
               {g.compounds.map((c) => (
                 <div key={c.id} className="flex items-center gap-3 py-1.5">
-                  <span className="w-[38%] shrink-0 truncate text-xs text-text-muted">
+                  <span data-schedule-namecol className="w-[38%] shrink-0 truncate text-xs text-text-muted">
                     {c.name}
                   </span>
                   {/* The marks are decorative; the row carries the meaning as

@@ -271,6 +271,8 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
           (app) layout with no state between them, and a control that floats over
           a committed edit is a control that discards it. Styling is unchanged. */}
       <div
+        // Desktop hides this; the rail carries the same actions in the open.
+        data-quick-actions
         className="shortcuts-layer pointer-events-none fixed inset-0 z-[46]"
         {...(open
           ? { role: "dialog", "aria-modal": true, "aria-label": "Quick actions" }

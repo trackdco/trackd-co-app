@@ -1,5 +1,41 @@
 # Next Tasks
 
+## 🖥️ DESKTOP — BUILT AND AWAITING REVIEW (branch `desktop-app`, 2026-09-10)
+
+The build is done and verified. What is left is Adrian's, in this order.
+
+### 1. Look at it
+Dev server on **http://localhost:3200**. Start it from the worktree with
+`TRACKD_TURBOPACK_ROOT=/Users/adrianschimizzi/Documents/GitHub npx next dev -p 3200`.
+
+- **http://localhost:3200/preview/desktop** — the tour: every screen, what the
+  desktop layer does to each, and what is worth trying to break.
+- **http://localhost:3200/preview/shell** — the whole shell with seeded data and
+  no sign-in needed.
+- Signed in, the real routes are the review surface.
+
+### 2. Rule on the close control  ⚠️ BLOCKING NOTHING, BUT IT IS A REAL GAP
+26 of 40 sheets pass `showCloseButton={false}`, so on desktop they have no
+visible "x" (Escape and click-away both work). The fix is one line in
+`components/ui/sheet.tsx`, which is protected. **Approve the edit, or accept the
+gap.** Do not let a future session decide this quietly.
+
+### 3. Decide what else desktop should get
+Deliberately NOT built, because each is a feature change rather than a layout one
+and the brief was to change no features:
+- The Protocol schedule still shows one week at a time with arrows. Twelve weeks
+  across was the pitch in the artifact and it needs a real decision about what
+  the component does, not a CSS rule.
+- No drag-and-drop file upload onto the photo/bloodwork cards. The file picker
+  works on desktop today.
+- No desktop PWA install offer. `manifest.ts` still declares
+  `orientation: "portrait"`, which would force an installed desktop PWA into a
+  portrait window. **Check this before offering desktop install.**
+
+### 4. Merge
+Nothing has been merged. `desktop-app` is cut from `main` at `d38e686`.
+
+
 The **windscreen** — the concrete next steps. This file says *what to do next*;
 `progress-tracker.md` records what's already done. When a task finishes: log it in
 `progress-tracker.md`, delete it here, add the next steps. Full history is in git.

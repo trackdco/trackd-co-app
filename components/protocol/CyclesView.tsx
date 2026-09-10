@@ -144,6 +144,7 @@ export function CyclesView({
           cycle are offered — one cycle governs exactly one compound. */}
       <Sheet open={picking} onOpenChange={setPicking}>
         <SheetContent
+          data-desktop="rail"
           side="bottom"
           className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
         >

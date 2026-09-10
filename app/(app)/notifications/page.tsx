@@ -51,7 +51,11 @@ export default async function NotificationsSettingsPage() {
     typeof t === "string" ? t.slice(0, 5) : fallback;
 
   return (
-    <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
+    <div
+      data-screen="notifications"
+      data-desktop-layout="column"
+      className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5"
+    >
       <h1 className={PAGE_TITLE}>Notifications</h1>
       <p className="mt-2 text-sm leading-relaxed text-text-muted">
         Reminders for your protocol, sent to this device.

@@ -1,5 +1,45 @@
 # Architecture Context
 
+## The desktop layer (2026-09-10)
+
+Trackd runs on a laptop as well as a phone. The architecture of that is one
+sentence: **one DOM, two placements of it.**
+
+There is no second render path. No screen is rebuilt for desktop, no component is
+duplicated, and there is no `isDesktop ? <A/> : <B/>` anywhere in the tree. Each
+screen's children carry a `data-area` name; `app/desktop.css` places those names
+into a grid above the breakpoint. That is the whole mechanism, and it is why
+desktop cannot regress the phone: there is nothing for it to regress.
+
+**Boundary.** The desktop layer is `app/desktop.css` (imported by `globals.css`),
+`components/desktop/**`, and `lib/desktop/**`. Everything else it touches, it
+touches by adding an attribute that no phone rule matches. Deleting those three
+things removes desktop and leaves the phone app exactly as it was.
+
+**Breakpoint.** `(min-width: 1024px) and (pointer: fine)` — room AND a pointer.
+Stated once in `lib/desktop/breakpoint.ts` (the JS half, which gates client-side
+WORK) and once in `app/desktop.css` (the CSS half, which does all the LAYOUT).
+`lib/desktop/desktopLayer.test.ts` fails the build if they drift, or if any rule
+escapes the media query.
+
+**Layout is CSS, never JavaScript.** The shell is placed by a stylesheet the
+browser applies on the first paint, so a desktop viewer never sees a phone layout
+flash first. `useIsDesktop()` exists only to stop a phone doing the rail's
+computation for a column it will never show; using it to decide what to RENDER
+would reintroduce the hydration flash the CSS approach exists to avoid.
+
+**The rail does not own any data.** It composes the same pure helpers Home does
+(`isDueOnFor`, `resolveScheduleOn`, `slotsForDay`, `computeNextDose`), so a change
+to what "due" means lands in both at once. Stock is the one server read, and it
+comes from `v_inventory_math` like everywhere else — never recomputed (Invariant:
+no stored or re-derived values).
+
+**Sheets are re-placed, not rewritten.** All 40 go through the protected
+`components/ui/sheet.tsx`, so desktop styles them via the `data-slot` attributes
+that primitive already emits plus a `data-desktop` hint each call site passes.
+The protected file is untouched and no sheet's React tree changed.
+
+
 > Trackd Co — a PWA for tracking peptide, anabolic, supplement, and
 > hormone-optimisation protocols in one unified system. An information
 > and tracking SaaS for informed adults. **NOT** a medical device,

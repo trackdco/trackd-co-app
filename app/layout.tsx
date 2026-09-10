@@ -1,13 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Caveat, Geist, Geist_Mono } from "next/font/google";
-import Image from "next/image";
 import "./globals.css";
 
 import { IconProvider } from "@/components/providers/icon-provider";
 import { AppleSplashLinks } from "@/components/pwa/apple-splash-links";
-import { DesktopGate } from "@/components/pwa/desktop-gate";
-import { DesktopInterstitial } from "@/components/pwa/desktop-interstitial";
-import { getCurrentUser } from "@/lib/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -65,18 +61,31 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+/**
+ * ## THE PHONE-ONLY GATE IS GONE (2026-09-10, Adrian's call)
+ *
+ * Until now this layout wrapped the app in `DesktopGate`: at >=1024px the whole
+ * shell was hidden and a "grab your phone to use Trackd" interstitial stood in
+ * its place, for signed-in users too. That was the correct call while there was
+ * no desktop design. There is one now (`app/desktop.css` + `components/desktop/`),
+ * so the wall has nothing left to do and keeping it would mean shipping a laptop
+ * app behind a sign saying laptops are not supported.
+ *
+ * Removed rather than disabled, deliberately: a gate left in place behind a flag
+ * is a gate somebody re-enables by accident. `desktop-interstitial.tsx` and
+ * `desktop-gate.tsx` are deleted with it; the QR code that was its one genuinely
+ * useful part now lives in Profile, where somebody on a laptop can actually go
+ * looking for it (`components/profile/InstallAppRow.tsx`).
+ *
+ * The `getCurrentUser()` call went with it. It existed only to pick which of the
+ * interstitial's two variants to show, so a logged-in page load no longer
+ * verifies the session twice.
+ */
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Trackd is a phone-only PWA. At ≥1024px the whole app shell is hidden and
-  // the desktop interstitial stands in — even for signed-in users, who get the
-  // "welcome back" variant. `display:contents` means the wrapper is invisible
-  // to layout on mobile (the app renders exactly as before) and collapses to
-  // nothing at lg. One verified `getUser()` (cached) picks the variant.
-  const user = await getCurrentUser();
-
   return (
     <html
       lang="en"
@@ -91,29 +100,7 @@ export default async function RootLayout({
         <AppleSplashLinks />
 
         {/* Phosphor stroke weight is set once here for every icon in the app. */}
-        <IconProvider>
-          {/* The app below lg; the "go to your phone" interstitial at ≥1024px. */}
-          <DesktopGate
-            interstitial={
-              <DesktopInterstitial
-                className="hidden lg:flex"
-                returning={Boolean(user)}
-                logo={
-                  <Image
-                    src="/trackd-wordmark.png"
-                    alt="trackd co"
-                    width={1049}
-                    height={200}
-                    priority
-                    className="h-5 w-auto"
-                  />
-                }
-              />
-            }
-          >
-            {children}
-          </DesktopGate>
-        </IconProvider>
+        <IconProvider>{children}</IconProvider>
       </body>
     </html>
   );

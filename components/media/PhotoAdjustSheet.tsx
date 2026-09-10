@@ -73,6 +73,7 @@ export function PhotoAdjustSheet({
   return (
     <Sheet open={open && file !== null} onOpenChange={(o) => !o && onCancel()}>
       <SheetContent
+        data-desktop="viewer"
         side="bottom"
         showCloseButton={false}
         onOpenAutoFocus={(e) => e.preventDefault()}

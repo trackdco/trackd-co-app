@@ -141,7 +141,11 @@ export default async function ManagePage() {
         : null;
 
   return (
-    <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
+    <div
+      data-screen="billing-manage"
+      data-desktop-layout="column"
+      className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5"
+    >
       <h1 className={PAGE_TITLE}>Manage</h1>
 
       {/**

@@ -64,6 +64,20 @@ export function useSheetDrag(onClose: () => void, open?: boolean) {
     cardRef,
     /** Spread on the grab-handle element. */
     handleProps: {
+      /**
+       * The hook desktop uses to remove this control.
+       *
+       * Drag-to-dismiss is a thumb gesture. With a mouse it is a bar that looks
+       * grabbable, is fiddly to actually drag, and duplicates both Escape and
+       * the close button, so `app/desktop.css` hides every element carrying this
+       * attribute above the desktop breakpoint. It lives here rather than at the
+       * thirty-odd call sites so a sheet added later cannot forget it, which
+       * leaves only a hand-rolled handle to catch by hand.
+       *
+       * Phones are untouched: an attribute with no matching CSS rule changes
+       * nothing about layout, paint or behaviour.
+       */
+      "data-sheet-handle": "",
       onPointerDown,
       onPointerMove,
       onPointerUp,

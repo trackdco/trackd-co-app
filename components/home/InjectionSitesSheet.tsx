@@ -157,6 +157,7 @@ export function InjectionSitesSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        data-desktop="rail" data-desktop-wide
         side="bottom"
         showCloseButton={false}
         className="h-[94dvh] gap-0 border-t-0 bg-transparent p-0 shadow-none"

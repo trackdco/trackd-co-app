@@ -128,6 +128,8 @@ export function BottomNav() {
   return (
     <>
       <nav
+        // Desktop hides this entirely (`app/desktop.css`); the sidebar replaces it.
+        data-bottom-nav
         aria-label="Primary"
         className="fixed inset-x-0 bottom-0 z-40 hairline-t bg-bg-base/80 backdrop-blur transition-transform duration-200 ease-out"
         style={{
@@ -154,6 +156,7 @@ export function BottomNav() {
       {iosStandalone && !keyboardOpen && deficit > 0 ? (
         <div
           aria-hidden
+          data-bottom-nav-filler
           className="pointer-events-none fixed inset-x-0 bottom-0 z-30 bg-bg-base"
           style={{ height: deficit, transform: "translateY(100%)" }}
         />

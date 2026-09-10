@@ -79,7 +79,11 @@ export default async function BillingPage() {
   } = await loadBillingFacts(user.id);
 
   return (
-    <div className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5">
+    <div
+      data-screen="billing"
+      data-desktop-layout="column"
+      className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5"
+    >
       {/* NO SUBTITLE. It read "Your plan and when it renews." and Adrian cut it
           (2026-08-12): the Plan card underneath already says the plan and the
           date, so the line was a caption for something that captions itself.

@@ -348,10 +348,18 @@ export function CalendarScreen({
   }
 
   return (
-    <div className="mx-auto w-full max-w-md px-5 pt-4 pb-5 animate-home-up">
+    <div
+      data-screen="calendar"
+      className="mx-auto w-full max-w-md px-5 pt-4 pb-5 animate-home-up"
+    >
+      {/* "Back to Dashboard" is how a phone reaches Calendar, because a sixth
+          thumb target does not fit in the tab bar. On desktop Calendar IS a
+          sidebar item, so a back link to somewhere you did not come from is
+          just wrong. `desktop:` is the custom variant declared in desktop.css;
+          below the breakpoint the class matches nothing. */}
       <Link
         href="/dashboard"
-        className="-ml-1 inline-flex items-center gap-1.5 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
+        className="desktop:hidden -ml-1 inline-flex items-center gap-1.5 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
         Dashboard

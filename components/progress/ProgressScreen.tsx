@@ -90,8 +90,12 @@ export function ProgressScreen({
   const todayKey = serverTodayKey;
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
-      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+    <div
+      data-screen="progress"
+      data-desktop-layout="grid"
+      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+    >
+      <div data-area="title" className="animate-home-up" style={{ animationDelay: "0ms" }}>
         <PageScrollTitle title="Progress" />
       </div>
 
@@ -102,7 +106,7 @@ export function ProgressScreen({
       {/* Photos lead the screen (Adrian, 2026-07-31). They are the thing people
           open Progress for, and the block used to push them down the page. */}
       {/* Photos: the card, then what was running on that photo's date. */}
-      <div className="animate-home-up" style={{ animationDelay: "75ms" }}>
+      <div data-area="photos" className="animate-home-up" style={{ animationDelay: "75ms" }}>
         <ProgressPhotoSection
           photos={progressPhotos}
           userId={userId}
@@ -113,7 +117,7 @@ export function ProgressScreen({
         />
       </div>
 
-      <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
+      <div data-area="block" className="animate-home-up" style={{ animationDelay: "110ms" }}>
         <BlockBanner
           todayKey={todayKey}
           userId={userId}
@@ -125,6 +129,7 @@ export function ProgressScreen({
 
       {/* Weight · Journal / Bloods · Consistency. */}
       <div
+        data-area="metrics"
         className="animate-home-up grid grid-cols-2 items-stretch gap-3"
         style={{ animationDelay: "145ms" }}
       >

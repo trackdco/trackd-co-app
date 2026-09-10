@@ -248,6 +248,7 @@ export function AvatarUploader({
           offers to remove nothing. */}
       <Sheet open={choosing} onOpenChange={setChoosing}>
         <SheetContent
+          data-desktop="dialog"
           side="bottom"
           showCloseButton={false}
           className="gap-0 rounded-t-3xl p-0"

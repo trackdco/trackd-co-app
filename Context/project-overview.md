@@ -65,6 +65,12 @@ Trackd Co is a PWA for tracking peptide, anabolic steroid, supplement, and hormo
   compounds — including **vials + stock runway** on them — were pulled INTO beta
   scope 2026-06-24; see Architecture → Protocol Cutover.)
 - Native apps / App Store (PWA via Vercel only; native revisited in v2 if metrics justify).
+- ~~Desktop~~ **BUILT 2026-09-10** (branch `desktop-app`, not merged). Trackd was
+  phone-only and actively blocked laptops with an interstitial, which also meant
+  nobody could sign in on one. It now has a real desktop app: a sidebar, the
+  screen, and a rail that holds your day and doubles as the surface every bottom
+  sheet docks into. Every feature works; no feature changed. See
+  `ui-context.md` -> Desktop and `architecture.md` -> The desktop layer.
 - DB-enforced cycle limits (open app-layer decision; tester behaviour decides).
 
 ## Success Criteria

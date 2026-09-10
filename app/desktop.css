@@ -1,0 +1,582 @@
+/* ===========================================================================
+   THE DESKTOP LAYER — every rule in this file is additive and scoped.
+   ===========================================================================
+
+   Trackd is a phone app. This file is the whole of what makes it a laptop app
+   as well, and it is deliberately ONE file so the answer to "what would we lose
+   by deleting desktop?" is "this file, and nothing else".
+
+   ## THE ONE RULE
+
+   Nothing in here may apply below the desktop breakpoint. Every declaration
+   sits inside `@media (min-width: 1024px) and (pointer: fine)`, so a phone
+   parses this file and matches none of it. The phone's rendered output is
+   byte-identical to what it was before desktop existed, and `desktop.dom.test`
+   pins that.
+
+   ## WHERE THE PHONE STOPS AND THE LAPTOP STARTS
+
+   `(min-width: 1024px) and (pointer: fine)` — room AND a pointer, not room
+   alone. Width on its own was the old gate's rule and it is wrong in one
+   direction that matters: an iPad Pro in landscape is 1024-1366px CSS and is a
+   touch device being held, where the phone layout (big targets, bottom nav in
+   thumb reach, drag-to-dismiss sheets) is the BETTER of the two designs. The
+   pointer test keeps it on that design and hands the desktop shell to the thing
+   that actually has a cursor: a laptop, a desktop, and an iPad with a trackpad
+   attached (iPadOS reports `pointer: fine` once one is).
+
+   Consequence worth knowing: a touchscreen Windows laptop reports `pointer:
+   fine` for its primary input and correctly gets desktop. A phone in landscape
+   never reaches 1024px, so it is never in scope.
+
+   ## HOW LAYOUT IS DONE HERE, AND WHY
+
+   The screens are NOT rebuilt for desktop. Each one keeps its exact React tree
+   and its exact single-column mobile markup; every child of a screen scaffold
+   carries a `data-area` name, and this file places those names into a grid.
+   That is why desktop cannot regress the phone: there is no second render path,
+   no duplicated component, no `isDesktop ? <A/> : <B/>`. There is one DOM and
+   two placements of it.
+
+   The one thing that is genuinely new is the SHELL (sidebar, rail, command
+   palette), which has no phone equivalent to regress.
+   --------------------------------------------------------------------------- */
+
+@custom-variant desktop (@media (min-width: 1024px) and (pointer: fine));
+
+@media (min-width: 1024px) and (pointer: fine) {
+  :root {
+    --desktop-sidebar: 236px;
+    --desktop-rail: 340px;
+    /* The middle column is capped so a 27" monitor does not stretch a dose row
+       to 900px. Everything past the cap becomes margin, not measure. */
+    --desktop-main-max: 1080px;
+    --desktop-gutter: 1.75rem;
+    --desktop-gap: 1.25rem;
+  }
+
+  /* ==========================================================================
+     1. THE SHELL
+     ==========================================================================
+     Mobile:  flex column — header, main, and the fixed nav/FAB over the top.
+     Desktop: a three-column grid. The header collapses (the wordmark moves into
+     the sidebar), the nav and FAB collapse (the sidebar and the rail replace
+     them), and the two rails become sticky full-height columns.
+
+     The page itself still scrolls — the rails are `sticky`, not `fixed`, and
+     `main` is not an overflow container. That is deliberate: every scroll
+     listener in the app (PageScrollTitle's IntersectionObserver, the sheets'
+     scroll ports, any scrollIntoView) keeps working against the window exactly
+     as it does on the phone. Making `main` its own scroll container looks the
+     same and quietly breaks all three.
+     ---------------------------------------------------------------------- */
+  [data-desktop-shell] {
+    display: grid;
+    grid-template-columns:
+      var(--desktop-sidebar)
+      minmax(0, 1fr)
+      var(--desktop-rail);
+    align-items: start;
+  }
+
+  [data-desktop-shell] > [data-desktop-sidebar] {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  [data-desktop-shell] > main {
+    grid-column: 2;
+    grid-row: 1;
+    /* The phone reserves room at the foot for the fixed nav and the FAB above
+       it. Neither exists here, so the reservation would be 8.5rem of dead page. */
+    padding-bottom: 0;
+  }
+  [data-desktop-shell] > [data-desktop-rail] {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  /* Anything else that ends up a direct child of the shell (a notice, a
+     registrar that renders null, a future banner) is parked on its own full
+     width row rather than being auto-placed into one of the three columns.
+     Every current one is `position: fixed` or null and never reaches this, but
+     a stray inline child landing in the sidebar column would be a baffling bug
+     to find later. */
+  [data-desktop-shell] > *:not([data-desktop-sidebar]):not(main):not([data-desktop-rail]) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* The phone's top bar (wordmark + sign out). Both moved into the sidebar. */
+  [data-app-header] {
+    display: none;
+  }
+
+  /* The bottom tab bar, its iOS cold-launch filler, and the quick-actions FAB.
+     All three are thumb furniture. */
+  [data-bottom-nav],
+  [data-bottom-nav-filler],
+  [data-quick-actions] {
+    display: none !important;
+  }
+
+  /* NOTE: `display` is NOT set here. Visibility for these two is carried by
+     `hidden desktop:flex` on the elements themselves, because Tailwind's
+     preflight `!important` makes the `hidden` attribute unbeatable from this
+     file. See the note in `components/desktop/DesktopSidebar.tsx`. Everything
+     below is geometry, which only ever applies once they are already shown. */
+  [data-desktop-sidebar],
+  [data-desktop-rail] {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-desktop-sidebar] {
+    flex-direction: column;
+    border-right: 1px solid var(--border-default);
+    padding: 1.375rem 1rem;
+  }
+
+  [data-desktop-rail] {
+    flex-direction: column;
+    gap: 1rem;
+    background: var(--bg-surface);
+    border-left: 1px solid var(--border-default);
+    padding: 1.5rem 1.375rem;
+  }
+
+  /* ==========================================================================
+     2. SCREEN SCAFFOLDS
+     ==========================================================================
+     Every tab screen shares `mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5`
+     (ui-context → Spacing & Rhythm). On desktop the 448px cap and the vertical
+     rhythm are the two things that have to go, because they are what make a
+     wide window look like a phone with wallpaper.
+     ---------------------------------------------------------------------- */
+  [data-screen] {
+    max-width: min(var(--desktop-main-max), 100%);
+    padding: 1.75rem var(--desktop-gutter) 2.5rem;
+  }
+
+  /* `space-y-5` is margin between siblings and it fights `gap` in every grid
+     below. Off, once, here — not unpicked per screen. */
+  [data-desktop-layout="grid"] > * + * {
+    margin-top: 0;
+  }
+
+  [data-desktop-layout="grid"] {
+    display: grid;
+    gap: var(--desktop-gap);
+    align-content: start;
+  }
+
+  /* A screen with no bespoke grid stays a single column and simply gets a
+     comfortable MEASURE instead of a phone's. Two of them, because "how wide
+     should one column be" has two honest answers here:
+
+       column — 640px. Settings, billing, a form, a profile. A 1000px-wide
+                switch row is worse than a 560px one, not better: the label and
+                its control end up at opposite ends of the monitor.
+       wide   — 920px. A screen whose subject is a GRAPH (Weight, Blocks). A
+                trend line is the one thing on the phone that is genuinely
+                cramped, and width is the fix rather than a luxury. */
+  [data-desktop-layout="column"] {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+  [data-desktop-layout="wide"] {
+    max-width: 920px;
+    margin-inline: auto;
+  }
+
+  /* SAFETY NET. A child of a grid screen that carries no `data-area` spans the
+     full width rather than being auto-placed into column one. Several screens
+     render optional children they receive as props (a trial banner, a
+     notifications prompt) whose markup lives in another component, so the set of
+     children is not fully knowable from the screen file. Full width is the
+     answer that is never wrong for a notice, and it means adding a banner later
+     cannot silently land it in a side column. */
+  [data-desktop-layout="grid"] > *:not([data-area]) {
+    grid-column: 1 / -1;
+  }
+
+  /* Full-width by intent within a grid. */
+  [data-area="title"],
+  [data-area="banner"],
+  [data-area="weekstrip"],
+  [data-area="full"] {
+    grid-column: 1 / -1;
+  }
+
+  /* ==========================================================================
+     3. THE FOUR BESPOKE GRIDS
+     ==========================================================================
+     `grid-row: span N` rather than a `grid-template-areas` map, deliberately:
+     several of these children are conditional (a trial banner, the journal card
+     on a future day, an empty-state swap), and a named-area map has to be
+     rewritten every time one of them is absent. A span is position-independent,
+     so the same rule is correct whether or not the banner rendered.
+     ---------------------------------------------------------------------- */
+
+  /* --- Dashboard ---------------------------------------------------------
+     The day's work on the left at full height, the day's readings stacked on
+     the right. The week strip runs the full width instead of squeezing seven
+     days into 350px, which is the single biggest thing the width buys here. */
+  [data-screen="dashboard"] {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  }
+  [data-screen="dashboard"] [data-area="log"] {
+    grid-column: 1;
+    grid-row: span 3;
+  }
+  [data-screen="dashboard"] [data-area="status"],
+  [data-screen="dashboard"] [data-area="sites"],
+  [data-screen="dashboard"] [data-area="journal"] {
+    grid-column: 2;
+  }
+
+  /* --- Protocol ----------------------------------------------------------
+     The schedule grid is the screen that gains most from a laptop: twelve weeks
+     across and every compound down, all at once, instead of a strip you scrub.
+     It takes the full width and the two lists sit beneath it. */
+  [data-screen="protocol"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  [data-screen="protocol"] [data-area="compounds"],
+  [data-screen="protocol"] [data-area="schedule"] {
+    grid-column: 1 / -1;
+  }
+  /* The schedule's compound-name column is `w-[38%]`, which is right on a phone
+     (38% of 400px is about 150px, and the names just fit) and wrong given a
+     1030px card: it reserves 390px for names that need half that, and the day
+     columns get pushed into the right half with a visible hole in the middle.
+     A fixed width closes it, and the day grid (`flex-1`) takes the rest. */
+  [data-screen="protocol"] [data-area="schedule"] [data-schedule-namecol] {
+    width: 13rem;
+  }
+
+  [data-screen="protocol"] [data-area="stacks"] {
+    grid-column: 1;
+  }
+  [data-screen="protocol"] [data-area="cycles"] {
+    grid-column: 2;
+  }
+
+  /* --- Progress ----------------------------------------------------------
+     The photo card is the constraint here, and it is not obvious until you see
+     it. It fills its column at a PORTRAIT aspect ratio, so width and height move
+     together: given two of three columns (~700px) it grew past 1000px tall and
+     pushed everything else off the screen. So photos take ONE column, which lands
+     them at roughly a phone's width and therefore at the proportions the card was
+     drawn for. Width is not always the gift it looks like.
+
+     The live block sits beside them, pinned to the top of its row rather than
+     stretched: it is a thin banner and stretching it to a photo's height would
+     be 400px of empty surface.
+
+     The four reading widgets then take the full width beneath, four across
+     instead of the phone's two by two. That grid is 2x2 because 448px allows
+     nothing else, not because two-by-two is the shape it wants. */
+  [data-screen="progress"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  [data-screen="progress"] [data-area="photos"] {
+    grid-column: 1;
+    /* Spans both rows on the right, so the tall photo card is flanked by the
+       block AND the readings rather than by the block and 700px of nothing. */
+    grid-row: span 2;
+  }
+  [data-screen="progress"] [data-area="block"] {
+    grid-column: 2 / -1;
+    /* Pinned to the top of its row: it is a thin banner, and stretching it to a
+       photo card's height would be 400px of empty surface. */
+    align-self: start;
+  }
+  [data-screen="progress"] [data-area="metrics"] {
+    grid-column: 2 / -1;
+    /* Its own `grid-cols-2` is deliberately LEFT ALONE here. Two of three
+       columns is about 700px, so the phone's 2x2 lands each card near 340px —
+       the width they were drawn at. Forcing four across would stretch them to
+       170px and re-break what widening the screen was meant to fix. */
+  }
+
+  /* --- Calendar ----------------------------------------------------------
+     Deliberately NOT a grid: the month wants every pixel of the middle column,
+     and the day you click opens in the rail rather than in a sheet over the
+     month you were reading. That is the clearest single argument for the rail
+     existing, and it needs no layout rule at all — the sheet does it.
+
+     What the month does need is height. The day cells size themselves off the
+     phone's width; handed a 1000px canvas they stay short and the month reads
+     as six rows of letterboxes. A floor fixes it without touching the cell's
+     own markup. */
+  [data-screen="calendar"] [data-month-grid] > * {
+    min-height: 4.75rem;
+  }
+
+  /* ==========================================================================
+     4. WHAT A BOTTOM SHEET BECOMES
+     ==========================================================================
+     There are 38 of them and they all go through one primitive
+     (`components/ui/sheet.tsx`, which is protected), so this is done in CSS
+     against the `data-slot` attributes that primitive already emits, plus a
+     `data-desktop` hint each call site passes. Nothing in the protected file is
+     touched and no sheet's React tree changes.
+
+     TWO TREATMENTS, and the split is about what the sheet is FOR:
+
+       data-desktop="rail"   (the default, ~32 of them)
+         Shows or edits ONE thing: a compound, a day, a dose, a journal entry,
+         a stock adjustment. It docks into the right rail. The screen behind it
+         stays fully visible and fully readable, which is the entire point: on
+         a laptop there is no reason to cover a month to look at a day.
+
+       data-desktop="dialog"
+         Takes over a TASK: picking from the compound catalogue, comparing two
+         photos, viewing a photo full-bleed, confirming something destructive.
+         Covering the page is the correct signal for these, and there are only
+         a handful.
+     ---------------------------------------------------------------------- */
+
+  /* ---- rail-docked ---- */
+  [data-slot="sheet-content"][data-desktop="rail"] {
+    inset: 0 0 0 auto;
+    width: var(--desktop-rail);
+    max-width: 100vw;
+    height: 100dvh;
+    border-top: 0;
+    border-left: 1px solid var(--border-default);
+    border-radius: 0;
+    gap: 0;
+  }
+
+  /* A wider rail for the two sheets that carry a real form side by side. */
+  [data-slot="sheet-content"][data-desktop="rail"][data-desktop-wide] {
+    width: min(30rem, 40vw);
+  }
+
+  /* The card inside the sheet. Every one of them is
+     `rounded-t-3xl … max-h-[92dvh]`, sized for a sheet rising off the bottom of
+     a phone. Docked, it is simply the full column. */
+  [data-slot="sheet-content"][data-desktop="rail"] > div:first-of-type {
+    max-height: 100dvh;
+    height: 100%;
+    border-radius: 0;
+    border-top: 0;
+    box-shadow: none;
+    /* Kills the drag offset. `useSheetDrag` writes a transform inline and an
+       inline style outranks a stylesheet, so this needs the `!important` that
+       almost nothing else in this file does. The handle is hidden below, so no
+       drag can start in the first place; this is belt and braces for a sheet
+       reopened after a drag on a device that changed pointer type mid-session. */
+    transform: none !important;
+  }
+
+  /* Drag-to-dismiss is a thumb gesture. With a mouse it is a bar that looks
+     grabbable, is fiddly to drag, and duplicates Escape and clicking away, so
+     the handle goes.
+
+     ⚠️ KNOWN GAP, flagged rather than bodged. Twenty-six of the forty sheets
+     pass `showCloseButton={false}`, so once the handle is hidden those have no
+     VISIBLE close control on desktop: Escape and a click outside both work, and
+     every one of them still shows its own primary action, but there is no "x".
+     The clean fix is one line in `components/ui/sheet.tsx` (render the close
+     control when a desktop flag is set), and that file is PROTECTED by
+     `ai-workflow-rules.md`, so it is Adrian's call rather than something to do
+     quietly. The alternatives were all worse: a CSS-drawn "x" is fragile across
+     thirty different handle markups, a `content: "Close"` string is invisible to
+     some screen readers, and making the handle a click-to-close would change
+     behaviour on phones too. */
+  [data-slot="sheet-content"][data-desktop="rail"] [data-sheet-handle],
+  [data-slot="sheet-content"][data-desktop="rail"] .cursor-grab {
+    display: none;
+  }
+
+  /* The handle was also the card's top spacing: 2.75rem of it. Hiding it butts
+     the first row of content against the top edge, which clipped the compound
+     sheet's vial. Restored only where a handle was actually removed, so a sheet
+     that carries its own padding is not double-padded. */
+  [data-slot="sheet-content"][data-desktop="rail"]
+    > div:first-of-type:has([data-sheet-handle]),
+  [data-slot="sheet-content"][data-desktop="rail"]
+    > div:first-of-type:has(.cursor-grab) {
+    padding-top: 1.5rem;
+  }
+
+  /* Slide in from the right, not up from the bottom. The primitive's
+     `slide-in-from-bottom` is a Tailwind animation on the element, so it is
+     overridden here rather than at 38 call sites. */
+  [data-slot="sheet-content"][data-desktop="rail"][data-state="open"] {
+    animation: desktop-rail-in 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  [data-slot="sheet-content"][data-desktop="rail"][data-state="closed"] {
+    animation: desktop-rail-out 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* NO SCRIM BEHIND A DOCKED RAIL.
+     Dimming the whole screen is how a phone says "this is modal now". Here the
+     screen behind is still being read, and dimming a month you are comparing a
+     day against would be actively unhelpful. Dialogs and viewers below keep
+     their scrim, because for those covering the page IS the message.
+
+     The overlay stays in the DOM and stays clickable, so the sheet is still
+     modal in every behavioural sense: focus is trapped, Escape closes, and a
+     click outside dismisses. Only the paint changes.
+
+     `+`, not `~ *`: the portal renders the overlay and the content as adjacent
+     siblings on <body>, so the content is the overlay's IMMEDIATE next sibling.
+     The first version of this rule used a descendant combinator, matched
+     nothing, and the scrim stayed at 70% black with no error to say so. */
+  [data-slot="sheet-overlay"]:has(+ [data-desktop="rail"]) {
+    background: transparent;
+  }
+
+  /* ---- centred dialog ---- */
+  [data-slot="sheet-content"][data-desktop="dialog"] {
+    inset: auto;
+    top: 50%;
+    left: calc(50% + (var(--desktop-sidebar) - var(--desktop-rail)) / 2);
+    translate: -50% -50%;
+    width: min(34rem, calc(100vw - 8rem));
+    height: auto;
+    max-height: 86dvh;
+    border-radius: 1.5rem;
+    border: 1px solid var(--border-default);
+  }
+  [data-slot="sheet-content"][data-desktop="dialog"] > div:first-of-type {
+    max-height: 86dvh;
+    border-radius: 1.5rem;
+    transform: none !important;
+  }
+  [data-slot="sheet-content"][data-desktop="dialog"] [data-sheet-handle],
+  [data-slot="sheet-content"][data-desktop="dialog"] .cursor-grab {
+    display: none;
+  }
+  [data-slot="sheet-content"][data-desktop="dialog"][data-state="open"] {
+    animation: desktop-dialog-in 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* A full-bleed viewer (a progress photo, a bloodwork scan) is neither: it
+     wants the window. */
+  [data-slot="sheet-content"][data-desktop="viewer"] {
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+    border: 0;
+  }
+  [data-slot="sheet-content"][data-desktop="viewer"] > div:first-of-type {
+    max-height: 100dvh;
+    height: 100%;
+    border-radius: 0;
+    transform: none !important;
+  }
+  [data-slot="sheet-content"][data-desktop="viewer"] [data-sheet-handle],
+  [data-slot="sheet-content"][data-desktop="viewer"] .cursor-grab {
+    display: none;
+  }
+
+  @keyframes desktop-rail-in {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+  @keyframes desktop-rail-out {
+    from { transform: translateX(0); }
+    to   { transform: translateX(100%); }
+  }
+  @keyframes desktop-dialog-in {
+    from { opacity: 0; scale: 0.97; }
+    to   { opacity: 1; scale: 1; }
+  }
+
+  /* ==========================================================================
+     5. THE TWO PINNED BARS
+     ==========================================================================
+     Both are `position: fixed` and both span the viewport, which on a phone IS
+     the content column and here is not. Without these they run under the
+     sidebar and the rail. */
+
+  /* PageScrollTitle's compact bar. */
+  [data-page-scroll-bar] {
+    left: var(--desktop-sidebar);
+    right: var(--desktop-rail);
+  }
+
+  /* An in-place edit's pinned Save row (ui-context → "an in-place edit pins its
+     Save and never scrolls"). The rule it exists to serve — a confirm that is
+     never below the fold — is unchanged; only its span is. */
+  .edit-action-bar {
+    left: var(--desktop-sidebar);
+    right: var(--desktop-rail);
+    inset-inline: auto;
+    /* No home indicator on a laptop. */
+    padding-bottom: 0.75rem;
+  }
+
+  /* ==========================================================================
+     6. POINTER AFFORDANCES
+     ==========================================================================
+     The phone gets press feedback (`active:scale-[0.98]`) because a borderless
+     card needs to acknowledge a touch. A pointer wants the opposite signal:
+     tell me this is interactive BEFORE I click it. */
+  [data-desktop-shell] button:not(:disabled),
+  [data-desktop-shell] a[href],
+  [data-desktop-shell] [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  /* A hairline lift on the cards that actually go somewhere. Restrained on
+     purpose: this is the app's calm surface treatment, not a hover kit. */
+  [data-desktop-hover] {
+    transition:
+      background-color 160ms var(--motion-ease, ease-out),
+      box-shadow 160ms var(--motion-ease, ease-out);
+  }
+  [data-desktop-hover]:hover {
+    background-color: var(--bg-surface-raised);
+  }
+
+  /* ==========================================================================
+     7. SCROLLBARS
+     ==========================================================================
+     macOS hides these until you scroll; Windows and Linux do not, and a default
+     light scrollbar on a near-black canvas is the loudest thing on the screen. */
+  [data-desktop-shell] *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  [data-desktop-shell] *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  [data-desktop-shell] *::-webkit-scrollbar-thumb {
+    background: var(--border-default);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  [data-desktop-shell] *::-webkit-scrollbar-thumb:hover {
+    background: var(--border-strong);
+    background-clip: content-box;
+  }
+  [data-desktop-shell] {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-default) transparent;
+  }
+}
+
+/* ===========================================================================
+   REDUCED MOTION — same contract as every other animation in the app: it
+   collapses, and it ends in the VISIBLE state, so switching motion off leaves
+   the rail correct rather than stranded off-screen.
+   =========================================================================== */
+@media (min-width: 1024px) and (pointer: fine) and (prefers-reduced-motion: reduce) {
+  [data-slot="sheet-content"][data-desktop="rail"][data-state="open"],
+  [data-slot="sheet-content"][data-desktop="rail"][data-state="closed"],
+  [data-slot="sheet-content"][data-desktop="dialog"][data-state="open"],
+  [data-desktop-hover] {
+    animation: none;
+    transition: none;
+  }
+}

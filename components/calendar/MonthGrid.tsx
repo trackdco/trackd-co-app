@@ -64,7 +64,10 @@ export function MonthGrid({
       </div>
 
       {/* The 6×7 day grid. */}
-      <div className="grid grid-cols-7 gap-y-2">
+      {/* `data-month-grid` is desktop's hook: given a 1000px canvas the cells
+          would otherwise stay phone-height and the month reads as a row of
+          letterboxes. See `app/desktop.css`. No effect on a phone. */}
+      <div data-month-grid className="grid grid-cols-7 gap-y-2">
         {cells.map((cell) => (
           <DayCell
             key={cell.key}

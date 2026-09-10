@@ -53,6 +53,8 @@ export function PageScrollTitle({ title, eyebrow, subtitle, action }: PageScroll
   const bar = (
     <div
       aria-hidden={!compact}
+      // Desktop insets it to the middle column so it does not span the rails.
+      data-page-scroll-bar
       className={cn(
         "fixed inset-x-0 top-0 z-40 hairline-b bg-bg-base/80 backdrop-blur transition-opacity duration-300 ease-out",
         compact ? "opacity-100" : "pointer-events-none opacity-0"

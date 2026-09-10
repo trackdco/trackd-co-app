@@ -181,6 +181,7 @@ export function AddStockSheet({
         }}
       >
         <SheetContent
+          data-desktop="dialog"
           side="bottom"
           // Don't auto-focus a field on open — otherwise the keypad pops up over the
           // form (esp. on refill/edit, where the compound select is disabled).
@@ -222,6 +223,7 @@ export function AddStockSheet({
         }}
       >
         <SheetContent
+          data-desktop="dialog"
           side="center"
           showCloseButton={false}
           className="bg-bg-surface"

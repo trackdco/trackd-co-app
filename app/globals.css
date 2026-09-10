@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* The desktop layer. One file, entirely inside a min-width + pointer media
+   query, so a phone matches none of it. See app/desktop.css. */
+@import "./desktop.css";
 
 /* ---------------------------------------------------------------------------
    Design tokens — the single source of truth for colour. No hardcoded hex

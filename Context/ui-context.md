@@ -560,6 +560,85 @@ Chart hues are a deliberately **neutral** teal/periwinkle (never red/green),
 because trend visuals must stay **non-evaluative** per the health-data rule
 above — a graph shows *movement*, never "good" or "bad".
 
+## Desktop (`>=1024px` AND a pointer)
+
+Trackd is a phone app that also runs on a laptop. Adrian's call, 2026-09-10:
+"I don't want it to look like something on mobile that was taken to a computer."
+He chose this direction from a bench of five (artifact `54bd83bf`), then approved
+the layout (artifact `91ae3225`).
+
+**Everything below applies only above the breakpoint. Nothing on a phone changed,
+and `lib/desktop/desktopLayer.test.ts` fails the build if a rule escapes.**
+
+### Where the phone stops and the laptop starts
+
+`(min-width: 1024px) and (pointer: fine)` — room AND a pointer, not room alone.
+Width on its own is wrong in the direction that matters: an iPad Pro in landscape
+is 1024-1366px and is a touch device being held, where the phone layout (big
+targets, nav in thumb reach, sheets you flick away) is the BETTER of the two
+designs. The pointer test keeps it there and gives the desktop shell to things
+with a cursor. Stated once in `lib/desktop/breakpoint.ts` and once in
+`app/desktop.css`; a test pins them together.
+
+### The shell: sidebar, screen, rail
+
+- **Sidebar (236px)** replaces the bottom tab bar. Six items, not five: Calendar
+  joins them, because on a phone it hides behind a header icon only for want of a
+  sixth thumb target. Beneath the nav, what you are currently RUNNING — standing
+  context the phone can only answer by navigating. Sign out sits at the foot as
+  the quiet `link` variant, **never `row`**: `DANGER_ROW` red is scoped to
+  Profile's danger zone and a red control standing in the corner of every screen
+  is exactly the misuse that scoping prevents.
+- **Screen (fluid, capped at 1080px)** is the existing screen, placed into a grid
+  rather than stacked in one column. Same components, same data.
+- **Rail (340px)** is the day, and it never leaves. It is the single clearest
+  thing the width buys: you can log a dose while reading Progress, which a phone
+  cannot do. **It is not a second Dashboard** — the Dashboard is scoped to the
+  SELECTED day and the strip can be parked anywhere; the rail is always TODAY and
+  only ever shows what is actionable now. Keeping that line is what stops it
+  becoming a duplicate.
+
+### Rule: a bottom sheet becomes the rail, not a modal
+
+There are 40 of them and the split is about what a sheet is FOR.
+
+- **`data-desktop="rail"`** (the default, ~32) — shows or edits ONE thing: a
+  compound, a day, a dose, a journal entry. It docks into the right rail and the
+  screen behind stays fully readable, **with no scrim**. On a laptop there is no
+  reason to cover a month to look at a day. It is still modal in behaviour (focus
+  trapped, Escape closes, click-away dismisses); only the paint changes.
+- **`data-desktop="dialog"`** — takes over a TASK: the compound catalogue, a
+  compose form, a destructive confirm. Centred, with the scrim, because covering
+  the page is the correct signal for these.
+- **`data-desktop="viewer"`** — a photo or a scan. It wants the window.
+
+**Drag-to-dismiss does not exist above the breakpoint.** It is a thumb gesture;
+with a mouse it is a bar that looks grabbable and duplicates Escape.
+
+### Rule: width is not always the gift it looks like
+
+Two screens prove it and both were fixed only after being rendered and looked at.
+The Progress photo card fills its column at a portrait aspect, so at two-thirds
+of a laptop it grew past 1000px tall — it takes ONE column, near a phone's width,
+because that is the proportion it was drawn for. The Protocol schedule's name
+column is `w-[38%]`, right at 400px and 390px of reserved emptiness at 1030px.
+**Give a component more room only where more room is the thing it was short of.**
+
+### Keyboard
+
+`Cmd/Ctrl+K` opens a search-and-jump palette; `1`-`6` jump to the sidebar's
+screens (never while typing in a field). **No single key writes anything.** A
+bare letter that records a dose is one mistyped keystroke away from a false entry
+in someone's medical log, so logging stays a deliberate act through the rail or a
+sheet, with its normal confirm.
+
+### What has no desktop design, deliberately
+
+`/login`, `/welcome`, `/onboarding` and the password flows stay full-screen
+centred flows with no sidebar or rail. They carry one thing at a time and there
+is nothing to put beside it. Most of them were unreachable on a laptop until this
+pass, because the old phone-only gate did not exempt them.
+
 ## Admin — the one surface with its own rules (`/admin`)
 
 `/admin` is the founder-only operations dashboard. It is the **single documented

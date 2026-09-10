@@ -63,7 +63,11 @@ export function ProfileScreen({
   hasOpenRefundRequest: boolean;
 }) {
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
+    <div
+      data-screen="profile"
+      data-desktop-layout="column"
+      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+    >
       {/* Each block fades + rises in on load, staggered — the same
           `animate-home-up` idiom as Home and Progress (per-section, not a single
           whole-page fade), so every tab page loads in the same way. */}

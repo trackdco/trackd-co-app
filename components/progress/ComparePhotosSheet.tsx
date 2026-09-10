@@ -121,6 +121,7 @@ export function ComparePhotosSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        data-desktop="viewer"
         side="bottom"
         showCloseButton={false}
         className="gap-0 border-t-0 bg-transparent p-0 shadow-none"

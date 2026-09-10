@@ -209,7 +209,11 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   }
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
+    <div
+      data-screen="weight"
+      data-desktop-layout="wide"
+      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+    >
       <header className="animate-home-up px-1" style={{ animationDelay: "0ms" }}>
         <h1 className={PAGE_TITLE}>Weight</h1>
         <p className="mt-0.5 text-sm text-text-muted">

@@ -371,6 +371,7 @@ export function AddCompoundSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        data-desktop="dialog"
         side="bottom"
         showCloseButton={false}
         // Don't auto-focus a field on open — keeps the keypad from popping over the

@@ -836,8 +836,12 @@ export function HomeScreen({
       {/* Everything scrolls — each item fades + rises in on load, staggered. The
           shared scroll-title provides the date eyebrow, the large "Dashboard"
           heading, and the fade-in compact bar (same preset on every tab page). */}
-      <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
-        <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+      <div
+        data-screen="dashboard"
+        data-desktop-layout="grid"
+        className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+      >
+        <div data-area="title" className="animate-home-up" style={{ animationDelay: "0ms" }}>
           <PageScrollTitle
             title="Dashboard"
             eyebrow={dayLabel(selectedKey)}
@@ -891,6 +895,7 @@ export function HomeScreen({
             stripReady &&
               "transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
           )}
+          data-area="weekstrip"
           style={{ animationDelay: "55ms", gridTemplateRows: stripOpen ? "1fr" : "0fr" }}
         >
           <div className="overflow-hidden" inert={!stripOpen}>
@@ -913,7 +918,7 @@ export function HomeScreen({
             it animates in like every other block; renders null outside the
             window, so `space-y-5` never opens a gap. */}
         {trialBanner ? (
-          <div className="animate-home-up" style={{ animationDelay: "95ms" }}>
+          <div data-area="banner" className="animate-home-up" style={{ animationDelay: "95ms" }}>
             {trialBanner}
           </div>
         ) : null}
@@ -923,7 +928,7 @@ export function HomeScreen({
             space-y-5 never opens a gap here). */}
         {notificationsBanner}
 
-        <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
+        <div data-area="log" className="animate-home-up" style={{ animationDelay: "110ms" }}>
           {stack.length === 0 ? (
             // First run has no Today's Log card to host the greeting, and that
             // is the one session where the greeting matters most — so it sits
@@ -1049,7 +1054,7 @@ export function HomeScreen({
         {/* The day's status — ring + next dose, both scoped to the SELECTED day
             (Spec 02). Always rendered: on a day with nothing scheduled the cards
             say so, which is information; a missing card is not. */}
-        <div className="animate-home-up" style={{ animationDelay: "140ms" }}>
+        <div data-area="status" className="animate-home-up" style={{ animationDelay: "140ms" }}>
           <DayStatusWidgets
             // The card is selected-day scoped, so it names the day it is showing
             // rather than always saying "Today".
@@ -1072,7 +1077,7 @@ export function HomeScreen({
 
         {/* Injection sites — the muscle map at a glance (IM / Sub-Q); tap to choose
             your sites or see where you last pinned. */}
-        <div className="animate-home-up" style={{ animationDelay: "175ms" }}>
+        <div data-area="sites" className="animate-home-up" style={{ animationDelay: "175ms" }}>
           <InjectionSitesGlanceCard
             daysSince={siteDaysSinceToday}
             recentSites={recentInjectionSites}
@@ -1101,7 +1106,7 @@ export function HomeScreen({
             abandoned. Logging a DOSE on a future day stays allowed, so the strip
             still scrolls forward; it is only journalling the server rejects. */}
         {selectedKey <= todayKey && (
-        <div className="animate-home-up" style={{ animationDelay: "195ms" }}>
+        <div data-area="journal" className="animate-home-up" style={{ animationDelay: "195ms" }}>
           <section className="rounded-2xl bg-bg-surface p-5">
             <h2 className={CARD_EYEBROW}>Journal</h2>
             <button

@@ -37,9 +37,28 @@ const CONTENT_SECURITY_POLICY = [
   "upgrade-insecure-requests",
 ].join("; ");
 
+/**
+ * DEV ESCAPE HATCH for running this repo from a git WORKTREE.
+ *
+ * Turbopack refuses to resolve anything above its project root, so a worktree
+ * whose `node_modules` is a symlink back into the main checkout dies with
+ * "Symlink [project]/node_modules is invalid, it points out of the filesystem
+ * root". Pointing the root at the directory that CONTAINS both checkouts makes
+ * the symlink legal again, which is what lets a parallel branch run its own dev
+ * server without a second 1GB install.
+ *
+ * Unset by default, so `next build`, Vercel and CI are byte-identical to before:
+ * the `turbopack` key is not merely empty, it is absent. Set it only to run dev
+ * from a worktree:
+ *
+ *   TRACKD_TURBOPACK_ROOT=/path/that/contains/both npx next dev -p 3200
+ */
+const TURBOPACK_ROOT = process.env.TRACKD_TURBOPACK_ROOT;
+
 const nextConfig: NextConfig = {
   // Don't advertise the framework/version in every response (fingerprinting).
   poweredByHeader: false,
+  ...(TURBOPACK_ROOT ? { turbopack: { root: TURBOPACK_ROOT } } : {}),
   // DEV ONLY, and ignored entirely by `next build` / `next start`. Next blocks
   // cross-origin requests to dev assets unless the requesting host is listed
   // here, which otherwise makes previewing on a real phone impossible: you run
