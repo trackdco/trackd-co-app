@@ -23,11 +23,12 @@ import {
 } from "@/lib/home/doseLog"
 import {
   getStackSnapshot,
-  isDueOnFor,
   resolveScheduleOn,
   subscribeStack,
   type StackCompound,
 } from "@/lib/home/stack"
+import { isPausedOn } from "@/lib/home/pauses"
+import { belongsInDayLog, ringCounts } from "@/lib/home/dayDoses"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import { CARD_EYEBROW, DATA_MONO, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets"
 import type { BodySex } from "@/lib/db/types"
@@ -187,24 +188,44 @@ export function DesktopRail({
     return new Date(y, (m ?? 1) - 1, d ?? 1)
   }, [today])
 
-  /** Every dose SLOT due today, and whether it is logged. Slots, not compounds:
-   *  a twice-daily compound with its morning dose ticked is one of two, not one
-   *  of one. That is the same correction `DayStatusWidgets` documents. */
+  /**
+   * Today's dose slots, and whether each is logged.
+   *
+   * ⚠️ THE MEMBERSHIP RULE IS NOT WRITTEN HERE, ON PURPOSE.
+   *
+   * It used to be, and it was wrong in two ways that a cold review caught by
+   * putting the two rings side by side: this filtered out archived compounds
+   * before checking for a log (so deleting a compound you had already taken
+   * today removed that dose from the count) and filtered out historic slots (so
+   * cutting a compound from three doses a day to two un-counted this morning's
+   * third). Both made the rail under-report, on the surface whose whole job is
+   * saying what is still outstanding.
+   *
+   * `belongsInDayLog` and `ringCounts` are the Dashboard's own rule, extracted
+   * to `lib/home/dayDoses.ts` so there is one of it. Do not reintroduce a filter
+   * here; if the rule needs to change, change it there and both move together.
+   */
   const { dueCount, loggedCount, dots } = useMemo(() => {
     if (!isDesktop) return { dueCount: 0, loggedCount: 0, dots: [] as StackCompound[] }
-    let due = 0
-    let logged = 0
-    const outstanding: StackCompound[] = []
     const dayLogs = logs[today] ?? {}
-    for (const c of stack) {
-      if (c.archived || !isDueOnFor(c, todayDate)) continue
-      const slots = slotsForDay(c, today, dayLogs).filter((s) => !s.historic)
-      due += slots.length
-      const done = slots.filter((s) => s.log != null).length
-      logged += done
-      if (done < slots.length) outstanding.push(c)
-    }
-    return { dueCount: due, loggedCount: logged, dots: outstanding }
+    const entries = stack
+      .filter((c) => belongsInDayLog(c, dayLogs, todayDate))
+      .map((c) => ({
+        id: c.id,
+        category: c.category ?? "",
+        paused: isPausedOn(c.pauses, today),
+        slots: slotsForDay(c, today, dayLogs),
+        compound: c,
+      }))
+    const counts = ringCounts(entries)
+    // "Still due" lists COMPOUNDS with an unlogged slot, which is a display
+    // choice and not part of the shared arithmetic. Paused ones are excluded
+    // for the same reason `ringCounts` does not count them: they cannot be
+    // logged, so offering them as outstanding work is a lie.
+    const outstanding = entries
+      .filter((e) => !e.paused && e.slots.some((s) => s.log == null))
+      .map((e) => e.compound)
+    return { dueCount: counts.due, loggedCount: counts.logged, dots: outstanding }
   }, [isDesktop, stack, logs, today, todayDate])
 
   const next = useMemo(
@@ -253,11 +274,22 @@ export function DesktopRail({
               cy="18"
               r={RING_R}
               fill="none"
-              /* Amber while the day is live, resolving to white once it is
-                 settled — the same "amber is what needs you, white is what is
-                 done" rule the tick follows (ui-context → amber marks what's
-                 live). A finished day should stop asking for attention. */
-              stroke={allDone ? "var(--accent-primary)" : "var(--accent-amber)"}
+              /* ALWAYS AMBER, matching Home's ring exactly.
+                 
+                 This resolved to white at 100% on the argument that a finished
+                 day should stop asking for attention. A cold review pointed out
+                 the obvious consequence: at 3 of 3 the rail's ring went white
+                 while the Dashboard's ring, 250px away on the same screen,
+                 stayed amber. Two drawings of one fact, disagreeing.
+                 
+                 The Dashboard's is the reference — ui-context sanctions the
+                 completion ring as the day's "live progress pulse" and says
+                 nothing about it resolving. Inventing a variant on a new
+                 surface is exactly the drift "new screens reuse the system"
+                 exists to stop. If the white-when-done idea is worth having, it
+                 is worth having on BOTH rings, and that is a change to the
+                 documented beat rather than something to do on the side. */
+              stroke="var(--accent-amber)"
               strokeWidth={2.5}
               strokeLinecap="round"
               strokeDasharray={RING_C}

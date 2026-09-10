@@ -14,6 +14,7 @@ import { OpenInSafariPrompt } from "@/components/pwa/OpenInSafariPrompt";
 import { useMounted } from "@/components/home/useMounted";
 import { usePwaInstall } from "@/components/pwa/usePwaInstall";
 import { getCapability } from "@/lib/push/pushService";
+import { useIsDesktop } from "@/lib/desktop/breakpoint";
 
 /**
  * "Add Trackd to your Home Screen" popup, shown on EVERY physical sign-in / sign-up
@@ -45,17 +46,39 @@ export function InstallHomeScreenPopup({
 
   // Computed during render (post-mount, so SSR stays deterministic). getCapability
   // touches navigator/window, hence the gate.
+  const isDesktop = useIsDesktop();
+
   const cap = mounted ? getCapability() : null;
   const platform: "ios" | "ios-other" | "android" | null =
     cap === null || cap.isStandalone
       ? null
-      : cap.isIOS
-        ? cap.isIOSSafari
-          ? "ios"
-          : "ios-other"
-        : canInstall
-          ? "android"
-          : null;
+      : // NOTHING ON A COMPUTER. This test runs FIRST and short-circuits.
+        //
+        // The sibling `components/profile/InstallAppRow.tsx` grew this guard
+        // when the app gained a desktop layout, and this popup did not, so a
+        // laptop still met "Add Trackd to your Home Screen" on the dashboard
+        // immediately after an onboarding that had just decided it had no home
+        // screen to add anything to. On desktop Chrome `cap.isIOS` is false and
+        // `beforeinstallprompt` does fire (the manifest qualifies), so it fell
+        // straight through to the "android" branch.
+        //
+        // The behaviour predates the desktop branch: `guessPlatform` used to
+        // answer "ios" for a MacBook, so this popup reached laptops before too,
+        // over the interstitial that used to stand there. It is fixed here
+        // because desktop is now a real surface and because two install
+        // surfaces disagreeing is the kind of thing nobody finds twice.
+        //
+        // Offering the desktop PWA install is a separate decision, and it is
+        // parked: `app/manifest.ts` still declares `orientation: "portrait"`.
+        isDesktop
+        ? null
+        : cap.isIOS
+          ? cap.isIOSSafari
+            ? "ios"
+            : "ios-other"
+          : canInstall
+            ? "android"
+            : null;
 
   function consume() {
     // Plain fetch (NOT a Server Action) so it can't trigger an RSC refresh.

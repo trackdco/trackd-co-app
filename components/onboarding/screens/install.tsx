@@ -273,7 +273,20 @@ export function InstallScreen() {
   // all — Apple does not expose it — so describing Safari's Share sheet to them
   // sends them hunting for a control that does not exist. The honest screen
   // says which browser they need.
-  const wrongBrowser = !canInstallHere(device);
+  // ⚠️ `!canInstallHere` IS NOT THE SAME QUESTION ON A COMPUTER.
+  //
+  // This branch exists for one case: iOS outside Safari, where the control
+  // genuinely does not exist and the honest answer is "switch browser".
+  // `canInstallHere` also returns false for `desktop` now, for an unrelated
+  // reason (a laptop has no home screen), and that dropped a MacBook into this
+  // branch reading "Open Trackd in Safari to add it / Chrome on iPhone can't
+  // add apps to the home screen" — while the steps underneath it were correctly
+  // the desktop ones. Narrowed to the platform the copy is actually about.
+  //
+  // Forward-walking skips this step entirely on desktop (`stepAppliesTo`), so
+  // this is only reachable by a deep link or a bookmark. It still has to be
+  // coherent when it is.
+  const wrongBrowser = device.platform === "ios" && !canInstallHere(device);
 
   return (
     <StepFrame

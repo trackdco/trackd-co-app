@@ -1,5 +1,58 @@
 # Progress Tracker
 
+## ✅ THE COLD REVIEW LANDED, AND IT WAS WORTH DOING (2026-09-11)
+
+Five defects on `desktop-app`, all fixed. The one that mattered is the first,
+and it is the kind of thing an author cannot find in their own work.
+
+### 1. The rail and the Dashboard disagreed about the same day  ⚠️ the real one
+
+Side by side, 250px apart: the Dashboard's ring read "1 of 2" and the rail read
+"0/1, 1 dose left". Not a hard bug. A **second implementation** of "what is due
+today", written for the rail while the Dashboard already had one, differing in
+two places nobody thought about while writing the second:
+
+- **Archived-with-a-log.** The rail tested `archived` BEFORE checking for a log.
+  Deleting a compound keeps every dose already taken (Invariant 8), so tidying
+  your protocol silently removed today's logged dose from the rail's count.
+- **Historic slots.** The rail filtered them out. Cutting a compound from three
+  doses a day to two does not un-take this morning's third one.
+
+Both ran the same direction: the rail **under-reported**, on the surface whose
+entire justification is answering "what is still outstanding".
+
+**Fixed by extraction, not by patching.** `lib/home/dayDoses.ts` now holds
+`belongsInDayLog` + `ringCounts`; HomeScreen and DesktopRail both call it. Same
+move `nextDose.ts` records for the same reason. Ten tests pin the two cases.
+
+### The other four
+
+2. `InstallHomeScreenPopup` still offered "Add to Home Screen" on a laptop. Its
+   sibling `InstallAppRow` got the desktop guard and this did not, so a desktop
+   user finished an onboarding that had just decided it had no home screen and
+   met a popup offering one. **Pre-existing on `main`** (guessPlatform answered
+   "ios" for a MacBook), but the branch made the inconsistency load-bearing.
+3. `DesktopKeyboard` navigated out from under an open sheet. Pressing `5` with
+   the log-dose sheet open went to Calendar with the sheet still mounted and
+   `pointer-events: none` on the body. It missed earlier passes because it only
+   bites when the open sheet does NOT autofocus a field.
+4. `install.tsx` read `!canInstallHere(device)` as "wrong browser". That is an
+   iOS question; desktop returns false for an unrelated reason, so a MacBook got
+   "Chrome on iPhone can't add apps to the home screen".
+5. Two rings, two colours: the rail resolved to white at 100% while Home's
+   stayed amber. The rail was inventing a variant; it matches Home now.
+
+### What this says about the process
+
+The eight-agent adversarial sweep run beforehand found **one** of these (#2),
+and hit session limits with 55 of 87 agents dead. Every one of those agents got
+a prompt written by the author of the code, describing the branch as the author
+understood it. The cold reviewer, given only the branch and told to distrust the
+comments, found four the sweep did not. **Both were needed; neither replaced the
+other.** Worth remembering next time the question is "do we still need a cold
+review".
+
+
 ## ✅ DESKTOP IS BUILT (2026-09-10) — branch `desktop-app`, NOT merged
 
 Trackd runs on a laptop. Adrian's brief: make it look like a computer-native app,

@@ -20,6 +20,14 @@ visible "x" (Escape and click-away both work). The fix is one line in
 `components/ui/sheet.tsx`, which is protected. **Approve the edit, or accept the
 gap.** Do not let a future session decide this quietly.
 
+### 2b. Still open after the cold review
+- **Non-UTC negative offsets are unexercised.** The review ran in Australia/Sydney
+  (UTC+10) only. The day-rollover and `belongsInDayLog` paths have never been
+  driven at a negative offset.
+- **An ended-cycle fixture** was never built as a rail-vs-Dashboard input.
+- **`beforeinstallprompt` on real desktop Chrome** was simulated, not observed.
+  The popup fix stands either way, but the trigger is unconfirmed.
+
 ### 3. Decide what else desktop should get
 Deliberately NOT built, because each is a feature change rather than a layout one
 and the brief was to change no features:

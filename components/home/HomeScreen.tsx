@@ -6,6 +6,7 @@ import Link from "next/link"
 import { CalendarDots, CaretDown, NotePencil, User } from "@/components/icons"
 import { requestProgressAction } from "@/lib/progress/progressAction"
 import { computeNextDose } from "@/lib/home/nextDose"
+import { belongsInDayLog, ringCounts } from "@/lib/home/dayDoses"
 import { CARD_EYEBROW } from "@/lib/ui-presets"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { cn } from "@/lib/utils"
@@ -30,7 +31,6 @@ import {
 } from "@/lib/home/stacks"
 import {
   DayStatusWidgets,
-  type DayDot,
   type NextDoseInfo,
 } from "@/components/home/DayStatusWidgets"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
@@ -496,15 +496,21 @@ export function HomeScreen({
     fullyPausedStacks.flatMap((g) => g.members.map((c) => c.id)),
   )
   const dueCompounds = stack.filter((c) => {
-    if (loggedCountFor(selectedRows, c.id) > 0) return true
-    if (c.archived) return false
-    if (isDueOnFor(c, selectedDate)) return true
+    // The membership rule itself lives in `lib/home/dayDoses.ts`, because the
+    // desktop rail needs the SAME answer and a second copy of it drifted: the
+    // rail dropped archived-with-a-log and historic slots, so the two rings
+    // disagreed about the same day. See that file's header.
+    if (belongsInDayLog(c, selectedRows, selectedDate)) return true
     // A PAUSED stack member is kept in the list so its stack still shows every
     // compound it contains; the row renders it blacked out and untickable. A
     // paused LOOSE compound is not — it moves to the Paused section instead.
     //
     // ...unless the WHOLE stack is paused, in which case there is nothing left
     // for the row to show and the stack appears once under Paused.
+    //
+    // Display only: these are paused, so `ringCounts` filters them out again
+    // and they never reach the ring. That is why the shared rule above does not
+    // carry this branch.
     if (fullyPausedIds.has(c.id)) return false
     return stackMemberIds.has(c.id) && isPausedOn(c.pauses, selectedKey)
   })
@@ -535,18 +541,9 @@ export function HomeScreen({
   // of each, or the ring would read 100% with the evening dose still untaken.
   // A paused compound is not DUE, so it contributes nothing to the ring — it
   // would otherwise sit there permanently unlogged and hold the day below 100%.
-  const countable = dueDoses.filter((d) => !d.paused)
-  const selectedLogged = countable.reduce(
-    (n, d) => n + d.slots.filter((s) => s.log != null).length,
-    0,
-  )
-  const dayDots: DayDot[] = countable.flatMap((d) =>
-    d.slots.map((s) => ({
-      id: `${d.id}#${s.slot}`,
-      category: d.category,
-      logged: s.log != null,
-    })),
-  )
+  // Shared with the desktop rail (`lib/home/dayDoses.ts`), so the two rings
+  // cannot report different numbers for the same day.
+  const { logged: selectedLogged, dots: dayDots } = ringCounts(dueDoses)
   /**
    * What is paused on the selected day, collapsed for display.
    *

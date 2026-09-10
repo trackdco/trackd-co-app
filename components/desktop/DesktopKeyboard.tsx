@@ -20,6 +20,36 @@ const JUMP: Record<string, string> = {
 }
 
 /**
+ * True when something modal is open over the page.
+ *
+ * A cold review found the hole: with the log-dose sheet open, pressing `5`
+ * navigated to Calendar while the sheet stayed mounted over it, and because
+ * Radix pins `pointer-events: none` on the body for an open modal, the sidebar
+ * and the rail were both dead. Escape recovered, but nothing said so.
+ *
+ * It only missed the review's earlier passes because it depends on whether the
+ * open sheet happens to autofocus a text field. "Log weight" does, so
+ * {@link isTyping} covered it; "Log a dose" does not, so nothing did.
+ *
+ * Three sources, and each is a real one rather than a guess at the DOM:
+ *  - every one of the app's 40 sheets renders `[data-slot="sheet-content"]` and
+ *    Radix stamps `data-state` on it;
+ *  - the command palette and the quick-actions layer both carry
+ *    `role="dialog"` with `aria-modal` while open;
+ *  - `body[data-inline-edit="true"]` is the in-place edit flag (globals.css
+ *    uses the same attribute to stand the FAB down). Navigating out of an open
+ *    edit would discard it, which is worse than the dead-pointer bug.
+ */
+function modalOpen(): boolean {
+  if (typeof document === "undefined") return false
+  return Boolean(
+    document.querySelector('[data-slot="sheet-content"][data-state="open"]') ||
+      document.querySelector('[role="dialog"][aria-modal="true"]') ||
+      document.body.dataset.inlineEdit === "true",
+  )
+}
+
+/**
  * True when the keystroke belongs to whatever the user is typing into.
  *
  * Without this, typing a dose of "4 mg" into a field navigates to Progress
@@ -84,9 +114,11 @@ export function DesktopKeyboard() {
       }
 
       // Everything below is a bare key, so it must never fire while the user is
-      // typing, and never while a modifier is held (Cmd+1 is "switch browser
-      // tab" and taking it would be rude).
-      if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return
+      // typing, never while a modifier is held (Cmd+1 is "switch browser tab"
+      // and taking it would be rude), and never out from under an open sheet,
+      // dialog or in-place edit.
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (isTyping(e.target) || modalOpen()) return
 
       const href = JUMP[e.key]
       if (href) {
