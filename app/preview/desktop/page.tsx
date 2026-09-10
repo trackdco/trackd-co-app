@@ -52,14 +52,15 @@ const APP_SCREENS: Screen[] = [
   {
     href: "/calculator",
     name: "Reconstitution calculator",
-    desktop: "A form, so it stays one column at a readable measure rather than stretching.",
+    desktop:
+      "Two columns. The form on the left, the barrel and the three figures on the right, so they move as you type instead of living a scroll away. The one screen whose phone problem was ORDER rather than width.",
     preview: "/preview/recon",
   },
   {
     href: "/progress",
     name: "Progress",
     desktop:
-      "Photos take two of three columns with the live block beside them. The four reading widgets go four across instead of two by two.",
+      "Photos take ONE column, tall on the left, because that card fills its width at a portrait aspect and two columns made it 1000px high. The block sits top right with the four reading widgets in a 2x2 beneath it.",
     preview: "/preview/progress",
   },
   {
@@ -112,7 +113,8 @@ const OUTSIDE_SHELL: Screen[] = [
   {
     href: "/onboarding",
     name: "Onboarding",
-    desktop: "Was already exempt from the old gate, so this is unchanged. Check it still is.",
+    desktop:
+      'Was already exempt from the old gate. What changed: there is no "add to home screen" step on a laptop (nothing to add it to), so the founder letter is the last screen and its button reads "Open Trackd". The notification prompt is drawn as a browser panel rather than an Android sheet.',
   },
   {
     href: "/forgot-password",
@@ -120,6 +122,15 @@ const OUTSIDE_SHELL: Screen[] = [
     desktop: "Newly reachable.",
   },
   { href: "/admin", name: "Admin", desktop: "Untouched. It had its own desktop design already." },
+];
+
+const ART: Screen[] = [
+  {
+    href: "/preview/notify-prompts",
+    name: "Notification prompts",
+    desktop:
+      "The three permission dialogs side by side: desktop, iOS, Android. The desktop one is new. They exist as three drawings because the point is that somebody recognises the dialog they are about to be shown.",
+  },
 ];
 
 const CHECKS: { label: string; detail: string }[] = [
@@ -150,6 +161,11 @@ const CHECKS: { label: string; detail: string }[] = [
   {
     label: "Log a dose from the rail",
     detail: "On any screen, not just Dashboard. That is the thing a phone cannot do.",
+  },
+  {
+    label: "Type into the calculator",
+    detail:
+      "5 mg powder, 2 mL BAC, 250 mcg dose. The barrel, the concentration, the mL per dose and the insulin units should all move with the inputs still under your hands, with nothing scrolling.",
   },
 ];
 
@@ -215,6 +231,19 @@ export default function DesktopTourPage() {
         </p>
         <ul className="mt-4">
           {OUTSIDE_SHELL.map((s) => (
+            <ScreenRow key={s.href} screen={s} />
+          ))}
+        </ul>
+      </section>
+
+      <section className="mt-12">
+        <h2 className={CARD_EYEBROW}>Art, in isolation</h2>
+        <p className="mt-2 max-w-[62ch] text-sm leading-relaxed text-text-muted">
+          Drawings that only appear behind the auth gate, rendered on their own so
+          they can be compared.
+        </p>
+        <ul className="mt-4">
+          {ART.map((s) => (
             <ScreenRow key={s.href} screen={s} />
           ))}
         </ul>
