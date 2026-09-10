@@ -97,6 +97,35 @@ the two §5 boxes that need a browser, and then the re-run.
       is a separate decision and is still open; see the item below. A ruling that
       "the log stays a log" is only honest if somebody eventually reads the log.
 
+- [ ] **⚠️ FINISH hardening 004. It is HALF APPLIED and the app code still lags.**
+      Adrian ran part 1 on 2026-09-10: helper uniques, both composite FKs, and
+      `UNIQUE (user_id, entry_id, user_marker_id)` added as
+      `one_reading_per_marker_per_entry_owner` **alongside** the old unique so
+      nothing broke. **The cross-tenant hole IS closed** - the composite FKs are
+      the fix, verified on production - so this is tidy-up, not exposure.
+
+      Two steps remain, and the order does not matter because both uniques exist:
+      change `app/(app)/progress/actions.ts:360` to
+      `onConflict: "user_id,entry_id,user_marker_id"` and deploy; then drop
+      `one_reading_per_marker_per_entry` and rename the `_owner` one onto its
+      name. The exact SQL is in the AS APPLIED block at the head of
+      `supabase/hardening/004_marker_readings_owner_scope.sql`.
+
+      ⚠️ **Until then, do NOT paste that file as it stands** - it drops the unique
+      the deployed app's `onConflict` still names, and every journal-marker save
+      would fail 42P10. Its VERIFY block does not pass today, by design.
+
+- [ ] **⚠️ ADRIAN: is `BILLING_GATE_ENABLED` set in Vercel production?** Measured
+      2026-09-10: **all 82 comp graces expired at 04:00:11Z (2:00:11 PM AEST)
+      that same day**, in one batch, sharing one timestamp - `comp_in_grace` is
+      now 0, `comp_already_lapsed` is 82, plus 5 never-expiring comps and 2 live
+      Stripe. Whether those 82 actually went read-only depends entirely on that
+      one switch, which `gate.ts:139-141` checks FIRST and **fails open** on. Off,
+      the 14-day grace did nothing and they still write freely; on, 82 people lost
+      write access that afternoon with no staggering. It cannot be read from this
+      repository - only from Vercel, or by driving a lapsed account against
+      production and seeing whether the write is refused.
+
 - [ ] **⚠️ ADRIAN: does anything READ the deletion logs?** Falls out of D117.
       `ERASURE UNVERIFIED` and the failed-sign-out line are greppable and
       unwatched. A push alerter exists but is bound to spec 11's reconciliation
