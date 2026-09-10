@@ -20,6 +20,9 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      // Mark the session cookie Secure everywhere but `next dev`. See client.ts
+      // for why httpOnly is not set. Kept in sync with client.ts + middleware.ts.
+      cookieOptions: { secure: process.env.NODE_ENV !== 'development' },
       cookies: {
         getAll() {
           return cookieStore.getAll()
