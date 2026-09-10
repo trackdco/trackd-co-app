@@ -176,7 +176,7 @@ export function ReconCalculator() {
   }
 
   return (
-    <div className="space-y-5">
+    <div data-calc-grid className="space-y-5">
       <FirstRunDisclaimer />
 
       {/* ---- The reading. Bare, outside any card, so the syringe is the screen
@@ -195,6 +195,7 @@ export function ReconCalculator() {
               idiom (`CompoundsRow`, `ScheduleGrid`) and what makes a standalone
               tab screen read as one page rather than a stack of boxes. ---- */}
       <section
+        data-area="calc-draw"
         className="animate-home-up space-y-3 pb-3"
         style={{ animationDelay: "0ms" }}
       >
@@ -233,6 +234,7 @@ export function ReconCalculator() {
           live figure and changes on every digit, and an assertive region
           re-announces the whole sentence each time. */}
       <div
+        data-area="calc-warning"
         className="animate-home-up grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
         style={{ gridTemplateRows: misuse ? "1fr" : "0fr" }}
       >
@@ -247,6 +249,7 @@ export function ReconCalculator() {
       {/* ---- The three figures behind it. No heading of its own: the columns
               are labelled, and it belongs to "Draw" above. ---- */}
       <section
+        data-area="calc-figures"
         className="animate-home-up grid grid-cols-3 divide-x divide-border-default rounded-2xl bg-bg-surface py-3"
         style={{ animationDelay: "40ms" }}
       >
@@ -271,7 +274,7 @@ export function ReconCalculator() {
       </section>
 
       {/* ---- Inputs ---- */}
-      <div className="animate-home-up" style={{ animationDelay: "80ms" }}>
+      <div data-area="calc-inputs" className="animate-home-up" style={{ animationDelay: "80ms" }}>
         <CalculatorInputs
           sizeId={sizeId}
           onSizeChange={chooseSize}
@@ -292,6 +295,7 @@ export function ReconCalculator() {
 
       {/* ---- The working, collapsed by default ---- */}
       <section
+        data-area="calc-working"
         className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface"
         style={{ animationDelay: "120ms" }}
       >
@@ -366,6 +370,7 @@ export function ReconCalculator() {
 
       {/* ---- Permanent disclaimer. Legal copy, unchanged. ---- */}
       <div
+        data-area="calc-legal"
         className={cn("animate-home-up", AMBER_PANEL)}
         style={{ animationDelay: "160ms" }}
       >

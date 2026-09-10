@@ -53,7 +53,7 @@ const PARAGRAPH =
   "text-[1.0625rem] font-light leading-[1.7] tracking-[-0.01em] text-foreground";
 
 export function LetterScreen() {
-  const { goNext } = useFlow();
+  const { goNext, isLast } = useFlow();
 
   return (
     <StepFrame>
@@ -133,8 +133,15 @@ export function LetterScreen() {
 
               Sentence case, like every other CTA in the flow ("Continue",
               "See plans", "Add to home screen"). */}
+          {/* "Last step" is only true when there IS one after this. On a
+              computer there is not: `install` is skipped (no home screen to add
+              anything to), so the letter is the end and this button opens the
+              app. Promising a step that never arrives is the same mistake "One
+              last thing" made from the other direction. */}
           <div className="pt-8">
-            <FlowCta onClick={goNext}>Last step</FlowCta>
+            <FlowCta onClick={goNext}>
+              {isLast ? "Open Trackd" : "Last step"}
+            </FlowCta>
           </div>
         </div>
       </div>

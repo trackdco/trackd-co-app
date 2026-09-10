@@ -48,7 +48,14 @@ export function NotificationMock({
   /** Runs the real permission request. Omit and the card is inert. */
   onActivate?: () => void;
 }) {
-  const art = platform === "ios" ? <IosPrompt /> : <AndroidPrompt />;
+  const art =
+    platform === "desktop" ? (
+      <DesktopPrompt />
+    ) : platform === "ios" ? (
+      <IosPrompt />
+    ) : (
+      <AndroidPrompt />
+    );
 
   if (!onActivate) {
     return (
@@ -148,6 +155,69 @@ function AndroidPrompt() {
         <span className={cn("text-[14px] font-medium text-accent-amber")}>
           Allow
         </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Chrome / Edge on a computer: a panel dropped from under the address bar,
+ * anchored left, naming the ORIGIN rather than the app.
+ *
+ * It gets its own drawing for the same reason iOS and Android each do, and the
+ * reason is stated at the top of this file: the whole point is recognition, and
+ * "one card cannot pass for both". Showing an Android sheet to somebody at a
+ * MacBook is precisely the "this was not made for your device" tell the split
+ * exists to avoid. Before this, desktop fell through to the Android art,
+ * because `guessPlatform` had no way to say "computer" at all.
+ *
+ * Chrome's wording and Chrome's layout, not an invention: the site's origin,
+ * "wants to", then the permission on its own line, with Block and Allow ranged
+ * right and Allow carrying the emphasis.
+ */
+function DesktopPrompt() {
+  return (
+    <div
+      aria-hidden
+      className="mx-auto w-full max-w-[19rem] overflow-hidden rounded-[0.875rem] bg-bg-surface-raised shadow-[0_20px_50px_-18px_rgb(0_0_0/0.95)]"
+    >
+      {/* The sliver of address bar the panel hangs from. It is what makes the
+          card read as a browser prompt rather than an in-page dialog. */}
+      <div className="flex items-center gap-2 border-b-[0.5px] border-border-strong px-3.5 py-2">
+        <span
+          className="h-3.5 w-3.5 shrink-0 rounded-full bg-bg-input"
+          aria-hidden
+        />
+        <span className="font-mono text-[10px] tracking-[0.02em] text-text-subtle">
+          trackdco.app
+        </span>
+      </div>
+
+      <div className="px-4 pb-3.5 pt-4">
+        <div className="flex items-start gap-3">
+          <Image
+            src="/icon-192.png"
+            alt=""
+            width={192}
+            height={192}
+            priority
+            className="mt-0.5 h-[26px] w-[26px] shrink-0 rounded-[6px]"
+          />
+          <p className="text-[13.5px] leading-snug text-foreground">
+            trackdco.app wants to
+            <br />
+            <span className="text-text-muted">Show notifications</span>
+          </p>
+        </div>
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <span className="rounded-md px-3 py-1.5 text-[12.5px] text-text-muted">
+            Block
+          </span>
+          <span className="rounded-md bg-accent-primary px-3 py-1.5 text-[12.5px] font-medium text-bg-base">
+            Allow
+          </span>
+        </div>
       </div>
     </div>
   );

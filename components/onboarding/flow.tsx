@@ -722,16 +722,39 @@ function OnboardingFlowClient({
     [comp],
   );
 
+  // Declared above `goNext` because `goNext` now calls it at the end of the flow.
+  const finish = useCallback(() => {
+    track("onboarding_completed");
+    router.push("/dashboard");
+  }, [router]);
+
   const goNext = useCallback(() => {
     const next = nextStepFor(step, platform);
-    if (!next) return;
+    /**
+     * NO NEXT STEP MEANS FINISH, and it used to mean nothing at all.
+     *
+     * This read `if (!next) return`, which was safe only while the last step
+     * was always `install` — that screen calls `finish()` directly and never
+     * `goNext()`, so the dead branch was unreachable. Skipping `install` on a
+     * computer made it reachable: the letter's "Last step" button called
+     * `goNext`, `nextStepFor` returned null, and the button did nothing. A
+     * paying customer would have finished onboarding stranded on the founder
+     * letter with no way into the app.
+     *
+     * Finishing is also the only correct behaviour for a dead end in general.
+     * A flow that silently refuses to advance is never what anyone wants.
+     */
+    if (!next) {
+      finish();
+      return;
+    }
     // `pastAccount` because a signed-in user walking forward from `free` must
     // not land on a sign-in form they have no use for. See `pastAccount`.
     const target = pastComp(pastAccount(next));
     setDirection("forward");
     setStep(target);
     pushStep(target);
-  }, [step, pushStep, platform, pastAccount, pastComp]);
+  }, [step, pushStep, platform, pastAccount, pastComp, finish]);
 
   // A screen may claim BACK for itself (the demo does, to step between its
   // stages). A ref rather than state: this is a registration, and re-rendering
@@ -749,17 +772,16 @@ function OnboardingFlowClient({
     window.history.back();
   }, []);
 
-  const finish = useCallback(() => {
-    track("onboarding_completed");
-    router.push("/dashboard");
-  }, [router]);
-
   /**
    * The "Here's how it works." beat. See `playHandoff` on the context for why
    * it is owned here rather than by the screen that fires it.
    */
   const [handoff, setHandoff] = useState(false);
   const playHandoff = useCallback(() => setHandoff(true), []);
+
+  /** Whether this step is the end of the flow ON THIS PLATFORM. See the field's
+   *  note in `flow-context.tsx`. */
+  const isLast = nextStepFor(step, platform) === null;
 
   const value = useMemo<FlowContextValue>(
     () => ({
@@ -770,6 +792,7 @@ function OnboardingFlowClient({
       goBack,
       goTo,
       finish,
+      isLast,
       accountName,
       signedIn,
       priceFor,
@@ -788,6 +811,7 @@ function OnboardingFlowClient({
       goBack,
       goTo,
       finish,
+      isLast,
       accountName,
       signedIn,
       priceFor,

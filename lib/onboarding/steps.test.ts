@@ -6,9 +6,11 @@ import {
   FIRST_STEP,
   isStepId,
   nextStep,
+  nextStepFor,
   prevStep,
   resolveStepId,
   STEP_ORDER,
+  stepAppliesTo,
   stepIndex,
   stepProgress,
 } from "./steps";
@@ -79,6 +81,41 @@ describe("STEP_ORDER", () => {
     expect(stepIndex("install")).toBe(STEP_ORDER.length - 1);
     expect(stepIndex("install")).toBeGreaterThan(stepIndex("notifications"));
     expect(stepIndex("install")).toBeGreaterThan(stepIndex("letter"));
+  });
+
+  /**
+   * NO INSTALL STEP ON A COMPUTER (Adrian, 2026-09-10).
+   *
+   * "Add Trackd to your home screen" is not something a laptop can do, and it
+   * was the LAST screen of the flow, so before this a desktop user finished
+   * onboarding on an instruction they could not follow.
+   *
+   * The three assertions below are one bug each, and the third is the one that
+   * mattered: `goNext` used to `return` when there was no next step, which was
+   * unreachable only because `install` was always last and calls `finish()`
+   * directly. Skipping install made it reachable, and the letter's "Last step"
+   * button became a button that did nothing. Pinning this here means a future
+   * change that reintroduces a dead end on any platform fails a test rather
+   * than stranding somebody who has just paid.
+   */
+  it("skips install on a computer, and only on a computer", () => {
+    expect(stepAppliesTo("install", "desktop")).toBe(false);
+    expect(stepAppliesTo("install", "ios")).toBe(true);
+    expect(stepAppliesTo("install", "android")).toBe(true);
+  });
+
+  it("keeps notifications on a computer, unlike iOS", () => {
+    // Desktop browsers grant web push in place. iOS cannot, for an uninstalled
+    // site, which is why that one is dropped there and not here.
+    expect(stepAppliesTo("notifications", "desktop")).toBe(true);
+    expect(stepAppliesTo("notifications", "ios")).toBe(false);
+    expect(stepAppliesTo("notifications", "android")).toBe(true);
+  });
+
+  it("ends the flow at the letter on a computer, and at install on a phone", () => {
+    expect(nextStepFor("letter", "desktop")).toBeNull();
+    expect(nextStepFor("letter", "ios")).toBe("install");
+    expect(nextStepFor("letter", "android")).toBe("install");
   });
 
   /**

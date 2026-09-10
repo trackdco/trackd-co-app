@@ -302,6 +302,60 @@
        170px and re-break what widening the screen was meant to fix. */
   }
 
+  /* --- Calculator --------------------------------------------------------
+     The one screen where the phone's ORDER is the problem, not its width.
+
+     On a phone you type at the bottom and the syringe is above it, so checking
+     what a change did means scrolling away from the field you are editing. That
+     is not a compromise anyone chose; it is the only arrangement 400px allows.
+     Given two columns the form sits on the LEFT and its reading on the right,
+     and the barrel and the three figures move as you type with nothing
+     scrolling at all. That is the whole desktop case for this screen.
+
+     Placement is by `order`, not by explicit row numbers, because the first-run
+     disclaimer above is CONDITIONAL: it renders once per device and never
+     again. Pinning the inputs to "row 2" would be correct for exactly one of
+     those two cases and would collide with the disclaimer in the other. `order`
+     only says what gets placed first, so it is right either way. */
+  [data-screen="calculator"] [data-calc-grid] {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+    gap: var(--desktop-gap);
+    align-content: start;
+  }
+  /* Its own `space-y-5` is margin between siblings, which fights `gap`. */
+  [data-screen="calculator"] [data-calc-grid] > * + * {
+    margin-top: 0;
+  }
+
+  [data-screen="calculator"] [data-area="calc-inputs"] {
+    order: -1;
+    grid-column: 1;
+    /* Four items stack in the right column (draw, warning, figures, working),
+       so the form spans four rows and they pack tightly beside it. Without the
+       span, row 1 would grow to the form's height and shove the figures down
+       past the fold, which is the exact problem this layout exists to fix. */
+    grid-row: span 4;
+    align-self: start;
+  }
+  [data-screen="calculator"] [data-area="calc-draw"],
+  [data-screen="calculator"] [data-area="calc-warning"],
+  [data-screen="calculator"] [data-area="calc-figures"],
+  [data-screen="calculator"] [data-area="calc-working"] {
+    grid-column: 2;
+  }
+  /* The first-run disclaimer (no `data-area`, it is another component's root)
+     and the permanent legal panel both run the full width. The legal one is
+     ordered last so it stays the final thing on the page. */
+  [data-screen="calculator"] [data-calc-grid] > *:not([data-area]) {
+    grid-column: 1 / -1;
+    order: -2;
+  }
+  [data-screen="calculator"] [data-area="calc-legal"] {
+    grid-column: 1 / -1;
+    order: 10;
+  }
+
   /* --- Calendar ----------------------------------------------------------
      Deliberately NOT a grid: the month wants every pixel of the middle column,
      and the day you click opens in the rail rather than in a sheet over the

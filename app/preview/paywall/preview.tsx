@@ -92,6 +92,8 @@ export function PaywallPreview({ prices }: { prices: PreviewPrice[] }) {
       goBack: () => {},
       goTo: () => {},
       finish: () => {},
+      // This harness only ever renders `plans` and `start`, both mid-flow.
+      isLast: false,
       setBackHandler: () => {},
       // No-op: the hand-off beat plays between celebrate and the demo, and
       // neither is reachable from this harness.

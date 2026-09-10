@@ -22,6 +22,15 @@ export interface FlowContextValue {
   /** Ends the flow and hands off to the today-dashboard. */
   finish: () => void;
   /**
+   * True when there is nothing after the current step FOR THIS PLATFORM.
+   *
+   * Which step is last is not a constant. `install` is last on a phone, and it
+   * does not exist on a computer (`stepAppliesTo`), so on a laptop the letter
+   * is the end of the flow. A screen whose CTA copy says "Last step" needs to
+   * know which of those it is, or it promises a screen that will never come.
+   */
+  isLast: boolean;
+  /**
    * Let a screen intercept BACK. The demo is one step with four stages, so
    * backing out of stage three should land on stage two, not throw the user out
    * of the whole demo (Adrian, 2026-08-01). Return true to say "handled";

@@ -13,7 +13,13 @@ export default function PreviewReconPage() {
   if (process.env.NODE_ENV === "production") notFound();
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">
+    <div
+      // Same markers the real `/calculator` page carries, so the desktop
+      // two-column layout (form left, reading right) is visible here too. The
+      // doc comment above claims this is the same scaffold; these keep it true.
+      data-screen="calculator"
+      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+    >
       <span className="rounded-full bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium tracking-wider text-text-muted uppercase">
         Preview · /calculator
       </span>

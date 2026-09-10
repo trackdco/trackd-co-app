@@ -26,7 +26,16 @@
  * Safari, which is exactly the bug this file exists to fix.
  */
 
-export type Platform = "ios" | "android";
+/**
+ * `desktop` was added 2026-09-10, when Trackd stopped being phone-only.
+ *
+ * Before it, `guessPlatform` fell through to `"ios"` for anything that was not
+ * Android — including a MacBook — so somebody onboarding on a laptop was shown
+ * Safari's iPhone Share sheet and told to add Trackd to their home screen. That
+ * was harmless while the app refused to run above 1024px anyway. It is not
+ * harmless now.
+ */
+export type Platform = "ios" | "android" | "desktop";
 export type Browser = "safari" | "chrome" | "firefox" | "edge" | "samsung";
 
 export interface DeviceGuess {
@@ -39,6 +48,19 @@ function readUa(): string {
   return navigator.userAgent;
 }
 
+/**
+ * A real cursor, which is the thing that separates a computer from a tablet.
+ *
+ * Deliberately NOT the desktop shell's `(min-width: 1024px) and (pointer: fine)`
+ * query. That one asks "should this viewport get the desktop layout"; this asks
+ * "is this machine capable of a home-screen icon at all", and a laptop with its
+ * window dragged narrow is still a laptop. Width has no bearing on it.
+ */
+function hasFinePointer(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia("(pointer: fine)").matches;
+}
+
 export function guessPlatform(): Platform {
   const ua = readUa();
   if (/android/i.test(ua)) return "android";
@@ -46,6 +68,11 @@ export function guessPlatform(): Platform {
   // to tell one from an actual desktop.
   if (/iPad|iPhone|iPod/.test(ua)) return "ios";
   if (/Macintosh/.test(ua) && (navigator?.maxTouchPoints ?? 0) > 1) return "ios";
+  // Anything still here is not a phone and not an iPad. A fine pointer makes it
+  // a computer. The `ua` guard keeps SERVER rendering on the old fallback:
+  // `readUa()` is "" with no navigator, and answering "desktop" there would
+  // have the server drop the install step for a phone that is about to hydrate.
+  if (ua !== "" && hasFinePointer()) return "desktop";
   return "ios";
 }
 
@@ -77,6 +104,12 @@ export function guessDevice(): DeviceGuess {
  * On Android, Chrome / Edge / Samsung Internet / Firefox can all install.
  */
 export function canInstallHere({ platform, browser }: DeviceGuess): boolean {
+  // A laptop has no home screen. Desktop Chrome CAN install a PWA, but that is
+  // a different thing with a different name, and `app/manifest.ts` still
+  // declares `orientation: "portrait"` — installing it today would open Trackd
+  // in a portrait window on a widescreen monitor. Offering it is its own
+  // decision; see `Context/next-tasks.md`.
+  if (platform === "desktop") return false;
   if (platform === "ios") return browser === "safari";
   return true;
 }
@@ -105,6 +138,16 @@ export interface InstallStep {
  * worse than none. There are only a handful of real cases.
  */
 export function installSteps({ platform, browser }: DeviceGuess): InstallStep[] {
+  // The install STEP is skipped on a computer (see `stepAppliesTo`), so this
+  // only runs for a deep link to `?step=install`, which the flow still honours
+  // by design. Answer honestly rather than inventing a menu that is not there.
+  if (platform === "desktop") {
+    return [
+      { icon: null, text: "Trackd runs right here in this browser" },
+      { icon: null, text: "To carry it in your pocket, open trackdco.app on your phone" },
+      { icon: "plus", text: "Then add it to your home screen there" },
+    ];
+  }
   if (platform === "ios") {
     if (browser !== "safari") {
       // Not possible here at all. Say so, and say what to do instead.
@@ -172,6 +215,9 @@ export type InstallFlowId =
   | "android-firefox";
 
 export function installFlowId({ platform, browser }: DeviceGuess): InstallFlowId | null {
+  // No walkthrough on a computer: there is no menu to draw. Same reasoning as
+  // iOS-outside-Safari below.
+  if (platform === "desktop") return null;
   if (platform === "ios") {
     if (browser === "safari") return "ios-safari";
     // Chrome cannot install, but its share sheet CAN hand the page and the
