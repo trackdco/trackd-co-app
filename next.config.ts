@@ -1,6 +1,45 @@
 import type { NextConfig } from "next";
 
+/**
+ * Content-Security-Policy, shipped in REPORT-ONLY mode (Audit 2026-09, M-1/L-8).
+ *
+ * ⚠️ REPORT-ONLY MEANS IT BLOCKS NOTHING YET. The browser evaluates this policy
+ * and logs anything that would be refused to the console, but every resource
+ * still loads, so it CANNOT break checkout, image loading, or push. It is here so
+ * the policy can be verified against the real Stripe/Supabase flows on a preview
+ * deploy, then switched to enforcing (rename the header key to
+ * "Content-Security-Policy") once the console is clean. Until that flip it is
+ * documentation + monitoring, not protection - see SECURITY-AUDIT.md.
+ *
+ * Origins are the ones this app actually uses:
+ *   - Stripe: js.stripe.com (Elements script + iframes), hooks.stripe.com
+ *     (3DS/redirect frames), api.stripe.com + r.stripe.com (calls/telemetry).
+ *   - Supabase: *.supabase.co over https (Data API + Storage) and wss (Realtime).
+ *   - Google Fonts: the Payment Element pulls a Geist stylesheet
+ *     (payment-sheet.tsx). App fonts are next/font self-hosted, so 'self' covers.
+ * 'unsafe-inline' on script-src is Next's inline bootstrap; tightening it to a
+ * nonce needs proxy plumbing and is deferred - noted in the audit.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'self'",
+  "form-action 'self'",
+  "script-src 'self' 'unsafe-inline' https://js.stripe.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https://*.supabase.co",
+  "font-src 'self' https://fonts.gstatic.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://r.stripe.com",
+  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "upgrade-insecure-requests",
+].join("; ");
+
 const nextConfig: NextConfig = {
+  // Don't advertise the framework/version in every response (fingerprinting).
+  poweredByHeader: false,
   // DEV ONLY, and ignored entirely by `next build` / `next start`. Next blocks
   // cross-origin requests to dev assets unless the requesting host is listed
   // here, which otherwise makes previewing on a real phone impossible: you run
@@ -94,6 +133,21 @@ const nextConfig: NextConfig = {
           // Force HTTPS for a year (no includeSubDomains — a future auth.* subdomain
           // is on the roadmap and shouldn't be pre-committed to HSTS here).
           { key: "Strict-Transport-Security", value: "max-age=31536000" },
+          // Turn off browser features this app never uses. `payment` and
+          // `publickey-credentials-*` are deliberately NOT restricted: Stripe's
+          // Payment Element uses the Payment Request API for Apple/Google Pay, and
+          // restricting it would break wallet checkout.
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+          },
+          // CSP in REPORT-ONLY mode — blocks nothing, logs would-be violations to
+          // the console. See the CONTENT_SECURITY_POLICY note above for how to
+          // verify then flip to enforcing.
+          {
+            key: "Content-Security-Policy-Report-Only",
+            value: CONTENT_SECURITY_POLICY,
+          },
         ],
       },
     ];
