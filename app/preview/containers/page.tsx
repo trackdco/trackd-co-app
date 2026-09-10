@@ -23,7 +23,7 @@ const FILLS = [0, 0.25, 0.5, 0.75, 1];
 const CATEGORIES = Object.keys(CATEGORY_META) as CompoundCategory[];
 
 export default function PreviewContainersPage() {
-  if (process.env.VERCEL_ENV === "production") notFound();
+  if (!(process.env.VERCEL_ENV === "preview" || process.env.NODE_ENV === "development")) notFound(); // hide on ALL production hosts (incl. non-Vercel), keep Vercel preview + local dev
 
   return (
     <main className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5">

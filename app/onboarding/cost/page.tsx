@@ -35,7 +35,7 @@ export const metadata: Metadata = {
  * production should never have been indexed from a preview either.
  */
 export default async function CostOptionsPage() {
-  if (process.env.VERCEL_ENV === "production") notFound();
+  if (!(process.env.VERCEL_ENV === "preview" || process.env.NODE_ENV === "development")) notFound(); // hide on ALL production hosts (incl. non-Vercel), keep Vercel preview + local dev
 
   // The real price, from Stripe (spec w2b-15). A harness showing a made-up
   // figure is a harness you cannot judge the screen by.
