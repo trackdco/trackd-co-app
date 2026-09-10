@@ -57,6 +57,8 @@
  * somebody an extra fortnight is a rounding error; one that locks a paying
  * customer out is a support queue and a refund.
  */
+import { timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -79,7 +81,16 @@ const PAGE_SIZE = 200;
 export async function POST(req: Request) {
   const secret = process.env.CRON_SECRET ?? "";
   const auth = req.headers.get("authorization") ?? "";
-  if (!secret || auth !== `Bearer ${secret}`) {
+  // Constant-time compare (see notifications/run for the rationale). Still fails
+  // closed when CRON_SECRET is unset.
+  const expected = `Bearer ${secret}`;
+  const authBuf = Buffer.from(auth);
+  const expectedBuf = Buffer.from(expected);
+  const authorized =
+    secret.length > 0 &&
+    authBuf.length === expectedBuf.length &&
+    timingSafeEqual(authBuf, expectedBuf);
+  if (!authorized) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

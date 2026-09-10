@@ -74,6 +74,10 @@ export async function updateSession(request: NextRequest) {
     supabaseUrl,
     supabaseKey,
     {
+      // The proxy is what actually writes the refreshed session cookie on most
+      // requests, so the Secure flag MUST be set here too or the fix in
+      // client.ts/server.ts is incomplete. Secure everywhere but `next dev`.
+      cookieOptions: { secure: process.env.NODE_ENV !== 'development' },
       cookies: {
         getAll() {
           return request.cookies.getAll()

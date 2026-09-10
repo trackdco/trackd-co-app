@@ -188,3 +188,7 @@ condensed_GLBX-*
 # 127.0.0.1 on first run and caches it here. It is regenerated on demand, it is
 # worthless to anybody, and a private key does not go in a repository regardless.
 /scratchpad/harness/.certs/
+
+# Security audit report + working files — never commit (repo has been public)
+SECURITY-AUDIT.md
+.security-audit-work/

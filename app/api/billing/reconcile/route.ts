@@ -49,6 +49,8 @@
  * incomplete is the whole point: a run that hit a limit must not satisfy a gate
  * that means "we looked and it was fine".
  */
+import { timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { alertOnReport } from "@/lib/billing/reconcile/alert";
@@ -64,7 +66,16 @@ const STATUS_CODE = { clean: 200, dirty: 409, incomplete: 503 } as const;
 export async function POST(req: Request) {
   const secret = process.env.CRON_SECRET ?? "";
   const auth = req.headers.get("authorization") ?? "";
-  if (!secret || auth !== `Bearer ${secret}`) {
+  // Constant-time compare (see notifications/run for the rationale). Still fails
+  // closed when CRON_SECRET is unset.
+  const expected = `Bearer ${secret}`;
+  const authBuf = Buffer.from(auth);
+  const expectedBuf = Buffer.from(expected);
+  const authorized =
+    secret.length > 0 &&
+    authBuf.length === expectedBuf.length &&
+    timingSafeEqual(authBuf, expectedBuf);
+  if (!authorized) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

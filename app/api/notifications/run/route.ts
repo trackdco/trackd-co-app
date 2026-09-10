@@ -11,6 +11,8 @@
  * Node runtime (web-push needs Node crypto). Wire-up: a Supabase pg_cron job
  * POSTs here on a schedule (see Context/next-tasks.md / architecture.md).
  */
+import { timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -26,7 +28,18 @@ const FOUNDERS_ONLY = false;
 async function handle(req: Request) {
   const secret = process.env.CRON_SECRET ?? "";
   const auth = req.headers.get("authorization") ?? "";
-  if (!secret || auth !== `Bearer ${secret}`) {
+  // Constant-time compare so the Bearer token can't be recovered byte-by-byte
+  // from response timing. Still fails closed when CRON_SECRET is unset. The
+  // length check is required (timingSafeEqual throws on unequal lengths) and
+  // leaks only the token's length, which is not secret.
+  const expected = `Bearer ${secret}`;
+  const authBuf = Buffer.from(auth);
+  const expectedBuf = Buffer.from(expected);
+  const authorized =
+    secret.length > 0 &&
+    authBuf.length === expectedBuf.length &&
+    timingSafeEqual(authBuf, expectedBuf);
+  if (!authorized) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

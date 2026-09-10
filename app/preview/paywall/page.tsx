@@ -39,7 +39,7 @@ export const metadata: Metadata = {
  * through. `robots: noindex` on top.
  */
 export default async function PaywallPreviewPage() {
-  if (process.env.VERCEL_ENV === "production") notFound();
+  if (!(process.env.VERCEL_ENV === "preview" || process.env.NODE_ENV === "development")) notFound(); // hide on ALL production hosts (incl. non-Vercel), keep Vercel preview + local dev
 
   const prices = await loadPricesSafe();
   return (
