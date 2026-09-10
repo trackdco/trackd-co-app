@@ -37,8 +37,22 @@ export const DELETE_ACCOUNT_COPY = {
     "All of your compounds, doses, photos, bloodwork and metrics will be " +
     "completely erased and unrecoverable.",
 
-  /** Sits above the input. Names the word in the case it must be typed in. */
-  inputLabel: "Type DELETE to confirm",
+  /**
+   * Sits above the input. Names the word in the case it must be typed in.
+   *
+   * ⚠️ DOUBLE quotes, and STRAIGHT ones (U+0022). Adrian, 2026-09-10, issued as
+   * the literal line `Type "DELETE" to confirm`. They go around the word only,
+   * so it reads as the exact string to type rather than as a sentence. Straight
+   * rather than curly for the same reason `dismiss` keeps its straight
+   * apostrophe - see the module comment. Single quotes were wrong on the first
+   * pass; do not "correct" them back.
+   *
+   * ⚠️ **`DELETE` STAYS UPPERCASE, AND THAT IS LOAD-BEARING.** `deletionConfirmed`
+   * compares against {@link DELETE_ACCOUNT_COPY.placeholder} case-SENSITIVELY, so
+   * lowercasing this label would instruct somebody to type a word that cannot
+   * arm the button.
+   */
+  inputLabel: 'Type "DELETE" to confirm',
 
   placeholder: "DELETE",
 

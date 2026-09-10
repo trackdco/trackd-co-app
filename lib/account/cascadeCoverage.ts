@@ -48,10 +48,14 @@ import { join } from "node:path";
  * covering all 41 constraints is the complement to this, and that one is a
  * point-in-time measurement rather than a standing check.
  *
- * ## ⚠️ FOUR SHAPES IT IS BLIND TO. MEASURED, NOT GUESSED.
+ * ## ⚠️ SHAPES IT IS BLIND TO. MEASURED, NOT GUESSED — AND NOT A CLOSED LIST.
  *
- * A cold review ran this module's own regex over fixtures. Each of these
- * produces ZERO matches, so the scan reports a clean tree:
+ * ⚠️ **This said FOUR and read as exhaustive. It is not.** A second cold review
+ * ran the same regex over more fixtures and found two more, so treat what
+ * follows as the shapes that have been LOOKED FOR, never as the shapes that
+ * exist. The next person to add one should append rather than assume.
+ *
+ * Each of these produces ZERO matches, so the scan reports a clean tree:
  *
  *     references profiles on delete no action      no column list, valid Postgres
  *     references "public"."profiles"("id")         quoted identifiers, pg_dump style
@@ -61,6 +65,32 @@ import { join } from "node:path";
  * ⚠️ **The last one is the case this comment's own opening claims to catch**, and
  * it does not. A new user-scoped table with no foreign key would survive a
  * deletion, and `verifyErased` reads only five tables, so nothing would say so.
+ *
+ * And these two produce a match that reports CASCADING, which is worse than no
+ * match at all — the tree looks actively healthy (measured 2026-09-08):
+ *
+ *     alter table x drop constraint x_user_id_fkey;
+ *         A later migration REVOKING a cascading key. Every file is read
+ *         independently and additively, so the original `create table` still
+ *         matches and still says `on delete cascade`. **This scanner has no
+ *         notion of a migration undoing an earlier one.**
+ *
+ *     child.parent_id -> parent(id) on delete set null, parent.user_id -> profiles
+ *         A TRANSITIVE table. Only direct references to a cascade root are
+ *         matched, so a broken middle link is invisible. `set null` is the
+ *         dangerous rule here: the parent goes, the child SURVIVES holding user
+ *         data. (`restrict`/`no action` in that position fails loudly instead,
+ *         because the delete itself errors.)
+ *
+ * Two further shapes were checked and are NOT holes, recorded so they are not
+ * re-investigated: a drop-and-re-add WITHOUT cascade is caught, and an
+ * `on delete cascade` pushed past the 80-character trailing window fails in the
+ * safe direction (it reports non-cascading when it cascades).
+ *
+ * ⚠️ {@link SQL_ROOT} is `supabase`, so any `.sql` outside it is unread —
+ * `scripts/verify_013_stack_dating.sql` is the one that exists today. It is a
+ * verification script rather than schema, but a migration parked in `scripts/`
+ * would be invisible.
  *
  * **Deliberately NOT widened**, on the founder's ruling of 2026-09-08: widening
  * a read is where this project introduces new failure modes, and this was

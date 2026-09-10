@@ -64,10 +64,90 @@ the two §5 boxes that need a browser, and then the re-run.
       it is, it changes money-adjacent teardown behaviour and carries a
       confirmation step. Take a decision number when ruled.
 
-- [ ] **⚠️ ADRIAN: rule on `Q108`.** What should a failed sign-out do to a
-      deletion that has already completed? The error is now read and logged and
-      no behaviour changed. The residue is a still-valid access token that a
-      second open tab can use to upload into the just-swept prefix.
+- [x] ~~**⚠️ ADRIAN: rule on `Q108`.**~~ **RULED 2026-09-10 (D117): NO BEHAVIOUR
+      CHANGE. A failed sign-out does not fail the deletion, and the log stays a
+      log.** Adrian delegated the call; the reasoning is below so it can be
+      overturned on argument rather than re-derived.
+
+      **Why nothing changes.** By the time `signOut` can fail the account is
+      already gone, so there is nothing to fail back to. Returning a failure
+      would tell somebody to retry a deletion that has already completed - the
+      exact class of untruth the previous three rounds were spent removing.
+
+      **Why that is safe rather than merely convenient, measured 2026-09-08.**
+      The sign-out was never what made the session dead; `clearAuthCookies()`
+      is, and it runs UNCONDITIONALLY after `signOut` rather than behind its
+      error. Driven end to end against a deleted account: the cookie jar holds
+      **zero** `sb-*auth-token` cookies, a replayed cookie lands on `/login`,
+      `auth/v1/user` answers 403 `user_not_found`, and a REST read returns an
+      empty set. So a failed `signOut` costs nothing the cookie clear has not
+      already taken.
+
+      **The one residue that was real is now bounded, and that is the actual
+      mitigation.** The still-valid access token could WRITE into the swept
+      storage prefix. Adrian cut the Supabase JWT lifetime from 3600s to
+      **300s** on 2026-09-10 - verified by reading `exp - iat` off a freshly
+      issued token, 60 minutes down to **5**. The window is not closed, because
+      a signed JWT cannot be revoked, but it is 92% smaller and it is the lever
+      that actually moved rather than a code change that would not have.
+
+      ⚠️ **What this ruling does NOT settle, deliberately.** The
+      `ERASURE UNVERIFIED` and failed-sign-out lines still have **no audience** -
+      nothing pages anybody. Routing them into `lib/billing/reconcile/alert.ts`
+      is a separate decision and is still open; see the item below. A ruling that
+      "the log stays a log" is only honest if somebody eventually reads the log.
+
+- [ ] **⚠️ ADRIAN: does anything READ the deletion logs?** Falls out of D117.
+      `ERASURE UNVERIFIED` and the failed-sign-out line are greppable and
+      unwatched. A push alerter exists but is bound to spec 11's reconciliation
+      report, so pointing this at it is its own decision with its own noise
+      budget. Until then, an incomplete erasure is recorded and unnoticed - which
+      is the accepted trade, not a defect, but it is accepted on the assumption
+      somebody looks.
+
+      **⚠️ THE RESIDUE IS NOW MEASURED, and it is bigger than "a second tab".**
+      Cold review 3B drove it 2026-09-08: the window is **60 minutes** (the
+      token's own `exp`), and within it a **Storage INSERT into the deleted
+      user's prefix returns 200 and creates the object**. Reads leak nothing and
+      the app itself rejects the token — this is write-only. The object that
+      results has no row and no auth user, so **no sweep can ever reach it**,
+      because the sweep keys on a user id that no longer exists. Permanent, in a
+      health-data bucket, under copy reading "completely erased". Full
+      measurement and reproduction in `Context/progress-tracker.md` → "Q108
+      ANSWERED".
+
+      ⚠️ **No code change closes it** — a signed JWT cannot be revoked. Two
+      levers, both Adrian's, neither taken: (1) shorten the **JWT lifetime** in
+      the Supabase dashboard, which costs every user more token refreshes;
+      (2) add a **bucket INSERT policy** requiring the caller's `auth.uid()` to
+      still exist in `auth.users`, which needs a `SECURITY DEFINER` helper
+      because `authenticated` cannot read `auth.users`.
+
+- [ ] **⚠️ `npm run dev:lan` DOES NOT WORK ON ADRIAN'S MAC. Do not reach for it.**
+      Measured 2026-09-10, three times, both bundlers. `next dev -H 0.0.0.0`
+      binds the port, prints `✓ Ready`, and then **serves nothing** - every
+      request hangs forever at 0% CPU, including static assets, with the log
+      stuck on `○ Compiling proxy ...`. It is not the firewall (disabled), not
+      `.next` (reproduced on a freshly deleted one), not the network (Google
+      Fonts and Supabase both answer in under a second), and not Turbopack
+      (`--webpack` hangs identically). The same command hung for another session
+      on the same day. **`-H 127.0.0.1` returns 200 immediately**, so the bind
+      itself is the fault.
+
+      ⚠️ It also leaves a **stale `.next/dev/lock`** naming its own dead pid,
+      which silently wedges every server started afterwards - the failure looks
+      like "my new dev server is broken" and is really "the old lock is still
+      there". If servers hang for no reason, `cat .next/dev/lock`, check whether
+      that pid is alive, and delete it if not.
+
+      **To reach the dev server from a phone**, run it normally on loopback and
+      put a TCP forwarder in front rather than changing the bind:
+
+          nohup npx next dev -H 127.0.0.1 -p 3100 &
+          # then forward 0.0.0.0:3101 -> 127.0.0.1:3100 (raw TCP, ~10 lines of node)
+
+      Verified working end to end on an iPhone over wifi. Root cause of the
+      `0.0.0.0` hang is NOT diagnosed; the workaround is what is proven.
 
 - [ ] **Drive it at 390x844 on `http://localhost:3100`.** Still not ticked, and
       no source review substitutes for it. Focus behaviour after a FAILED

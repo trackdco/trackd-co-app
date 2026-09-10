@@ -117,8 +117,25 @@ const CONFIRMATION = "DELETE";
  * property of a signed JWT and no cookie clear can revoke it: a token already
  * copied out of the browser keeps working until expiry. Deleting the auth user
  * revokes the REFRESH token, so the session cannot be extended, which bounds the
- * exposure to one token lifetime. **The configured lifetime is a Supabase
- * dashboard setting and CANNOT BE CHECKED from this repository.**
+ * exposure to one token lifetime.
+ *
+ * ⚠️ **THAT LIFETIME IS 60 MINUTES. MEASURED 2026-09-08.** This used to say it
+ * "cannot be checked from this repository", which was true only of the
+ * repository and false of the question. A claim that something is uncheckable is
+ * what stops the next person checking it, so here is how it was checked, from
+ * OUTSIDE: sign in, read the `sb-*auth-token` cookie, base64-decode the JWT's
+ * payload and read `exp`. It came back 3600s ahead of issue. The dashboard
+ * setting is still the authority and can be changed without touching this file,
+ * so treat 60 minutes as a measurement with a date on it, not a constant.
+ *
+ * ⚠️ **AND THE WINDOW IS WRITEABLE, NOT MERELY VALID.** Driven the same day
+ * against a fully deleted account: `auth/v1/user` answers 403 `user_not_found`,
+ * the app rejects a replayed cookie and lands on `/login`, and a REST read
+ * returns an empty set - but a **Storage INSERT into the deleted user's own
+ * prefix answers 200 and creates the object.** The result has no row and no auth
+ * user, which is the orphan shape `lib/storage/sweep.ts` records live instances
+ * of. See Q108 in `Context/progress-tracker.md` for the reproduction and why no
+ * code change here closes it.
  *
  * ## Matched by name, so chunked cookies go too
  *

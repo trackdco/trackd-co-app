@@ -395,7 +395,35 @@ export function DeleteAccountDialog({
                 autoCorrect="off"
                 autoCapitalize="none"
                 spellCheck={false}
-                className="mt-1.5 h-11 w-full rounded-xl border border-border-strong bg-bg-base px-3 font-mono text-sm text-foreground outline-none transition-colors placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                /**
+                 * ⚠️ DESTRUCTIVE RED, NOT THE DEFAULT AMBER (Adrian, 2026-09-10).
+                 *
+                 * `--ring` is `--accent-amber`, so the stock `ring-ring` lit this
+                 * field amber on focus - the same colour the app uses for neutral
+                 * emphasis everywhere else. On the one field that arms an
+                 * irreversible deletion that reads as ordinary.
+                 *
+                 * `--accent-destructive` is the documented token for exactly this
+                 * ("deep red, for deliberate destructive actions - sign out,
+                 * delete", `ui-context.md` §Colour), and the fill and border
+                 * opacities are existing house values rather than new ones.
+                 *
+                 * ⚠️ `outline-accent-destructive` IS LOAD-BEARING, NOT BELT AND
+                 * BRACES. `globals.css`'s base layer applies `outline-ring/50` to
+                 * `*`, and `--ring` is `--accent-amber` - so this field inherited
+                 * a pale amber outline colour. Adrian saw it on an iPhone and read
+                 * it as WHITE, which is exactly what a 50%-alpha tan reads as on a
+                 * dark ground. `outline-none` sets the STYLE and leaves that colour
+                 * behind for iOS Safari to paint its own ring with, so the colour
+                 * has to be pinned too. Measured in Chromium: the computed
+                 * outline-color was `oklab(0.671 0.041 0.130 / 0.5)`, i.e. #C8861A
+                 * at half alpha.
+                 *
+                 * ⚠️ The placeholder is RED, not `text-text-subtle`. Grey was the
+                 * default and it made the one word somebody has to copy read as
+                 * disabled text on a field that is anything but.
+                 */
+                className="mt-1.5 h-11 w-full rounded-xl border border-accent-destructive bg-accent-destructive/25 px-3 font-mono text-sm text-foreground outline-none outline-accent-destructive transition-colors placeholder:text-accent-destructive-on-surface/60 focus-visible:ring-2 focus-visible:ring-accent-destructive disabled:opacity-50"
               />
 
               {error ? (

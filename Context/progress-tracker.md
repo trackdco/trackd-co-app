@@ -4559,6 +4559,107 @@ with no failure path reaching the wipe; the cookie clear is correctly gated
 behind a successful deletion, catches the chunks, spares unrelated cookies, and
 its `path` normalisation actually lands.
 
+## Cold review 3B — the changed paths, driven (2026-09-08)
+
+All five changed paths were driven end to end against the real project on a real
+browser (iPhone 13 viewport, `localhost:3100`) with three seeded
+`@trackd-qa.invalid` accounts, torn down by id. **All five hold.**
+
+Method note worth keeping: completeness was checked by **brute-scanning every
+public table by column type** — every `uuid` column and every email-ish text
+column — rather than by walking a hand-maintained table list. A list can only
+find what it already knows. Result: not one row anywhere referenced the three
+deleted users; `auth.users` 0, `storage.objects.owner` 0. `blocks` and
+`block_targets` were seeded and cascaded with the rest (33/33 tables, 4/4 sweep
+buckets). The confirmation-read failure has **no organic trigger** (all five of
+its tables cascade), so it was driven with a temporary sentinel-gated injection
+that proved it fired; the file was restored byte-identical (sha256 verified).
+
+### ⚠️ Q108 ANSWERED — the post-deletion write window. RECORDED, NOT FIXED.
+
+**The measurement.** A deleted user's access token stays valid for **60 minutes**
+(measured 2026-09-08 by base64-decoding `exp` out of the `sb-*auth-token` cookie;
+3600s ahead of issue). `delete-account-action.ts` previously said this "CANNOT BE
+CHECKED from this repository" — true of the repository, false of the question.
+Corrected in place, with the method, because *a claim that something is
+uncheckable is what stops the next person checking it*.
+
+**What the window actually permits.** Driven against a fully deleted account:
+
+    auth/v1/user            403 user_not_found      ✅ auth API rejects
+    replayed cookie -> app  lands on /login         ✅ the app rejects it
+    REST read own profile   200, empty set          ✅ no data leak
+    STORAGE INSERT          200, OBJECT CREATED     ❌ into the deleted prefix
+
+**Why it is worse than "a residue".** The created object has no row and no auth
+user, so **no sweep can ever reach it**: `sweepUserStorage` keys on a user id
+that no longer exists, and nothing will ever run it for that id again. The result
+is permanent, sits in a health-data bucket, and stands under signed copy reading
+"completely erased and unrecoverable". It is the same orphan shape
+`lib/storage/sweep.ts` already documents live instances of on production.
+
+**Reproduction.** Sign in, read `access_token` from the auth cookie, complete the
+deletion, then `POST {SUPABASE_URL}/storage/v1/object/progress-photos/{deleted-
+uid}/x.png` with `apikey: <publishable>` and `Authorization: Bearer <token>`.
+Returns 200. (The object created while proving this was removed.)
+
+**⚠️ NO CODE CHANGE CLOSES IT, and that is the point.** A signed JWT cannot be
+revoked. The two levers are a **shorter dashboard JWT lifetime** and possibly a
+**bucket INSERT policy** that requires the caller's `auth.uid()` to still exist.
+Both are Adrian's.
+
+### ✅ D117 (2026-09-10) — Q108 RULED. No behaviour change, and the window cut to 5 minutes.
+
+**Lever taken: the JWT lifetime.** Adrian set the Supabase access-token expiry
+from 3600s to **300s**. Verified from outside rather than from the dashboard, by
+signing in and reading `exp - iat` off a freshly issued token: **300s, 5
+minutes**, down from the 60 measured on 2026-09-08. The post-deletion write
+window is 92% smaller. It is not closed and cannot be.
+
+**Lever NOT taken: the bucket INSERT policy.** Expressible - Storage policies are
+ordinary RLS and a `WITH CHECK` may subquery - but not in the obvious form: the
+policy runs as `authenticated`, which has no SELECT on `auth.users`, so the naive
+version denies EVERY upload. It needs a `SECURITY DEFINER`, `STABLE` helper with
+a locked `search_path`. Runtime cost is one PK lookup and negligible; the real
+costs are a new privilege surface, four bucket policies to keep in sync (a fifth
+bucket added later silently reopens the hole - the same "complete by convention"
+failure the cascade guard exists for), and INSERT-only coverage unless UPDATE and
+DELETE get the same clause. Not worth it against a 5-minute window. Revisit only
+if the window has to grow again.
+
+**And the sign-out question itself: nothing changes.** `signOut` was never what
+ended the session - `clearAuthCookies()` is, and it already runs unconditionally
+rather than behind `signOut`'s error. Measured on a deleted account: zero
+`sb-*auth-token` cookies in the jar, a replayed cookie lands on `/login`,
+`auth/v1/user` 403s, a REST read returns empty. Failing the deletion over a
+failed sign-out would tell somebody to retry a deletion that had already
+completed, which is the untruth three rounds were spent removing. Full reasoning
+in `Context/next-tasks.md` under D117.
+
+⚠️ **Left open on purpose:** nothing reads the deletion logs. `ERASURE
+UNVERIFIED` and the failed-sign-out line are greppable and unwatched. D117 is
+honest only if somebody eventually looks; that routing is a separate decision.
+
+### The cascade guard's blind-shape list was not exhaustive
+
+`cascadeCoverage.ts` claimed "FOUR SHAPES IT IS BLIND TO". At least six. The two
+added: a later `alter table … drop constraint` that REVOKES a cascading key (the
+scanner reads files additively and independently, so the original `create table`
+still reports cascading), and a TRANSITIVE table whose middle link is
+`on delete set null` (only direct references to a root are matched, and the child
+survives holding user data). Also recorded: `SQL_ROOT` is `supabase`, so any
+`.sql` outside it is unread. **The scanner was deliberately NOT widened — the
+earlier ruling stands.** The comment was corrected and now says the list is open,
+not closed. Production remains clean: 41 FKs, all cascading, re-measured.
+
+### Not a defect, recorded so it is not re-chased
+
+`trackd.onboarding.v1` is PRESENT after a completed deletion. It is wiped
+correctly and then re-created **empty** by `/onboarding`, which is where the
+post-deletion redirect lands: its value reads `{"name":null,"dob":null,
+"sex":null,…}`. Verifying the device wipe by key PRESENCE rather than by VALUE
+will produce a false failure here.
+
 ## Environment
 
 - Supabase project ref `boqqracwdpuisgvwbqlc`; hosted MCP in `.mcp.json` (OAuth
