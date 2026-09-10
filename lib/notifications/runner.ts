@@ -1133,12 +1133,26 @@ export async function runForUser(
      * the message is a count of late doses. The cutoff survives as the fallback
      * for a compound with NO dose time, which has no moment to measure from.
      *
-     * ⚠️ ONE NUDGE A DAY, unchanged: `last_missed_nudge_on` is a single column
-     * and the first overdue dose spends it. That is a real trade against the old
-     * fixed sweep, which caught the whole day at once — see the branch notes.
+     * ⚠️ IT STILL FIRES AT THE CUTOFF, and that is deliberate rather than
+     * leftover. The first version of this fix fired the moment ANY dose went
+     * overdue, which sounds better and is worse: `last_missed_nudge_on` is a
+     * single column, so one nudge a day is all there is, and the earliest late
+     * dose would spend it. Miss your morning vitamin and you would be told at
+     * lunchtime and then hear nothing about the evening injection you also
+     * forgot. The evening sweep is the one moment a single daily message can
+     * cover the whole day, so the time stays and only the CONTENT is narrowed.
+     *
+     * Firing per dose is the honest way to have it both ways, and it is a
+     * product decision about how noisy this app is rather than a repair. Not
+     * taken here (Adrian, 2026-09-08).
      */
     const overdue = overdueUnlogged(due, data.nowMinutes, waitMin, missedMin);
-    if (missedOn && overdue.length > 0 && p.last_missed_nudge_on !== data.todayKey) {
+    if (
+      missedOn &&
+      overdue.length > 0 &&
+      data.nowMinutes >= missedMin &&
+      p.last_missed_nudge_on !== data.todayKey
+    ) {
       const m = missedNudgeMessage(overdue);
       if (m) {
         messages.push(m);

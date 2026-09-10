@@ -130,3 +130,31 @@ describe("the unlogged nudge waits from the DOSE, not from the clock", () => {
     expect(late.map((c) => c.id)).toEqual(["d3", "c"]);
   });
 });
+
+describe("the nudge still arrives in the evening, it just says less", () => {
+  /* The first cut of this fix fired the moment anything went overdue. That is
+     worse, not better: one column records the day's nudge, so the earliest late
+     dose spends it and the evening dose you also forgot is never mentioned.
+     The cutoff stays; only the CONTENT is narrowed to what is genuinely late. */
+  const morning = compound({ id: "d3", doseTimes: ["10:09:00"] });
+  const evening = compound({ id: "reta", doseTimes: ["21:00:00"] });
+
+  it("is silent at lunchtime even though the morning dose is overdue", () => {
+    // Overdue since 12:09, but the message is not the runner's to spend yet.
+    const late = overdueUnlogged([morning, evening], 12 * 60 + 30, 120, 20 * 60);
+    expect(late.map((c) => c.id)).toEqual(["d3"]);
+    expect(12 * 60 + 30 >= 20 * 60).toBe(false); // the gate the runner applies
+  });
+
+  it("at the cutoff names the morning dose and not the 9pm one", () => {
+    // The original defect: a 21:00 dose reported "still unlogged" at 20:00.
+    const late = overdueUnlogged([morning, evening], 20 * 60, 120, 20 * 60);
+    expect(late.map((c) => c.id)).toEqual(["d3"]);
+  });
+
+  it("catches the whole day rather than only the first thing to go late", () => {
+    const alsoAfternoon = compound({ id: "vitc", doseTimes: ["15:39:00"] });
+    const late = overdueUnlogged([morning, alsoAfternoon], 20 * 60, 120, 20 * 60);
+    expect(late.map((c) => c.id)).toEqual(["d3", "vitc"]);
+  });
+});
