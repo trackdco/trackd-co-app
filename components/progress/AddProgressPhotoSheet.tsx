@@ -6,7 +6,6 @@ import { Camera, Check, CircleNotch, Plus, X } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { PoseIcon } from "@/components/progress/PoseIcon";
@@ -16,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { addProgressPhotos } from "@/app/(app)/progress/actions";
 import { logWeight } from "@/app/(app)/weight/actions";
 import { DropUp } from "@/components/layout/DropUp";
+import { formatDateKeyShort } from "@/lib/home/stack";
 import { DEFAULT_POSES, poseLabel, poseShape } from "@/lib/progress/photos";
 import {
   PhotoAdjustSheet,
@@ -92,7 +92,6 @@ export function AddProgressPhotoSheet({
   const [extraPoses, setExtraPoses] = useState<string[]>(customPoses);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [drawnOn, setDrawnOn] = useState(initialDate ?? todayKey);
-  const [note, setNote] = useState("");
   const [weight, setWeight] = useState("");
   /** The weight drop-up. Closed on open: this sheet leads with the photos. */
   const [weightOpen, setWeightOpen] = useState(false);
@@ -115,7 +114,6 @@ export function AddProgressPhotoSheet({
       setExtraPoses(customPoses);
       setPickerOpen(false);
       setDrawnOn(initialDate ?? todayKey);
-      setNote("");
       setWeight("");
       setError(null);
       // Otherwise closing the sheet mid-adjust and reopening it would land you
@@ -259,7 +257,12 @@ export function AddProgressPhotoSheet({
         uploaded.push(path);
         items.push({ pose: a.pose, storagePath: path });
       }
-      const res = await addProgressPhotos(drawnOn, note, items);
+      // Notes were removed from this sheet (Adrian, 2026-09-11). The ARGUMENT
+      // stays: `progress_photos.note` still holds every note already written,
+      // and `ProgressPhotoViewer` and `EditDaySheet` still render them. Dropping
+      // the column or the parameter would delete other people's writing to tidy
+      // up a form.
+      const res = await addProgressPhotos(drawnOn, "", items);
       if (!res.ok) throw new Error(res.error ?? "Couldn't save. Try again.");
       // Log the weight for this date too (best-effort — the photos are saved).
       if (weightKg != null) await logWeight(weightKg, drawnOn);
@@ -390,27 +393,22 @@ export function AddProgressPhotoSheet({
               className="hidden"
             />
 
-            {/* Date */}
-            <label className="mt-5 block">
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                Date
-              </span>
-              <Input
-                type="date"
-                value={drawnOn}
-                max={todayKey}
-                onChange={(e) => {
-                  // An EMPTY change event is not "today". iOS fires one while the
-                  // picker wheels are still moving, and coercing it to today snapped
-                  // the field back mid-pick — so a back-dated entry saved silently
-                  // under today's date. Keep the last good value; the field is
-                  // required, so there is nothing it should clear to.
-                  if (e.target.value) setDrawnOn(e.target.value)
-                }}
-                aria-label="Date taken"
-                className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
-              />
-            </label>
+            {/* THE DATE IS STATED, NOT PICKED (Adrian, 2026-09-11).
+                A photo is taken now and filed now; the picker was a control
+                almost nobody moved, sitting between the poses and Save.
+
+                ⚠️ IT IS NOT HARDCODED TO TODAY, and that distinction is the
+                whole of this block. `openAdd` in `ProgressPhotoSection` is
+                called from the day editor with THAT day's date, so "add a photo
+                to 6 September" still files to 6 September. Forcing today would
+                silently misfile it, which is the same failure the picker's old
+                onChange comment was written to prevent.
+
+                So it is read-only rather than absent: auto in the normal case,
+                and honest in the back-dated one. */}
+            <p className="mt-5 px-1 text-xs text-text-subtle">
+              {drawnOn === todayKey ? "Dated today" : `Dated ${formatDateKeyShort(drawnOn)}`}
+            </p>
 
             {/* WEIGHT, BEHIND A DROP-UP (Adrian, 2026-09-11).
                 The mirror of what "Log weight" now does with photos, and
@@ -445,35 +443,15 @@ export function AddProgressPhotoSheet({
             </label>
             </DropUp>
 
-            {/* Notes */}
-            <label className="mt-4 block">
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                Notes <span className="normal-case text-text-subtle">(optional)</span>
-              </span>
-              <Textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="How the physique's looking: conditioning, pumps, anything worth noting…"
-                rows={3}
-                maxLength={2000}
-                className="rounded-xl border-border-default bg-bg-input text-sm dark:bg-bg-input"
-              />
-            </label>
-
             {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
             <div className="h-2" />
           </div>
 
-          {/* Action bar */}
-          <div className="flex shrink-0 gap-3 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="flex items-center justify-center gap-2 rounded-xl border border-border-strong px-4 py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary"
-            >
-              <X className="h-4 w-4" aria-hidden />
-              Cancel
-            </button>
+          {/* Action bar. ONE control (Adrian, 2026-09-11): Cancel was removed,
+              so Save has the whole bar. Dismissal is the grab handle, a drag
+              down, the scrim, or Escape, which is how every other sheet in the
+              app is already dismissed. */}
+          <div className="flex shrink-0 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
             <button
               type="button"
               onClick={handleSave}

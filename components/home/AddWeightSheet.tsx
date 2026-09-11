@@ -15,6 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { DropUp } from "@/components/layout/DropUp"
+import { DESKTOP_QUERY } from "@/lib/desktop/breakpoint"
 import { PoseIcon } from "@/components/progress/PoseIcon"
 import { PosePicker } from "@/components/progress/PosePicker"
 import { createClient } from "@/lib/supabase/client"
@@ -126,6 +127,34 @@ function AddWeightBody({
   const [attachments, setAttachments] = useState<Record<string, Attachment>>({})
   /** The photos drop-up. Closed on open: this sheet leads with the weight. */
   const [photosOpen, setPhotosOpen] = useState(false)
+
+  /**
+   * NO AUTOFOCUS ON A PHONE (Adrian, 2026-09-11: "can you do it so weight
+   * doesn't open up on keyboard, the flow feels a bit choppy").
+   *
+   * The field carried React's `autoFocus`, which quietly overrode the careful
+   * default in the protected sheet primitive — `onOpenAutoFocus` there prevents
+   * exactly this, and its comment says Radix otherwise "springs the mobile
+   * keyboard up unbidden". So the one sheet that opted back in got the keyboard
+   * rising THROUGH its own 300ms entrance, which is most of the choppiness: the
+   * sheet slides up, the keyboard slides up, and the bottom nav slides out, all
+   * at once and on three different clocks.
+   *
+   * Focus is not dropped, it is MOVED to where it costs nothing. On a laptop
+   * there is no keyboard to raise and no viewport to resize, so the field takes
+   * focus a frame after mount and you can just type. The query is the desktop
+   * shell's own, so the two can never disagree about what a laptop is.
+   *
+   * `requestAnimationFrame` rather than a bare call: Radix moves focus to the
+   * content on open, and focusing in the same tick is a race with it.
+   */
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return
+    if (!window.matchMedia(DESKTOP_QUERY).matches) return
+    const raf = requestAnimationFrame(() => inputRef.current?.focus())
+    return () => cancelAnimationFrame(raf)
+  }, [])
   const [extraPoses, setExtraPoses] = useState<string[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   // The pose whose photo is mid-adjustment. Null = no adjust step open.
@@ -323,7 +352,7 @@ function AddWeightBody({
           </span>
           <div className="relative">
             <Input
-              autoFocus
+              ref={inputRef}
               inputMode="decimal"
               value={value}
               onChange={(e) => {
