@@ -1,5 +1,36 @@
 # Progress Tracker
 
+## ✅ SHIPPED — desktop is on production (2026-09-11)
+
+`desktop-app` was rebased onto `origin/main` (picking up the two notification-runner
+commits), verified, and fast-forwarded onto `main` at `d5383b7`. Vercel deployed it.
+
+**Verified on production, both widths, zero JS errors:** the laptop gets the
+sign-in form it was refused until today, the desktop layer is in the shipped CSS,
+and the phone gets no shell, no horizontal scroll and the same form it always had.
+
+**The phone was proven unchanged, not asserted.** A worktree on `origin/main` ran
+beside the branch and both were rendered at iPhone 13 / 390px across nine routes:
+pixels identical on all nine, and the visible DOM identical byte-for-byte once the
+additive `data-*` attributes are stripped. The only other deltas are the deleted
+`DesktopGate` wrapper on `/login` (intended) and Next's per-build Server Action id
+hashes.
+
+⚠️ **AND THE PHONE GOT FASTER.** The branch ships ~18KB LESS per route and nine
+fewer `<script>` tags. `DesktopInterstitial` was passed as a prop to a client
+component, so Next serialised its whole element tree into the RSC flight payload
+on every route — including ones that never rendered it. `/login` went from 58,891
+bytes to 24,154 on production. That cost was invisible for as long as it existed.
+
+### Still true and still outstanding
+- 26 of 40 sheets have no visible close control on desktop. Escape and click-away
+  work. The fix is one line in the PROTECTED `components/ui/sheet.tsx` and is
+  Adrian's call.
+- Nobody has driven the app signed in against real rows. Everything verified so
+  far is seeded fixtures.
+- Negative UTC offsets unexercised; no ended-cycle fixture; `beforeinstallprompt`
+  on real desktop Chrome simulated rather than observed.
+
 ## ✅ THE COLD REVIEW LANDED, AND IT WAS WORTH DOING (2026-09-11)
 
 Five defects on `desktop-app`, all fixed. The one that mattered is the first,
@@ -53,7 +84,7 @@ other.** Worth remembering next time the question is "do we still need a cold
 review".
 
 
-## ✅ DESKTOP IS BUILT (2026-09-10) — branch `desktop-app`, NOT merged
+## ✅ DESKTOP IS LIVE (merged and deployed 2026-09-11, commit `d5383b7`)
 
 Trackd runs on a laptop. Adrian's brief: make it look like a computer-native app,
 not a phone layout taken to a computer, and **change nothing about the phone**.

@@ -1,6 +1,6 @@
 # Next Tasks
 
-## 🖥️ DESKTOP — BUILT AND AWAITING REVIEW (branch `desktop-app`, 2026-09-10)
+## ✅ DESKTOP — MERGED AND DEPLOYED (2026-09-11, `d5383b7`)
 
 The build is done and verified. What is left is Adrian's, in this order.
 
@@ -40,8 +40,11 @@ and the brief was to change no features:
   `orientation: "portrait"`, which would force an installed desktop PWA into a
   portrait window. **Check this before offering desktop install.**
 
-### 4. Merge
-Nothing has been merged. `desktop-app` is cut from `main` at `d38e686`.
+### 4. Merge — DONE
+Rebased onto `origin/main`, fast-forwarded to `main` at `d5383b7`, pushed, and
+deployed. Production verified at 1440px and 390px with zero JS errors. The
+pre-rebase state is parked locally at `backup/desktop-app-prerebase` and can be
+deleted once you are happy.
 
 
 The **windscreen** — the concrete next steps. This file says *what to do next*;
