@@ -15,6 +15,7 @@ import { SHEET_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/client";
 import { addProgressPhotos } from "@/app/(app)/progress/actions";
 import { logWeight } from "@/app/(app)/weight/actions";
+import { DropUp } from "@/components/layout/DropUp";
 import { DEFAULT_POSES, poseLabel, poseShape } from "@/lib/progress/photos";
 import {
   PhotoAdjustSheet,
@@ -93,6 +94,8 @@ export function AddProgressPhotoSheet({
   const [drawnOn, setDrawnOn] = useState(initialDate ?? todayKey);
   const [note, setNote] = useState("");
   const [weight, setWeight] = useState("");
+  /** The weight drop-up. Closed on open: this sheet leads with the photos. */
+  const [weightOpen, setWeightOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The pose whose photo is mid-adjustment, with the image being framed. Null =
@@ -204,6 +207,9 @@ export function AddProgressPhotoSheet({
     if (weight.trim() !== "") {
       const num = Number(weight);
       if (!Number.isFinite(num)) {
+        // Open the panel before complaining about what is inside it: an error
+        // about a field the user cannot see is an error they cannot fix.
+        setWeightOpen(true);
         setError("Enter a valid weight, or leave it blank.");
         return;
       }
@@ -388,12 +394,17 @@ export function AddProgressPhotoSheet({
               />
             </label>
 
-            {/* Weight — optional; logged for the date above so it links to these
-                photos (the mirror of the weight quick-log's attach-photos). */}
-            <label className="mt-4 block">
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                Weight <span className="normal-case text-text-subtle">(optional)</span>
-              </span>
+            {/* WEIGHT, BEHIND A DROP-UP (Adrian, 2026-09-11).
+                The mirror of what "Log weight" now does with photos, and
+                deliberately symmetric: each sheet leads with the thing it is
+                named after and folds the other away. Still logged for the date
+                above, so it still links to these photos. */}
+            <DropUp
+              label="Log today’s weight"
+              open={weightOpen}
+              onOpenChange={setWeightOpen}
+            >
+            <label className="block">
               <div className="relative">
                 <Input
                   inputMode="decimal"
@@ -414,6 +425,7 @@ export function AddProgressPhotoSheet({
                 Saved as your weight for this date.
               </span>
             </label>
+            </DropUp>
 
             {/* Notes */}
             <label className="mt-4 block">

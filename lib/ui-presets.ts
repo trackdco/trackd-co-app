@@ -185,3 +185,36 @@ export const EDIT_TOGGLE =
  * Set `--grow-i` inline to the field's index for the stagger.
  */
 export const GROW_FIELD = "grow-field"
+
+/**
+ * The drop-up trigger — a sheet's secondary offer, as one quiet line.
+ *
+ * `CARD_EYEBROW`'s treatment (10px, tracked, uppercase, muted), because it is
+ * the same small label every card title in the app already wears: it reads as a
+ * heading you could open rather than a second button competing with Save.
+ * Adrian chose it over a full row and a nearly-invisible link, 2026-09-11.
+ *
+ * ⚠️ `min-h-11` IS NOT OPTIONAL. The discretion is spent on the PAINT; the
+ * target stays at Apple's 44px floor. Quiet to look at and small to hit are two
+ * different decisions and only the first one was asked for. `EDIT_TOGGLE`
+ * carries the same note for the same reason.
+ *
+ * Used only through `components/layout/DropUp.tsx`, which owns the panel, the
+ * caret and the motion. Do not hand-roll a second one.
+ */
+export const DROPUP_TRIGGER =
+  "flex w-full min-h-11 items-center gap-2.5 text-[10px] font-sans uppercase " +
+  "tracking-[0.18em] text-text-muted outline-none transition-colors " +
+  "hover:text-foreground focus-visible:text-foreground"
+
+/**
+ * The tally beside a drop-up's label, shown only when non-zero.
+ *
+ * **Deliberately not amber.** Amber means "this needs you now"; a count of
+ * photos already attached is a settled state, and settled reads white or muted
+ * (ui-context → "amber marks what's live"). It brightens when the panel is
+ * open, which is the whole of its emphasis.
+ */
+export const DROPUP_COUNT =
+  "shrink-0 font-mono text-[9px] tracking-[0.08em] text-text-muted transition-colors " +
+  "group-data-[dropup-open=true]:text-foreground"

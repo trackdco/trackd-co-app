@@ -2168,6 +2168,38 @@ svg ::-moz-selection {
   animation: edit-bar-in 320ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
+/* ---------------------------------------------------------------------------
+   DROP-UP ITEM ENTRANCE (components/layout/DropUp.tsx)
+
+   The panel's own growth is a `grid-template-rows` transition set inline, the
+   same idiom the week strip and the calculator's warning already use. This is
+   the second half: the items inside arrive staggered rather than all at once,
+   so the panel reads as filling rather than as appearing.
+
+   26ms between items, set per item as `--dropup-i`. That is not a new number —
+   it is `GROW_FIELD`'s interval, so the app has ONE stagger rather than two
+   that drift apart.
+
+   Scoped to `[data-dropup-open="true"]` so the animation runs on the way IN and
+   nothing replays while the panel is shutting. Ends in the visible state, so
+   switching motion off leaves the items correct rather than stranded.
+   --------------------------------------------------------------------------- */
+@keyframes dropup-item {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-dropup-open="true"] .animate-dropup-item {
+  animation: dropup-item 260ms var(--motion-ease) both;
+  animation-delay: calc(var(--dropup-i, 0) * 26ms);
+}
+
 /* The FAB and the shortcuts layer step aside while an in-place edit is open.
    Driven by a `data-inline-edit` attribute on `<body>` rather than by props,
    because the editing card and the FAB are siblings under the (app) layout with
@@ -2252,7 +2284,8 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .edit-action-bar,
   .grow-field::before,
   .grow-field input,
-  .grow-field select {
+  .grow-field select,
+  [data-dropup-open="true"] .animate-dropup-item {
     animation: none;
   }
 

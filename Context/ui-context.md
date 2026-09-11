@@ -512,6 +512,50 @@ visible state, so switching the animation off leaves them correct. That is the
 opposite of `.animate-flow-confetti`, which needs `display: none` because it ends
 at zero.
 
+### Rule: a sheet leads with one job, and the second one is a drop-up
+
+Adrian, 2026-09-11, from a four-state prototype: **"I like eyebrow. More
+discreet, yet still noticeable if you're looking."**
+
+Two sheets each carried two jobs. "Log weight" opened on a weight field AND a
+permanently-expanded row of pose tiles; "Progress photos" opened on tiles AND a
+weight field. One number and a Save read as a form. Each now leads with the
+thing it is NAMED after and folds the other behind one line.
+
+**`components/layout/DropUp.tsx`, and nothing hand-rolled.** Presets are
+`DROPUP_TRIGGER` and `DROPUP_COUNT`.
+
+- **The trigger is `CARD_EYEBROW`'s treatment** (10px, tracked, uppercase,
+  muted). It is the same small label every card title already wears, so it reads
+  as a heading you could open rather than a second button competing with Save.
+  Chosen over a full row (too loud) and a right-aligned subtle link (invisible
+  on a phone, where there is no hover to reveal it).
+- **⚠️ The discretion is spent on PAINT ONLY.** `min-h-11` keeps Apple's 44px
+  floor whatever the type is doing. Quiet to look at and small to hit are two
+  different decisions and only the first one was asked for; `EDIT_TOGGLE`
+  carries the same note for the same reason.
+- **The count is NOT amber.** Amber means "this needs you now". A tally of
+  photos already attached is a SETTLED state, and settled reads white or muted
+  (see "amber marks what's live" above). It brightens from muted to foreground
+  when the panel opens, and that is the whole of its emphasis.
+- **Motion:** the panel grows on a `grid-template-rows` transition (the idiom
+  the week strip and the calculator's warning already use), **320ms open and
+  220ms closed** — getting out of the way should not be a performance. Items
+  inside arrive staggered via `.animate-dropup-item` with `--dropup-i` set per
+  item, **26ms apart, which is `GROW_FIELD`'s interval rather than a second one
+  invented here.** Both collapse under `prefers-reduced-motion` and both end in
+  the visible state.
+- **The panel stays MOUNTED and is `inert` when closed.** Unmounting gives the
+  grid-rows transition no previous height to run from, so it jumps; `inert` is
+  what keeps its controls out of the tab order meanwhile. Same pairing as Home's
+  collapsible week strip.
+- **An error inside a closed panel opens it first.** An error about a field the
+  user cannot see is an error they cannot fix.
+
+**When to reach for it:** a genuinely OPTIONAL secondary action on a sheet that
+already has a primary one. **Never** to hide a required field, and never two on
+one sheet: a sheet needing two drop-ups is a sheet doing three jobs.
+
 ### Rule: new screens reuse the system
 
 Any new screen (Protocol, Calendar, Settings, …) is composed **only**

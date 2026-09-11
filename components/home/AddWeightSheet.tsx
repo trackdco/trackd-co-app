@@ -14,6 +14,7 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { DropUp } from "@/components/layout/DropUp"
 import { PoseIcon } from "@/components/progress/PoseIcon"
 import { PosePicker } from "@/components/progress/PosePicker"
 import { createClient } from "@/lib/supabase/client"
@@ -123,6 +124,8 @@ function AddWeightBody({
 
   // Progress photos attached to this session, keyed by pose.
   const [attachments, setAttachments] = useState<Record<string, Attachment>>({})
+  /** The photos drop-up. Closed on open: this sheet leads with the weight. */
+  const [photosOpen, setPhotosOpen] = useState(false)
   const [extraPoses, setExtraPoses] = useState<string[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   // The pose whose photo is mid-adjustment. Null = no adjust step open.
@@ -343,20 +346,27 @@ function AddWeightBody({
           </div>
         </label>
 
-        {/* Progress photos — attach right here; saved to today, linked to this weight. */}
-        <div className="mt-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-text-muted">
-            Add a progress photo
-          </p>
-          <p className="mt-0.5 text-xs text-text-subtle">
-            Optional. Dated today.
-          </p>
-
-          <div className="mt-3 flex flex-wrap gap-3">
-            {slots.map((slot) => {
+        {/* PROGRESS PHOTOS, BEHIND A DROP-UP (Adrian, 2026-09-11).
+            This sheet is called "Log weight" and it used to open on a weight
+            field AND a permanently-expanded row of pose tiles, which made one
+            number and a Save read as a form. The photos are still here, still
+            saved to today and still linked to this weight; they are one quiet
+            line away instead of in front of you. */}
+        <DropUp
+          label="Add a progress photo"
+          open={photosOpen}
+          onOpenChange={setPhotosOpen}
+          count={Object.keys(attachments).length}
+        >
+          <div className="flex flex-wrap gap-3">
+            {slots.map((slot, i) => {
               const att = attachments[slot.pose]
               return (
-                <div key={slot.pose} className="animate-shortcut-in flex w-[4.5rem] flex-col items-center gap-1.5">
+                <div
+                  key={slot.pose}
+                  style={{ "--dropup-i": i } as React.CSSProperties}
+                  className="animate-dropup-item flex w-[4.5rem] flex-col items-center gap-1.5"
+                >
                   {/* The tile and the X are separate controls (Spec 05): tapping a
                       FILLED tile re-opens the adjust step on the original with its
                       framing intact, while the X still removes. Nesting them, as
@@ -400,8 +410,11 @@ function AddWeightBody({
               )
             })}
 
-            {/* Add a custom pose. */}
-            <div className="flex w-[4.5rem] flex-col items-center gap-1.5">
+            {/* Add a custom pose. Last in the stagger. */}
+            <div
+              style={{ "--dropup-i": slots.length } as React.CSSProperties}
+              className="animate-dropup-item flex w-[4.5rem] flex-col items-center gap-1.5"
+            >
               <button
                 type="button"
                 onClick={() => setPickerOpen((o) => !o)}
@@ -425,7 +438,7 @@ function AddWeightBody({
               />
             </div>
           )}
-        </div>
+        </DropUp>
 
         {error && <p className="mt-3 px-1 text-xs text-state-error">{error}</p>}
 
