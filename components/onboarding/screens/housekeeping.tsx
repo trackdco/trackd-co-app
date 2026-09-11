@@ -141,7 +141,7 @@ export function BirthdayScreen() {
       // to ask" was an apology for the one question on this flow that is not
       // optional, and apologising for an age gate invites the reader to treat
       // it as negotiable.
-      sub="Trackd.co is for adults only."
+      sub="Trackd Co is for adults only."
       footer={
         <div className="space-y-3">
           {/* THE REFUSAL LIVES HERE, NOT UNDER THE FIELD (Adrian, 2026-08-05).

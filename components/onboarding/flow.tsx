@@ -77,7 +77,7 @@ function Wordmark() {
   return (
     <Image
       src="/trackd-wordmark.png"
-      alt="Trackd.co"
+      alt="Trackd Co"
       width={1049}
       height={200}
       className="h-3 w-auto opacity-70"

@@ -1,5 +1,16 @@
 # Progress Tracker
 
+## ✅ THE DOTTED COMPANY NAME IS GONE FROM THE REPO (2026-09-11)
+
+Adrian asked for every instance of the dotted form of the name removed. Three
+were left on `main`, all in tracked text: the age gate's subtitle (now "Trackd Co
+is for adults only."), the header wordmark's `alt` (now "Trackd Co", matching
+what the PNG reads), and a test fixture email (now `adrian@trackdco.app`, the
+domain the company actually owns). A case-insensitive search of every tracked
+file, binary included, now finds none. The rule is unchanged: the business name
+is **Trackd Co**, legal surfaces say **Trackd Co Pty Ltd**, and the dotted form
+must never reappear — not even quoted in these docs.
+
 ## 🔧 ONBOARDING FITS AN IPHONE SE (2026-09-11, branch `fix/onboarding-short-phone`)
 
 **Reported by Adrian on his dad's iPhone SE:** the pinned button covered the
