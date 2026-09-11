@@ -15,6 +15,7 @@ import { CaretLeft } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/onboarding/analytics";
 import { codeFromSearch } from "@/lib/onboarding/affiliate";
+import { fit } from "@/lib/onboarding/fit";
 import {
   clearSession,
   readSession,
@@ -877,8 +878,20 @@ function OnboardingFlowClient({
               the inset simulated at 59px: bar at 71..87, h1 at 67..101.
 
               So: no fixed height, no absolute positioning. `pt` carries the
-              inset and the row is as tall as it needs to be. */}
-          <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1">
+              inset and the row is as tall as it needs to be.
+
+              The 12px above and 4px below give 6px and 4px back on an iPhone SE
+              in Safari, where there is no inset and every pixel this row keeps
+              is taken from the screen under it. On a notched phone the inset is
+              larger than either and wins, exactly as before. See
+              `lib/onboarding/fit.ts`. */}
+          <div
+            className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3"
+            style={{
+              paddingTop: `max(${fit(12, 6)}, env(safe-area-inset-top))`,
+              paddingBottom: fit(4, 0),
+            }}
+          >
             <div className="flex min-h-10 items-center justify-start">
               {canGoBack ? (
                 <button

@@ -18,6 +18,7 @@ import {
   TestTube,
   type Icon,
 } from "@/components/icons";
+import { fit } from "@/lib/onboarding/fit";
 import { cn } from "@/lib/utils";
 
 /**
@@ -123,6 +124,20 @@ const TURN_MS = 900;
 const CAPTION_MS = 1200;
 
 /**
+ * The ring's height and each phone's width: 264 and 160 on a tall phone, 184
+ * and 104 on an SE.
+ *
+ * ⚠️ THE PHONE IS TALLER THAN THE RING, by design, and spills ~44px out of the
+ * top of it on a tall phone (~24px on an SE). The gap above the carousel in
+ * `screens/free.tsx` is what keeps that spill off the subtitle, so shrinking
+ * the ring means checking that gap — at 208/126 with a 16px gap the phone sat
+ * on top of "We'd rather you try it". Both shrink by the same proportion, so
+ * the ring keeps its shape.
+ */
+const RING_HEIGHT = fit(264, 184);
+const PHONE_WIDTH = fit(160, 104);
+
+/**
  * Where a slide sits, by its distance from the active one.
  * 0 front · 1 right · 2 back · 3 left — so advancing by one moves
  * front→left, right→front, back→right, left→back, exactly as described.
@@ -214,7 +229,12 @@ export function AppCarousel() {
         // A notch smaller (Adrian, 2026-08-27: "it's just a little bit big").
         // The ring is fixed-height by construction, so this is the one number
         // that sizes it — the phones are positioned against this box.
-        className="relative mx-auto h-[16.5rem] w-full max-w-[22rem] shrink-0 touch-pan-y select-none"
+        //
+        // 16.5rem on a tall phone, and smaller on an iPhone SE, where a
+        // full-size ring slid the `free` screen's offer line under its button.
+        // See `RING_HEIGHT`, and `lib/onboarding/fit.ts`.
+        className="relative mx-auto w-full max-w-[22rem] shrink-0 touch-pan-y select-none"
+        style={{ height: RING_HEIGHT }}
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerCancel={() => { drag.current = null; }}
@@ -237,7 +257,7 @@ export function AppCarousel() {
               key={slide.id}
               aria-hidden
               className={cn(
-                "pointer-events-none absolute left-1/2 top-1/2 w-[10rem] rounded-[1.35rem] p-[3px]",
+                "pointer-events-none absolute left-1/2 top-1/2 rounded-[1.35rem] p-[3px]",
                 // THE SAME BAND AS `device-frame.tsx` (Adrian, 2026-08-14:
                 // "do those same outlines in the carousel as well"). These were
                 // a flat `bg-bg-surface-raised` while the hook's phone had been
@@ -248,6 +268,7 @@ export function AppCarousel() {
                 "transition-all ease-[var(--motion-ease)] motion-reduce:transition-none",
               )}
               style={{
+                width: PHONE_WIDTH,
                 transitionDuration: reduced ? "0ms" : `${TURN_MS}ms`,
                 transform: `translate(-50%, -50%) translateX(${pos.x}) scale(${pos.scale})`,
                 opacity: pos.opacity,

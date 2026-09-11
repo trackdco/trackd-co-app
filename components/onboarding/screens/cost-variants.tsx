@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
+import { fit } from "@/lib/onboarding/fit";
 import { formatPrice } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW, DATA_MONO, FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
@@ -628,8 +629,15 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
       {/* THE CARD FILLS THE SCREEN (Adrian, 2026-08-05) and the type sits lower
           than the flow's default rhythm, so the headline is not hard against
           the header row. `flex-1` on the card rather than a fixed height: it
-          takes whatever the scroll port has on any phone. */}
-      <div className="flex flex-1 flex-col pt-8">
+          takes whatever the scroll port has on any phone.
+
+          ⚠️ EVERY GAP ON THIS SCREEN IS A `fit()` (2026-09-11). On an iPhone SE
+          the rhythm below added up to 168px more than the port had, so the
+          Trackd row — the one uncovered figure, the whole point of the card —
+          was under the button. The air gives way on a short phone and nothing
+          else does; on a tall one every figure is the one it was tuned at. See
+          `lib/onboarding/fit.ts`. */}
+      <div className="flex flex-1 flex-col" style={{ paddingTop: fit(32, 8) }}>
         <header className="shrink-0 space-y-3.5">
           <h1 className={cn(FLOW_TITLE, "text-balance")}>
             The tracking is the{" "}
@@ -644,13 +652,19 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
           </p>
         </header>
 
-        <div className="mt-8 flex flex-1 flex-col rounded-2xl bg-bg-surface p-6">
+        <div
+          className="flex flex-1 flex-col rounded-2xl bg-bg-surface px-6"
+          style={{ marginTop: fit(32, 16, 12), paddingBlock: fit(24, 12, 12) }}
+        >
           <p className={CARD_EYEBROW}>Per year</p>
 
           {/* The accumulating bar. One track, four segments arriving in turn.
               Taller than it was (h-4), because at h-3 the segment divisions had
               nowhere to read. */}
-          <div className="mt-5 flex h-4 w-full overflow-hidden rounded-full bg-bg-base">
+          <div
+            className="flex h-4 w-full overflow-hidden rounded-full bg-bg-base"
+            style={{ marginTop: fit(20, 12, 8) }}
+          >
             {TIERS.map((tier, i) => (
               <span
                 key={tier.label}
@@ -690,7 +704,10 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
               `gap-6` between rows and a wider gap before the Trackd rule: the
               masked figures are the thing being compared, so they need air
               around them more than the labels do. */}
-          <ul className="flex flex-1 flex-col justify-center gap-6 py-4">
+          <ul
+            className="flex flex-1 flex-col justify-center"
+            style={{ gap: fit(24, 12, 8), paddingBlock: fit(16, 4) }}
+          >
             {TIERS.map((tier, i) => (
               <li
                 key={tier.label}
@@ -722,9 +739,10 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
                 same column, same units, and the only uncovered figure. */}
             <li
               className={cn(
-                "mt-2 flex items-baseline justify-between gap-6 border-t-[0.5px] border-border-strong pt-6 transition-opacity duration-[420ms] motion-reduce:transition-none",
+                "flex items-baseline justify-between gap-6 border-t-[0.5px] border-border-strong transition-opacity duration-[420ms] motion-reduce:transition-none",
                 trackdShown ? "opacity-100" : "opacity-0",
               )}
+              style={{ marginTop: fit(8, 4), paddingTop: fit(24, 12, 8) }}
             >
               <span className="text-[0.95rem] text-foreground">Trackd</span>
               <span className="flex shrink-0 items-baseline gap-1.5">

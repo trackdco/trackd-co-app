@@ -1,6 +1,6 @@
 "use client";
 
-import { FlowCta, ScrollPort } from "../chrome";
+import { FlowCta, FOOTER_BOTTOM, FOOTER_TOP, ScrollPort } from "../chrome";
 import { useFlow } from "../flow-context";
 import { WelcomeStage, type WelcomeEffect } from "../welcome-effects";
 
@@ -42,7 +42,10 @@ export function GreetingScreen() {
           />
         </ScrollPort>
 
-        <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <footer
+          className="shrink-0"
+          style={{ paddingTop: FOOTER_TOP, paddingBottom: FOOTER_BOTTOM }}
+        >
           <FlowCta onClick={goNext}>Let&apos;s go</FlowCta>
         </footer>
       </div>

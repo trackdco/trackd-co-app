@@ -1,9 +1,10 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 
 import { Check } from "@/components/icons";
 import { CARD_EYEBROW } from "@/lib/ui-presets";
+import { fit } from "@/lib/onboarding/fit";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,6 +28,12 @@ import { cn } from "@/lib/utils";
  * Scoped to onboarding answer lists. It is NOT licence to amber a list in the
  * app, where amber means "this needs you now" against real data.
  */
+/**
+ * The gap between the rows of a chip list: `space-y-2` on a tall phone, 4px on
+ * an iPhone SE. Pass it as the list's `style` with `space-y-(--chip-gap)`.
+ */
+export const CHIP_GAP = { "--chip-gap": fit(8, 4, 4) } as CSSProperties;
+
 export function Chip({
   label,
   icon,
@@ -44,8 +51,12 @@ export function Chip({
       role="checkbox"
       aria-checked={selected}
       onClick={onToggle}
+      // `py-3.5`, and 12px on an iPhone SE, where a list of these under a
+      // headline did not fit between it and Continue. Floored at 12px, which
+      // leaves the row 44px tall: the smallest target the house allows.
+      style={{ paddingBlock: fit(14, 12, 12) }}
       className={cn(
-        "flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left",
+        "flex w-full items-center gap-3 rounded-xl px-4 text-left",
         "transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)]",
         "active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "motion-reduce:transition-none motion-reduce:active:scale-100",
@@ -173,7 +184,11 @@ export function ConsentRow({
   const copyId = useId();
 
   return (
-    <div className="flow-card flex items-start gap-3 rounded-2xl bg-bg-surface p-4">
+    // 16px all round; the top and bottom give 4px each back on an iPhone SE.
+    <div
+      className="flow-card flex items-start gap-3 rounded-2xl bg-bg-surface px-4"
+      style={{ paddingBlock: fit(16, 12, 12) }}
+    >
       <button
         type="button"
         role="checkbox"

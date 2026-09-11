@@ -1,12 +1,14 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import { fit } from "@/lib/onboarding/fit";
 import { FLOW_EMPHASIS } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
-import { FlowCta, FlowSub, FlowTitle, ScrollPort } from "../chrome";
+import { FlowCta, FlowSub, FlowTitle, FOOTER_BOTTOM, ScrollPort } from "../chrome";
 import { HeroCards } from "../hero-cards";
 import { useFlow } from "../flow-context";
 
@@ -60,6 +62,33 @@ const HOOK_BACKDROP: string | null = null;
 export function HookScreen() {
   const { goNext } = useFlow();
 
+  /**
+   * ⚠️ A PHONE TOO SHORT FOR THE WHOLE HOOK OPENS IT AT THE BOTTOM (2026-09-11).
+   *
+   * Four cards, a two-line headline, a subtitle, Begin and the statutory links
+   * do not fit an iPhone SE in Safari at any spacing that still looks like this
+   * screen. Something has to be out of view, and the port used to open at the
+   * top, so the thing out of view was the HEADLINE — under the button, on the
+   * first screen a stranger ever sees.
+   *
+   * Opened at its end, what is out of view is the top of the first card, under
+   * the port's own fade. That is illustration, it is the right thing to lose,
+   * and scrolling up gives it back.
+   *
+   * A no-op on any phone the hook fits: there is nothing to scroll, so
+   * `scrollTop` has nowhere to go. Run again once the web font lands, because
+   * the headline's line breaks can change height when it does.
+   */
+  const portRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const toEnd = () => {
+      const port = portRef.current;
+      if (port) port.scrollTop = port.scrollHeight;
+    };
+    toEnd();
+    void document.fonts?.ready.then(toEnd);
+  }, []);
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {HOOK_BACKDROP ? (
@@ -79,7 +108,7 @@ export function HookScreen() {
       ) : null}
 
       <div className="relative flex min-h-0 flex-1 flex-col px-5 pt-2">
-        <ScrollPort>
+        <ScrollPort portRef={portRef}>
           {/* The cards and the headline are ONE centred block. Centring the
               cards alone left a void between them and the type, and pushed the
               headline down the screen (Adrian, 2026-08-27: "move the whole
@@ -173,7 +202,11 @@ export function HookScreen() {
 
             <HeroCards />
 
-            <span aria-hidden className="flex-[1_0_0]" />
+            {/* A floor under the gap the cards and the headline share, and only
+                on a short phone (0px at 700 and up, 16px on an SE). Everywhere
+                else this spacer is well above it; on an SE it had collapsed to
+                nothing and the headline sat on the last card. */}
+            <span aria-hidden className="flex-[1_0_0]" style={{ minHeight: fit(0, 16) }} />
 
             <div className="hero-type flex shrink-0 flex-col">
               <FlowTitle>
@@ -186,7 +219,8 @@ export function HookScreen() {
               </FlowSub>
             </div>
 
-            <span aria-hidden className="flex-[1_0_0]" />
+            {/* The same floor under the subtitle, so it does not sit on Begin. */}
+            <span aria-hidden className="flex-[1_0_0]" style={{ minHeight: fit(0, 12) }} />
           </div>
         </ScrollPort>
 
@@ -197,7 +231,10 @@ export function HookScreen() {
             where it always is on all the other ones"). It read fine on a laptop
             and wrong on a phone, which is the only place this flow runs. The
             standard inset is the house rule, and this screen is not special. */}
-        <footer className="shrink-0 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <footer
+          className="flex shrink-0 flex-col"
+          style={{ gap: fit(12, 6, 4), paddingBottom: FOOTER_BOTTOM }}
+        >
           <FlowCta onClick={goNext}>Begin</FlowCta>
 
           {/* The way back in for someone who already has an account. Small and

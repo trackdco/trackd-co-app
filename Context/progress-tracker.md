@@ -1,5 +1,41 @@
 # Progress Tracker
 
+## 🔧 ONBOARDING FITS AN IPHONE SE (2026-09-11, branch `fix/onboarding-short-phone`)
+
+**Reported by Adrian on his dad's iPhone SE:** the pinned button covered the
+screen on "heaps of different screens". Measured in Safari's box for an SE
+(375x548), eleven flow screens overflowed their scroll port, by 18px (welcome)
+to 168px (cost): the hook's own headline, celebrate's answer ticks, the cost
+card's Trackd row, the health-data consent tick and the demo's body map were all
+under the button. At 402x700 (Adrian's phone) only cost overflowed, by 16px of
+padding, which is why it was never seen.
+
+**Fixed without unpinning anything.** `--flow-short` (`globals.css`) plus
+`fit()` (`lib/onboarding/fit.ts`) shrink the art and the air on a box shorter
+than 700px and leave the type alone; `StepFrame` scrolls its headline with the
+body when it has a pinned footer; the hook opens at its end if it still cannot
+fit. Rule and reasoning: `ui-context.md` → "on a short phone the art and the air
+give way, never the words".
+
+**State after the fix, measured:**
+- **375x548 (SE in Safari):** every pinned-footer screen fits with nothing
+  hidden (free and account carry 4px of trailing padding). The hook opens 49px
+  scrolled, headline and legal links in view. Same numbers in WebKit 26.5.
+- **320x454 (SE, Display Zoom):** name, gender, greeting, welcome fit. The rest
+  scroll with a visible fade, except celebrate (third tick below the fold, no
+  fade, nothing cut through) and cost (12px of card padding).
+- **402x700 and 390x844:** identical to origin/main, element for element, on all
+  nineteen steps and the demo's four stages, the expanded "Something else"
+  fields, celebrate with six answers, long names, and the under-18 refusal. The
+  single difference is the scroll port's own box on running / struggle.
+- Chips stay 44px tall on every size (floored).
+- `tsc`, `eslint` on the touched files, and `fit.test.ts` (7) pass.
+
+**Not yet seen on a real SE.** Everything above is Chromium and WebKit at
+simulated sizes. iOS 26 Safari's floating tab bar may give a slightly different
+box than 548; the fit is continuous, so a different height lands between the
+measured cases rather than off a cliff.
+
 ## ✅ SHEETS MOVE ON THE HOUSE SCALE (2026-09-11, all 40, merged to `main`)
 
 Adrian: "the flow feels a bit choppy." The keyboard half shipped in `0aa9569`: the

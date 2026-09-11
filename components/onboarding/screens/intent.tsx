@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { DETAIL_MAX, type RunningTag, type StruggleTag } from "@/lib/onboarding/session";
 
 import { FlowCta, StepFrame } from "../chrome";
-import { Chip } from "../controls";
+import { Chip, CHIP_GAP } from "../controls";
 import { useFlow } from "../flow-context";
 
 /**
@@ -144,7 +144,7 @@ export function RunningScreen() {
       {/* `-mt-2` for the same reason as the consent footnote: the chip list is
           the ANSWER to the line above it, and `StepFrame`'s default gap spaced
           it as an unrelated block (Adrian, 2026-08-05). */}
-      <div className="-mt-2 space-y-2">
+      <div className="-mt-2 space-y-(--chip-gap)" style={CHIP_GAP}>
         {RUNNING_OPTIONS.map((option) => (
           <Chip
             key={option.value}
@@ -184,7 +184,7 @@ export function StruggleScreen() {
       {/* `-mt-2` for the same reason as the consent footnote: the chip list is
           the ANSWER to the line above it, and `StepFrame`'s default gap spaced
           it as an unrelated block (Adrian, 2026-08-05). */}
-      <div className="-mt-2 space-y-2">
+      <div className="-mt-2 space-y-(--chip-gap)" style={CHIP_GAP}>
         {STRUGGLE_OPTIONS.map((option) => (
           <Chip
             key={option.value}

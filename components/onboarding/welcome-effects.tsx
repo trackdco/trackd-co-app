@@ -80,6 +80,7 @@ export function WelcomeStage({
         <Mascot
           pose="flex"
           size={260}
+          short={180}
           className={cn(
             "relative shrink-0",
             effect === "assemble" && "animate-flow-in",

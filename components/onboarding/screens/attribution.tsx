@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { FlowCta, SkipLink, StepFrame } from "../chrome";
-import { Chip } from "../controls";
+import { Chip, CHIP_GAP } from "../controls";
 import { useFlow } from "../flow-context";
 
 /**
@@ -119,7 +119,7 @@ export function AttributionScreen() {
         </div>
       }
     >
-      <div className="space-y-2">
+      <div className="space-y-(--chip-gap)" style={CHIP_GAP}>
         {OPTIONS.map((option) => (
           <Chip
             key={option.value}

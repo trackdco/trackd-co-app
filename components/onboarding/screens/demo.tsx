@@ -23,9 +23,10 @@ import {
 } from "@/lib/onboarding/demo";
 import { sparkGeometry, sparkLastPoint } from "@/lib/progress/spark";
 import { CARD_EYEBROW, DATA_MONO, METRIC_LABEL } from "@/lib/ui-presets";
+import { fit } from "@/lib/onboarding/fit";
 import { cn } from "@/lib/utils";
 
-import { FlowCta, FlowSub, FlowTitle, ScrollPort } from "../chrome";
+import { FlowCta, FlowSub, FlowTitle, FOOTER_BOTTOM, ScrollPort } from "../chrome";
 import { Segmented } from "../controls";
 import { DemoBody } from "../demo-body";
 import { useFlow } from "../flow-context";
@@ -429,7 +430,10 @@ export function DemoScreen() {
         {showHistory && <HistoryPanel cardRef={newestCardRef} />}
       </ScrollPort>
 
-      <footer className="shrink-0 space-y-3 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <footer
+        className="shrink-0 space-y-3"
+        style={{ paddingTop: fit(16, 8, 6), paddingBottom: FOOTER_BOTTOM }}
+      >
         {/* THE BUTTON IS ALWAYS THERE (Adrian, 2026-08-05: "get rid of the
             little time thing where the button doesn't come up").
             The log stage used to swap it for a "Tap to log" caption until you
@@ -641,9 +645,12 @@ function SiteCard({
   const selectedLabel = site?.label ?? null;
 
   return (
+    // The padding and the gaps are air, so they give way on a short phone
+    // before the body map has to (see the cap in `DemoBody`).
     <div
       ref={cardRef}
-      className="animate-flow-in flow-card shrink-0 space-y-4 rounded-2xl bg-bg-surface p-5"
+      className="animate-flow-in flow-card flex shrink-0 flex-col rounded-2xl bg-bg-surface px-5"
+      style={{ gap: fit(16, 8, 6), paddingBlock: fit(20, 12, 10) }}
     >
       <Segmented
         label="Body view"

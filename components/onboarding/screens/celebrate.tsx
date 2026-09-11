@@ -5,7 +5,7 @@ import type { StruggleTag } from "@/lib/onboarding/session";
 import { CARD_EYEBROW, FLOW_DISPLAY, FLOW_EMPHASIS } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
-import { FlowCta, ScrollPort } from "../chrome";
+import { FlowCta, FOOTER_BOTTOM, FOOTER_TOP, ScrollPort } from "../chrome";
 import { Confetti } from "../confetti";
 import { useFlow } from "../flow-context";
 import { Mascot } from "../mascot";
@@ -106,10 +106,13 @@ export function CelebrateScreen() {
             gap was reading as a hole between him and the headline. */}
         {/* Scroll port + `flex-1` wrapper, as every other screen has. Kyle is
             330px before the headline and the answer list even start, so this is
-            the screen most likely to run out of room on a short phone. */}
+            the screen most likely to run out of room on a short phone — and on
+            an iPhone SE it did: the ticks, which are the whole reply, sat under
+            the button. He gives way to 190px there now (`short`), and the
+            ticks do not move. */}
         <ScrollPort>
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 py-2">
-          <Mascot pose="thumbs" size={330} className="-mb-4 shrink-0" />
+          <Mascot pose="thumbs" size={330} short={190} className="-mb-4 shrink-0" />
 
           {/* NOT a uniform `space-y`: the eyebrow holds still while the title
               and the ticks come UP to meet it (Adrian, 2026-08-27: "keep 'Good
@@ -169,7 +172,10 @@ export function CelebrateScreen() {
           </div>
         </ScrollPort>
 
-        <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <footer
+          className="shrink-0"
+          style={{ paddingTop: FOOTER_TOP, paddingBottom: FOOTER_BOTTOM }}
+        >
           <FlowCta
             onClick={() => {
               // Cover the canvas, THEN advance. Reversed, the demo would paint

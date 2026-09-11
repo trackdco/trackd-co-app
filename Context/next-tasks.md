@@ -1,5 +1,24 @@
 # Next Tasks
 
+## 🔧 ONBOARDING ON AN IPHONE SE — BUILT, AWAITING A LOOK (2026-09-11)
+
+Branch `fix/onboarding-short-phone`, worktree `~/Documents/GitHub/trackd-onboarding-wt`.
+State and measurements are in `progress-tracker.md`; the rule is in
+`ui-context.md` → "on a short phone the art and the air give way".
+
+### 1. Look at it on the SE itself
+The simulated sizes are the evidence so far; the SE is the test. Either on the
+same Wi-Fi against the worktree's dev server, or on a deploy.
+
+### 2. Ship
+Rebase onto `origin/main`, merge, push (Vercel deploys). No schema, no data, no
+server code: the change is layout only, and phones 700px and taller are proven
+unchanged.
+
+### 3. When you touch a flow screen after this
+Measure it at 375x548 as well as 402x700. An overflow there is fixed with a
+`fit()` on its art or its spacing, never by shrinking type or unpinning the CTA.
+
 ## ✅ DESKTOP — MERGED AND DEPLOYED (2026-09-11, `d5383b7`)
 
 The build is done and verified. What is left is Adrian's, in this order.

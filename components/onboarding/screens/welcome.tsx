@@ -3,7 +3,7 @@
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 import { firstNameOf } from "@/lib/profile/name";
 
-import { FlowCta, FlowSub, ScrollPort } from "../chrome";
+import { FlowCta, FlowSub, FOOTER_BOTTOM, FOOTER_TOP, ScrollPort } from "../chrome";
 import { FLOW_DISPLAY } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 import { Confetti } from "../confetti";
@@ -65,7 +65,7 @@ export function WelcomeScreen() {
                 render carries transparent padding at the top, so centring the
                 group by its box left him sitting higher than he looks like he
                 should. `mt-6` moves the drawing, not the layout. */}
-            <Mascot pose="flex" size={280} className="mt-6 shrink-0" />
+            <Mascot pose="flex" size={280} short={220} className="mt-6 shrink-0" />
 
             <div className="shrink-0 space-y-3 text-center">
             {/* A 40px headline with a user-supplied name in it. The flow
@@ -123,7 +123,10 @@ export function WelcomeScreen() {
           </div>
         </ScrollPort>
 
-        <footer className="shrink-0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <footer
+          className="shrink-0"
+          style={{ paddingTop: FOOTER_TOP, paddingBottom: FOOTER_BOTTOM }}
+        >
           <FlowCta onClick={goNext}>Continue</FlowCta>
         </footer>
       </div>

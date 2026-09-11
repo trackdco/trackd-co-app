@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 
+import { fit } from "@/lib/onboarding/fit";
 import { cn } from "@/lib/utils";
 
 /**
@@ -66,14 +67,14 @@ const FEATHER =
  * `ui-context.md` bans the latter. It is also the reason the mascot is wrapped
  * in a positioned span now: the bloom needs something to be absolute against.
  */
-function Bloom({ size }: { size: number }) {
+function Bloom({ extent }: { extent: string }) {
   return (
     <span
       aria-hidden
       className="animate-welcome-bloom pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
       style={{
-        width: size * 0.95,
-        height: size * 0.95,
+        width: `calc(${extent} * 0.95)`,
+        height: `calc(${extent} * 0.95)`,
         background:
           "radial-gradient(circle, color-mix(in srgb, var(--accent-amber) 26%, transparent), transparent 70%)",
       }}
@@ -84,19 +85,33 @@ function Bloom({ size }: { size: number }) {
 export function Mascot({
   pose,
   size = 200,
+  short,
   className,
   bloom = true,
 }: {
   pose: KylePose;
   size?: number;
+  /**
+   * His height on an iPhone SE in Safari, where `size` is the height on a tall
+   * phone. See `lib/onboarding/fit.ts`.
+   *
+   * Kyle is the tallest thing on every screen he stands on and the one thing on
+   * it that is not a sentence, so he is what a short phone takes its room back
+   * from. Before this, the SE kept him at full height and slid the answer ticks
+   * on celebrate underneath the button instead. Omit it and he is `size` on
+   * every phone.
+   */
+  short?: number;
   className?: string;
   /** Set false where a screen supplies its own light (the effect harness). */
   bloom?: boolean;
 }) {
+  const extent = short === undefined ? `${size}px` : fit(size, short);
+
   if (ART_PRESENT[pose]) {
     return (
       <span className="relative inline-flex items-center justify-center">
-        {bloom ? <Bloom size={size} /> : null}
+        {bloom ? <Bloom extent={extent} /> : null}
         <Image
         src={KYLE_ART[pose]}
         alt={POSE_LABEL[pose]}
@@ -109,7 +124,7 @@ export function Mascot({
             FEATHER,
             className,
           )}
-          style={{ maxHeight: size }}
+          style={{ maxHeight: extent }}
         />
       </span>
     );

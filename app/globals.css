@@ -920,6 +920,30 @@ svg ::-moz-selection {
   height: 100svh;
   overflow: hidden;
   overscroll-behavior-y: contain;
+  --flow-short: 0px;
+}
+
+/* HOW MUCH SHORTER THIS BOX IS THAN THE ONE THE FLOW WAS TUNED ON.
+ *
+ * `0px` on a box of 700px or more (Adrian's handset in Safari), rising 1:1 as
+ * the box gets shorter: 152px on an iPhone SE in Safari (548px), and capped at
+ * 246px, the same SE with Display Zoom on (454px). Lengths written with `fit()`
+ * in `lib/onboarding/fit.ts` read it, and that file carries the reasoning: the
+ * shortfall is paid for by the art and the air around it, never by the type,
+ * so a sentence stops sliding underneath the pinned button on a small phone.
+ *
+ * In `svh` because THIS BOX is `100svh`: the value and the box it sizes cannot
+ * disagree, which is exactly how the media query recorded below went wrong.
+ *
+ * Behind `@supports` because a custom property that fails to resolve does not
+ * fall back to an earlier declaration — every length using it would compute to
+ * nothing. Without `svh` (iOS before 15.4) the flow simply renders tall.
+ *
+ * ⚠️ 700 AND 246 ARE ALSO IN `fit.ts`, and `fit.test.ts` fails if they drift. */
+@supports (height: 100svh) {
+  .flow-viewport {
+    --flow-short: clamp(0px, 700px - 100svh, 246px);
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -952,9 +976,21 @@ svg ::-moz-selection {
    The lesson worth keeping: a layout rule that depends on knowing the viewport
    height is a layout rule that will be wrong on a phone browser, because there
    is no single viewport height on one.
+
+   ⚠️ AND THE ONE THING THAT IS NOT A BRANCH (2026-09-11). "The shortest handset
+   we support" turned out not to be the shortest one people use: on an iPhone SE
+   in Safari (548px) the hook's own headline sat underneath Begin. The gaps and
+   card padding below now read `--flow-short`, which is neither of the two
+   failures above. It is written in `svh`, the unit this box is sized in, so it
+   cannot measure a different box the way the media query did; and nothing is
+   contained, so there is no size containment for Safari to mishandle. It is
+   one continuous value, `0px` at 700px and taller, so on those handsets every
+   figure below is exactly the figure described. The hook also opens scrolled
+   to its end on a phone that still cannot hold everything — see `hook.tsx`.
    --------------------------------------------------------------------------- */
 .hero-stack {
-  gap: 0.5rem;
+  /* 8px, 4px on an SE and no less. */
+  gap: max(4px, calc(0.5rem - var(--flow-short, 0px) * 0.02632));
 }
 
 /* Sized so FOUR of these plus a two-line headline, a subtitle, the CTA and the
@@ -962,8 +998,10 @@ svg ::-moz-selection {
    the tightest case that actually matters. Bigger cards were tried and left 7px
    between the last card and the headline on exactly that phone. */
 .hero-card {
-  gap: 0.375rem;
-  padding: 0.625rem 1rem;
+  /* 6px and 10px, 4px and 7px on an SE and no less. Horizontal padding never
+     moves: the width is not what a short phone is short of. */
+  gap: max(4px, calc(0.375rem - var(--flow-short, 0px) * 0.01316));
+  padding: max(7px, calc(0.625rem - var(--flow-short, 0px) * 0.01974)) 1rem;
 }
 
 .hero-value {
@@ -971,7 +1009,8 @@ svg ::-moz-selection {
 }
 
 .hero-type {
-  gap: 0.5rem;
+  /* 8px, 4px on an SE and no less. */
+  gap: max(4px, calc(0.5rem - var(--flow-short, 0px) * 0.02632));
 }
 
 /* Cards that sit ON the canvas instead of being holes cut out of it: a hairline

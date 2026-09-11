@@ -1,11 +1,12 @@
 "use client";
 
+import { fit } from "@/lib/onboarding/fit";
 import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 import { FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 import { AppCarousel } from "../app-carousel";
-import { FlowCta, FlowSub, ScrollPort } from "../chrome";
+import { FlowCta, FlowSub, FOOTER_BOTTOM, ScrollPort } from "../chrome";
 import { useFlow } from "../flow-context";
 
 /**
@@ -46,8 +47,16 @@ export function FreeScreen() {
         <ScrollPort>
           {/* `gap-10`, up from `gap-4`: the carousel came down twice and the
               headline needs to stop crowding it (Adrian, 2026-08-27: "give more
-              space between the carousel and the subtitle as well"). */}
-          <div className="flex w-full flex-1 flex-col justify-start gap-10 pt-3">
+              space between the carousel and the subtitle as well").
+
+              On an iPhone SE the top padding goes and this gap closes to 32px,
+              and no further: the front phone spills out of the top of the
+              ring (see `RING_HEIGHT` in `app-carousel.tsx`), and at 16px it
+              covered the subtitle. See `lib/onboarding/fit.ts`. */}
+          <div
+            className="flex w-full flex-1 flex-col justify-start"
+            style={{ gap: fit(40, 32), paddingTop: fit(12, 0) }}
+          >
             {/* ONE line of type, not three (Adrian, 2026-08-05: "too much
                 text"). The eyebrow and the giant $0 both went: the eyebrow said
                 the same thing as the line above the button, and a 4.5rem figure
@@ -87,7 +96,10 @@ export function FreeScreen() {
           </div>
         </ScrollPort>
 
-        <footer className="shrink-0 space-y-3 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <footer
+          className="shrink-0 space-y-3"
+          style={{ paddingTop: fit(20, 10, 6), paddingBottom: FOOTER_BOTTOM }}
+        >
           {/* The terms sit ON the button, not at the top of the screen. This is
               the sentence that removes the risk, and it is read at the moment
               the thumb is over the control — not four inches above it. */}

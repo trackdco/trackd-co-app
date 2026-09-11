@@ -11,6 +11,7 @@ import {
   routeTransform,
 } from "@/components/sites/bodyArtwork";
 import type { DemoView } from "@/lib/onboarding/demo";
+import { fit } from "@/lib/onboarding/fit";
 import { cn } from "@/lib/utils";
 
 import { useFlow } from "./flow-context";
@@ -174,8 +175,16 @@ export function DemoBody({
           out of the chips, which lost the word "ago" to pay for it — the "d"
           already says these are days, and the figure is what he asked to see.
           72% is the widest the body goes while a chip still clears it in the
-          gutter at 360, the narrowest phone we draw for. */}
-      <div className="mx-auto w-[72%]">
+          gutter at 360, the narrowest phone we draw for.
+
+          CAPPED ON A SHORT PHONE (2026-09-11). 72% of this column is ~242px of
+          body, and on an iPhone SE in Safari the card holding it did not fit
+          between the demo's headline and its button, so the legs were under
+          Next. The cap only binds below a 700px box (it is 242px above it, the
+          most 72% can ever be here), reaches 150px on an SE and stops at 120px.
+          Narrower only widens the gutters, which is the direction the chips
+          need. See `lib/onboarding/fit.ts`. */}
+      <div className="mx-auto w-[72%]" style={{ maxWidth: fit(242, 150, 120) }}>
         <svg
           key={view}
           ref={measure}

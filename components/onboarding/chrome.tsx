@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { cn } from "@/lib/utils";
+import { fit } from "@/lib/onboarding/fit";
 import { CARD_EYEBROW, FLOW_SUB, FLOW_TITLE } from "@/lib/ui-presets";
 
 /**
@@ -151,6 +152,22 @@ export function SkipLink({
     </button>
   );
 }
+
+/**
+ * The canvas under a pinned CTA: 20px, or the home indicator's inset where
+ * there is one. 12px on an SE (see `lib/onboarding/fit.ts`), where every pixel
+ * the footer keeps is a pixel of content under the button instead.
+ *
+ * ONE definition for every pinned footer in the flow, the hand-rolled ones
+ * included, so they cannot come to rest at different heights.
+ */
+export const FOOTER_BOTTOM = `max(${fit(20, 12)}, env(safe-area-inset-bottom))`;
+
+/** The canvas above a pinned CTA: `pt-6` on a tall phone, half that on an SE. */
+export const FOOTER_TOP = fit(24, 12, 8);
+
+/** Between a `StepFrame` headline and its body: `h-8` tall, 12px on an SE. */
+const HEADER_GAP = fit(32, 12, 12);
 
 /** How much of an edge the mask eats. Must match `.flow-scroll-fade`. */
 const FADE_TOP_PX = 34;
@@ -305,6 +322,25 @@ export function StepFrame({
     </header>
   ) : null;
 
+  /**
+   * ⚠️ WITH A PINNED FOOTER, THE HEADLINE SCROLLS WITH THE BODY (2026-09-11).
+   *
+   * It used to stay put above the port on every uncentred screen. On an iPhone
+   * SE in Safari that pinned headline plus the pinned CTA left "What keeps going
+   * wrong?" a 284px window to show nine answers through, with the button
+   * covering the rest — the report was simply that the button stopped you
+   * seeing the screen.
+   *
+   * On a handset where nothing scrolls this is not a change at all: the
+   * headline sits at the top of the port, exactly where it sat above it, and
+   * the gap under it is the same 32px. It only differs once there is something
+   * to scroll, which is the case it exists for.
+   *
+   * A screen WITHOUT a footer keeps its headline pinned. Its CTA is at the end
+   * of the scroll, so the title is the only fixed landmark it has.
+   */
+  const headerInPort = center || Boolean(footer);
+
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col px-5 pt-2", className)}>
       {/* `center` CENTRES THE HEADLINE TOO.
@@ -315,8 +351,8 @@ export function StepFrame({
        * Attribution pass an EMPTY body, so the old arrangement gave them a
        * headline against the top edge and a large hole beneath it — Adrian's
        * "it's too high", on all three (2026-08-01). */}
-      {!center && above}
-      {!center && header}
+      {!headerInPort && above}
+      {!headerInPort && header}
 
       {/* THE BODY SCROLLS, THE CHROME DOES NOT.
        *
@@ -347,16 +383,20 @@ export function StepFrame({
           !footer && "pb-[max(1.25rem,env(safe-area-inset-bottom))]",
         )}
       >
+        {/* The 32px between the headline and the body is AIR, so it is one of
+            the things a short phone takes back: 16px on an SE. */}
         <div
           className={cn(
             "flex w-full flex-1 flex-col",
             center ? "justify-center" : "justify-start",
-            !center && hasHeader && "pt-8",
           )}
+          style={!headerInPort && hasHeader ? { paddingTop: HEADER_GAP } : undefined}
         >
-          {center && above}
-          {center && header}
-          {center && hasHeader && children ? <div className="h-8 shrink-0" /> : null}
+          {headerInPort && above}
+          {headerInPort && header}
+          {headerInPort && hasHeader && children ? (
+            <div className="shrink-0" style={{ height: HEADER_GAP }} />
+          ) : null}
           {children}
         </div>
       </ScrollPort>
@@ -367,7 +407,10 @@ export function StepFrame({
           CTA in the scroll flow (the founder letter) still paid for a pinned
           one. Every other screen passes a footer and is unaffected. */}
       {footer ? (
-        <footer className="shrink-0 space-y-3 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <footer
+          className="shrink-0 space-y-3"
+          style={{ paddingTop: FOOTER_TOP, paddingBottom: FOOTER_BOTTOM }}
+        >
           {footer}
         </footer>
       ) : null}

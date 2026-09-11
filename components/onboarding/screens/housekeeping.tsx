@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useId, useState, type CSSProperties } from "react";
 
 import { GenderFemale, GenderMale } from "@/components/icons";
 import { track } from "@/lib/onboarding/analytics";
@@ -12,6 +12,7 @@ import {
   hasName,
   parseDateKey,
 } from "@/lib/onboarding/session";
+import { fit } from "@/lib/onboarding/fit";
 import { cn } from "@/lib/utils";
 
 import { FlowCta, StepFrame } from "../chrome";
@@ -177,7 +178,14 @@ export function BirthdayScreen() {
         </div>
       }
     >
-      <div className="space-y-6">
+      {/* 24px between the date and each tick, 12px on an iPhone SE, where the
+          health-data tick — the one this screen cannot be left without — was
+          otherwise under Continue. Still `space-y`, so the date input keeps
+          the block layout its iOS rendering was fixed under. */}
+      <div
+        className="space-y-(--consent-gap)"
+        style={{ "--consent-gap": fit(24, 12, 8) } as CSSProperties}
+      >
         <input
           id={dobId}
           type="date"

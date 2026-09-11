@@ -454,10 +454,53 @@ drawn through the first line of every headline.
 
 **Measure these, do not look at them.** Every one was invisible in desktop
 Chrome at 390x844. Drive the flow at 402x700 (his actual phone once Safari's
-bars are counted) and 360x560, with the safe-area inset simulated. And note the
+bars are counted), **375x548 (an iPhone SE in Safari)** and 320x454 (the same SE
+with Display Zoom), with the safe-area inset simulated. And note the
 stale-`.next` trap: a CSS change can sit unserved while the file on disk is
 correct, so confirm a new rule is in `document.styleSheets` before concluding
 anything about it.
+
+### Rule: on a short phone the art and the air give way, never the words
+
+Added 2026-09-11, from Adrian's dad's iPhone SE: "the button is pinned to the
+bottom in heaps of different screens, which doesn't allow me to view stuff."
+Every flow screen had been tuned to a 700px box. In Safari the SE has 548px, and
+because the CTA is pinned (the rule above), the whole 152px shortfall came out of
+the scroll port. The hook's headline, celebrate's answer ticks, the cost card's
+Trackd row and the health-data consent tick all sat UNDER the button, and on
+`welcome` the last line was cut with no fade to say there was more.
+
+**The pin stays.** Unpinning on a short phone is the one-page model Adrian
+already built and reversed. What changed is where the shortfall comes from.
+
+- **`--flow-short`** on `.flow-viewport` is how much shorter the box is than
+  700px: `0px` at 700 and taller, 152px on an SE, capped at 246px (a zoomed SE).
+  It is written in `svh`, the unit the box itself is sized in, so it cannot
+  measure a different box the way the hook's abandoned media query did. Nothing
+  is size-contained, so it is not the container query Safari mishandled either.
+- **`fit(tall, short, floor?)`** in `lib/onboarding/fit.ts` turns it into a
+  length: `tall` px at 700 and up, `short` px on an SE, in a straight line
+  between and onward to a zoomed SE. A `floor` stops it for anything that breaks
+  below a size (a 44px chip, a gap that has to be seen). Use it for inline
+  styles; the hook's card rules in `globals.css` write the same `calc()` by hand.
+- **Only art and air take a `fit()`.** Kyle (`Mascot`'s `short` prop), the
+  carousel, the demo's body map, paddings and gaps. Type is never resized.
+- **A `StepFrame` with a pinned footer scrolls its headline with the body.**
+  Where nothing scrolls this is not a visible change; on an SE it gives a list the
+  whole height instead of a 284px window under a fixed title.
+- **The hook opens scrolled to its end** when it still cannot fit, so what is out
+  of view is the top card under the port's fade, not the headline.
+
+**A handset at 700px or taller is untouched by construction.** It was proven by
+rendering origin/main beside the branch and diffing every element's layout box
+on all nineteen steps at 402x700 and 390x844, plus the demo's four stages and
+the expanded, error and long-name states. Everything was identical except the
+scroll port's own box on `running` / `struggle`, which now starts at the
+headline instead of under it.
+
+**When you add or retune a flow screen,** measure it at 375x548 as well as
+402x700. If it overflows there, give its art or its air a `fit()`; do not
+shrink its type and do not unpin its button.
 
 ### Rule: an in-place edit pins its Save and never scrolls
 
