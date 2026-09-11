@@ -199,13 +199,25 @@ export const GROW_FIELD = "grow-field"
  * different decisions and only the first one was asked for. `EDIT_TOGGLE`
  * carries the same note for the same reason.
  *
+ * ⚠️ `outline-none` MUST BE PAIRED WITH A RING, and the first version was not.
+ *
+ * It killed the outline and replaced it with `focus-visible:text-foreground` —
+ * the same colour change hover already makes. A focus state indistinguishable
+ * from hover tells a keyboard user nothing, and two review lenses flagged it
+ * independently. Both refuters called it "not nothing" and let it pass; that is
+ * true and beside the point, because the house pattern for this in
+ * `EDIT_TOGGLE` is a real ring and there was no reason for this control to be
+ * the exception. Offset against `--bg-surface`, since a sheet is where it lives.
+ *
  * Used only through `components/layout/DropUp.tsx`, which owns the panel, the
  * caret and the motion. Do not hand-roll a second one.
  */
 export const DROPUP_TRIGGER =
-  "flex w-full min-h-11 items-center gap-2.5 text-[10px] font-sans uppercase " +
-  "tracking-[0.18em] text-text-muted outline-none transition-colors " +
-  "hover:text-foreground focus-visible:text-foreground"
+  "flex w-full min-h-11 items-center gap-2.5 rounded-md text-[10px] font-sans " +
+  "uppercase tracking-[0.18em] text-text-muted outline-none transition-colors " +
+  "hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 " +
+  "focus-visible:ring-ring focus-visible:ring-offset-2 " +
+  "focus-visible:ring-offset-bg-surface"
 
 /**
  * The tally beside a drop-up's label, shown only when non-zero.

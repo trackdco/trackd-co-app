@@ -205,17 +205,35 @@ export function AddProgressPhotoSheet({
     // Validate the format/range before uploading anything.
     let weightKg: number | null = null;
     if (weight.trim() !== "") {
+      /**
+       * ⚠️ OPEN THE PANEL FOR **ANY** WEIGHT ERROR, not for one branch of it.
+       *
+       * The first version guarded only the `!Number.isFinite` branch, which is
+       * the branch almost nobody reaches: `sanitizeWeightInput` already strips
+       * everything except digits and a single dot, so the only input that
+       * survives it and is still not a number is a bare ".". The branch a real
+       * typo lands on is the range check below, and that one left the panel
+       * shut. A user who typed 20, collapsed the panel to see their photos, and
+       * hit Save got "Enter a weight between 30 kg and 300 kg" with no weight
+       * field anywhere on screen, and Save failing identically every retry.
+       *
+       * Which made the rule this same change wrote into ui-context.md — "an
+       * error inside a closed panel opens it first" — true on the unreachable
+       * path and false on the reachable one. Hoisted so it cannot drift apart
+       * again: whatever is wrong with the weight, the weight is shown.
+       */
+      const rejectWeight = (message: string) => {
+        setWeightOpen(true);
+        setError(message);
+      };
       const num = Number(weight);
       if (!Number.isFinite(num)) {
-        // Open the panel before complaining about what is inside it: an error
-        // about a field the user cannot see is an error they cannot fix.
-        setWeightOpen(true);
-        setError("Enter a valid weight, or leave it blank.");
+        rejectWeight("Enter a valid weight, or leave it blank.");
         return;
       }
       const kg = unitToKg(num, unit);
       if (kg < 30 || kg > 300) {
-        setError(
+        rejectWeight(
           `Enter a weight between ${formatWeight(30, unit)} and ${formatWeight(
             300,
             unit,

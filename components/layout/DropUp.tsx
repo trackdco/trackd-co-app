@@ -106,16 +106,34 @@ export function DropUp({
 
       <div
         id={panelId}
-        className="grid transition-[grid-template-rows] ease-motion motion-reduce:transition-none"
+        className="-mx-1.5 grid transition-[grid-template-rows] ease-motion motion-reduce:transition-none"
         style={{
           gridTemplateRows: open ? "1fr" : "0fr",
           // Out of the way faster than into it.
           transitionDuration: open ? "320ms" : "220ms",
         }}
       >
-        {/* `inert` rather than unmounted: see the note above. */}
+        {/*
+          `inert` rather than unmounted: see the note above.
+
+          ⚠️ THE CLIP BOX NEEDS SLACK ON THREE SIDES, and it had none.
+
+          `overflow-hidden` is what makes the grid-rows collapse work, and it
+          clips at the padding box. With content flush to that edge, anything a
+          child paints OUTSIDE its own border box was sheared off: the
+          photo-remove badge overhangs its tile by 4px (`-top-1 -right-1`) and
+          came out sliced flat across the top, and the weight field's 3px
+          `focus-visible` ring was cut on three sides, which is the keyboard
+          user's only indication of where they are.
+
+          The slack is added by widening the CLIP region (`-mx-1.5` on the grid,
+          eating into the sheet's own `px-6`) and restoring the content's
+          alignment with matching padding inside it. Padding the clip element
+          itself would not work: the grid row collapses to `0fr` but padding
+          still paints, so the panel would never fully close.
+        */}
         <div className="overflow-hidden" inert={!open}>
-          <div className="pb-4">{children}</div>
+          <div className="px-1.5 pt-1.5 pb-4">{children}</div>
         </div>
       </div>
     </div>
