@@ -214,7 +214,16 @@ export const DROPUP_TRIGGER =
  * photos already attached is a settled state, and settled reads white or muted
  * (ui-context → "amber marks what's live"). It brightens when the panel is
  * open, which is the whole of its emphasis.
+ *
+ * ⚠️ THE OPEN/CLOSED COLOUR IS APPLIED IN THE COMPONENT, NOT HERE.
+ *
+ * This carried `group-data-[dropup-open=true]:text-foreground`, which looked
+ * correct and was never emitted: the rule did not appear in the generated
+ * stylesheet at all, so the count sat muted forever and the one piece of
+ * emphasis it has silently did nothing. Measured in a browser, not reasoned
+ * about. `DropUp` now picks the colour with `cn()` from the same `open` prop
+ * that drives everything else, which is how this codebase does state styling
+ * everywhere else and does not depend on a variant being generated.
  */
 export const DROPUP_COUNT =
-  "shrink-0 font-mono text-[9px] tracking-[0.08em] text-text-muted transition-colors " +
-  "group-data-[dropup-open=true]:text-foreground"
+  "shrink-0 font-mono text-[9px] tracking-[0.08em] transition-colors"

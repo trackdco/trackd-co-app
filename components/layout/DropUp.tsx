@@ -71,7 +71,7 @@ export function DropUp({
   const panelId = useId()
 
   return (
-    <div className={cn("group hairline-t mt-4", className)} data-dropup-open={open}>
+    <div className={cn("hairline-t mt-4", className)} data-dropup-open={open}>
       <button
         type="button"
         aria-expanded={open}
@@ -81,7 +81,17 @@ export function DropUp({
       >
         <span className="flex-1 text-left">{label}</span>
         {count ? (
-          <span className={DROPUP_COUNT}>{count}</span>
+          <span
+            className={cn(
+              DROPUP_COUNT,
+              // Explicit, not a `group-data-` variant. See the preset's note:
+              // the variant version was never generated and the count never
+              // brightened.
+              open ? "text-foreground" : "text-text-muted",
+            )}
+          >
+            {count}
+          </span>
         ) : null}
         <CaretDown
           aria-hidden
