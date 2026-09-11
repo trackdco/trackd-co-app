@@ -1,5 +1,29 @@
 # Progress Tracker
 
+## ✅ SHEETS MOVE ON THE HOUSE SCALE (2026-09-11, all 40, merged to `main`)
+
+Adrian: "the flow feels a bit choppy." The keyboard half shipped in `0aa9569`: the
+weight field no longer summons the keyboard on a phone (desktop still focuses it),
+and the photo sheet lost notes, its date picker and Cancel, dating itself today
+or the day editor's date. This is the motion half.
+
+- **`components/ui/sheet.tsx` (protected, edited on Adrian's "all 40").** Sheets
+  opened on shadcn's 500ms `ease-in-out` and closed on 300ms. Now 320ms open /
+  240ms close on the house ease. Both only got shorter, so nothing waiting on the
+  old length can fire early. Nothing in the app keys a timer or `animationend`
+  off these durations, and no call site overrides them. Desktop's rail and dialog
+  keep their own keyframes (`desktop-rail-in 0.26s`, checked after the change).
+- **`AddWeightSheet`'s drag-dismiss rose 63px against the finger** on release,
+  because it reset its offset in the same commit as `onClose()`. One line
+  removed, now matching `useSheetDrag`. The full swap onto the hook was not done
+  in a change going straight to production.
+- **Verified per painted frame** with an in-page rAF recorder: 12 plain and 12
+  dragged closes across Chromium and WebKit, zero upward frames. An earlier probe
+  that sampled BETWEEN frames read one rest-position value just before unmount:
+  Radix restoring the fill-mode in the gap before React's unmount commits. It
+  never reached a painted frame in 24 runs, and it predates this change.
+- tsc, eslint (whole repo), gate audit, 2081 tests, production build: all clean.
+
 ## ✅ SHIPPED — desktop is on production (2026-09-11)
 
 `desktop-app` was rebased onto `origin/main` (picking up the two notification-runner

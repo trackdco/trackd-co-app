@@ -61,6 +61,34 @@ function SheetContent({
   return (
     <SheetPortal>
       <SheetOverlay />
+      {/*
+        ⚠️ PROTECTED FILE, EDITED WITH EXPLICIT AUTHORISATION (Adrian,
+        2026-09-11: "all 40"). `ai-workflow-rules.md` protects components/ui/**;
+        this is the one deliberate exception, and it is the timing only.
+
+        THE MOTION WAS SHADCN'S, NOT OURS. This read `ease-in-out` with
+        `duration-500` open and `duration-300` closed: the library's defaults,
+        never chosen by anyone and not on the house scale (globals.css: 180 /
+        240 / 320ms, house ease `cubic-bezier(0.16, 1, 0.3, 1)`). tw-animate-css
+        builds every sheet's entrance from `--tw-duration` and `--tw-ease`, so
+        every one of the app's forty sheets inherited it.
+
+        `ease-in-out` over 500ms is the choppiness Adrian reported. It stalls,
+        rushes, then crawls: 2.6% of the way up at 50ms, 61% at 200ms, then the
+        last ~80px spread over a quarter of a second on a screen where the scrim
+        and the menu have already finished. The house ease front-loads the
+        movement instead, which is what makes a sheet feel like it arrived
+        rather than like it is still arriving.
+
+        Open is `--motion-slow` (320ms), close is `--motion-base` (240ms), both
+        on the house ease, read from the tokens so a retune lands here too.
+        Getting out of the way is quicker than arriving, same as the drop-up.
+
+        The desktop rail and dialog override `animation` with literal values in
+        desktop.css and are unaffected. Nothing in the app waits on these
+        durations (checked: no timer or animationend is tied to a sheet), and
+        both only got SHORTER, so no dependency could have been left late.
+      */}
       <SheetPrimitive.Content
         data-slot="sheet-content"
         // DEFAULT: don't move focus into the sheet on open. Radix otherwise focuses
@@ -70,7 +98,7 @@ function SheetContent({
         // own `onOpenAutoFocus` to override this.
         onOpenAutoFocus={onOpenAutoFocus ?? ((e) => e.preventDefault())}
         className={cn(
-          "fixed z-50 flex flex-col gap-4 bg-bg-surface shadow-lg transition ease-in-out outline-none data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
+          "fixed z-50 flex flex-col gap-4 bg-bg-surface shadow-lg transition ease-[var(--motion-ease)] outline-none data-[state=closed]:animate-out data-[state=closed]:duration-[var(--motion-base)] data-[state=open]:animate-in data-[state=open]:duration-[var(--motion-slow)]",
           side === "right" &&
             "inset-y-0 right-0 h-full w-3/4 border-l border-border-default data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
           side === "left" &&

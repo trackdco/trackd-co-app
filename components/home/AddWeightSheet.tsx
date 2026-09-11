@@ -306,7 +306,26 @@ function AddWeightBody({
     dragRef.current = null
     setDragging(false)
     if (drag && offsetY > drag.height * DISMISS_THRESHOLD) {
-      setOffsetY(0)
+      /**
+       * NO SNAP-BACK ON DISMISS, and there used to be one.
+       *
+       * This called `setOffsetY(0)` and then `onClose()`. React commits both
+       * together, so the card's transform animated from the dragged offset
+       * back to 0 on its 250ms transition WHILE the sheet started sliding out.
+       * Released at 300px, the sheet rose 63px against your finger before
+       * falling away: the movement reversed at the exact moment you let go.
+       *
+       * The shared `useSheetDrag` hook omits this line on purpose ("let the
+       * sheet's exit animation continue from the dragged position"). This file
+       * is a hand-copied version of that gesture that did the opposite, which is
+       * how the bug got in. Leaving the offset where it is costs nothing: Radix
+       * unmounts this body on close, so the next open starts fresh at 0.
+       *
+       * Swapping this file onto `useSheetDrag` outright would remove the copy
+       * that let this drift. It was not done here because this change shipped
+       * straight to production, and one line matching the hook's behaviour is
+       * the smaller thing to be wrong about.
+       */
       onClose()
     } else {
       setOffsetY(0)

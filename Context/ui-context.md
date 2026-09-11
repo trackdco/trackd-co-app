@@ -971,6 +971,24 @@ hand-rolling animation per screen.
   class, forces a reflow and re-adds it. Remounting the subtree to restart an
   animation also throws away the grid's scroll position, which is a real bug on
   a protocol long enough to scroll.
+- **Sheets move on the house scale** (Adrian, 2026-09-11, all 40 at once).
+  Every `SheetContent` opens on `--motion-slow` (320ms) and closes on
+  `--motion-base` (240ms), both on `--motion-ease`. It is set ONCE, in the
+  protected `components/ui/sheet.tsx`; a call site never puts `duration-*`,
+  `ease-*` or `animate-*` on a sheet. shadcn shipped 500ms in / 300ms out on
+  `ease-in-out`, and ease-in-out spends its first stretch barely moving, which is
+  the "choppy" a thumb feels: you tap and for a beat nothing seems to happen. The
+  house ease front-loads the travel. Desktop's rail and dialog run their own
+  keyframes in `app/desktop.css` and are untouched by this; the scrim is a
+  separate element and keeps its 150ms fade.
+
+  **Drag-to-dismiss carries on from where the finger let go.** Never reset the
+  drag offset before closing: the card transitions back up while the sheet slides
+  out, so it rises against the finger at the exact moment of release.
+  `useSheetDrag` gets this right. `AddWeightSheet` carries a hand copy that got it
+  wrong until 2026-09-11. Radix holds the exit's last frame
+  (`animation-fill-mode: forwards`) until it unmounts, so leaving the offset in
+  place does not flash; measured per painted frame in Chromium and WebKit.
 - **Banned** — ambient / decorative motion: floating particles, meteor
   or hero effects, cursor-follow, scroll-triggered decorative lines.
   These are the clearest "AI-built" tell and steal attention from the data.
