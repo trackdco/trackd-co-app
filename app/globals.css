@@ -2332,3 +2332,60 @@ body[data-inline-edit="true"] .shortcuts-layer {
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE DATE PICKER'S TWO BEATS (Adrian, 2026-09-11: "do A but add animations";
+   built 2026-09-12). Both live on `DatePickerPanel` inside a sheet.
+
+   The month STEP is not here, deliberately: it is the Schedule's week parallax,
+   reused by class (`animate-schedule-back` / `-forward` above). Re-specifying
+   those distances under a second name is how two timings drift apart.
+
+   1. `animate-date-pop` — the day you tapped fills with a small overshoot.
+      GENTLER than `home-tick-pop` (0.3 → 1.12) on purpose: logging a dose is
+      the app's heartbeat and has to stay its biggest beat. Picking a date is
+      not a log.
+   2. `animate-date-value` — the new date rises into the sheet's title, a beat
+      after the calendar has left, so the eye is already back on the title when
+      it moves. It is added by class (remove, reflow, re-add) rather than by
+      `key`, and only when the date actually CHANGED: re-picking the day you
+      were already on moves nothing, because nothing moved.
+
+   Both end in the visible state, so `animation: none` under reduce leaves the
+   picker correct rather than stranded mid-beat.
+   --------------------------------------------------------------------------- */
+@keyframes date-disc-pop {
+  0% {
+    transform: scale(0.72);
+  }
+  62% {
+    transform: scale(1.07);
+  }
+  100% {
+    transform: none;
+  }
+}
+.animate-date-pop {
+  animation: date-disc-pop 260ms var(--motion-ease) both;
+}
+
+@keyframes date-value-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-date-value {
+  animation: date-value-in 280ms var(--motion-ease) 120ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-date-pop,
+  .animate-date-value {
+    animation: none;
+  }
+}

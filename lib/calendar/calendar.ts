@@ -151,6 +151,18 @@ export function buildRunning(
     .sort((a, b) => a.time24.localeCompare(b.time24))
 }
 
+/**
+ * "11/09/2026" — the numeric form, for a date used as a TITLE rather than read
+ * in a sentence (the photo sheet's header). Date keys are ISO `YYYY-MM-DD`, so
+ * this is string slicing on purpose: building a `Date` to format it is how a
+ * key written in the user's own timezone comes back out a day early.
+ */
+export function formatDateKeyNumeric(key: string): string {
+  const [y, m, d] = key.split("-");
+  if (!y || !m || !d) return key;
+  return `${d}/${m}/${y}`;
+}
+
 /** "June 2026" for a 0-based month. */
 export function monthTitle(year: number, month0: number): string {
   return `${MONTHS[month0] ?? ""} ${year}`;

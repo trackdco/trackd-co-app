@@ -41,12 +41,12 @@ gap.** Do not let a future session decide this quietly.
 - **`beforeinstallprompt` on real desktop Chrome** was simulated, not observed.
   The popup fix stands either way, but the trigger is unconfirmed.
 
-### 2c. The photo sheet's date: prototype A is waiting on a yes
-Adrian changed his mind about auto-dating (2026-09-11): the date comes back, done
-the way the reference app he screenshotted does it. Variant A, with animations,
-is published as the `photo-date-bench` artifact. **Nothing is built.** Build A only
-on his explicit yes; until then the sheet dates itself (today, or the day
-editor's date).
+### 2c. The photo sheet's date — BUILT AND SHIPPED (2026-09-12)
+Variant A, with the animations. The date is the sheet's title and opens a month
+inside the sheet. Nothing outstanding here; the pattern is written up in
+`ui-context.md` → "when a sheet's date can change, the date IS the title".
+
+The ✕ the prototype drew in that header was NOT carried over — see item 2.
 
 ### 3. Decide what else desktop should get
 Deliberately NOT built, because each is a feature change rather than a layout one

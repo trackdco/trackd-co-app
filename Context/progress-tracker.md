@@ -1,5 +1,38 @@
 # Progress Tracker
 
+## ✅ THE PHOTO SHEET'S DATE IS BACK, AS ITS TITLE (2026-09-12)
+
+Adrian, seeing the auto-dated sheet: "I don't have the date function yet."
+Variant A of the 2026-09-11 prototype, built and shipped.
+
+- **`components/calendar/DatePickerPanel.tsx` (new)** — a month to pick a past
+  day with. `buildMonthMatrix` + `MonthGrid`'s ring treatment, so the picker and
+  the Calendar screen cannot lay a month out differently. Future days disabled,
+  next-month arrow stopped at this month, "Today" travels to this month before
+  it selects.
+- **`AddProgressPhotoSheet`** — the read-only "Dated today" line became the
+  title: `dd/mm/yyyy` in mono with a caret, over a "Progress photos" eyebrow.
+  Tapping it pushes the sheet across to the calendar and eases to its height;
+  Escape unwinds one step; Save is disabled while the calendar is up; the weight
+  drop-up's label stops saying "today" when the date is not today.
+- **Two beats added to `globals.css`** (`animate-date-pop`, `animate-date-value`)
+  and both collapse under reduce. The month step is the Schedule's parallax
+  reused by class, not re-specified.
+- **Two bugs found by building it, both fixed before merge.** A `useRef` on a
+  portalled pane never re-ran the measure, so the step box computed `height:
+  auto` as ZERO over absolutely-positioned children and the sheet opened empty
+  between its header and Save — callback refs fixed it. And syncing the month to
+  `value` on every change would have rebuilt the grid mid-pop when you tapped a
+  spill day from the next month.
+- **Verified in browser:** phone and the 1024px desktop rail, full motion and
+  `prefers-reduced-motion`, Escape twice, a back-dated open from the day editor
+  (8 September opened as 08/09/2026), 0 tabbable controls in the hidden step, no
+  page errors. tsc, eslint, gate audit, 2087 tests, production build clean.
+
+**Still deliberately absent: the ✕.** The prototype drew one in the header; this
+does not. Cancel came off this sheet the day before (Adrian, 2026-09-11), and
+whether a sheet gets a visible close control is the open ruling below, across
+all 40 — not something to settle quietly on one sheet.
 ## ✅ THE DOTTED COMPANY NAME IS GONE FROM THE REPO (2026-09-11)
 
 Adrian asked for every instance of the dotted form of the name removed. Three

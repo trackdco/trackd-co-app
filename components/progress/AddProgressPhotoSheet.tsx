@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CircleNotch, Plus, X } from "@/components/icons";
+import { Camera, CaretDown, CaretLeft, Check, CircleNotch, Plus, X } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -10,12 +10,13 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { PoseIcon } from "@/components/progress/PoseIcon";
 import { PosePicker } from "@/components/progress/PosePicker";
-import { SHEET_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/client";
 import { addProgressPhotos } from "@/app/(app)/progress/actions";
 import { logWeight } from "@/app/(app)/weight/actions";
 import { DropUp } from "@/components/layout/DropUp";
-import { formatDateKeyShort } from "@/lib/home/stack";
+import { formatDateKeyNumeric } from "@/lib/calendar/calendar";
+import { DatePickerPanel } from "@/components/calendar/DatePickerPanel";
 import { DEFAULT_POSES, poseLabel, poseShape } from "@/lib/progress/photos";
 import {
   PhotoAdjustSheet,
@@ -30,6 +31,11 @@ import {
 } from "@/lib/weight";
 
 const MAX_BYTES = 10 * 1024 * 1024;
+/** The two steps sit in the same box, one on top of the other. Absolute, so the
+ *  outgoing one does not keep the box its own height on the way out. */
+const STEP_PANE =
+  "absolute inset-x-0 top-0 px-6 transition-[transform,opacity] " +
+  "duration-[var(--motion-slow)] ease-motion motion-reduce:transition-none";
 const EXT: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
@@ -105,6 +111,64 @@ export function AddProgressPhotoSheet({
     framing?: Framing;
   } | null>(null);
 
+  /** Which step is showing: the poses, or the calendar behind the title. */
+  const [dateStep, setDateStep] = useState(false);
+  const dateValueRef = useRef<HTMLSpanElement>(null);
+  /** Whether the day just picked was a different one — the title only beats if
+   *  something actually changed. */
+  const dateChanged = useRef(false);
+  /**
+   * The panes are held in STATE, not in a ref, and that is the difference
+   * between this working and silently collapsing.
+   *
+   * Radix mounts this subtree into a portal, and a `useRef` holding it does not
+   * re-run the effect below when the node finally attaches — so the measure ran
+   * against `null`, the box kept `height: auto`, and a box whose children are
+   * all absolutely positioned computes that as ZERO. The sheet opened showing
+   * its header and its Save bar with nothing in between. A callback ref fires
+   * exactly when the node arrives.
+   */
+  const [posesPane, setPosesPane] = useState<HTMLDivElement | null>(null);
+  const [calPane, setCalPane] = useState<HTMLDivElement | null>(null);
+  const [stepHeight, setStepHeight] = useState<number>();
+
+  /**
+   * The box takes the height of whichever step is showing, so the sheet EASES
+   * to fit the calendar instead of jumping to it.
+   *
+   * A `ResizeObserver` rather than a one-off measure: the poses step grows and
+   * shrinks on its own (the pose picker, the weight drop-up, an error line), and
+   * a height measured once would clip all three. It watches the active pane
+   * only, whose height is content-driven and independent of the box's, so there
+   * is no loop to fall into.
+   */
+  useLayoutEffect(() => {
+    const pane = dateStep ? calPane : posesPane;
+    if (!pane) return;
+    const sync = () => setStepHeight(pane.offsetHeight);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(pane);
+    return () => ro.disconnect();
+  }, [dateStep, posesPane, calPane]);
+
+  function handleDatePick(key: string) {
+    dateChanged.current = key !== drawnOn;
+    setDrawnOn(key);
+  }
+
+  /** The calendar has had its beat: step back, and let the new date arrive in
+   *  the title. Restarted by class, not by `key` — see `globals.css`. */
+  function handleDateSettled() {
+    setDateStep(false);
+    const el = dateValueRef.current;
+    if (!el || !dateChanged.current) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    el.classList.remove("animate-date-value");
+    void el.offsetWidth;
+    el.classList.add("animate-date-value");
+  }
+
   const [prevOpen, setPrevOpen] = useState(open);
   if (open !== prevOpen) {
     setPrevOpen(open);
@@ -114,6 +178,7 @@ export function AddProgressPhotoSheet({
       setExtraPoses(customPoses);
       setPickerOpen(false);
       setDrawnOn(initialDate ?? todayKey);
+      setDateStep(false);
       setWeight("");
       setError(null);
       // Otherwise closing the sheet mid-adjust and reopening it would land you
@@ -285,6 +350,14 @@ export function AddProgressPhotoSheet({
         side="bottom"
         showCloseButton={false}
         className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
+        // Escape unwinds one step at a time: out of the calendar first, and only
+        // then out of the sheet. Closing the whole thing from the date step
+        // would throw away photos already attached.
+        onEscapeKeyDown={(e) => {
+          if (!dateStep) return;
+          e.preventDefault();
+          setDateStep(false);
+        }}
       >
         <div
           ref={cardRef}
@@ -303,9 +376,86 @@ export function AddProgressPhotoSheet({
             Add a photo for each pose and submit them together.
           </SheetDescription>
 
-          <div className="flex-1 overflow-y-auto px-6">
-            <h2 className={SHEET_TITLE}>Add photos</h2>
-            <p className="mt-0.5 text-xs text-text-muted">
+          {/*
+            THE DATE IS THE TITLE, AND THE TITLE OPENS (Adrian, 2026-09-11 from a
+            four-variant prototype, after a screenshot of another app's picker:
+            "make the date there but incorporate it like this app"; then "do A
+            but add animations").
+
+            It replaced a read-only "Dated today" line, which itself replaced an
+            `<input type="date">`. The line was honest and unreachable: a
+            back-dated session could be READ but not changed, so the only way to
+            file a photo to the right day was to start again from the day editor.
+            As the title, the date is both the statement and the control.
+
+            Two layers in one slot, crossfading past each other in the direction
+            of travel, so the header moves WITH the step rather than being
+            swapped under it. The hidden layer is `inert`: a control you cannot
+            see must not be tabbable.
+          */}
+          <div className="relative h-[4.125rem] shrink-0 px-6">
+            <div
+              inert={dateStep}
+              className={cn(
+                "absolute inset-x-0 top-0 flex flex-col items-center transition-[transform,opacity] duration-[var(--motion-slow)] ease-motion motion-reduce:transition-none",
+                dateStep && "pointer-events-none -translate-x-[26px] opacity-0",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setDateStep(true)}
+                aria-expanded={dateStep}
+                aria-label={`Change the date — currently ${formatDateKeyNumeric(drawnOn)}`}
+                className="flex min-h-11 items-center gap-2 rounded-xl px-3 outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-accent-amber/50 active:scale-[0.98]"
+              >
+                <span
+                  ref={dateValueRef}
+                  className="font-mono text-[17px] tracking-[-0.01em] text-foreground"
+                >
+                  {formatDateKeyNumeric(drawnOn)}
+                </span>
+                <CaretDown className="h-3.5 w-3.5 text-text-subtle" aria-hidden />
+              </button>
+              <span className={cn(CARD_EYEBROW, "-mt-0.5")}>Progress photos</span>
+            </div>
+
+            <div
+              inert={!dateStep}
+              className={cn(
+                "absolute inset-0 flex items-center px-6 transition-[transform,opacity] duration-[var(--motion-slow)] ease-motion motion-reduce:transition-none",
+                !dateStep && "pointer-events-none translate-x-[26px] opacity-0",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setDateStep(false)}
+                className="-ml-2 flex min-h-11 items-center gap-1 rounded-xl pr-3 pl-2 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-amber/50"
+              >
+                <CaretLeft className="h-4 w-4" aria-hidden />
+                Back
+              </button>
+              <span className={cn(CARD_EYEBROW, "ml-auto")}>Select date</span>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {/* The box eases to the height of the step showing. `overflow-hidden`
+                is what keeps the step sliding out from widening the sheet — the
+                scroll parent would otherwise gain a horizontal scrollbar for the
+                length of the transition. */}
+            <div
+              style={{ height: stepHeight }}
+              className="relative overflow-hidden transition-[height] duration-[var(--motion-slow)] ease-motion motion-reduce:transition-none"
+            >
+            <div
+              ref={setPosesPane}
+              inert={dateStep}
+              className={cn(
+                STEP_PANE,
+                dateStep && "pointer-events-none -translate-x-[30%] opacity-0",
+              )}
+            >
+            <p className="text-xs text-text-muted">
               Tap a pose to add a photo. Fill any or all.
             </p>
 
@@ -393,30 +543,16 @@ export function AddProgressPhotoSheet({
               className="hidden"
             />
 
-            {/* THE DATE IS STATED, NOT PICKED (Adrian, 2026-09-11).
-                A photo is taken now and filed now; the picker was a control
-                almost nobody moved, sitting between the poses and Save.
-
-                ⚠️ IT IS NOT HARDCODED TO TODAY, and that distinction is the
-                whole of this block. `openAdd` in `ProgressPhotoSection` is
-                called from the day editor with THAT day's date, so "add a photo
-                to 6 September" still files to 6 September. Forcing today would
-                silently misfile it, which is the same failure the picker's old
-                onChange comment was written to prevent.
-
-                So it is read-only rather than absent: auto in the normal case,
-                and honest in the back-dated one. */}
-            <p className="mt-5 px-1 text-xs text-text-subtle">
-              {drawnOn === todayKey ? "Dated today" : `Dated ${formatDateKeyShort(drawnOn)}`}
-            </p>
-
             {/* WEIGHT, BEHIND A DROP-UP (Adrian, 2026-09-11).
                 The mirror of what "Log weight" now does with photos, and
                 deliberately symmetric: each sheet leads with the thing it is
                 named after and folds the other away. Still logged for the date
-                above, so it still links to these photos. */}
+                in the title, so it still links to these photos — which is why
+                the label stops saying "today" the moment that date is not. */}
             <DropUp
-              label="Log today’s weight"
+              label={
+                drawnOn === todayKey ? "Log today’s weight" : "Log weight for this date"
+              }
               open={weightOpen}
               onOpenChange={setWeightOpen}
             >
@@ -445,6 +581,26 @@ export function AddProgressPhotoSheet({
 
             {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
             <div className="h-2" />
+            </div>
+
+            <div
+              ref={setCalPane}
+              inert={!dateStep}
+              className={cn(
+                STEP_PANE,
+                !dateStep && "pointer-events-none translate-x-full opacity-0",
+              )}
+            >
+              <DatePickerPanel
+                value={drawnOn}
+                todayKey={todayKey}
+                active={dateStep}
+                onPick={handleDatePick}
+                onSettled={handleDateSettled}
+              />
+              <div className="h-2" />
+            </div>
+            </div>
           </div>
 
           {/* Action bar. ONE control (Adrian, 2026-09-11): Cancel was removed,
@@ -455,7 +611,7 @@ export function AddProgressPhotoSheet({
             <button
               type="button"
               onClick={handleSave}
-              disabled={busy || count === 0}
+              disabled={busy || count === 0 || dateStep}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
               {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}

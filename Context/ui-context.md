@@ -599,6 +599,51 @@ thing it is NAMED after and folds the other behind one line.
 already has a primary one. **Never** to hide a required field, and never two on
 one sheet: a sheet needing two drop-ups is a sheet doing three jobs.
 
+### Rule: when a sheet's date can change, the date IS the title
+
+Adrian, 2026-09-11, with two screenshots of another app's picker: **"make the
+date there but incorporate it like this app"**, then **"do A but add
+animations"**. Built 2026-09-12 in `AddProgressPhotoSheet`.
+
+The photo sheet has now held a date three ways, and the middle one is the lesson.
+An `<input type="date">` sat between the poses and Save, a control almost nobody
+moved. Removing it for a read-only "Dated today" line made the sheet calmer and
+made a back-dated session UNCHANGEABLE — you could read the date and not fix it.
+As the title, one element is both the statement and the control.
+
+**`components/calendar/DatePickerPanel.tsx`**, which is the Calendar screen's
+month maths (`buildMonthMatrix`, Mon-first, a fixed six rows) and `MonthGrid`'s
+ring treatment minus the adherence states. A picker answers "which day", not
+"what happened on it".
+
+- **The title is the date, mono, `dd/mm/yyyy`, with a caret**, over a
+  `CARD_EYEBROW` naming the sheet. `formatDateKeyNumeric` SLICES the key rather
+  than building a `Date`: keys are written in the user's own timezone, and
+  parsing one as UTC hands back yesterday.
+- **It pushes, it does not open a second sheet.** Poses slide out left and fade;
+  the calendar enters from the right; the box EASES to the new height instead of
+  jumping; the header crossfades into a back row travelling the same way. One
+  sheet, two steps — a sheet stacked on a sheet is two scrims deep.
+- **Escape unwinds ONE step.** Out of the calendar first, and only then out of
+  the sheet, because closing from the date step would throw away attached
+  photos. Save is disabled while the calendar is up: it is not the action in
+  view.
+- **Motion, all of it borrowed:** stepping a month is the Schedule's week
+  parallax reused BY CLASS (`animate-schedule-back` / `-forward`, 26px/220ms far
+  against 10px/190ms near); the chosen day's disc pops 0.72 → 1.07 → 1 over
+  260ms, deliberately gentler than `home-tick-pop`, because logging a dose is
+  the app's heartbeat and stays its biggest beat; the new date rises 7px into the
+  title 120ms later, and only when the date actually changed.
+- **A photo cannot be dated tomorrow.** Future days are disabled and the
+  next-month arrow stops at this month — the `max={todayKey}` the native input
+  used to carry.
+- **The hidden step is `inert`,** same pairing as the drop-up: a control you
+  cannot see must not be tabbable.
+
+**When to reach for it:** a sheet whose date is normally today but legitimately
+sometimes is not. If the date can never move, state it in a line and do not
+build a picker.
+
 ### Rule: new screens reuse the system
 
 Any new screen (Protocol, Calendar, Settings, …) is composed **only**
