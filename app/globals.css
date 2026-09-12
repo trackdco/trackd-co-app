@@ -1058,9 +1058,16 @@ svg ::-moz-selection {
  * signalling hidden content that did not exist while degrading the one sentence
  * the screen exists to deliver.
  *
- * So an edge fades only when something is actually hidden past it, and only
- * when MORE than the fade's own depth is hidden — a 44px gradient drawn to
- * conceal 16px of overflow is a bigger lie than the hard edge it replaced.
+ * So an edge fades only when something is actually hidden past it, and THE
+ * GRADIENT IS ONLY AS DEEP AS WHAT IT HIDES — a 44px gradient drawn to conceal
+ * 16px of overflow is a bigger lie than the hard edge it replaced, so 16px of
+ * overflow gets a 16px gradient (`--fade-top` / `--fade-bottom`, written by
+ * `ScrollPort` beside `data-fade`; the px values here are the fallback and the
+ * cap). It used to be all-or-nothing at 34/44px instead, which left a hole:
+ * an edge hiding 1..44px drew nothing and guillotined the content with no cue.
+ * `fit()` made that common rather than rare, because shrinking the art leaves
+ * the residue INSIDE that band — measured on running, birthday, struggle, free
+ * and account at 375 wide, and on the hook's own first card (2026-09-12).
  * `ScrollPort` (`components/onboarding/chrome.tsx`) writes `data-fade` from the
  * real scroll position. **No attribute means no mask**, so the pre-hydration
  * and no-JS renders are unfaded: never washing out a headline is the safer
@@ -1086,19 +1093,19 @@ svg ::-moz-selection {
 }
 
 .flow-scroll-fade[data-fade="top"] {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 34px);
-  mask-image: linear-gradient(to bottom, transparent 0, black 34px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black var(--fade-top, 34px));
+  mask-image: linear-gradient(to bottom, transparent 0, black var(--fade-top, 34px));
 }
 
 .flow-scroll-fade[data-fade="bottom"] {
   -webkit-mask-image: linear-gradient(
     to bottom,
-    black calc(100% - 44px),
+    black calc(100% - var(--fade-bottom, 44px)),
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
-    black calc(100% - 44px),
+    black calc(100% - var(--fade-bottom, 44px)),
     transparent 100%
   );
 }
@@ -1107,15 +1114,15 @@ svg ::-moz-selection {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    black 34px,
-    black calc(100% - 44px),
+    black var(--fade-top, 34px),
+    black calc(100% - var(--fade-bottom, 44px)),
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    black 34px,
-    black calc(100% - 44px),
+    black var(--fade-top, 34px),
+    black calc(100% - var(--fade-bottom, 44px)),
     transparent 100%
   );
 }

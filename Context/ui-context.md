@@ -489,7 +489,20 @@ already built and reversed. What changed is where the shortfall comes from.
   Where nothing scrolls this is not a visible change; on an SE it gives a list the
   whole height instead of a 284px window under a fixed title.
 - **The hook opens scrolled to its end** when it still cannot fit, so what is out
-  of view is the top card under the port's fade, not the headline.
+  of view is the top card under the port's fade, not the headline. The re-pin
+  after `document.fonts.ready` only fires if the port is still where the effect
+  left it — in WebKit that promise resolves at window `load`, hundreds of
+  milliseconds later, and it was yanking a reader back to the bottom.
+- **A scroll port's fade is now as deep as what it hides** (2026-09-12), which
+  amends the conditional-fade rule rather than replacing its reasoning: "a 44px
+  gradient drawn to conceal 16px of overflow is a bigger lie than the hard edge
+  it replaced" (Adrian, 2026-08-07) — so 16px of overflow now gets a 16px
+  gradient, written as `--fade-top` / `--fade-bottom` beside `data-fade`. The
+  all-or-nothing version left a hole this fix walked into: an edge hiding
+  1-44px drew NO mask and guillotined the line. Shrinking the art lands the
+  residue inside exactly that band, measured on `running`, `birthday`,
+  `struggle`, `free` and `account` between 440 and 540px, and on the hook's own
+  first card on any box of ~572-629px.
 
 **A handset at 700px or taller is untouched by construction.** It was proven by
 rendering origin/main beside the branch and diffing every element's layout box

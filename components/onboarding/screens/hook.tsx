@@ -81,12 +81,34 @@ export function HookScreen() {
    */
   const portRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
+    /**
+     * ⚠️ THE SECOND PASS IS A CORRECTION, NOT A COMMAND (2026-09-12).
+     *
+     * `document.fonts.ready` is not a font signal in WebKit — it resolves at
+     * the window `load` event, so on an iPhone it lands 440-640ms after this
+     * effect runs, and later still on a slow connection, because the flow's own
+     * wordmark is deliberately not `priority` and is still in flight. Anyone
+     * who has started reading in that window was yanked back to the bottom.
+     *
+     * So the re-pin only happens if the port is still exactly where this effect
+     * put it. A bare `cancelled` flag does not work: the first `toEnd` fires a
+     * scroll event itself, so a scroll listener would cancel the effect's own
+     * move.
+     */
+    let owned = -1;
     const toEnd = () => {
       const port = portRef.current;
-      if (port) port.scrollTop = port.scrollHeight;
+      if (!port) return;
+      port.scrollTop = port.scrollHeight;
+      // The CLAMPED value, not scrollHeight: that is what the port now reads.
+      owned = port.scrollTop;
     };
     toEnd();
-    void document.fonts?.ready.then(toEnd);
+    void document.fonts?.ready.then(() => {
+      const port = portRef.current;
+      if (!port || Math.abs(port.scrollTop - owned) > 1) return;
+      toEnd();
+    });
   }, []);
 
   return (

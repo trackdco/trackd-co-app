@@ -169,9 +169,16 @@ export const FOOTER_TOP = fit(24, 12, 8);
 /** Between a `StepFrame` headline and its body: `h-8` tall, 12px on an SE. */
 const HEADER_GAP = fit(32, 12, 12);
 
-/** How much of an edge the mask eats. Must match `.flow-scroll-fade`. */
+/** The DEEPEST the mask ever eats. Must match `.flow-scroll-fade`. */
 const FADE_TOP_PX = 34;
 const FADE_BOTTOM_PX = 44;
+
+/**
+ * Below this an edge is not faded at all: sub-pixel rounding and a scroll that
+ * has all but landed are not "there is more below", and a 1px gradient is not a
+ * cue, it is a shimmer on every scroll end.
+ */
+const FADE_MIN_PX = 3;
 
 /**
  * The scrolling body of a flow screen. ONE definition, seven callers.
@@ -236,8 +243,30 @@ export function ScrollPort({
     const sync = () => {
       const above = el.scrollTop;
       const below = el.scrollHeight - el.clientHeight - el.scrollTop;
-      const top = above > FADE_TOP_PX;
-      const bottom = below > FADE_BOTTOM_PX;
+      /**
+       * ⚠️ THE GRADIENT IS AS DEEP AS WHAT IT HIDES, AND NEVER DEEPER
+       * (2026-09-12).
+       *
+       * It used to be all-or-nothing at 34/44px, on the reasoning that "a 44px
+       * gradient drawn to conceal 16px of overflow is a bigger lie than the
+       * hard edge it replaced" (Adrian, 2026-08-07). That reasoning is kept —
+       * this is the version of it that does not leave a hole: the mask is
+       * `min(depth, hidden)`, so 16px of overflow gets a 16px gradient and
+       * claims exactly what is true.
+       *
+       * The hole was real and measured. An edge hiding 1..44px drew NO mask at
+       * all, so the content was guillotined with nothing to say so — the very
+       * thing the fade exists to prevent. `fit()` made it common rather than
+       * rare, because shrinking the art lands the leftover overflow INSIDE that
+       * band instead of far past it: at 375 wide, `running` at 440, `birthday`
+       * at 460-500, `struggle` at 500-540, `free` at 460-540 and `account` at
+       * 520-540 all sat in it, and so did the hook's own first card, whose
+       * opening scroll parks it at max scroll on any box of ~572-629px.
+       */
+      const top = above >= FADE_MIN_PX;
+      const bottom = below >= FADE_MIN_PX;
+      el.style.setProperty("--fade-top", `${Math.min(FADE_TOP_PX, above)}px`);
+      el.style.setProperty("--fade-bottom", `${Math.min(FADE_BOTTOM_PX, below)}px`);
       el.dataset.fade =
         top && bottom ? "both" : top ? "top" : bottom ? "bottom" : "none";
     };

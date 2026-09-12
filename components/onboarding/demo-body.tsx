@@ -181,10 +181,19 @@ export function DemoBody({
           body, and on an iPhone SE in Safari the card holding it did not fit
           between the demo's headline and its button, so the legs were under
           Next. The cap only binds below a 700px box (it is 242px above it, the
-          most 72% can ever be here), reaches 150px on an SE and stops at 120px.
+          most 72% can ever be here), reaches 180px on an SE and stops at 130px.
           Narrower only widens the gutters, which is the direction the chips
-          need. See `lib/onboarding/fit.ts`. */}
-      <div className="mx-auto w-[72%]" style={{ maxWidth: fit(242, 150, 120) }}>
+          need. See `lib/onboarding/fit.ts`.
+
+          ⚠️ 180, NOT 150, AND THE DIFFERENCE IS TAP TARGETS (2026-09-12). This
+          map is the one thing on the screen you are asked to TAP, and the cap
+          scales twelve regions with it: at 150px the median region fell from
+          426px² to 212px², and a tap 6px off centre found the region it was
+          aimed at 45% of the time against 61% uncapped. 180px is the largest
+          cap that still fits the whole card inside the port on an SE, which is
+          what the cap is for, and it puts that accuracy back. Anything shaved
+          off this number comes off a finger. */}
+      <div className="mx-auto w-[72%]" style={{ maxWidth: fit(242, 180, 130) }}>
         <svg
           key={view}
           ref={measure}
