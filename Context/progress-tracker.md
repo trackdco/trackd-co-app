@@ -11,7 +11,7 @@ file, binary included, now finds none. The rule is unchanged: the business name
 is **Trackd Co**, legal surfaces say **Trackd Co Pty Ltd**, and the dotted form
 must never reappear — not even quoted in these docs.
 
-## 🔧 ONBOARDING FITS AN IPHONE SE (2026-09-11, branch `fix/onboarding-short-phone`)
+## ✅ ONBOARDING FITS AN IPHONE SE (2026-09-11, merged to `main`)
 
 **Reported by Adrian on his dad's iPhone SE:** the pinned button covered the
 screen on "heaps of different screens". Measured in Safari's box for an SE
