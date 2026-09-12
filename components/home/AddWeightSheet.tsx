@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { Camera, Check, Plus, X } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { SHEET_TITLE } from "@/lib/ui-presets"
 import { Input } from "@/components/ui/input"
 import {
   Sheet,
@@ -15,6 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { DropUp } from "@/components/layout/DropUp"
+import { SheetDateSteps } from "@/components/layout/SheetDateSteps"
 import { DESKTOP_QUERY } from "@/lib/desktop/breakpoint"
 import { PoseIcon } from "@/components/progress/PoseIcon"
 import { PosePicker } from "@/components/progress/PosePicker"
@@ -87,6 +87,19 @@ interface Attachment {
  * under the right pose automatically.
  */
 export function AddWeightSheet({ open, onOpenChange, unit, userId }: AddWeightSheetProps) {
+  /**
+   * The date step lives OUT here, not in the body, because Escape is handled on
+   * the sheet primitive and has to know whether there is a calendar to unwind
+   * before there is a sheet to close. The body still owns the date itself: it
+   * unmounts on close, so every open starts on today.
+   */
+  const [dateStep, setDateStep] = useState(false)
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open) setDateStep(false)
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -94,8 +107,22 @@ export function AddWeightSheet({ open, onOpenChange, unit, userId }: AddWeightSh
         side="bottom"
         showCloseButton={false}
         className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
+        // One step at a time: out of the calendar first, and only then out of
+        // the sheet, so Escape cannot throw away a typed weight or an attached
+        // photo from the date step.
+        onEscapeKeyDown={(e) => {
+          if (!dateStep) return
+          e.preventDefault()
+          setDateStep(false)
+        }}
       >
-        <AddWeightBody unit={unit} userId={userId} onClose={() => onOpenChange(false)} />
+        <AddWeightBody
+          unit={unit}
+          userId={userId}
+          dateStep={dateStep}
+          onDateStepChange={setDateStep}
+          onClose={() => onOpenChange(false)}
+        />
       </SheetContent>
     </Sheet>
   )
@@ -104,10 +131,14 @@ export function AddWeightSheet({ open, onOpenChange, unit, userId }: AddWeightSh
 function AddWeightBody({
   unit,
   userId,
+  dateStep,
+  onDateStepChange,
   onClose,
 }: {
   unit: WeightUnit
   userId: string
+  dateStep: boolean
+  onDateStepChange: (open: boolean) => void
   onClose: () => void
 }) {
   const router = useRouter()
@@ -117,6 +148,18 @@ function AddWeightBody({
   const pendingPose = useRef<string | null>(null)
   const [offsetY, setOffsetY] = useState(0)
   const [dragging, setDragging] = useState(false)
+
+  /**
+   * Today from the DEVICE clock, asked once per open.
+   *
+   * The server runs in UTC, so a `todayKey` seeded there is a day out for
+   * anyone far enough east or west — the trap `HomeScreen` and `DesktopRail`
+   * both document. This body unmounts with the sheet, so it re-asks on every
+   * open and cannot go stale across midnight.
+   */
+  const [todayKey] = useState(() => toDateKey(new Date()))
+  /** The date being logged for. Today unless the calendar step moved it. */
+  const [drawnOn, setDrawnOn] = useState(todayKey)
 
   const [value, setValue] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -261,7 +304,11 @@ function AddWeightBody({
       return
     }
     setError(null)
-    const loggedFor = toDateKey(new Date())
+    // The date in the title, which is today unless it was moved (Adrian,
+    // 2026-09-12: "can you do the same calendar thing for weight too?"). The
+    // photos below ride along on the same key, so a back-dated weight and its
+    // photos stay one session.
+    const loggedFor = drawnOn
     startTransition(async () => {
       const res = await logWeight(kg, loggedFor)
       if (!res.ok) {
@@ -357,17 +404,26 @@ function AddWeightBody({
         <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
       </div>
 
-      <SheetTitle className={cn("px-6", SHEET_TITLE)}>
-        Log weight
-      </SheetTitle>
+      <SheetTitle className="sr-only">Log weight</SheetTitle>
       <SheetDescription className="sr-only">
-        Enter today&apos;s bodyweight and optionally attach progress photos.
+        Enter your bodyweight and optionally attach progress photos.
       </SheetDescription>
 
-      <div className="flex-1 overflow-y-auto px-6 pt-4">
-        <label className="block">
+      {/* The date is the title, and it opens a month — the same component the
+          photo sheet uses, so the two cannot drift. A weight is nearly always
+          today's, which is why the date states itself and the calendar is a
+          step away rather than a field in the form. */}
+      <SheetDateSteps
+        label="Log weight"
+        value={drawnOn}
+        onChange={setDrawnOn}
+        todayKey={todayKey}
+        step={dateStep}
+        onStepChange={onDateStepChange}
+      >
+        <label className="block pt-1">
           <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-            Today&apos;s weight
+            {drawnOn === todayKey ? "Today’s weight" : "Weight for this date"}
           </span>
           <div className="relative">
             <Input
@@ -398,8 +454,8 @@ function AddWeightBody({
             This sheet is called "Log weight" and it used to open on a weight
             field AND a permanently-expanded row of pose tiles, which made one
             number and a Save read as a form. The photos are still here, still
-            saved to today and still linked to this weight; they are one quiet
-            line away instead of in front of you. */}
+            saved to the date in the title and still linked to this weight; they
+            are one quiet line away instead of in front of you. */}
         <DropUp
           label="Add a progress photo"
           open={photosOpen}
@@ -510,7 +566,7 @@ function AddWeightBody({
         />
 
         <div className="h-3" />
-      </div>
+      </SheetDateSteps>
 
       {/* Action bar. */}
       <div className="flex shrink-0 gap-3 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -520,7 +576,8 @@ function AddWeightBody({
         <button
           type="button"
           onClick={submit}
-          disabled={pending || saved}
+          // Not the action in view while the calendar is up.
+          disabled={pending || saved || dateStep}
           className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
         >
           {pending ? "Saving…" : "Log weight"}

@@ -603,7 +603,8 @@ one sheet: a sheet needing two drop-ups is a sheet doing three jobs.
 
 Adrian, 2026-09-11, with two screenshots of another app's picker: **"make the
 date there but incorporate it like this app"**, then **"do A but add
-animations"**. Built 2026-09-12 in `AddProgressPhotoSheet`.
+animations"**. Built 2026-09-12 in `AddProgressPhotoSheet`, and on the weight
+sheet the same day — **"can you do the same calendar thing for weight too?"**
 
 The photo sheet has now held a date three ways, and the middle one is the lesson.
 An `<input type="date">` sat between the poses and Save, a control almost nobody
@@ -611,10 +612,17 @@ moved. Removing it for a read-only "Dated today" line made the sheet calmer and
 made a back-dated session UNCHANGEABLE — you could read the date and not fix it.
 As the title, one element is both the statement and the control.
 
-**`components/calendar/DatePickerPanel.tsx`**, which is the Calendar screen's
-month maths (`buildMonthMatrix`, Mon-first, a fixed six rows) and `MonthGrid`'s
-ring treatment minus the adherence states. A picker answers "which day", not
-"what happened on it".
+**Two components, and NEITHER is to be hand-copied into a third sheet.**
+`components/layout/SheetDateSteps.tsx` is the header, the two steps and the
+height; `components/calendar/DatePickerPanel.tsx` is the month itself — the
+Calendar screen's maths (`buildMonthMatrix`, Mon-first, a fixed six rows) and
+`MonthGrid`'s ring treatment minus the adherence states, because a picker
+answers "which day", not "what happened on it". The weight sheet already carries
+the scar of the alternative: its drag-to-dismiss was a hand copy of
+`useSheetDrag` missing one line, and it fought the user's thumb for months.
+
+The CALLER owns which step is showing, because the sheet needs the same answer
+for two things: Escape, and whether its primary button is the action in view.
 
 - **The title is the date, mono, `dd/mm/yyyy`, with a caret**, over a
   `CARD_EYEBROW` naming the sheet. `formatDateKeyNumeric` SLICES the key rather
@@ -639,6 +647,12 @@ ring treatment minus the adherence states. A picker answers "which day", not
   used to carry.
 - **The hidden step is `inert`,** same pairing as the drop-up: a control you
   cannot see must not be tabbable.
+
+**Both sheets that log a day now wear it**, and they wear it identically: the
+photo sheet (eyebrow "Progress photos") and the weight sheet (eyebrow "Log
+weight"), where the field's own label drops "today" the moment the date is not
+today. A back-dated weight and any photos attached to it are written under the
+SAME key, so the session stays one thing.
 
 **When to reach for it:** a sheet whose date is normally today but legitimately
 sometimes is not. If the date can never move, state it in a line and do not

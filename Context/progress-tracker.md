@@ -1,5 +1,28 @@
 # Progress Tracker
 
+## ✅ THE WEIGHT SHEET GETS THE SAME DATE (2026-09-12)
+
+Adrian, the same day the photo sheet shipped: "can you do the same calendar
+thing for weight too?"
+
+- **`components/layout/SheetDateSteps.tsx` (new)** — the header, the two steps,
+  the height easing and the title's beat, EXTRACTED from the photo sheet rather
+  than copied into the weight one. The photo sheet lost 150 lines to it and
+  behaves identically (re-measured in the browser, same numbers). The caller
+  owns which step is showing, because Escape and the primary button both need
+  that answer.
+- **`AddWeightSheet`** — the date is the title, "Log weight" the eyebrow, and
+  the field's label reads "Today's weight" or "Weight for this date". Today
+  comes from the DEVICE clock, asked once per open, because the server's is UTC
+  and a day out east. A back-dated weight and its attached photos are written
+  under the same key. Typing a weight, stepping into the calendar and coming
+  back keeps the number.
+- **`logWeight` already refused a future date server-side**, and the picker
+  disables future days, so the rule is now enforced in both places.
+- **Verified:** phone and the desktop rail, the photo sheet re-run end to end
+  after the extraction, Escape unwinding one step, no page errors. tsc, eslint,
+  gate audit, tests and the production build clean.
+
 ## ✅ THE PHOTO SHEET'S DATE IS BACK, AS ITS TITLE (2026-09-12)
 
 Adrian, seeing the auto-dated sheet: "I don't have the date function yet."
