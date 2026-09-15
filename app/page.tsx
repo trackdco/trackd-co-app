@@ -269,7 +269,10 @@ export default function LandingPage() {
           </h2>
           <dl className="mt-6 divide-hairline divide-border-default">
             {FEATURES.map((f) => (
-              <div key={f.title} className="grid grid-cols-[2.5rem_1fr] items-start gap-x-3 py-5">
+              <div key={f.title} className="grid grid-cols-[3rem_1fr] items-start gap-x-3 py-5">
+                {/* One optical height for five drawings of different shapes:
+                    the tall ones (vial, body, bell) and the wide ones (syringe,
+                    sparkline) were rendering at noticeably different weights. */}
                 <span aria-hidden className="flex h-8 items-center justify-center">
                   {f.glyph}
                 </span>
@@ -307,8 +310,20 @@ export default function LandingPage() {
             Every feature, on every plan.
           </h2>
 
+          {/*
+            ⚠️ THE ANCHOR IS SANS, AND IT IS THE ONE FIGURE ON THE PAGE THAT IS.
+            Geist Mono gives every glyph the same advance width, which is the
+            whole point of it for a column of doses and times. At 3rem it gives
+            the DECIMAL POINT a full cell too, and "$1.35" renders with a 15px
+            hole in the middle of it. Measured on the desktop render, not
+            guessed. `METRIC_VALUE` is the app's own treatment for a big number
+            on a card and is Geist Light with `tabular-nums` for exactly this
+            reason; this is that treatment scaled up for a display figure. The
+            smaller figures below stay mono, where the even spacing reads as
+            intended rather than as a gap.
+          */}
           <p className="mt-8 flex items-baseline gap-2">
-            <span className="font-mono text-[3rem] font-light leading-none tracking-[-0.05em] tabular-nums text-foreground">
+            <span className="text-[3.25rem] font-light leading-none tracking-[-0.03em] tabular-nums text-foreground">
               ${YEARLY_PER_WEEK.toFixed(2)}
             </span>
             <span className="text-sm text-text-secondary">a week</span>
