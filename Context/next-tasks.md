@@ -80,8 +80,13 @@ trial-conversion risk still open)
 
 ## 🟡 SPEC 3-02 — THE LANDING PAGE IS BUILT AND WAITING ON ADRIAN
 
-Branch `feat/landing-3-02`, four commits, NOT pushed and NOT merged. Adrian's
+Branch `feat/landing-3-02`, pushed. **PR #66, titled "DO NOT MERGE."** Adrian's
 instruction 2026-09-16: "no merging to main without my final full approval."
+Preview (SSO-gated, sign in to Vercel first):
+`https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.vercel.app`
+
+Gates all green: tsc 0, eslint 0, 106 files / 2099 tests, `next build` exit 0 with
+`/` prerendered to static HTML.
 
 - [ ] **ADRIAN: read the page and rule on it.** It is a draft in every sense: the
       mockup the spec pins the copy to never existed, so all the words are mine.

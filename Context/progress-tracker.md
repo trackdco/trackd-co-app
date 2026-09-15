@@ -289,7 +289,18 @@ session needs at hand.
 
 Last updated: 2026-09-03 (the billing gate has been LIVE since 27 Aug and the repo said otherwise; the seven-day grace notice is built on `warning-popup`)
 
-## The public landing page at `/` (Spec 3-02) — BUILT 2026-09-16, branch `feat/landing-3-02`, UNMERGED
+## The public landing page at `/` (Spec 3-02) — BUILT 2026-09-16, PR #66, UNMERGED
+
+Branch `feat/landing-3-02`, pushed. **PR #66 is titled "DO NOT MERGE"** and stays
+that way until Adrian rules: "no merging to main without my final full approval."
+Preview: `https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.vercel.app`
+(Vercel "Ready"; the preview is SSO-gated, so it opens for a signed-in team member
+and redirects anyone else to `vercel.com/login`).
+
+⚠️ **CodeRabbit does not auto-review this repo** — it skips any repository with
+fewer than ten stars, and the green "CodeRabbit: success" check on a PR is that
+SKIP, not a review. It has to be triggered with an `@coderabbitai review` comment.
+Anyone reading that check as a passed review is reading it wrong.
 
 The front door is a real page again. `/` rendered nothing but a redirect into the
 onboarding flow since 2026-08-27; the funnel is now landing → "Start tracking" →
