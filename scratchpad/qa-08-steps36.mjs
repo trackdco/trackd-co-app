@@ -77,7 +77,7 @@ const HANDOFF = {
 /** D35's label, identical to `06`'s secondary control. */
 const SUBSCRIBE_LABEL = "Set up my plan";
 /** THE SEAM. Three surfaces, one destination. */
-const PLANS_URL = "/onboarding?step=plans";
+const PLANS_URL = "/start?step=plans";
 
 let seq = 0;
 const created = [];
@@ -346,7 +346,7 @@ try {
     `href="${href}" (05, 06 and 08 must all land here)`,
   );
   await subscribeRow.first().click();
-  await gPage.waitForURL(/onboarding/, { timeout: 15000 }).catch(() => {});
+  await gPage.waitForURL(/\/start/, { timeout: 15000 }).catch(() => {});
   check(
     "⚠️ THE SEAM: and following it actually lands on the price list",
     gPage.url().includes("step=plans"),

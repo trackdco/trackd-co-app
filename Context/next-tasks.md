@@ -78,6 +78,44 @@ trial-conversion risk still open)
 
 ---
 
+## 🟡 SPEC 3-02 — THE LANDING PAGE IS BUILT AND WAITING ON ADRIAN
+
+Branch `feat/landing-3-02`, pushed. **PR #66, titled "DO NOT MERGE."** Adrian's
+instruction 2026-09-16: "no merging to main without my final full approval."
+Preview (SSO-gated, sign in to Vercel first):
+`https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.vercel.app`
+
+Gates all green: tsc 0, eslint 0, 106 files / 2099 tests, `next build` exit 0 with
+`/` prerendered to static HTML.
+
+- [ ] **ADRIAN: read the page and rule on it.** It is a draft in every sense: the
+      mockup the spec pins the copy to never existed, so all the words are mine.
+- [ ] **ADRIAN: "Cancel in one tap."** The spec fixes that line, but cancelling
+      today is Billing → Cancel → confirm, and sometimes a retention offer. Keep
+      the line, soften it, or change the flow.
+- [ ] **Replace the three placeholders.** Proof strip line, three quotes, privacy
+      FAQ answer. All carry `TODO(3-02)` comments. The quotes are the blocking one.
+- [ ] **Real iPhone and real Android.** Measured at 375x548, 402x700 and 1280
+      in WebKit and Chromium, which is not the same thing.
+- [ ] Merge is Adrian's call alone. Preview deployed, PR #66 open and reviewed.
+
+**CodeRabbit reviewed on the second ask (5 findings). Two fixed, three are yours.**
+
+- ✅ **The sticky bar covered the footer.** Measured 39px of overlap at both
+  402x700 and 375x548, across the 18+/not-medical-advice line. Now 0.
+- ✅ **Landing prices could drift from Stripe.** `test/live/brandPrices.live.test.ts`
+  fails loudly if `brand.ts` and the live price objects disagree on amount,
+  currency or interval. Live-only (`npx vitest run --config vitest.live.config.ts`),
+  so the ordinary suite still passes with no keys and no network.
+- ⏸ **The placeholder quotes** (rated Major). Not removed: social proof is one of
+  the eleven sections the spec fixes, the preview is SSO-gated, and the branch
+  cannot merge. Replace them or drop the section, Adrian's call.
+- ⏸ **"Cancel in one tap"** (rated Major, independently of our own note). The spec
+  fixes that copy, so it is not ours to rewrite.
+- ⏭ **`/plans` vs `/checkout` in `flow.tsx:601`.** Real but PRE-EXISTING and
+  outside this spec, which says the quiz moves route and its contents do not
+  change. Worth its own task.
+
 ## 🔴 SPEC 16 — THE COLD REVIEWS CAME BACK. ONE HIGH IS OPEN, AND IT IS ADRIAN'S.
 
 Branch `deletion/steps-1-2`, unpushed. Three independent cold lanes ran;

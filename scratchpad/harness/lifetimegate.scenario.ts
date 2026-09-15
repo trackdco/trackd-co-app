@@ -670,12 +670,12 @@ describe("one lifetime, legs 10 and 11", () => {
     const { context, page } = await newContext();
     let paywall = "";
     try {
-      await page.goto(`${BASE_URL}/onboarding?step=hook`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${BASE_URL}/start?step=hook`, { waitUntil: "domcontentloaded" });
       await page.evaluate(
         ([key, value]) => localStorage.setItem(key, value),
         [ONBOARDING_KEY, JSON.stringify({ plan: "weekly" })] as [string, string],
       );
-      await page.goto(`${BASE_URL}/onboarding?step=plans`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${BASE_URL}/start?step=plans`, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(3000);
       paywall = await page.locator("body").innerText();
       console.log(`  paywall:\n${paywall.slice(0, 700)}`);
@@ -692,7 +692,7 @@ describe("one lifetime, legs 10 and 11", () => {
     const since = Date.now();
     const second = await newContext();
     try {
-      await second.page.goto(`${BASE_URL}/onboarding?step=start`, { waitUntil: "domcontentloaded" });
+      await second.page.goto(`${BASE_URL}/start?step=start`, { waitUntil: "domcontentloaded" });
       await second.page.waitForTimeout(2000);
       const filled = await fillCardForm(second.page, "4242424242424242");
       c.arrived("the checkout card form was reachable", filled);

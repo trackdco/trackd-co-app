@@ -50,7 +50,7 @@ function readCredentials(formData: FormData) {
  * Where to land after auth, read off the form.
  *
  * Two callers supply one: the onboarding account screen (Spec w2b-14), which is
- * mid-flow and needs the user back at `/onboarding?step=account` rather than the
+ * mid-flow and needs the user back at `/start?step=account` rather than the
  * dashboard — and now `/login` itself, which forwards the deep link that sent an
  * unauthenticated visitor there in the first place.
  *
@@ -154,7 +154,7 @@ async function signIn(formData: FormData): Promise<AuthFormState> {
    *
    * From the onboarding account screen it is WRONG, and it shipped visibly
    * broken for one measured run: the whole flow is ONE client tree mounted at
-   * `/onboarding`, and it reads `?step=` at mount and on `popstate` only. A soft
+   * `/start`, and it reads `?step=` at mount and on `popstate` only. A soft
    * nav to a different `?step=` reuses the mounted tree, so the address bar said
    * one thing while a stale screen — sign-in form and all — stayed on display
    * for a user who had just signed in.
@@ -166,7 +166,7 @@ async function signIn(formData: FormData): Promise<AuthFormState> {
    *
    * ⚠️ A cold review measured `location.assign` being called ZERO times on this
    * path: the Server Action's automatic RSC re-render of the current route
-   * reaches `app/onboarding/page.tsx`'s own redirect first, and the router
+   * reaches `app/start/page.tsx`'s own redirect first, and the router
    * applies that as a soft REPLACE. So the full load is the fallback, not the
    * mechanism, and the account history entry is replaced rather than pushed.
    * Both routes end on the right screen; only which one gets there first varies.

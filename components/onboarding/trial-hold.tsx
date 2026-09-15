@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { hasEntitlement } from "@/app/onboarding/billing-actions";
+import { hasEntitlement } from "@/app/start/billing-actions";
 import { CircleNotch } from "@/components/icons";
 import { FLOW_SUB, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";

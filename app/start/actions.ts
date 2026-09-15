@@ -74,7 +74,7 @@ export type ClaimResult = {
    *
    * The account screen needs this to decide where the user goes next: forward to
    * the paywall if the claim gated them, or on to `/welcome` if there was
-   * nothing to claim and the gate is still open. `app/onboarding/page.tsx`
+   * nothing to claim and the gate is still open. `app/start/page.tsx`
    * refuses every `authed` step without it, so a client that guessed would send
    * the user into a redirect it cannot win.
    */

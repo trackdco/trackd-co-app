@@ -163,7 +163,7 @@ export function BetaLaunchNotice({
   const setUpMyPlan = useCallback(() => {
     markBetaNoticeSeen(userId);
     /**
-     * ⚠️ `/plans`, NOT `/onboarding?step=plans` (Adrian, 2026-08-23).
+     * ⚠️ `/plans`, NOT `/start?step=plans` (Adrian, 2026-08-23).
      *
      * D28's "one shared destination" is unchanged — every surface that offers a
      * plan still points at ONE place. That place is now the billing-side route,
@@ -417,7 +417,7 @@ function BetaLaunchDialog({
                * the copy could silently disagree.
                *
                * ⚠️ AND IT MUST NEVER SHOW THE CLAMPED INSTANT.
-               * `app/onboarding/page.tsx` deliberately runs `resolveFreeTime`
+               * `app/start/page.tsx` deliberately runs `resolveFreeTime`
                * and shows the clamp, because that screen states a CHARGE date
                * and has to match what Stripe will hold. The clamp only moves
                * LATER, so showing it here would promise access up to 48 hours

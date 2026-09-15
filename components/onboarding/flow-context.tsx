@@ -4,7 +4,7 @@ import { createContext, useContext } from "react";
 
 import type { OnboardingSession } from "@/lib/onboarding/session";
 import type { PlanId, PricedPlan } from "@/lib/onboarding/pricing";
-import type { TrialEligibility } from "@/app/onboarding/billing-actions";
+import type { TrialEligibility } from "@/app/start/billing-actions";
 import type { StepId } from "@/lib/onboarding/steps";
 
 /**
@@ -66,7 +66,7 @@ export interface FlowContextValue {
    *
    * Not in the codebase — spec w2b-15 forbids a hardcoded dollar amount so a
    * dashboard change takes effect without a deploy. Fetched server-side in
-   * `app/onboarding/page.tsx` and handed down, because three ANONYMOUS screens
+   * `app/start/page.tsx` and handed down, because three ANONYMOUS screens
    * need them well before there is a session.
    *
    * **A plan may be `undefined`**, and every caller has to handle that rather
@@ -78,7 +78,7 @@ export interface FlowContextValue {
   /**
    * Whether the SERVER saw a session for this page load. Read by the account
    * screen to show its waiting state instead of the sign-in controls; never a
-   * substitute for a real guard, which lives in `app/onboarding/page.tsx`.
+   * substitute for a real guard, which lives in `app/start/page.tsx`.
    */
   signedIn: boolean;
   /**

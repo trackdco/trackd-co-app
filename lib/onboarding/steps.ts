@@ -101,7 +101,7 @@ export const STEP_ORDER: readonly StepMeta[] = [
   // recede and accumulate on one surface.
   { id: "demo", phase: "anonymous" },
   // The cost comparison. D for now (Adrian's pick of six candidates); the
-  // others live at /onboarding/cost until one is chosen for good.
+  // others live at /start/cost until one is chosen for good.
   { id: "cost", phase: "anonymous" },
   // Cost makes the argument, `free` removes the risk, paywall asks for the
   // decision. Three beats, in that order (Adrian, 2026-08-05).
@@ -187,7 +187,7 @@ export function stepIndex(id: StepId): number {
  *
  * `?step=` is read straight off the URL, and for a while nothing checked it:
  * `isStepId` is a membership test, not a permission check, so
- * `/onboarding?step=demo` rendered the whole demo — body map, dosing UI,
+ * `/start?step=demo` rendered the whole demo — body map, dosing UI,
  * injection sites — with an empty session, and `?step=paywall` rendered the
  * trial CTA. Since every screen puts its own id in the address bar, every URL a
  * user bookmarks or shares was a bypass.
@@ -220,7 +220,7 @@ export function clampStep(
   /**
    * Whether the SERVER has verified that this account has ALREADY PASSED the
    * 18+/ToS gate — `profiles.is_18_plus AND tos_accepted_at`, read by
-   * `getSessionContext` and handed down from `app/onboarding/page.tsx`.
+   * `getSessionContext` and handed down from `app/start/page.tsx`.
    *
    * ## This is proof of age, which is the only thing that may skip a proof of age
    *

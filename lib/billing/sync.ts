@@ -614,7 +614,7 @@ const PAST_DUE_GRACE_DAYS = 3;
  *   endSubscription    access SURVIVES a cancellation
  *
  * So the return widens to three states and the callers answer them differently.
- * The shape is `compEntitlement`'s (`app/onboarding/billing-actions.ts:1730`) —
+ * The shape is `compEntitlement`'s (`app/start/billing-actions.ts:1730`) —
  * a discriminated union with an explicit `unknown` — rather than a new one.
  *
  * ⚠️ AND `present` WITH A NULL DATE IS NOT `absent`. A row that exists with no

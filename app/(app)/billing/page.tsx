@@ -35,7 +35,7 @@ export const metadata: Metadata = { title: "Billing · Trackd Co" };
  *
  * ## It cannot start billing, and that is structural
  *
- * There is no link to `/onboarding` on this page and no upgrade control. A user
+ * There is no link to `/start` on this page and no upgrade control. A user
  * with no subscription is told what they are on and nothing else. That is not a
  * gap to be filled in later without a decision: Adrian's standing rule is that
  * nothing may route a user at the paywall until he says so, and a "Subscribe"
@@ -333,7 +333,7 @@ export default async function BillingPage() {
                 *
                 * ⚠️ A BARE `<a>`, NOT `next/link`. THE SEAM.
                 *
-                * `/onboarding?step=plans` is the price list, and it is the same
+                * `/start?step=plans` is the price list, and it is the same
                 * destination `05`'s "Choose a plan" and `06`'s "Set up my plan"
                 * both use — three surfaces, one URL, which is what the seam
                 * requires and what the drivers assert. The onboarding flow reads

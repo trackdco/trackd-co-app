@@ -265,7 +265,7 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
    * selector gone, no plan has been chosen, so the card screen would be asking
    * for a card for a plan nobody picked.
    *
-   * `?step=plans` is the price list (`app/onboarding/page.tsx:114`), and it is
+   * `?step=plans` is the price list (`app/start/page.tsx:114`), and it is
    * the SAME destination `06`'s "Set up my plan" uses — D28's "one shared
    * destination", so the two surfaces cannot drift into sending people to two
    * different places to do one thing.
@@ -279,7 +279,7 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
     if (leaving) return;
     setLeaving(true);
     /**
-     * ⚠️ `/plans`, NOT `/onboarding?step=plans` (Adrian, 2026-08-23).
+     * ⚠️ `/plans`, NOT `/start?step=plans` (Adrian, 2026-08-23).
      *
      * D28's "one shared destination" is unchanged — every surface that offers a
      * plan still points at ONE place. That place is now the billing-side route,

@@ -4,7 +4,7 @@
  * Pure, so the one decision that stands between a user and a charge on the day
  * they were promised none can be tested without Stripe, without Postgres, and
  * without a clock. It reads nothing: every fact it needs arrives as an
- * argument, and `app/onboarding/billing-actions.ts` does the reading.
+ * argument, and `app/start/billing-actions.ts` does the reading.
  *
  * Three answers, and the create call sets a different thing for each:
  *

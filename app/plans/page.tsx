@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Choose a plan · Trackd Co" };
  *
  * ## Why this exists rather than another `?step=`
  *
- * Every route into the plan screen used to be `/onboarding?step=plans`, which
+ * Every route into the plan screen used to be `/start?step=plans`, which
  * meant a paying customer tapping "Choose a plan" from `/billing` was sent into
  * the ONBOARDING FLOW — progress rail, percentage and all. The contact sheet
  * made it plain: a screen telling somebody they are "73%" through signing up,
@@ -26,7 +26,7 @@ export const metadata: Metadata = { title: "Choose a plan · Trackd Co" };
  * A second implementation of a screen that takes money is exactly how two
  * surfaces drift into quoting two prices, and this file would be the place it
  * happened. So the flow, the screens, the eligibility resolution and the Stripe
- * calls are the SAME ones `/onboarding` mounts — only the header differs, via
+ * calls are the SAME ones `/start` mounts — only the header differs, via
  * `chrome="billing"`. See `BillingFlowEntry`.
  */
 export default function PlansPage() {

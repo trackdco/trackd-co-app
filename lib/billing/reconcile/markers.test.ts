@@ -53,7 +53,7 @@ describe("the free-period markers are pinned to the code that writes them", () =
    * question reconciliation asks is about the promise (`freeTime.ts:80-84`).
    */
   it("`trackd_grace_until` is still written by the checkout path", () => {
-    const writer = source("app/onboarding/billing-actions.ts");
+    const writer = source("app/start/billing-actions.ts");
     expect(GRACE_KEY).toBe("trackd_grace_until");
     expect(writer).toContain(`${GRACE_KEY}: freeTime.graceEndsAt`);
   });

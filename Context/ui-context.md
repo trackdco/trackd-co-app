@@ -671,6 +671,46 @@ SAME key, so the session stays one thing.
 sometimes is not. If the date can never move, state it in a line and do not
 build a picker.
 
+### The public landing page is measured, so it gets an AA-safe muted (`/`)
+
+`--text-muted` measures **4.38:1** on `--bg-base` and **3.95:1** on
+`--bg-surface`. Both sit under the **4.5:1** floor WCAG AA sets for body text.
+Inside the app that has never been tested against a standard; the **landing
+page's spec requires AA explicitly**, so its secondary prose uses
+**`--text-secondary`** instead: `--text-muted` mixed a quarter of the way toward
+`--text-primary`: **6.45:1** on `--bg-base` and **5.83:1** on `--bg-surface`,
+still clearly secondary beside white. Every figure here was measured, not
+eyeballed. It is `color-mix`ed from the two existing tokens, so no new hex
+enters `globals.css` and a palette retune carries it.
+
+**This is not a licence to swap `--text-muted` out across the app.** Every tab
+screen has used it since the first restyle, and changing them is a deliberate
+pass with Adrian's eyes on it. **The app-wide contrast question is real and it
+is OPEN** (raised 2026-09-16, while building `/`); it is simply not the landing
+page's to answer.
+
+The landing page also carries **`.lp-col`** (the content column: 560px to
+tablet, 680px on desktop, with a 20px side gutter) and **`.lp-sec`** (the
+section rhythm: 56px, 88px on desktop). Both live in `globals.css`. Sections
+separate with the existing **`.hairline-t`**, never with cards: the card
+treatment belongs to data surfaces inside the app, and a marketing page built
+out of stacked cards reads as a template.
+
+**The landing page's motion budget is ONE moment.** `landing-ring` logs the
+due dose in the hero panel: an amber ring settles to a white disc at 900ms and a
+tick pops at 940ms, reusing `animate-home-tick-pop`, `animate-home-tick-ring`
+and `animate-home-up` rather than inventing a vocabulary. Nothing else on the
+page moves unasked, nothing loops, and no section animates on scroll. The
+restraint is what makes the one moment read as the product rather than as
+decoration. The headline preset is **`LANDING_DISPLAY`** (2.5rem, stepping to
+3.25rem at `md` only), because `FLOW_DISPLAY` is sized for a phone column and
+reads as a paragraph across a 680px desktop measure.
+
+**Ink on the amber CTA is `--bg-base`, not white.** Measured: dark on amber is
+**6.19:1** and passes; `--text-primary` on amber is **2.65:1** and fails badly.
+Amber is a mid-luminance hue, so it takes dark text, which is the opposite of
+the instinct that puts white on every filled button.
+
 ### Rule: new screens reuse the system
 
 Any new screen (Protocol, Calendar, Settings, …) is composed **only**

@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { claimOnboardingSession } from "@/app/onboarding/actions";
+import { claimOnboardingSession } from "@/app/start/actions";
 import { track } from "@/lib/onboarding/analytics";
 import { readSession } from "@/lib/onboarding/session";
 import type { StepId } from "@/lib/onboarding/steps";
-import type { ClaimStatus } from "@/app/onboarding/actions";
+import type { ClaimStatus } from "@/app/start/actions";
 
 /**
  * The device half of the answer handoff (Spec w2b-14, step 4).
@@ -24,12 +24,12 @@ import type { ClaimStatus } from "@/app/onboarding/actions";
  *
  * It used to fire only on a step whose phase is `authed`, and a cold review
  * showed what that costs: one failed claim, the user taps past the retry banner
- * to the end of the flow, and there is no way back. Re-entering `/onboarding`
+ * to the end of the flow, and there is no way back. Re-entering `/start`
  * lands on `hook` — an anonymous step — so the claim never fired again and the
  * key sat on the device forever, taking the 18+/ToS gate with it (so the user
  * was then sent to `/welcome` to re-answer what onboarding had already asked).
  *
- * `signedIn` comes from the server (`app/onboarding/page.tsx`), so ANY visit to
+ * `signedIn` comes from the server (`app/start/page.tsx`), so ANY visit to
  * the flow by a signed-in user with answers still on the device now claims them.
  *
  * ## The ordering is the whole feature
@@ -68,7 +68,7 @@ export function AnswerHandoff({
   step,
   onResolved,
 }: {
-  /** Server-verified. See `app/onboarding/page.tsx`. */
+  /** Server-verified. See `app/start/page.tsx`. */
   signedIn: boolean;
   /** The step on screen. Only used to decide WHEN to try again — see the effect. */
   step: StepId;

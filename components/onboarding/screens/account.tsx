@@ -63,10 +63,10 @@ import { useFlow } from "../flow-context";
  *
  * So the user returns HERE, the claim runs, and the flow moves them on once the
  * gate is written (`onClaimed` in `flow.tsx`). A fully gated user never sees
- * this screen at all — `app/onboarding/page.tsx` 307s them to the paywall before
+ * this screen at all — `app/start/page.tsx` 307s them to the paywall before
  * a byte of it renders.
  */
-const AUTH_RETURN = "/onboarding?step=account";
+const AUTH_RETURN = "/start?step=account";
 
 export function AccountScreen() {
   const { signedIn } = useFlow();

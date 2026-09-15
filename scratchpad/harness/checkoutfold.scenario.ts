@@ -195,7 +195,7 @@ async function openCheckout(
   await context.addCookies(await cookiesFor(email));
   const page = await context.newPage();
 
-  await page.goto(`${BASE}/onboarding?step=plans`, {
+  await page.goto(`${BASE}/start?step=plans`, {
     waitUntil: "domcontentloaded",
     timeout: 120_000,
   });

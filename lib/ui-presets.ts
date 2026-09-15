@@ -59,6 +59,21 @@ export const FLOW_SUB = "text-[0.95rem] leading-relaxed text-text-muted"
 export const FLOW_DISPLAY =
   "text-[2.5rem] font-light leading-[1.02] tracking-[-0.035em] text-foreground"
 
+/**
+ * The PUBLIC LANDING PAGE's headline (spec 3-02), and the only place it is used.
+ *
+ * `FLOW_DISPLAY` is sized for a phone-width flow screen, where 2.5rem fills the
+ * column. The landing page is also read on a laptop at 680px, where the same
+ * size reads as a paragraph rather than an opening statement, and Adrian asked
+ * for a hero that lands (2026-09-16: "a massive hero section which is visual").
+ *
+ * It steps up ONLY at the desktop breakpoint, so the phone keeps the flow's
+ * proportions exactly. Still Geist Light, still one `<em>` of emphasis at most:
+ * the step is size, never a second typeface or a heavier weight.
+ */
+export const LANDING_DISPLAY =
+  "text-[2.5rem] md:text-[3.25rem] font-light leading-[1.02] tracking-[-0.035em] text-foreground"
+
 /* ---------------------------------------------------------------------------
    Inversion presets (see ui-context.md → Typography): card TITLES recede into
    small tracked-uppercase eyebrows, and the DATA VALUE becomes the display layer
