@@ -2456,3 +2456,52 @@ body[data-inline-edit="true"] .shortcuts-layer {
     padding-block: 5.5rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE LANDING PAGE'S TWO MOVING PARTS (spec 3-02)
+
+   `landing-ring` is the due dose being LOGGED: an amber ring that settles to a
+   white disc at 900ms, under a tick that pops at 940ms. It is the app's own
+   heartbeat, and it is the only thing on the page that moves unasked. The rest
+   of the page is still, which is what buys this one moment its authority.
+
+   `landing-cta-bar` is the sticky call to action, modelled on `.edit-action-bar`
+   but a separate class because that one is scoped by name to in-place editing
+   and inherits rules this must not.
+   --------------------------------------------------------------------------- */
+@keyframes landing-ring-settle {
+  to {
+    border-color: transparent;
+    background-color: var(--accent-primary);
+  }
+}
+
+.landing-ring {
+  animation: landing-ring-settle 320ms var(--motion-ease) both;
+}
+
+.landing-cta-bar {
+  background: color-mix(in srgb, var(--bg-base) 86%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-top: 0.5px solid var(--border-default);
+  padding-bottom: env(safe-area-inset-bottom);
+  transform: translateY(100%);
+  transition: transform var(--motion-slow) var(--motion-ease);
+}
+
+.landing-cta-bar-on {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-ring {
+    animation: none;
+    border-color: transparent;
+    background-color: var(--accent-primary);
+  }
+
+  .landing-cta-bar {
+    transition: none;
+  }
+}

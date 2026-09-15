@@ -696,6 +696,16 @@ separate with the existing **`.hairline-t`**, never with cards: the card
 treatment belongs to data surfaces inside the app, and a marketing page built
 out of stacked cards reads as a template.
 
+**The landing page's motion budget is ONE moment.** `landing-ring` logs the
+due dose in the hero panel: an amber ring settles to a white disc at 900ms and a
+tick pops at 940ms, reusing `animate-home-tick-pop`, `animate-home-tick-ring`
+and `animate-home-up` rather than inventing a vocabulary. Nothing else on the
+page moves unasked, nothing loops, and no section animates on scroll. The
+restraint is what makes the one moment read as the product rather than as
+decoration. The headline preset is **`LANDING_DISPLAY`** (2.5rem, stepping to
+3.25rem at `md` only), because `FLOW_DISPLAY` is sized for a phone column and
+reads as a paragraph across a 680px desktop measure.
+
 **Ink on the amber CTA is `--bg-base`, not white.** Measured: dark on amber is
 **6.19:1** and passes; `--text-primary` on amber is **2.65:1** and fails badly.
 Amber is a mid-luminance hue, so it takes dark text, which is the opposite of
