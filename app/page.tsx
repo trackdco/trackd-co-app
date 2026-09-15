@@ -15,6 +15,7 @@ import { TodayPanel } from "@/components/landing/today-panel";
 import { UpdatesForm } from "@/components/landing/updates-form";
 import {
   ACN,
+  BUSINESS_NAME,
   CURRENCY,
   LEGAL_ENTITY,
   PLANS,
@@ -78,7 +79,7 @@ export const metadata: Metadata = {
     description: "Everything you're running, in one place you'll actually open.",
     type: "website",
     url: "https://trackdco.app",
-    siteName: "Trackd Co",
+    siteName: BUSINESS_NAME,
   },
 };
 

@@ -31,6 +31,22 @@
 /** The product name, as it appears to a visitor. Lowercase in the wordmark. */
 export const PRODUCT_NAME = "Trackd";
 
+/**
+ * The BUSINESS name, for formal surfaces that are not the legal entity: the
+ * openGraph `siteName` a link unfurler prints, and anywhere the product is
+ * being named rather than addressed.
+ *
+ * ⚠️ "Trackd.co" is retired and must never appear (Adrian, 2026-09-04). It is
+ * wrong twice over: it is not the registered entity, and the dot reads as a
+ * domain the company does not own. The real domain is trackdco.app.
+ *
+ * It lives here for the same reason the product name does. `siteName` was
+ * typed straight into the landing page's metadata, which is a VISIBLE instance
+ * of the name that a rename would have missed, and missing one is exactly what
+ * this file exists to prevent.
+ */
+export const BUSINESS_NAME = "Trackd Co";
+
 /** The registered entity. Must match ASIC and the Stripe descriptor exactly. */
 export const LEGAL_ENTITY = "Trackd Co Pty Ltd";
 
