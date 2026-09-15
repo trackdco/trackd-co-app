@@ -289,6 +289,50 @@ session needs at hand.
 
 Last updated: 2026-09-03 (the billing gate has been LIVE since 27 Aug and the repo said otherwise; the seven-day grace notice is built on `warning-popup`)
 
+## The public landing page at `/` (Spec 3-02) — BUILT 2026-09-16, branch `feat/landing-3-02`, UNMERGED
+
+The front door is a real page again. `/` rendered nothing but a redirect into the
+onboarding flow since 2026-08-27; the funnel is now landing → "Start tracking" →
+the quiz at `/start` → account → paywall.
+
+**What shipped on the branch**
+
+- **`/onboarding` moved to `/start`**, with a 308 in `next.config.ts` naming the
+  three paths that ever served HTML. ⚠️ A `/onboarding/:path*` wildcard is the
+  obvious spelling and would have broken every asset under `public/onboarding/`
+  (Kyle, the carousel, the nineteen install frames), because redirects are
+  matched before the filesystem.
+- **`lib/brand.ts`** holds the product name, entity, ACN, support address and the
+  three display prices. The weekly anchor is DERIVED ($69.99 / 52 = $1.35), never
+  typed twice. Scope is the landing page and site metadata only: the ~270 other
+  "Trackd" strings wait for the rename spec and the trademark search.
+- **The hero is the app, drawn rather than captured.** A device carrying the real
+  today's log, with the due dose logged at 900ms. The four real screenshots in
+  `public/onboarding/` were rejected for it: each bakes in the old wordmark
+  (defeating `brand.ts`), carries a "Sign out" control, and names real compounds
+  where a public page wants generic labels.
+- **Four legal links, not the spec's three.** Washington's MHMDA requires the
+  Consumer Health Data Privacy Policy under that exact name; `verbatimQuotes.test.ts`
+  was repointed from the onboarding hook screen to `app/page.tsx`, which is what
+  its own comment always demanded.
+- **`--text-secondary`** exists because the spec requires WCAG AA and `--text-muted`
+  does not meet it (4.38:1 on `--bg-base`, 3.95:1 on `--bg-surface`). Mixed from the
+  two existing tokens, measured at 6.45:1 and 5.83:1.
+
+**⚠️ OPEN, and it is Adrian's:** the app-wide contrast question. Every tab screen
+uses `--text-muted` for body copy and it is under the AA floor. Changing them is a
+deliberate pass, not a side effect of a marketing page.
+
+**⚠️ A SECOND RECORDED INSTANCE of the stale-CSS trap on this tree.** The sticky CTA
+shipped VISIBLE across the hero in the first pass, and the markup was correct all
+along: no new rule in `globals.css` had reached the served stylesheet. Clearing
+`.next` fixed it both times. Confirm a rule is in the served chunk before concluding
+anything about it.
+
+**Still owed before this can merge:** three TODO placeholders (the proof line, the
+three quotes, the privacy answer), and a look on a real iPhone and a real Android.
+The quotes especially: invented testimonials cannot reach production.
+
 ## ⚠️ THE BILLING GATE HAS BEEN ON SINCE 27 AUGUST (2026-09-03)
 
 `next-tasks.md` carried G4 ("set `BILLING_GATE_ENABLED=true`") as an unticked box, and

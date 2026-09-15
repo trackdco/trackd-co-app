@@ -78,6 +78,22 @@ trial-conversion risk still open)
 
 ---
 
+## 🟡 SPEC 3-02 — THE LANDING PAGE IS BUILT AND WAITING ON ADRIAN
+
+Branch `feat/landing-3-02`, four commits, NOT pushed and NOT merged. Adrian's
+instruction 2026-09-16: "no merging to main without my final full approval."
+
+- [ ] **ADRIAN: read the page and rule on it.** It is a draft in every sense: the
+      mockup the spec pins the copy to never existed, so all the words are mine.
+- [ ] **ADRIAN: "Cancel in one tap."** The spec fixes that line, but cancelling
+      today is Billing → Cancel → confirm, and sometimes a retention offer. Keep
+      the line, soften it, or change the flow.
+- [ ] **Replace the three placeholders.** Proof strip line, three quotes, privacy
+      FAQ answer. All carry `TODO(3-02)` comments. The quotes are the blocking one.
+- [ ] **Real iPhone and real Android.** Measured at 375x548, 402x700 and 1280
+      in WebKit and Chromium, which is not the same thing.
+- [ ] Preview deploy, then PR with CodeRabbit. Merge is Adrian's call alone.
+
 ## 🔴 SPEC 16 — THE COLD REVIEWS CAME BACK. ONE HIGH IS OPEN, AND IT IS ADRIAN'S.
 
 Branch `deletion/steps-1-2`, unpushed. Three independent cold lanes ran;
