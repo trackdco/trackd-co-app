@@ -421,7 +421,17 @@ export default function LandingPage() {
           <p className="mt-5 text-sm text-text-secondary">Angus and Adrian, founders</p>
         </section>
 
-        <footer className="lp-col hairline-t border-border-default pb-16 pt-10">
+        {/*
+          ⚠️ THE BOTTOM PADDING CLEARS THE FIXED CTA BAR, AND THE NUMBER IS MEASURED.
+          `StickyCta` is `position: fixed` and is SHOWN by the time anyone reaches
+          the footer, because it appears once the hero leaves. Measured at 103px
+          tall, against `pb-16`'s 64px: the last line of the footer sat 39px
+          UNDER the bar at both 402x700 and 375x548. That last line is the 18+
+          and not-medical-advice disclaimer, which is the one line on the page
+          that has to stay readable. 7rem clears the bar, and the safe-area inset
+          is added on top for a notched phone, where the bar carries it too.
+        */}
+        <footer className="lp-col hairline-t border-border-default pb-[calc(7rem+env(safe-area-inset-bottom))] pt-10">
           <div className="max-w-[24rem]">
             <p className={CARD_EYEBROW}>Product updates, now and then</p>
             <div className="mt-3">
