@@ -22,6 +22,27 @@
   --text-muted: #7a7a74;
   --text-subtle: #4a4a46;
 
+  /**
+   * THE AA-SAFE MUTED, for surfaces that must MEASURE rather than merely look
+   * right (spec 3-02, the public landing page).
+   *
+   * `--text-muted` measures 4.38:1 on `--bg-base` and 3.95:1 on `--bg-surface`.
+   * Both are under the 4.5:1 floor WCAG AA sets for body text, and the landing
+   * page's spec requires AA, so its secondary prose cannot use it. Mixed a
+   * quarter of the way toward `--text-primary`: measured 6.45:1 on `--bg-base`
+   * and 5.83:1 on `--bg-surface`, while staying clearly secondary beside white.
+   *
+   * Mixed from the two tokens rather than written as a third hex, so a palette
+   * retune carries it and nothing new has to be kept in step by hand.
+   *
+   * ⚠️ NOT a licence to swap `--text-muted` out across the app. The app's own
+   * screens have used it since the first restyle and changing them is a
+   * deliberate pass with Adrian's eyes on it, not a side effect of building a
+   * marketing page. That contrast question is real and it is open; it is not
+   * this spec's to answer.
+   */
+  --text-secondary: color-mix(in srgb, var(--text-muted) 75%, var(--text-primary));
+
   /* Accents */
   --accent-primary: #ffffff;
   --accent-amber: #c8861a;
@@ -255,6 +276,7 @@
   --color-text-primary: var(--text-primary);
   --color-text-muted: var(--text-muted);
   --color-text-subtle: var(--text-subtle);
+  --color-text-secondary: var(--text-secondary);
   --color-accent-primary: var(--accent-primary);
   --color-accent-amber: var(--accent-amber);
   --color-accent-green: var(--accent-green);
@@ -2394,5 +2416,43 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .animate-date-pop,
   .animate-date-value {
     animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE PUBLIC LANDING PAGE (`/`, spec 3-02)
+   
+   Two classes, and deliberately only two. The page is built from the app's own
+   tokens, type presets and `.hairline` rules; what it needs that the app does
+   not is a WIDER CONTENT COLUMN than the phone-sized `max-w-md` every tab
+   screen shares, because it is also read on a laptop by someone who has never
+   heard of us.
+
+   Written once here rather than per section: the spec fixes 560px to tablet and
+   680px on desktop, and spelling that out eleven times is eleven chances to
+   drift by a pixel, which is exactly how a page stops reading as one piece.
+
+   Sections separate with the existing `.hairline-t`, never a card. The card
+   treatment belongs to data surfaces inside the app, and a marketing page built
+   out of stacked cards reads as a template.
+   --------------------------------------------------------------------------- */
+.lp-col {
+  width: 100%;
+  max-width: 35rem; /* 560px */
+  margin-inline: auto;
+  padding-inline: 1.25rem; /* the side gutter, never zero at any width */
+}
+
+.lp-sec {
+  padding-block: 3.5rem;
+}
+
+@media (min-width: 800px) {
+  .lp-col {
+    max-width: 42.5rem; /* 680px */
+  }
+
+  .lp-sec {
+    padding-block: 5.5rem;
   }
 }

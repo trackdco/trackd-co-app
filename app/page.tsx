@@ -1,43 +1,87 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
-import { getSessionContext } from "@/lib/auth";
-
-/**
- * ⚠️ NO `metadata` HERE ANY MORE. It moved to `app/onboarding/page.tsx`, which
- * is where a crawler following this redirect actually ends up. Metadata on a
- * route that only ever redirects is never rendered and would rot unnoticed.
- */
+import { PRODUCT_NAME } from "@/lib/brand";
 
 /**
- * The front door. It renders nothing — it decides where you belong.
+ * `/` — the public landing page (Spec 3-02).
  *
- * ## The onboarding flow IS the landing page now (Adrian, 2026-08-27)
+ * ## This route used to be a redirect, and the redirect is gone
  *
- * This used to render `FirstRun`, a swipeable carousel that existed to move a
- * visitor from curiosity to an account. It has been deleted, and the flow at
- * `/onboarding` does that job instead — the same job, done by the thing the
- * visitor is about to walk through anyway, rather than by a separate screen
- * that had to be kept in step with it by hand.
+ * It sent every visitor to the onboarding flow, on the reasoning that the flow
+ * WAS the landing page. That made the first thing a stranger met a quiz. This
+ * page is now the top of the funnel: landing, then "Start tracking", then the
+ * quiz at `/start`, then an account, then the paywall.
  *
- * ⚠️ THIS IS A PRODUCTION-FACING ROUTING CHANGE and it is deliberately sitting
- * on the billing branch rather than going to `main` on its own. Adrian's
- * intent: the new front door arrives at the same moment billing does, so the
- * site changes once rather than twice. Merging this branch is what makes it
- * live; nothing here takes effect before that.
+ * ## ⚠️ THE SITE'S PUBLIC IDENTITY LIVES HERE AGAIN
  *
- * A redirect rather than rendering the flow here: `/onboarding` owns real
- * server work — the Stripe price load, trial eligibility, the `?step=` guard
- * and the age-gate clamp — and duplicating that at `/` would be two places to
- * get the protection right instead of one. The cost is a visible `/onboarding`
- * in the address bar, which is honest about where you are.
+ * While `/` only redirected, the `openGraph` block sat on the flow's page,
+ * because that is where a crawler following trackdco.app actually ended up. It
+ * has come back, and `/start` has given it up in the same change, so exactly
+ * one route claims to be the site.
+ *
+ * ## ⚠️ STATIC, AND `force-static` IS A TRIPWIRE RATHER THAN AN OPTIMISATION
+ *
+ * The spec requires this page to render statically with no client-side data
+ * fetching above the fold. Nothing here reads cookies, headers or a search
+ * param, so Next would render it statically anyway. Declaring it means the
+ * build FAILS if someone later adds a session read or a Supabase call, instead
+ * of the page quietly going dynamic and every visitor paying for a render.
+ *
+ * A signed-in visitor is redirected to `/dashboard` by `proxy.ts` before this
+ * page is reached, which is the only way to keep both promises at once: a
+ * static front door for a stranger, and the app for somebody who already has
+ * an account. See `lib/supabase/middleware.ts`.
  */
-export default async function Home() {
-  // A live session never sees the flow — send them into the app (or the
-  // 18+/ToS gate if they haven't passed it yet).
-  const { user, passedGate } = await getSessionContext();
-  if (user) {
-    redirect(passedGate ? "/dashboard" : "/welcome");
-  }
+export const dynamic = "force-static";
 
-  redirect("/onboarding");
+export const metadata: Metadata = {
+  title: `${PRODUCT_NAME} · Track the whole protocol`,
+  description:
+    "Everything you're running, in one place you'll actually open. Built by people who run real protocols.",
+  alternates: { canonical: "https://trackdco.app" },
+  openGraph: {
+    title: `${PRODUCT_NAME} · Track the whole protocol`,
+    description: "Everything you're running, in one place you'll actually open.",
+    type: "website",
+    url: "https://trackdco.app",
+    siteName: "Trackd Co",
+  },
+};
+
+/**
+ * THE SECTION SCAFFOLD (spec §Implementation 3).
+ *
+ * Eleven sections, in the order the spec fixes and in no other: nav, hero,
+ * proof strip, how it works, features, social proof, pricing, FAQ, second CTA,
+ * founder note, footer.
+ *
+ * ## Why the column is a shared class rather than a prop on each section
+ *
+ * The spec sets the content column at 560px to tablet and 680px on desktop.
+ * Written per section that is eleven chances to drift by a pixel, which is
+ * precisely how a page stops reading as one piece. `lp-col` carries it once,
+ * and a section that needs to bleed past it opts out deliberately.
+ *
+ * ## Hairlines, not cards
+ *
+ * Sections are separated by a 0.5px rule and nothing else. `ui-context.md`
+ * reserves the surface-and-shadow card treatment for data surfaces inside the
+ * app, and a marketing page built out of stacked cards reads as a template.
+ */
+export default function LandingPage() {
+  return (
+    <main className="lp min-h-dvh bg-bg-base">
+      <nav aria-label="Main" className="lp-col" />
+      <section id="hero" aria-labelledby="hero-title" className="lp-col" />
+      <section aria-label="Proof" className="lp-col" />
+      <section id="how" aria-labelledby="how-title" className="lp-col" />
+      <section id="features" aria-labelledby="features-title" className="lp-col" />
+      <section id="voices" aria-labelledby="voices-title" className="lp-col" />
+      <section id="pricing" aria-labelledby="pricing-title" className="lp-col" />
+      <section id="questions" aria-labelledby="questions-title" className="lp-col" />
+      <section id="start" aria-labelledby="start-title" className="lp-col" />
+      <section id="founders" aria-labelledby="founders-title" className="lp-col" />
+      <footer className="lp-col" />
+    </main>
+  );
 }
