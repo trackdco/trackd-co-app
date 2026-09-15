@@ -1,10 +1,10 @@
 /**
  * THE DATES AND FACTS EVERY ENTRY INTO THE PLAN/CARD FLOW SHOWS.
  *
- * ⚠️ EXTRACTED FROM `app/onboarding/page.tsx` 2026-08-23, UNCHANGED, because a
+ * ⚠️ EXTRACTED FROM `app/start/page.tsx` 2026-08-23, UNCHANGED, because a
  * SECOND entry point now exists.
  *
- * `/plans` and `/checkout` mount the same screens as `/onboarding` for somebody
+ * `/plans` and `/checkout` mount the same screens as `/start` for somebody
  * who already has an account. If they resolved their own dates, the two entry
  * points could print different days for the same subscription — which is the
  * precise defect the comment below was written to kill, reintroduced one level

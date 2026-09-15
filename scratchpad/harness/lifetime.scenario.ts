@@ -302,12 +302,12 @@ describe("one lifetime, legs 1 to 9", () => {
     const since = Date.now();
     const { context, page } = await newContext();
     try {
-      await page.goto(`${BASE_URL}/onboarding?step=hook`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${BASE_URL}/start?step=hook`, { waitUntil: "domcontentloaded" });
       await page.evaluate(
         ([key, value]) => localStorage.setItem(key, value),
         [ONBOARDING_KEY, JSON.stringify({ plan: "weekly" })] as [string, string],
       );
-      await page.goto(`${BASE_URL}/onboarding?step=start`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${BASE_URL}/start?step=start`, { waitUntil: "domcontentloaded" });
       /**
        * ⚠️ THE FRAME IS FOUND BY THE FIELD IT CONTAINS. See `fillCardForm`: the
        * tracked "target by title" advice has gone stale — Stripe now mounts THREE

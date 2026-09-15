@@ -44,7 +44,7 @@ export default async function LoginPage({
   /**
    * ⚠️ `string | string[]`, and the array case is NOT theoretical. A repeated
    * query parameter arrives as an array, and typing it as `string` is exactly
-   * how `app/onboarding/page.tsx`'s `?step=` guard was walked past — `?next=a&
+   * how `app/start/page.tsx`'s `?step=` guard was walked past — `?next=a&
    * next=b` would have fallen straight through to the default while the address
    * bar said otherwise. Resolved with `[0]`, which is what
    * `URLSearchParams.get` returns, so this agrees with any client reading the

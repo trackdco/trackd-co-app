@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   resolveReturningIntent,
   type TrialEligibility,
-} from "@/app/onboarding/billing-actions";
+} from "@/app/start/billing-actions";
 import { track } from "@/lib/onboarding/analytics";
 import type { IntentKind } from "@/lib/billing/stripe";
 import type { StripeExpressCheckoutElementOptions } from "@stripe/stripe-js";

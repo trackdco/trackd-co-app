@@ -15,7 +15,7 @@ import Stripe from "stripe";
  *
  * Thrown at CALL time rather than at module load. A module-level throw takes
  * down every route that transitively imports it — including the whole of
- * `/onboarding`, which must keep working with no Stripe configured at all,
+ * `/start`, which must keep working with no Stripe configured at all,
  * because everything before the paywall is anonymous and free.
  */
 function required(name: string): string {
@@ -94,7 +94,7 @@ export type PlanKey = "yearly" | "monthly" | "weekly";
  * secret must confirm nothing at all, because confirming it would charge
  * somebody who is reading a screen that promised them free days.
  *
- * It lives here rather than in `app/onboarding/billing-actions.ts` so that
+ * It lives here rather than in `app/start/billing-actions.ts` so that
  * module's export list stays exactly as it was. Every export of a `"use server"`
  * module is a publicly dispatchable endpoint, and keeping that list unchanged is
  * a Check When Done item on both spec 01 and 02a. A type is erased at build and

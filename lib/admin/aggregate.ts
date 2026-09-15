@@ -227,6 +227,20 @@ const KNOWN_PATHS = new Set([
   "/login",
   "/medical-disclaimer",
   "/notifications",
+  /**
+   * ⚠️ BOTH SPELLINGS OF THE QUIZ, and the old one is not dead weight.
+   *
+   * The quiz moved from `/onboarding` to `/start` (spec 3-02). `beta_feedback.path`
+   * is written by the CLIENT at the moment the feedback is left, so rows recorded
+   * before the move say `/onboarding` and rows recorded after say `/start`. The
+   * table is history, not a route table.
+   *
+   * Dropping the old spelling would not tidy this list — it would silently
+   * re-bucket every pre-move piece of feedback into "other" and take the busiest
+   * route in the funnel off the founder dashboard's ranking RETROACTIVELY, which
+   * reads as "nobody ever left feedback on onboarding" rather than as a rename.
+   * Both stay until the old rows are migrated or aged out.
+   */
   "/onboarding",
   "/preview",
   "/privacy",
@@ -234,6 +248,7 @@ const KNOWN_PATHS = new Set([
   "/progress",
   "/protocol",
   "/reset-password",
+  "/start",
   "/terms",
   "/waitlist",
   "/weight",
@@ -324,7 +339,7 @@ export function safeVersion(raw: string | null | undefined): string | null {
  * nothing, always, and renders a confident "0% on the current version".
  *
  * The mapping is taken from the code that WRITES the records
- * (`app/welcome/actions.ts` and `app/onboarding/actions.ts`), which is the only
+ * (`app/welcome/actions.ts` and `app/start/actions.ts`), which is the only
  * real source of truth for it. Note the one-to-many: `health_data_consent` is
  * tied to the Privacy Policy and carries the PRIVACY version, so publishing a
  * new privacy policy makes two consent rows stale, not one.

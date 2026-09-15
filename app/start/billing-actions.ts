@@ -1904,7 +1904,7 @@ function hasValidatedCard(sub: Stripe.Subscription): boolean {
  * WHAT HAPPENED TO AN INTENT THE BANK JUST REDIRECTED BACK (spec 02a §3.5).
  *
  * When a bank forces a full-page redirect rather than an inline challenge,
- * Stripe returns the user to `/onboarding?step=start` with `redirect_status` and
+ * Stripe returns the user to `/start?step=start` with `redirect_status` and
  * an intent client secret on the URL. Nothing read either parameter before this,
  * so the flow remounted, `holding` was component state and therefore false, and
  * the user landed back on the card form.

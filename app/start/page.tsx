@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * `/onboarding` — the first-run flow (Spec 3-01, amended by Spec w2b-14).
+ * `/start` — the first-run flow (Spec 3-01, amended by Spec w2b-14).
  *
  * PUBLIC AND ANONYMOUS FOR MOST OF ITS LENGTH, by design. It sits OUTSIDE the
  * `app/(app)/` route group on purpose: that group's layout is the auth +
@@ -124,7 +124,7 @@ export default async function OnboardingPage({
     /**
      * ⚠️ A SIGNED-OUT VISITOR KEEPS THEIR DESTINATION.
      *
-     * This used to send them to a bare `/onboarding`, which is the landing
+     * This used to send them to a bare `/start`, which is the landing
      * page, and Adrian hit it on the route that matters most: Chrome's share
      * sheet hands Safari the exact URL, Safari has its own cookie jar and no
      * session, and the install step turned into "take your protocol out of
@@ -136,9 +136,9 @@ export default async function OnboardingPage({
      * regardless.
      */
     if (!signedIn) {
-      redirect(`/login?next=${encodeURIComponent(`/onboarding?step=${requested}`)}`);
+      redirect(`/login?next=${encodeURIComponent(`/start?step=${requested}`)}`);
     }
-    redirect("/onboarding?step=account");
+    redirect("/start?step=account");
   }
 
   // A gated user has nothing left to do on the account screen, and showing a
@@ -245,8 +245,8 @@ export default async function OnboardingPage({
  * `new URLSearchParams(location.search).get("step")`, which returns the FIRST
  * value. So:
  *
- *     GET /onboarding?step=plans            -> 307 /onboarding
- *     GET /onboarding?step=plans&step=plans -> 200, the price list renders
+ *     GET /start?step=plans            -> 307 /start
+ *     GET /start?step=plans&step=plans -> 200, the price list renders
  *
  * with no cookies at all. One duplicated parameter walked past the whole of
  * §Route protection, and it is the assumption spec w2b-15 mounts a payment

@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
  *
  * ## The paid flow does NOT use this screen
  *
- * `/plans`, `/checkout` and `/onboarding` have their own boundary, because
+ * `/plans`, `/checkout` and `/start` have their own boundary, because
  * "Back to home" below is a door into the app and an error mid-payment must not
  * open one. See `components/billing/FlowError.tsx`. The link stays here: for an
  * error on a screen the user already had access to, it is the right offer.

@@ -3,9 +3,9 @@
 import { FlowError } from "@/components/billing/FlowError";
 
 /**
- * The boundary for `/onboarding`. See `components/billing/FlowError.tsx`.
+ * The boundary for `/start`. See `components/billing/FlowError.tsx`.
  *
- * ⚠️ THE EXIT IS `/onboarding`, NOT `/plans`, and the difference is who is
+ * ⚠️ THE EXIT IS `/start`, NOT `/plans`, and the difference is who is
  * standing here. This route is reachable by a STRANGER — that is its job — and
  * `/plans` redirects anybody without a session to `/login`, so offering it would
  * send an anonymous visitor to a sign-in form after an error on screen three of
@@ -23,7 +23,7 @@ export default function OnboardingError({
     <FlowError
       error={error}
       retry={unstable_retry}
-      backHref="/onboarding"
+      backHref="/start"
       backLabel="Start over"
     />
   );

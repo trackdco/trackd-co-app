@@ -23,7 +23,7 @@ import { WelcomeStage, type WelcomeEffect } from "../welcome-effects";
  * ## The effect is a constant, on purpose
  *
  * Four candidates live in `welcome-effects.tsx` and all four are reviewable at
- * `/onboarding/welcome-effects`. Swapping the shipped one is this line and
+ * `/start/welcome-effects`. Swapping the shipped one is this line and
  * nothing else; once Adrian picks, the other three and the harness come out.
  */
 const EFFECT: WelcomeEffect = "assemble";

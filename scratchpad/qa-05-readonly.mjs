@@ -247,7 +247,7 @@ try {
   const reopened = await dialog.count();
   check("ARRIVAL: the pop-up re-opens after being dismissed", reopened > 0);
   await dialog.locator("button", { hasText: APPROVED.action }).click();
-  await page.waitForURL(/onboarding/, { timeout: 15000 }).catch(() => {});
+  await page.waitForURL(/\/start/, { timeout: 15000 }).catch(() => {});
   const url = page.url();
   check(
     "D28: 'Choose a plan' lands on the PRICE LIST, not the card screen",
