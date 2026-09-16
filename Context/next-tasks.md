@@ -88,6 +88,30 @@ Preview (SSO-gated, sign in to Vercel first):
 Gates all green: tsc 0, eslint 0, 106 files / 2099 tests, `next build` exit 0 with
 `/` prerendered to static HTML.
 
+**⚠️ REVISED 2026-09-16, SECOND PASS, after Adrian read it on a laptop.** His
+verdict on the first build: *"you can just tell that this is AI-generated"*, and
+he intends to draw up a better landing page himself tomorrow. **Treat the current
+page as a staging post, not a finished design.** His reference for the feel is
+Pep AI's site: premium, and no pricing.
+
+What he had removed, and it is his call rather than a shortcut: the **proof
+strip**, the whole **"from the beta"** quotes section, and **pricing entirely**.
+⚠️ The cost, named: charge timing, cancellation terms and read-only-on-lapse went
+with the pricing section, and those were partly there for Apple's review of the
+domain. The trial promise under every button and the FAQ answers survive.
+`lib/brand.ts` keeps the amounts and the live Stripe guard still runs, so pricing
+can come back without re-deriving anything.
+
+What he had changed: hero re-ordered and centred (name, claim, device, sentence,
+button), wordmark centred with Log in hard right, a more realistic iPhone **plus a
+laptop** (he reads the site on one), figures stepped up, founder letter rewritten.
+**Both devices are PLACEHOLDERS** and he is replacing them tomorrow with "a cool
+thing" of his own. Do not polish them.
+
+- [ ] **⚠️ ADRIAN ASKED TO BE REMINDED: go over the landing copy tomorrow.**
+- [ ] **After this merges, delete the first onboarding step** (the "get your
+      protocol off your notes app" hook). The landing page does that job now, so
+      the flow would say it twice. His call, 2026-09-16.
 - [ ] **ADRIAN: read the page and rule on it.** It is a draft in every sense: the
       mockup the spec pins the copy to never existed, so all the words are mine.
 - [ ] **ADRIAN: "Cancel in one tap."** The spec fixes that line, but cancelling

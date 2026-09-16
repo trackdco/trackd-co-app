@@ -6,10 +6,16 @@ import { CURRENCY, PLANS, YEARLY_PER_WEEK } from "@/lib/brand";
 /**
  * THE GUARD ON THE ONE PLACE TWO PRICE CONTRACTS CAN DRIFT APART.
  *
- * The public landing page is statically rendered and reads its amounts from
- * `lib/brand.ts` (Adrian's call, 2026-09-16, over the older billing spec's "no
- * hardcoded amounts"): a marketing page must not put a Stripe round-trip in
- * front of a stranger, and it must not go down with a billing provider.
+ * ⚠️ THE LANDING PAGE NO LONGER SHOWS PRICES (Adrian, 2026-09-16, later the
+ * same day: "they don't have pricing, so I don't want us to have pricing").
+ * The pricing section is gone, so nothing public renders these amounts today.
+ *
+ * This test stays anyway, and it is worth saying why rather than deleting it
+ * as dead. `lib/brand.ts` still holds the three amounts, the trial copy still
+ * promises a charge on day 7, and pricing is the kind of section that comes
+ * back. The day it does, it will come back reading `brand.ts`, and the drift
+ * this guards against will be live again with nobody remembering to re-check.
+ * A guard that costs one live run is cheaper than that.
  *
  * Checkout does the opposite and is right to: `lib/billing/prices.ts` reads the
  * live price objects, so a dashboard change takes effect without a deploy.

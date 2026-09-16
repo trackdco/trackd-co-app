@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
-import { LandingDevice } from "@/components/landing/device";
 import { PrimaryCta } from "@/components/landing/cta";
+import { LandingDevice } from "@/components/landing/device";
 import {
   BellGlyph,
   BodyGlyph,
@@ -10,18 +11,16 @@ import {
   SyringeGlyph,
   VialGlyph,
 } from "@/components/landing/glyphs";
+import { LandingLaptop } from "@/components/landing/laptop";
 import { StickyCta } from "@/components/landing/sticky-cta";
 import { TodayPanel } from "@/components/landing/today-panel";
 import { UpdatesForm } from "@/components/landing/updates-form";
 import {
   ACN,
   BUSINESS_NAME,
-  CURRENCY,
   LEGAL_ENTITY,
-  PLANS,
   PRODUCT_NAME,
   SUPPORT_EMAIL,
-  YEARLY_PER_WEEK,
 } from "@/lib/brand";
 import {
   CARD_EYEBROW,
@@ -34,21 +33,37 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * `/` — the public landing page (Spec 3-02).
+ * `/` — the public landing page (Spec 3-02, revised by Adrian 2026-09-16).
  *
- * ## This route used to be a redirect, and the redirect is gone
+ * ## ⚠️ THREE OF THE SPEC'S ELEVEN SECTIONS ARE GONE, BY HIS INSTRUCTION
  *
- * It sent every visitor into the onboarding flow, on the reasoning that the
- * flow WAS the landing page. That made the first thing a stranger met a quiz.
- * The funnel is now landing, then "Start tracking", then the quiz at `/start`,
- * then an account, then the paywall.
+ * The spec fixes eleven sections in order. It now carries eight, and each
+ * removal is his call rather than a shortcut:
  *
- * ## ⚠️ THE SITE'S PUBLIC IDENTITY LIVES HERE AGAIN
+ *   - **The proof strip** ("in private beta since June") and **social proof**.
+ *     "Remove all that stuff that says from the beta." Both were placeholders,
+ *     and the quotes were invented ones a review had already flagged as unable
+ *     to reach production. Deleting them settles that finding outright.
+ *   - **Pricing.** "They don't have pricing, so I don't want us to have
+ *     pricing", after looking at a competitor he rates. ⚠️ THE COST, NAMED:
+ *     the charge timing, the cancellation terms and the read-only-on-lapse
+ *     line went with it, and those were partly there for Apple's review of the
+ *     domain. What survives is the trial promise under every button, and the
+ *     FAQ's answers on the trial and on lapsing.
  *
- * While `/` only redirected, the `openGraph` block sat on the flow's page,
- * because that is where a crawler following trackdco.app actually ended up. It
- * has come back and `/start` gave it up in the same change, so exactly one
- * route claims to be the site.
+ * `lib/brand.ts` keeps the amounts and the live guard still runs against
+ * Stripe, so pricing can come back without re-deriving anything.
+ *
+ * ## The shape, and why it is this shape
+ *
+ * He rejected the first draft as text-heavy and the second as "made for phone
+ * but on a laptop": "a massive hero section which is visual", "more visual
+ * than words". So the hero is centred, in the order he asked for — name, then
+ * the claim, then the device, then the sentence, then the button — and there
+ * are now two devices, because Trackd runs on a laptop too.
+ *
+ * ⚠️ BOTH DEVICES ARE PLACEHOLDERS. He is replacing them tomorrow. Do not
+ * spend time on them.
  *
  * ## ⚠️ STATIC, AND `force-static` IS A TRIPWIRE RATHER THAN AN OPTIMISATION
  *
@@ -57,15 +72,6 @@ import { cn } from "@/lib/utils";
  * adds a session read, instead of the page quietly going dynamic and every
  * visitor paying for a render. A signed-in visitor never arrives: `proxy.ts`
  * sends them to `/dashboard` first.
- *
- * ## The shape, and why it is this shape
- *
- * Adrian rejected a text-heavy first draft (2026-09-16): "more visual than
- * words", "I wouldn't read through the whole thing", "a massive hero section
- * which is visual", and make it look like the app. So the hero is the app —
- * a device carrying the real today's log, with the due dose being logged while
- * you watch — and every section below it is one idea, one visual and a line.
- * The whole page is about 250 words.
  */
 export const dynamic = "force-static";
 
@@ -129,17 +135,6 @@ const FEATURES = [
   },
 ];
 
-/**
- * TODO(3-02): placeholder quotes. These are NOT real testimonials and must be
- * replaced with attributed quotes from real users before this page is merged.
- * Invented testimonials on a live page are not a rounding error.
- */
-const QUOTES = [
-  { quote: "It replaced three notes and a spreadsheet.", who: "Beta tester" },
-  { quote: "I stopped guessing what I had already taken.", who: "Beta tester" },
-  { quote: "Knowing what is left in each vial is the whole thing.", who: "Beta tester" },
-];
-
 const FAQS = [
   {
     q: "Is this medical advice?",
@@ -176,10 +171,10 @@ const LEGAL_LINKS = [
   /**
    * ⚠️ THE FULL NAME, VERBATIM, AND FOUR LINKS RATHER THAN THE SPEC'S THREE.
    *
-   * Washington's MHMDA requires this policy to be published under this exact
-   * name and reachable without logging in, and `lib/legal/verbatimQuotes.test.ts`
-   * pins both the route and the label against the front page for that reason.
-   * A tidy-up to "Health data" reads better and fails the statute.
+   * Washington's MHMDA requires this policy published under this exact name and
+   * reachable without logging in, and `lib/legal/verbatimQuotes.test.ts` pins
+   * both the route and the label against the front page for that reason. A
+   * tidy-up to "Health data" reads better and fails the statute.
    */
   { href: "/consumer-health-data", label: "Consumer Health Data Privacy Policy" },
 ];
@@ -188,55 +183,89 @@ export default function LandingPage() {
   return (
     <>
       <main className="min-h-dvh bg-bg-base">
-        <nav aria-label="Main" className="lp-col flex items-center justify-between py-4">
-          <span className="text-[1.05rem] font-medium tracking-[-0.04em] text-foreground">
-            {PRODUCT_NAME.toLowerCase()}
-          </span>
+        {/* The name centred, sign-in hard right (Adrian, 2026-09-16). A
+            three-column grid rather than flex, so the wordmark is centred on
+            the PAGE and not on whatever is left over beside the link. */}
+        <nav
+          aria-label="Main"
+          className="lp-col grid grid-cols-[1fr_auto_1fr] items-center py-5"
+        >
+          <span aria-hidden />
+          <Link href="/" aria-label={`${BUSINESS_NAME} home`} className="justify-self-center">
+            <Image
+              src="/trackd-wordmark.png"
+              alt={BUSINESS_NAME}
+              width={1049}
+              height={200}
+              priority
+              className="h-4 w-auto"
+            />
+          </Link>
           <Link
             href="/login"
-            className="rounded-md px-2 py-2 text-sm text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+            className="justify-self-end rounded-md px-2 py-2 text-sm text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
           >
             Log in
           </Link>
         </nav>
 
-        {/* THE HERO IS THE PRODUCT. Type, the control, then the device carrying
-            the real today's log with the due dose being logged as you watch. */}
+        {/* THE HERO, in his order: the claim, the devices, the sentence, the
+            button. Centred throughout. */}
         <section
           id="hero"
           aria-labelledby="hero-title"
-          className="flow-canvas overflow-x-clip pb-20 pt-6 md:pb-28"
+          className="flow-canvas overflow-x-clip pb-20 pt-8 text-center md:pb-28 md:pt-12"
         >
           <div className="lp-col">
             <h1 id="hero-title" className={cn(LANDING_DISPLAY, "text-balance")}>
               Track the whole <em className={FLOW_EMPHASIS}>protocol</em>.
             </h1>
-            <p className={cn(FLOW_SUB, "mt-4 max-w-[26rem] text-pretty text-text-secondary")}>
-              Every compound, dose and injection site, in one place you&apos;ll actually
-              open. Built by people who run real protocols.
-            </p>
-            <PrimaryCta className="mt-8 max-w-[22rem]" />
+          </div>
 
-            <div className="mt-14 flex justify-center">
-              <LandingDevice className="w-[min(88%,20rem)] animate-flow-hero">
+          {/* The devices get their own column, wider than the reading measure:
+              a laptop cropped to a reading width is just a bright rectangle.
+
+              ⚠️ SIDE BY SIDE, NEVER OVERLAPPING, AND NEVER BELOW ~20rem WIDE.
+              Both rules were learned from the render rather than reasoned out.
+              The phone was absolutely positioned over the laptop's corner, and
+              on a 1280 desktop it rode up over the headline: "Track the whole
+              proto" was clipped and the Log in link was underneath it. And at
+              15rem the panel inside had about 200px of content width, so every
+              dose row wrapped: "In...", "Pe...", "Sup...", with "250 mg · 8:10
+              am" broken across two lines. The panel is built at the app's real
+              proportions, so the device has to be wide enough to hold it. */}
+          <div className="mx-auto mt-12 w-full max-w-[58rem] px-5">
+            <div className="mx-auto flex items-end justify-center gap-8">
+              <LandingLaptop className="hidden w-[34rem] shrink-0 md:block">
+                <div className="aspect-[16/10] bg-bg-base px-6 py-5">
+                  <div className="mx-auto h-full max-w-[19rem] overflow-hidden">
+                    <TodayPanel />
+                  </div>
+                </div>
+              </LandingLaptop>
+
+              <LandingDevice className="w-[min(84vw,20rem)] shrink-0 animate-flow-hero md:w-[20rem]">
                 <div className="px-3 pb-5 pt-9">
                   <TodayPanel />
                 </div>
               </LandingDevice>
             </div>
           </div>
+
+          <div className="lp-col mt-14 md:mt-20">
+            <p className={cn(FLOW_SUB, "mx-auto max-w-[30rem] text-pretty text-text-secondary")}>
+              Every compound, dose and injection site, in one place you&apos;ll actually
+              open. Built by people who run real protocols.
+            </p>
+            <PrimaryCta className="mx-auto mt-8 max-w-[22rem]" />
+          </div>
         </section>
 
-        {/* Proof strip. */}
-        <section aria-label="Proof" className="lp-col hairline-t border-border-default py-5">
-          {/* TODO(3-02): placeholder proof line. Replace with the claim that is
-              true and checkable at launch. */}
-          <p className="text-sm text-text-secondary">
-            In private beta since June, with the people it was built for.
-          </p>
-        </section>
-
-        <section id="how" aria-labelledby="how-title" className="lp-col lp-sec hairline-t border-border-default">
+        <section
+          id="how"
+          aria-labelledby="how-title"
+          className="lp-col lp-sec hairline-t border-border-default"
+        >
           <p className={CARD_EYEBROW}>How it works</p>
           <h2 id="how-title" className={cn(FLOW_TITLE, "mt-3 text-balance")}>
             Set it up once. Log it in seconds.
@@ -263,7 +292,11 @@ export default function LandingPage() {
           </p>
         </section>
 
-        <section id="features" aria-labelledby="features-title" className="lp-col lp-sec hairline-t border-border-default">
+        <section
+          id="features"
+          aria-labelledby="features-title"
+          className="lp-col lp-sec hairline-t border-border-default"
+        >
           <p className={CARD_EYEBROW}>What is inside</p>
           <h2 id="features-title" className={cn(FLOW_TITLE, "mt-3 text-balance")}>
             Built around how a protocol actually runs.
@@ -271,9 +304,7 @@ export default function LandingPage() {
           <dl className="mt-6 divide-hairline divide-border-default">
             {FEATURES.map((f) => (
               <div key={f.title} className="grid grid-cols-[3rem_1fr] items-start gap-x-3 py-5">
-                {/* One optical height for five drawings of different shapes:
-                    the tall ones (vial, body, bell) and the wide ones (syringe,
-                    sparkline) were rendering at noticeably different weights. */}
+                {/* One optical height for five drawings of different shapes. */}
                 <span aria-hidden className="flex h-8 items-center justify-center">
                   {f.glyph}
                 </span>
@@ -288,90 +319,11 @@ export default function LandingPage() {
           </dl>
         </section>
 
-        <section id="voices" aria-labelledby="voices-title" className="lp-col lp-sec hairline-t border-border-default">
-          <p className={CARD_EYEBROW}>From the beta</p>
-          <h2 id="voices-title" className="sr-only">
-            What people running it say
-          </h2>
-          <ul className="mt-4 divide-hairline divide-border-default">
-            {QUOTES.map((q) => (
-              <li key={q.quote} className="py-5">
-                <blockquote className="text-[1.15rem] font-light leading-snug text-foreground">
-                  {q.quote}
-                </blockquote>
-                <p className={cn(DATA_MONO, "mt-2 tracking-[0.08em]")}>{q.who}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section id="pricing" aria-labelledby="pricing-title" className="lp-col lp-sec hairline-t border-border-default">
-          <p className={CARD_EYEBROW}>Pricing</p>
-          <h2 id="pricing-title" className={cn(FLOW_TITLE, "mt-3 text-balance")}>
-            Every feature, on every plan.
-          </h2>
-
-          {/*
-            ⚠️ THE ANCHOR IS SANS, AND IT IS THE ONE FIGURE ON THE PAGE THAT IS.
-            Geist Mono gives every glyph the same advance width, which is the
-            whole point of it for a column of doses and times. At 3rem it gives
-            the DECIMAL POINT a full cell too, and "$1.35" renders with a 15px
-            hole in the middle of it. Measured on the desktop render, not
-            guessed. `METRIC_VALUE` is the app's own treatment for a big number
-            on a card and is Geist Light with `tabular-nums` for exactly this
-            reason; this is that treatment scaled up for a display figure. The
-            smaller figures below stay mono, where the even spacing reads as
-            intended rather than as a gap.
-          */}
-          <p className="mt-8 flex items-baseline gap-2">
-            <span className="text-[3.25rem] font-light leading-none tracking-[-0.03em] tabular-nums text-foreground">
-              ${YEARLY_PER_WEEK.toFixed(2)}
-            </span>
-            <span className="text-sm text-text-secondary">a week</span>
-          </p>
-          <p className={cn(DATA_MONO, "mt-3 text-foreground")}>
-            ${PLANS.yearly.amount.toFixed(2)} billed yearly
-          </p>
-
-          <ul className="mt-7 divide-hairline divide-border-default border-border-default hairline-t hairline-b">
-            <li className="flex items-baseline justify-between py-3.5">
-              <span className="text-sm text-foreground">Monthly</span>
-              <span className={cn(DATA_MONO, "text-foreground")}>
-                ${PLANS.monthly.amount.toFixed(2)}
-              </span>
-            </li>
-            <li className="flex items-baseline justify-between py-3.5">
-              <span className="text-sm text-foreground">Weekly</span>
-              <span className={cn(DATA_MONO, "text-foreground")}>
-                ${PLANS.weekly.amount.toFixed(2)}
-              </span>
-            </li>
-          </ul>
-          <p className="mt-3 text-xs text-text-secondary">Prices in {CURRENCY}.</p>
-
-          <ol className="mt-8 space-y-2.5">
-            <li className="grid grid-cols-[4rem_1fr] items-baseline gap-3">
-              <span className={cn(DATA_MONO, "tracking-[0.08em] text-foreground")}>TODAY</span>
-              <span className="text-sm text-text-secondary">Everything unlocks. Nothing to pay.</span>
-            </li>
-            <li className="grid grid-cols-[4rem_1fr] items-baseline gap-3">
-              <span className={cn(DATA_MONO, "tracking-[0.08em] text-foreground")}>DAY 5</span>
-              <span className="text-sm text-text-secondary">We remind you the trial is ending.</span>
-            </li>
-            <li className="grid grid-cols-[4rem_1fr] items-baseline gap-3">
-              <span className={cn(DATA_MONO, "tracking-[0.08em] text-foreground")}>DAY 7</span>
-              <span className="text-sm text-text-secondary">Your plan starts and your card is charged.</span>
-            </li>
-          </ol>
-          <p className="mt-5 max-w-[34rem] text-sm leading-relaxed text-text-secondary">
-            Cancel before day 7 and you pay nothing. If a plan ends, your account goes
-            read only: everything you logged stays visible, you just cannot add to it.
-          </p>
-
-          <PrimaryCta className="mt-8 max-w-[22rem]" />
-        </section>
-
-        <section id="questions" aria-labelledby="questions-title" className="lp-col lp-sec hairline-t border-border-default">
+        <section
+          id="questions"
+          aria-labelledby="questions-title"
+          className="lp-col lp-sec hairline-t border-border-default"
+        >
           <p className={CARD_EYEBROW}>Questions</p>
           <h2 id="questions-title" className={cn(FLOW_TITLE, "mt-3 text-balance")}>
             Before you start.
@@ -398,25 +350,42 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="start" aria-labelledby="start-title" className="flow-canvas hairline-t border-border-default">
-          <div className="lp-col lp-sec">
+        <section
+          id="start"
+          aria-labelledby="start-title"
+          className="flow-canvas hairline-t border-border-default"
+        >
+          <div className="lp-col lp-sec text-center">
             <h2 id="start-title" className={cn(FLOW_TITLE, "text-balance")}>
               Get your protocol out of the notes app.
             </h2>
-            <PrimaryCta className="mt-8 max-w-[22rem]" />
+            <PrimaryCta className="mx-auto mt-8 max-w-[22rem]" />
           </div>
         </section>
 
-        <section id="founders" aria-labelledby="founders-title" className="lp-col lp-sec hairline-t border-border-default">
+        <section
+          id="founders"
+          aria-labelledby="founders-title"
+          className="lp-col lp-sec hairline-t border-border-default"
+        >
           <p className={CARD_EYEBROW} id="founders-title">
             A note from the founders
           </p>
           <div className="mt-5 max-w-[32rem] space-y-4 text-[1.05rem] font-light leading-relaxed text-foreground">
             <p>
-              Our own protocols lived in a notes app, a spreadsheet and a calculator.
-              None of them knew what was left in a vial.
+              We are two people who run protocols, and for years we ran them badly:
+              a note on one phone, a spreadsheet neither of us opened, and a
+              calculator app we used at the kitchen bench on a Sunday.
             </p>
-            <p>So we built the one we wanted to open every day.</p>
+            <p>
+              The thing that finally got us was smaller than you would think. Neither
+              of us could answer, without counting backwards through a notes app, how
+              much was left in the vial in front of us.
+            </p>
+            <p>
+              So we built this, we use it every day, and we would rather hear that it
+              is wrong than never hear from you.
+            </p>
           </div>
           <p className="mt-5 text-sm text-text-secondary">Angus and Adrian, founders</p>
         </section>
@@ -428,8 +397,7 @@ export default function LandingPage() {
           tall, against `pb-16`'s 64px: the last line of the footer sat 39px
           UNDER the bar at both 402x700 and 375x548. That last line is the 18+
           and not-medical-advice disclaimer, which is the one line on the page
-          that has to stay readable. 7rem clears the bar, and the safe-area inset
-          is added on top for a notched phone, where the bar carries it too.
+          that has to stay readable.
         */}
         <footer className="lp-col hairline-t border-border-default pb-[calc(7rem+env(safe-area-inset-bottom))] pt-10">
           <div className="max-w-[24rem]">

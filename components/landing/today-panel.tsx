@@ -71,7 +71,7 @@ export function TodayPanel() {
           >
             <span
               className={cn(
-                "font-mono text-sm tabular-nums",
+                "font-mono text-base tabular-nums",
                 d.today ? "text-foreground" : "text-text-muted",
               )}
             >
@@ -118,7 +118,7 @@ export function TodayPanel() {
             <span className="block truncate text-sm font-medium text-foreground">
               Injectable A
             </span>
-            <span className={cn(DATA_MONO, "mt-0.5 block")}>250 mg · 8:10 am</span>
+            <span className={cn(DATA_MONO, "mt-0.5 block text-[13px]")}>250 mg · 8:10 am</span>
           </span>
           <span className={cn(DATA_MONO, "shrink-0 tracking-[0.08em]")}>L DELT</span>
         </li>
@@ -126,7 +126,13 @@ export function TodayPanel() {
         {/* The due dose. It arrives in an amber ring and is logged at 900ms:
             the ring settles to white, the tick pops, one pulse goes out. That
             single moment is the product, and it is the only thing on this page
-            that moves without being asked. */}
+            that moves without being asked.
+
+            ⚠️ ITS DETAIL LINE IS A TIME, NOT "due now". The row ENDS as a
+            logged dose, and the first render put a finished white tick beside
+            the words "due now", which is a panel arguing with itself. The
+            amber ring carries "due" for the second it is true; the time is
+            what is true afterwards, and afterwards is how the page sits. */}
         <li
           className="animate-home-up flex items-center gap-3 py-2.5"
           style={{ animationDelay: "90ms" }}
@@ -163,7 +169,7 @@ export function TodayPanel() {
             <span className="block truncate text-sm font-medium text-foreground">
               Peptide B
             </span>
-            <span className={cn(DATA_MONO, "mt-0.5 block")}>500 mcg · due now</span>
+            <span className={cn(DATA_MONO, "mt-0.5 block text-[13px]")}>500 mcg · 5:10 pm</span>
           </span>
           <span className={cn(DATA_MONO, "shrink-0 tracking-[0.08em]")}>SUB-Q</span>
         </li>
@@ -180,7 +186,7 @@ export function TodayPanel() {
             <span className="block truncate text-sm font-medium text-foreground">
               Supplement C
             </span>
-            <span className={cn(DATA_MONO, "mt-0.5 block")}>5 g · 8:00 pm</span>
+            <span className={cn(DATA_MONO, "mt-0.5 block text-[13px]")}>5 g · 8:00 pm</span>
           </span>
           <span className={cn(DATA_MONO, "shrink-0 tracking-[0.08em]")}>ORAL</span>
         </li>
@@ -188,7 +194,7 @@ export function TodayPanel() {
 
       <div className="mt-3 flex items-center justify-between border-border-default pt-3 hairline-t">
         <p className={CARD_EYEBROW}>Stock</p>
-        <p className={cn(DATA_MONO, "tracking-[0.08em]")}>18 D · 9 D · 31 D</p>
+        <p className={cn(DATA_MONO, "text-[13px] tracking-[0.08em]")}>18 D · 9 D · 31 D</p>
       </div>
     </div>
   );

@@ -297,6 +297,19 @@ Preview: `https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.verce
 (Vercel "Ready"; the preview is SSO-gated, so it opens for a signed-in team member
 and redirects anyone else to `vercel.com/login`).
 
+**⚠️ REVISED THE SAME DAY, after Adrian read it on a laptop.** Three of the
+spec's eleven sections are gone by his instruction: the proof strip, social proof
+(*"remove all that stuff that says from the beta"*) and pricing (*"they don't
+have pricing, so I don't want us to have pricing"*). The page now carries eight.
+Removing the invented quotes also settles the review finding that they must never
+reach production. The hero is centred and re-ordered, and carries a laptop beside
+the phone because the site is read on one; both devices are placeholders he
+replaces tomorrow.
+
+His overall verdict was *"you can just tell that this is AI-generated"*. He is
+drawing up a better landing page himself tomorrow, so nothing here should be
+treated as settled design.
+
 ⚠️ **CodeRabbit does not auto-review this repo** — it skips any repository with
 fewer than ten stars, and the green "CodeRabbit: success" check on a PR is that
 SKIP, not a review. It has to be triggered with an `@coderabbitai review` comment.
