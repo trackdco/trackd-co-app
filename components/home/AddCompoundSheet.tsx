@@ -733,6 +733,11 @@ function AddCompoundBody({
    * is on them their TEXT is held here and only the draft is clamped.
    */
   const pad = usePadSession()
+  // "Amount left" has a pad of its OWN, so it is not a chip on the compound's
+  // pad and Next never steps into it (Adrian, 18 Sep): adding a compound is
+  // about what the container holds, and someone who knows it is part used taps
+  // the field to say so. Setting how full it is stays the Stock tab's job.
+  const fillPad = usePadSession()
   const [cycleText, setCycleText] = useState<Partial<Record<CycleNumberId, string>>>({})
   const [padWas, setPadWas] = useState(pad.activeId)
   if (pad.activeId !== padWas) {
@@ -796,9 +801,7 @@ function AddCompoundBody({
         { id: "stServingG", label: "Serving", short: "Serving", unit: "g", value: stServingG, onChange: setStServingG, sanitize: sanitizeDoseInput },
       )
     }
-    if (stockFill.basis) {
-      fields.push({ id: "stExactLeft", label: `Amount left (${stFillUnit})`, short: "Left", unit: stFillUnit, value: stExactLeft, onChange: setStExactLeft, sanitize: sanitizeDoseInput })
-    }
+    // No "Left" here: it is `fillPad`'s single field (see above).
     return fields
   }
   const padFields: PadField[] = [
@@ -2032,7 +2035,7 @@ function AddCompoundBody({
                         </ThumbGroup>
                         <span className="text-xs text-text-subtle">or</span>
                         <PadInput
-                          {...pad.bind("stExactLeft")}
+                          {...fillPad.bind("stExactLeft")}
                           value={stExactLeft}
                           label={`Amount left in ${stFillUnit}`}
                           unit={stFillUnit}
@@ -2061,6 +2064,26 @@ function AddCompoundBody({
       </div>
 
       <NumberPad {...pad.padProps(padFields)} label="Compound numbers" />
+      {/* Its own pad: one field, so it opens on Done rather than joining the
+          chain of amounts above it. */}
+      <NumberPad
+        {...fillPad.padProps(
+          stockFill.basis
+            ? [
+                {
+                  id: "stExactLeft",
+                  label: `Amount left (${stFillUnit})`,
+                  short: "Left",
+                  unit: stFillUnit,
+                  value: stExactLeft,
+                  onChange: setStExactLeft,
+                  sanitize: sanitizeDoseInput,
+                },
+              ]
+            : [],
+        )}
+        label="Amount left"
+      />
     </div>
   )
 }

@@ -637,6 +637,12 @@ keep the system controls.
   tucks under the title bar, which shows while pinned), and while the pad is
   open the misuse warning folds into one amber line beside the figure, so the
   results card stays above the pad on an SE.
+- **"Amount left" is not on the add-compound pad's chain** (Adrian, 18 Sep).
+  The chips there are what the container HOLDS, and Next ends on the last
+  amount. Someone who knows a vial is part used taps the field, which opens a
+  pad of its own (one field, so it opens on Done). Saying how full something is
+  belongs to the Stock tab, where `AddStockSheet` keeps its "Left" chip: on the
+  add flow it invited a careless "half".
 - **Log weight is the pad alone** (the FAB, the desktop rail, and the empty
   Weight card on Progress): it opens on
   the last weight, selected, and a confirmation drops down on Done. Back-dating

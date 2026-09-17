@@ -23,6 +23,8 @@ Things a simulator cannot settle:
 
 - **A quick double tap on a pad's Done or hide** (and on the dim area above a
   sheet): nothing under it should react, and the sheet must stay open.
+- **Add compound:** the pad's chips are the amounts only, and Next ends on the
+  last one. "Amount left" opens on its own when tapped.
 - **A long figure** (Calculator, Powder in mcg, e.g. 10000): shown whole, in a
   smaller size, never cut off.
 

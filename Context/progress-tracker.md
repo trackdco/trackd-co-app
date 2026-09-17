@@ -122,6 +122,8 @@ artifact's `signoff` … `signoff-r6` collections). Built in the worktree
     itself over.
   - Docs: ui-context (the pad, loading), and "Will not fit a 0.3 mL syringe" is
     marked as not yet approved.
+  - Adrian, on the preview (18 Sep): adding a compound no longer walks the pad
+    into "Amount left". It has its own pad, opened by tapping the field.
   - **Left as found** (low, none introduced by `5a26700`): two "Edit" text
     buttons (`StackDetailSheet`, `CycleDetailSheet`) still press with
     `active:text-*`; the Log dose stock skeleton matches the one-vial card only
