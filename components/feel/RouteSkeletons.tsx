@@ -109,7 +109,14 @@ export function RouteHandoff({
  */
 function WeekStripBlocks() {
   const open = useSyncExternalStore(subscribeStripOpen, getStripOpen, () => true)
-  if (!open) return <div />
+  // Collapsed, it is drawn as the screen draws it: a zero-row grid, which
+  // keeps its own gap below (an empty <div> would let that gap merge away).
+  if (!open)
+    return (
+      <div className="grid" style={{ gridTemplateRows: "0fr" }}>
+        <div className="overflow-hidden" />
+      </div>
+    )
   return (
     <div className="grid grid-cols-7">
       {Array.from({ length: 7 }, (_, i) => (
@@ -128,6 +135,7 @@ function WeekStripBlocks() {
 }
 
 export function DashboardLoading() {
+  const stripOpen = useSyncExternalStore(subscribeStripOpen, getStripOpen, () => true)
   return (
     <div data-screen="dashboard" className={SCREEN}>
       <div className="animate-shortcut-fade">
@@ -145,7 +153,7 @@ export function DashboardLoading() {
             </h1>
             <div aria-hidden className="-mr-1 flex items-center text-text-muted">
               <span className="flex h-10 w-10 items-center justify-center">
-                <CaretDown className="h-5 w-5" />
+                <CaretDown className={cn("h-5 w-5", !stripOpen && "-rotate-90")} />
               </span>
               <span className="flex h-10 w-10 items-center justify-center">
                 <CalendarDots className="h-5 w-5" />
@@ -500,11 +508,14 @@ export function SettingsLoading({
   screen,
   title,
   subtitle,
+  top = "mt-6",
 }: {
   screen: string
   title: string
   /** The page's line under its title, word for word, when it has one. */
   subtitle?: string
+  /** The gap above the first block, where the page's is not the usual 24px. */
+  top?: string
 }) {
   return (
     <div
@@ -521,7 +532,7 @@ export function SettingsLoading({
       <RouteSkeleton
         id={screen}
         label={`Loading ${title.toLowerCase()}`}
-        className="mt-6 space-y-5"
+        className={cn(top, "space-y-5")}
       >
         <ListBlocks cards={3} />
       </RouteSkeleton>

@@ -92,7 +92,44 @@ artifact's `signoff` … `signoff-r6` collections). Built in the worktree
     the pixel (measured), Calendar/Notifications/Billing hand over like the
     other tabs, and a full page load no longer fades the title in twice;
   - Profile and billing rows, and danger rows, are on the press system.
-- **Production build** (`next build`, in the worktree): see below.
+- **Production build** (`next build` in the worktree, with
+  `TRACKD_TURBOPACK_ROOT`): **PASSED on `5a26700`** (17 Sep 2026: compiled in
+  30s from cache, TypeScript 64 min on iCloud, 63 pages, exit 0). The fixes below
+  came after it and were gated with tsc, eslint and vitest (2121) in the local
+  copy, not with a second build.
+- **Second review, of `5a26700` itself** (four lenses: runtime/state, iOS
+  Safari, layout at the four sizes, brief fidelity; each finding then checked
+  against the code): 15 findings, 10 fixed, 5 left. Committed on `polish/feel`
+  (18 Sep). Still unpushed and unmerged: merging is Adrian's call.
+  - A closing pad let a quick second tap through to what was under it (a
+    sheet's overlay closing the sheet, "Remove dose", a tab). The scrim now
+    catches taps through the exit, the panel acts on none, and the Calculator
+    (no scrim) gets an invisible layer while the pad slides away. Measured: three
+    quick taps all caught, Chromium and WebKit.
+  - A figure too long for a narrow field was cut off ("10000" read "1000" in the
+    Calculator's Powder field at 360 wide). It now steps its font down to fit
+    (`components/feel/useFitText.ts`). Measured: "100000" whole at 360 and 375.
+  - A screen mounted after a good load, with a slow re-pull, said "No
+    connection…". The notice now speaks only while the load has not succeeded.
+  - A range switch before a graph drew made it draw again on the next visit.
+  - The Dashboard shell drew a collapsed week strip 20px short, with its chevron
+    unturned. Measured: shell and screen both put the first card at 116px.
+  - `/billing/manage` opened on Billing's skeleton and title. It has its own
+    `loading.tsx` and hands over like Billing.
+  - The title bar's band was measured once, so turning the phone left it wrong;
+    it now follows the bar's height.
+  - The empty Weight card gave focus back to nothing on iOS; the card now hands
+    itself over.
+  - Docs: ui-context (the pad, loading), and "Will not fit a 0.3 mL syringe" is
+    marked as not yet approved.
+  - **Left as found** (low, none introduced by `5a26700`): two "Edit" text
+    buttons (`StackDetailSheet`, `CycleDetailSheet`) still press with
+    `active:text-*`; the Log dose stock skeleton matches the one-vial card only
+    (2+ vials, or a note that wraps, still push); desktop's Calculator grid adds
+    gaps around the folded warning; the empty Weight card has no visible "log"
+    cue; the Calendar shell shows the server's month on a full load (the screen
+    does too, then corrects); the desktop rail's Log weight gets no focus return
+    in Safari.
 
 ## ✅ THE WEIGHT SHEET GETS THE SAME DATE (2026-09-12)
 

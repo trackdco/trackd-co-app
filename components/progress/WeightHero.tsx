@@ -35,7 +35,8 @@ export function WeightHero({
   const router = useRouter();
   const mounted = useMounted();
   const [padOpen, setPadOpen] = useState(false);
-  // Focus goes back to whatever opened the pad (the card, on a keyboard).
+  // Focus goes back to the card that opened the pad. Handed over by the card,
+  // not read from `activeElement`: iOS never focuses a tapped button.
   const opener = useRef<HTMLElement | null>(null);
   const lastKg = series.length ? series[series.length - 1].kg : null;
 
@@ -46,9 +47,8 @@ export function WeightHero({
         unit={unit}
         compact={compact}
         onOpenDetail={() => router.push("/weight")}
-        onLogFirst={() => {
-          opener.current =
-            document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        onLogFirst={(from) => {
+          opener.current = from;
           setPadOpen(true);
         }}
         drawKey={compact ? "progress:weight" : null}

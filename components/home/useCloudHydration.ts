@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react"
 import { hydrateFromPostgres } from "@/lib/home/hydrateProtocol"
 import { migrateDeviceState } from "@/lib/migration/migrateDeviceState"
 import { repushDoseLogs } from "@/lib/home/repushDoseLogs"
-import { setHydrationState } from "@/lib/home/hydrationState"
+import { getHydrationState, setHydrationState } from "@/lib/home/hydrationState"
 import { notifyHydrationFailed } from "@/lib/home/syncStatus"
 
 /**
@@ -38,6 +38,9 @@ export function useCloudHydration(userId: string): void {
     // Every way it fails says so: Home is about to show what the device has,
     // which on a fresh device is nothing, and that must not read as the account.
     const giveUp = () => {
+      // Every screen re-pulls when it mounts. Once this session has loaded,
+      // a slow or failed re-pull is not a failed load, so it stays quiet.
+      if (getHydrationState(userId) === "done") return
       setHydrationState(userId, "failed")
       notifyHydrationFailed()
     }

@@ -46,14 +46,30 @@ export function PageScrollTitle({ title, eyebrow, subtitle, action }: PageScroll
   const barRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = ref.current
+    const barEl = barRef.current
     if (!el || !mounted || typeof IntersectionObserver === "undefined") return
-    const barH = Math.round(barRef.current?.getBoundingClientRect().height ?? 0)
-    const io = new IntersectionObserver(
-      ([entry]) => setCompact(!entry.isIntersecting),
-      { threshold: 0, rootMargin: `-${barH}px 0px 0px 0px` }
-    )
-    io.observe(el)
-    return () => io.disconnect()
+    let io: IntersectionObserver | null = null
+    let barH = -1
+    const watch = () => {
+      const h = Math.round(barEl?.getBoundingClientRect().height ?? 0)
+      if (h === barH) return
+      barH = h
+      io?.disconnect()
+      io = new IntersectionObserver(
+        ([entry]) => setCompact(!entry.isIntersecting),
+        { threshold: 0, rootMargin: `-${h}px 0px 0px 0px` }
+      )
+      io.observe(el)
+    }
+    watch()
+    // The bar's height follows the top safe-area inset, which changes when the
+    // phone turns, so the band is rebuilt when it does.
+    const ro = barEl && typeof ResizeObserver !== "undefined" ? new ResizeObserver(watch) : null
+    if (barEl) ro?.observe(barEl)
+    return () => {
+      ro?.disconnect()
+      io?.disconnect()
+    }
   }, [mounted])
 
   const bar = (

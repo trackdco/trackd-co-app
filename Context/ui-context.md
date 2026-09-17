@@ -615,7 +615,12 @@ keep the system controls.
 - **The open field shows it**: a white ring and a blinking caret on the
   `PadInput`, so you can see which figure the pad is writing to. The caret
   takes no width, and a field never shows an ellipsis: a figure with a digit
-  swapped for "…" is a wrong figure.
+  swapped for "…" is a wrong figure. Nor is it cut off (a clipped "10000"
+  reads "1000"): a figure too long for its field steps its font down until it
+  fits (`useFitText`).
+- **A closing pad still catches taps** through its exit and acts on none, so
+  a quick second tap never lands on the sheet or page under it (a sheet's
+  overlay would close the sheet; a footer button would fire).
 - **Focus moves into the pad** once it is on screen (it is announced as a
   group) and goes back to the field, or to whatever opened it, on close.
 - **A hardware keyboard still works**: digits, "." or ",", Backspace, Enter or
@@ -632,7 +637,8 @@ keep the system controls.
   tucks under the title bar, which shows while pinned), and while the pad is
   open the misuse warning folds into one amber line beside the figure, so the
   results card stays above the pad on an SE.
-- **Log weight is the pad alone** (the FAB and the desktop rail): it opens on
+- **Log weight is the pad alone** (the FAB, the desktop rail, and the empty
+  Weight card on Progress): it opens on
   the last weight, selected, and a confirmation drops down on Done. Back-dating
   and the photo live on the Weight screen and the Progress photo sheet.
 
@@ -1102,8 +1108,11 @@ part of the design, not a fallback.
     rises. Home's week strip waves its figures and fades its dots in.
   - **Every tab route has a `loading.tsx`** (`components/feel/RouteSkeletons.tsx`),
     so the tap switches at once and the route skeleton hands straight over to
-    the screen's own (`RouteSkeleton` / `useArrivedFromSkeleton`: no second
-    fade). `experimental.staleTimes.dynamic` (300s) keeps a visited tab in the
+    the screen's own, with no second fade (`useArrivedFromSkeleton` for the
+    leaving skeleton; `useSkeletonOnScreen` for the title and a still
+    skeleton, which also covers a full page load). A nested route that is its
+    own screen gets its own `loading.tsx` (`/billing/manage`), or it opens on
+    its parent's shell and title. `experimental.staleTimes.dynamic` (300s) keeps a visited tab in the
     client router cache, so a revisit shows the screen, not a skeleton.
   - **Late data in a sheet fills space that is already reserved.** It never
     pushes: the Log dose sheet holds a skeleton row for the Draw row and the

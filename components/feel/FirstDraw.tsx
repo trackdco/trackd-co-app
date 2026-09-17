@@ -189,11 +189,15 @@ export function DrawFrame({
 
   // A newer drawing of this chart (a range switch) owns it from here.
   const lastInterrupt = useRef(interrupt)
+  const drawKey = draw.key
   useEffect(() => {
     if (Object.is(lastInterrupt.current, interrupt)) return
     lastInterrupt.current = interrupt
-    finishRef.current?.()
-  }, [interrupt])
+    if (!finishRef.current) return
+    // Seen and switched before it drew: a revisit shows it finished too.
+    if (drawKey !== null) drawn.add(drawKey)
+    finishRef.current()
+  }, [interrupt, drawKey])
 
   // Spans with `display: block`, so the frame is valid inside a button.
   return (

@@ -3,6 +3,7 @@
 import { useId, type RefObject } from "react"
 
 import { padFieldKeyDown } from "@/components/feel/NumberPad"
+import { useFitText } from "@/components/feel/useFitText"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
@@ -111,6 +112,8 @@ function Field({
   const hintId = useId()
   const hint = unit ? equivalentAmount(value, unit) : null
   const unitWord = unit ?? staticUnit
+  // A long figure shrinks to fit; never clipped, never an ellipsis.
+  const fitRef = useFitText<HTMLSpanElement>(value)
 
   return (
     <div className="min-w-0">
@@ -154,7 +157,7 @@ function Field({
             "flex h-full w-full min-w-0 flex-1 items-center overflow-hidden rounded-xl pl-2.5 pr-1.5 text-left font-mono text-base tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
           )}
         >
-          <span className="pad-value min-w-0 whitespace-nowrap">
+          <span ref={fitRef} className="pad-value min-w-0 whitespace-nowrap">
             {value}
             {active ? <span aria-hidden className="pad-caret" /> : null}
           </span>

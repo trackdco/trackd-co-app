@@ -21,13 +21,19 @@ Things a simulator cannot settle:
 - **Log weight** from the +: the pad alone, the last weight selected, the
   confirmation dropping down.
 
+- **A quick double tap on a pad's Done or hide** (and on the dim area above a
+  sheet): nothing under it should react, and the sheet must stay open.
+- **A long figure** (Calculator, Powder in mcg, e.g. 10000): shown whole, in a
+  smaller size, never cut off.
+
 ### 1b. New words (settled with Adrian, 2026-09-17)
 The review fixes needed lines the brief did not write:
 - The sync notice when the FIRST READ fails (offline, slow, down), Adrian's
   wording: "No connection. We're having trouble connecting to your account, so you're seeing what's saved on this phone. We'll keep trying." The write-failure wording ("Saved on your device…") was
   false for a read.
 - The Calculator's one-line warning while its pad is open: "Under 2 units, too
-  little to read" (approved) and "Will not fit a 0.3 mL syringe". The full
+  little to read" (approved) and "Will not fit a 0.3 mL syringe" (**not yet
+  approved: Adrian to confirm or reword**). The full
   warning shows again when the pad closes.
 
 ### 2. Decide on shipping (Adrian)

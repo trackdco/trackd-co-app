@@ -10,11 +10,13 @@ import {
   type ReactNode,
   type Ref,
   type RefObject,
+  type SyntheticEvent,
 } from "react"
 import { createPortal } from "react-dom"
 
 import { ArrowRight, Backspace, CaretDown, Check } from "@/components/icons"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
+import { useFitText } from "@/components/feel/useFitText"
 import { applyPadKey, padKeyFromKeyboard, PAD_DIGIT_KEYS, type PadKey } from "@/lib/feel/pad"
 import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
@@ -47,6 +49,12 @@ export function padFieldKeyDown(
   e.stopPropagation()
   pendingKey = { key, at: performance.now() }
   onOpen()
+}
+
+/** A tap on a pad that is closing: caught, and acted on by nothing. */
+function swallowTap(e: SyntheticEvent) {
+  e.preventDefault()
+  e.stopPropagation()
 }
 
 /** One field the pad can edit. The form owns the value; the pad only edits it. */
@@ -386,12 +394,19 @@ export function NumberPad({
       {scrim ? (
         <div
           aria-hidden
-          onClick={onClose}
+          // It keeps catching taps while it fades, so a quick second tap lands
+          // here, not on what is underneath (a sheet's overlay would close the
+          // sheet; a footer button would fire). Only an open pad closes on it.
+          onClick={open ? onClose : undefined}
           className={cn(
-            "absolute inset-0 bg-[var(--pad-scrim)] transition-opacity duration-[var(--motion-base)] ease-out",
-            shown ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+            "pointer-events-auto absolute inset-0 bg-[var(--pad-scrim)] transition-opacity duration-[var(--motion-base)] ease-out",
+            shown ? "opacity-100" : "opacity-0",
           )}
         />
+      ) : !open ? (
+        // No scrim (the Calculator): the panel slides out from under the
+        // finger, so while it goes an invisible layer catches the taps.
+        <div aria-hidden className="pointer-events-auto absolute inset-0" />
       ) : null}
       <div
         ref={panelRef}
@@ -399,10 +414,11 @@ export function NumberPad({
         aria-label={label}
         tabIndex={-1}
         data-open={shown ? "true" : "false"}
+        // A pad that is sliding away still catches taps, so none falls through
+        // to the page or sheet under it, but nothing on it acts on them.
+        onClickCapture={open ? undefined : swallowTap}
         className={cn(
-          "number-pad absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-3xl border-t border-border-default bg-bg-surface px-4 pt-3.5 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] outline-none",
-          // Nothing on a pad that is sliding away takes a tap.
-          shown ? "pointer-events-auto" : "pointer-events-none",
+          "number-pad pointer-events-auto absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-3xl border-t border-border-default bg-bg-surface px-4 pt-3.5 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] outline-none",
           compact && "number-pad-compact",
         )}
         style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
@@ -571,6 +587,7 @@ export function PadInput({
   invalid?: boolean
   disabled?: boolean
 }) {
+  const fitRef = useFitText<HTMLSpanElement>(value)
   return (
     <button
       ref={inputRef}
@@ -597,8 +614,9 @@ export function PadInput({
     >
       {/* Never an ellipsis: a figure with a digit swapped for "…" is a wrong
           figure. The caret takes no width (`.pad-value`), so it sits in the
-          padding instead of pushing the value out. */}
-      <span className={cn("pad-value min-w-0 whitespace-nowrap", align === "left" && "flex-1")}>
+          padding instead of pushing the value out, and a figure too long for
+          the field steps its font down rather than being cut off. */}
+      <span ref={fitRef} className={cn("pad-value min-w-0 whitespace-nowrap", align === "left" && "flex-1")}>
         {value}
         {!value && placeholder && !active ? (
           <span className="font-sans text-sm text-text-subtle">{placeholder}</span>
