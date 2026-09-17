@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Trash } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
-import { CARD_EYEBROW, DATA_MONO, PAGE_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW, DATA_MONO, PAGE_TITLE, PRESS } from "@/lib/ui-presets";
+import { NumberPad, PadInput } from "@/components/feel/NumberPad";
+import { formatDateKeyNumeric } from "@/lib/calendar/calendar";
 import { Input } from "@/components/ui/input";
 import {
   dateKeyToDate,
@@ -116,6 +118,10 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [busyDelete, setBusyDelete] = useState<string | null>(null);
+  // The weight is typed on the Trackd pad (feel pass §3). Done on the pad is the
+  // same save as the Done button below it.
+  const [padOpen, setPadOpen] = useState(false);
+  const weightRef = useRef<HTMLButtonElement>(null);
 
   // Entry log grouped by month — newest month first, newest entry first within.
   // Months simply stack and scroll (no dropdown), mirroring the journal feed.
@@ -232,23 +238,42 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
               Weight
             </span>
-            <div className="relative">
-              <Input
-                inputMode="decimal"
-                value={value}
-                onChange={(e) => {
-                  setError(null);
-                  setValue(sanitizeWeightInput(e.target.value));
-                }}
-                placeholder={unit === "lbs" ? "e.g. 198" : "e.g. 90"}
-                aria-label={`Weight in ${unit}`}
-                aria-invalid={error ? true : undefined}
-                className="h-12 rounded-xl border-border-default bg-bg-input pr-12 font-mono text-base dark:bg-bg-input"
-              />
-              <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm text-text-muted">
-                {unit}
-              </span>
-            </div>
+            <PadInput
+              value={value}
+              label={`Weight in ${unit}`}
+              unit={unit}
+              active={padOpen}
+              onOpen={() => setPadOpen(true)}
+              inputRef={weightRef}
+              invalid={Boolean(error)}
+              className="h-12 w-full"
+              suffix={<span className="shrink-0 font-sans text-sm text-text-muted">{unit}</span>}
+            />
+            <NumberPad
+              active={padOpen ? 0 : null}
+              fields={[
+                {
+                  id: "weight",
+                  // Back-dated: the pad covers the date field, so it names the day.
+                  label: dateKey === todayKey ? "Weight" : `Weight for ${formatDateKeyNumeric(dateKey)}`,
+                  unit,
+                  value,
+                  onChange: (v) => {
+                    setError(null);
+                    setValue(v);
+                  },
+                  sanitize: sanitizeWeightInput,
+                },
+              ]}
+              onActiveChange={() => {}}
+              onClose={() => setPadOpen(false)}
+              onDone={() => {
+                setPadOpen(false);
+                guard(handleSave);
+              }}
+              returnFocusRef={weightRef}
+              label="Weight"
+            />
           </label>
 
           <label className="block w-[8.5rem] max-w-[44%] shrink-0">
@@ -279,7 +304,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
           type="button"
           onClick={() => guard(handleSave)}
           disabled={saving}
-          className="mt-4 w-full rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
+          className={cn(PRESS.button, "mt-4 w-full rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-60")}
         >
           {saving
             ? "Saving…"

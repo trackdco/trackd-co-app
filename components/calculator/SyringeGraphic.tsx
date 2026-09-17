@@ -143,6 +143,26 @@ export function SyringeGraphic({
         />
       </g>
 
+      {/* The stopper: a short amber edge that travels with the draw (feel pass
+          §3), on the fill's clock. Not a plunger rod: the rod would change the
+          syringe's drawn length, which is why the chrome below stays fixed. */}
+      <g
+        key={`stopper-${size.id}`}
+        className="transition-syringe-stopper"
+        style={{ transform: `translateX(${(fill * BARREL_W).toFixed(2)}px)` }}
+        aria-hidden
+      >
+        <line
+          x1={BARREL_X}
+          y1={BARREL_Y - 2}
+          x2={BARREL_X}
+          y2={BARREL_Y + BARREL_H + 2}
+          stroke="var(--accent-amber)"
+          strokeWidth={1.5}
+          opacity={fill > 0 ? 1 : 0}
+        />
+      </g>
+
       {/* Gradations. Inside the barrel from the top edge, so they read over the
           fill; labelled ones get a longer tick plus an anchor below the wall
           tying the printed number to its mark. */}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useMemo, useState, useSyncExternalStore } from "react"
+import { useId, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { CaretDown, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
@@ -30,6 +30,8 @@ import {
   recordSyringeChoice,
   subscribeSyringeChoice,
 } from "@/lib/calculator/syringeChoice"
+
+import { NumberPad, type PadField } from "@/components/feel/NumberPad"
 
 import { CalculatorInputs } from "./CalculatorInputs"
 import { FirstRunDisclaimer } from "./FirstRunDisclaimer"
@@ -163,7 +165,80 @@ export function ReconCalculator() {
     doseUnit !== DEFAULT_DOSE_UNIT ||
     workingOpen
 
+  /**
+   * THE COMPACT PAD (feel pass §3). The three fields ride in the pad as chips,
+   * the active field's mg/mcg toggle sits in its bottom row, and there is no
+   * scrim: the point is to watch the syringe fill as you type.
+   */
+  const FIELD_ORDER = ["powder", "bac", "dose"] as const
+  const [padIndex, setPadIndex] = useState<number | null>(null)
+  const drawRef = useRef<HTMLElement>(null)
+  const fieldRefs = {
+    powder: useRef<HTMLButtonElement>(null),
+    bac: useRef<HTMLButtonElement>(null),
+    dose: useRef<HTMLButtonElement>(null),
+  }
+  const padFields: PadField[] = [
+    {
+      id: "powder",
+      label: "Powder",
+      short: "Powder",
+      unit: powderUnit,
+      value: powder,
+      onChange: (v) => setPowder(sanitizeAmount(v)),
+      sanitize: sanitizeAmount,
+      unitOptions: {
+        options: ["mg", "mcg"],
+        value: powderUnit,
+        onChange: (u) => setPowderUnit(u as MgUnit),
+      },
+    },
+    {
+      id: "bac",
+      label: "BAC water",
+      short: "Water",
+      unit: "mL",
+      value: bac,
+      onChange: (v) => setBac(sanitizeAmount(v)),
+      sanitize: sanitizeAmount,
+    },
+    {
+      id: "dose",
+      label: "Dose",
+      short: "Dose",
+      unit: doseUnit,
+      value: dose,
+      onChange: (v) => setDose(sanitizeAmount(v)),
+      sanitize: sanitizeAmount,
+      unitOptions: {
+        options: ["mg", "mcg"],
+        value: doseUnit,
+        onChange: (u) => setDoseUnit(u as MgUnit),
+      },
+    },
+  ]
+  const activeField = padIndex === null ? null : FIELD_ORDER[padIndex]
+
+  function openPad(field: (typeof FIELD_ORDER)[number]) {
+    const wasOpen = padIndex !== null
+    setPadIndex(FIELD_ORDER.indexOf(field))
+    if (wasOpen) return
+    // Bring the Draw section to the top, under the compact title bar, where
+    // it pins: the figure and the syringe stay in view with the results
+    // card under them while the pad covers the inputs.
+    const draw = drawRef.current
+    if (!draw) return
+    const bar = document.querySelector<HTMLElement>("[data-page-scroll-bar]")
+    const barH = bar ? bar.getBoundingClientRect().height : 0
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    window.scrollTo({
+      top: Math.max(0, draw.getBoundingClientRect().top + window.scrollY - barH),
+      behavior: reduce ? "auto" : "smooth",
+    })
+  }
+
   function reset() {
+    setPadIndex(null)
     setPowder("")
     setPowderUnit("mg")
     setBac("")
@@ -182,21 +257,25 @@ export function ReconCalculator() {
       {/* ---- The reading. Bare, outside any card, so the syringe is the screen
               rather than a thing on the screen.
 
-              NOT PINNED. It was made sticky-while-typing on 2026-07-31 so the
-              keyboard could not push the barrel off-screen, and Adrian reversed
-              that the same day after using it on a real iPhone: iOS resizes the
-              visual viewport when the keyboard opens, so the pinned section
-              stayed put while everything else moved and it covered the field
-              being typed in. The cure was worse than the complaint. Back to
-              scrolling with the page, which is what the 2026-07-30 decision
-              wanted in the first place.
+              PINNED ONLY WHILE THE PAD IS OPEN (feel pass §3, approved round
+              4). It was made sticky-while-typing once before (2026-07-31) and
+              reversed the same day, because iOS resized the visual viewport for
+              its keyboard and the pinned section covered the field being typed
+              in. The Trackd pad has no system keyboard and never resizes
+              anything: it covers the inputs, and the pinned draw figure and
+              syringe are exactly what you want to watch while it does. Closed,
+              the section scrolls with the page as before.
 
               Section heading ABOVE the content at `px-1`, which is Protocol's
               idiom (`CompoundsRow`, `ScheduleGrid`) and what makes a standalone
               tab screen read as one page rather than a stack of boxes. ---- */}
       <section
+        ref={drawRef}
         data-area="calc-draw"
-        className="animate-home-up space-y-3 pb-3"
+        className={cn(
+          "animate-home-up space-y-3 pb-3",
+          padIndex !== null && "calc-draw-pinned",
+        )}
         style={{ animationDelay: "0ms" }}
       >
         <h2 className={cn(CARD_EYEBROW, "px-1")}>Draw</h2>
@@ -279,19 +358,30 @@ export function ReconCalculator() {
           sizeId={sizeId}
           onSizeChange={chooseSize}
           powder={powder}
-          onPowderChange={(v) => setPowder(sanitizeAmount(v))}
           powderUnit={powderUnit}
           onPowderUnitChange={setPowderUnit}
           bac={bac}
-          onBacChange={(v) => setBac(sanitizeAmount(v))}
           dose={dose}
-          onDoseChange={(v) => setDose(sanitizeAmount(v))}
           doseUnit={doseUnit}
           onDoseUnitChange={setDoseUnit}
           onReset={reset}
           resettable={resettable}
+          activeField={activeField}
+          onOpenField={openPad}
+          fieldRefs={fieldRefs}
         />
       </div>
+
+      <NumberPad
+        active={padIndex}
+        fields={padFields}
+        onActiveChange={setPadIndex}
+        onClose={() => setPadIndex(null)}
+        variant="compact"
+        scrim={false}
+        returnFocusRef={activeField ? fieldRefs[activeField] : undefined}
+        label="Calculator inputs"
+      />
 
       {/* ---- The working, collapsed by default ---- */}
       <section

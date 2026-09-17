@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, CircleNotch, X } from "@/components/icons"
 
@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { NumberPad, PadInput } from "@/components/feel/NumberPad"
+import { sanitizeWeightInput } from "@/lib/weight"
 import { startBlockAction } from "@/app/(app)/blocks/actions"
 import { unitToKg, type WeightUnit } from "@/lib/weight"
 import { localToday } from "@/lib/blocks/block"
@@ -153,6 +155,10 @@ export function BlockCreateSheet({
       setDirection(targetKg < currentWeightKg ? "down" : "up")
     }
   }
+
+  // The target is typed on the Trackd pad (feel pass §3).
+  const [padOpen, setPadOpen] = useState(false)
+  const targetRef = useRef<HTMLButtonElement>(null)
 
   function onTargetValueChange(next: string) {
     setTargetValue(next)
@@ -319,23 +325,42 @@ export function BlockCreateSheet({
                         ? `Target weight (${unit})`
                         : "Target (%)"}
                     </span>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
+                    <PadInput
                       value={targetValue}
-                      onChange={(e) => onTargetValueChange(e.target.value)}
-                      min={0}
-                      max={targetKind === "consistency" ? 100 : undefined}
-                      step={targetKind === "weight" ? "0.1" : "1"}
-                      placeholder={
-                        targetKind === "weight" ? (unit === "lbs" ? "185" : "84") : "90"
-                      }
-                      aria-label={
+                      label={
                         targetKind === "weight"
                           ? `Target weight in ${unit === "lbs" ? "pounds" : "kilograms"}`
                           : "Target percent"
                       }
-                      className={cn(FIELD, "font-mono")}
+                      unit={targetKind === "weight" ? unit : "%"}
+                      active={padOpen}
+                      onOpen={() => setPadOpen(true)}
+                      inputRef={targetRef}
+                      className="h-12 w-full text-sm"
+                    />
+                    <NumberPad
+                      active={padOpen ? 0 : null}
+                      fields={[
+                        {
+                          id: "target",
+                          label: targetKind === "weight" ? "Target weight" : "Target",
+                          unit: targetKind === "weight" ? unit : "%",
+                          value: targetValue,
+                          onChange: onTargetValueChange,
+                          // A weight takes decimals; a percentage is whole, and
+                          // three digits covers 100.
+                          decimal: targetKind === "weight",
+                          sanitize:
+                            targetKind === "weight"
+                              ? sanitizeWeightInput
+                              : (raw) => raw.replace(/\D/g, "").slice(0, 3),
+                        },
+                      ]}
+                      onActiveChange={() => {}}
+                      onClose={() => setPadOpen(false)}
+                      anchorRef={targetRef}
+                      returnFocusRef={targetRef}
+                      label="Target"
                     />
                   </label>
 
@@ -415,7 +440,7 @@ export function BlockCreateSheet({
               type="button"
               onClick={save}
               disabled={!canSave || busy}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+              className={cn(PRESS.button, "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50")}
             >
               {busy ? (
                 <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />

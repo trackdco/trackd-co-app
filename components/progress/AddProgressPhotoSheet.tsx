@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { NumberPad, PadInput } from "@/components/feel/NumberPad";
+import { formatDateKeyNumeric } from "@/lib/calendar/calendar";
 import { useRouter } from "next/navigation";
 import { Camera, Check, CircleNotch, Plus, X } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { PoseIcon } from "@/components/progress/PoseIcon";
@@ -94,6 +95,9 @@ export function AddProgressPhotoSheet({
   const [weight, setWeight] = useState("");
   /** The weight drop-up. Closed on open: this sheet leads with the photos. */
   const [weightOpen, setWeightOpen] = useState(false);
+  // The weight is typed on the Trackd pad (feel pass §3).
+  const [weightPad, setWeightPad] = useState(false);
+  const weightRef = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The pose whose photo is mid-adjustment, with the image being framed. Null =
@@ -426,27 +430,47 @@ export function AddProgressPhotoSheet({
               open={weightOpen}
               onOpenChange={setWeightOpen}
             >
-            <label className="block">
-              <div className="relative">
-                <Input
-                  inputMode="decimal"
-                  value={weight}
-                  onChange={(e) => {
-                    setWeight(sanitizeWeightInput(e.target.value));
-                    if (error) setError(null);
-                  }}
-                  placeholder="0"
-                  aria-label={`Weight in ${unit}`}
-                  className="h-12 rounded-xl border-border-default bg-bg-input pr-14 font-mono text-sm dark:bg-bg-input"
-                />
-                <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm text-text-muted">
-                  {unit}
-                </span>
-              </div>
+            <div className="block">
+              <PadInput
+                value={weight}
+                label={`Weight in ${unit}`}
+                unit={unit}
+                active={weightPad}
+                onOpen={() => setWeightPad(true)}
+                inputRef={weightRef}
+                className="h-12 w-full text-sm"
+                suffix={<span className="shrink-0 font-sans text-sm text-text-muted">{unit}</span>}
+              />
               <span className="mt-1 block text-xs text-text-subtle">
                 Saved as your weight for this date.
               </span>
-            </label>
+            </div>
+            <NumberPad
+              active={weightPad ? 0 : null}
+              fields={[
+                {
+                  id: "weight",
+                  // The sheet's title (the date) sits under the pad, so a
+                  // back-dated weight names its day here.
+                  label:
+                    drawnOn === todayKey
+                      ? "Today’s weight"
+                      : `Weight for ${formatDateKeyNumeric(drawnOn)}`,
+                  unit,
+                  value: weight,
+                  onChange: (v) => {
+                    setWeight(v);
+                    if (error) setError(null);
+                  },
+                  sanitize: sanitizeWeightInput,
+                },
+              ]}
+              onActiveChange={() => {}}
+              onClose={() => setWeightPad(false)}
+              anchorRef={weightRef}
+              returnFocusRef={weightRef}
+              label="Weight"
+            />
             </DropUp>
 
             {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}

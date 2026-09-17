@@ -79,6 +79,15 @@ interface Attachment {
 }
 
 /**
+ * ⚠️ NOT MOUNTED SINCE THE FEEL PASS (wave 3, 2026-09-17).
+ *
+ * "Log weight is the pad and nothing else" (Adrian, approved round 5):
+ * `components/weight/LogWeightPad.tsx` replaced this sheet in the + menu and
+ * the desktop rail. This sheet also offered a different date and progress
+ * photos; both still exist (the Weight screen logs and edits any day, the
+ * Progress photo sheet takes photos with a weight). Kept, unmounted, so that
+ * putting the sheet back is a two-line change if Adrian wants those here too.
+ *
  * The quick "log today's weight" bottom sheet — opened from the + menu's Weight
  * tile. Logs one entry for TODAY to `weight_logs`, and — right there — lets you
  * attach progress photos for the three default poses (or your own), so a weight

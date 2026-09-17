@@ -1,9 +1,10 @@
 "use client"
 
-import { useId } from "react"
+import { useId, type RefObject } from "react"
 
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
 import { equivalentAmount, type MgUnit } from "@/lib/calculator/recon"
 import { SYRINGE_SIZES, type SyringeSizeId } from "@/lib/calculator/syringe"
 
@@ -36,7 +37,9 @@ function UnitPill({
   label: string
 }) {
   return (
-    <div
+    <ThumbGroup
+      selection={unit}
+      thumbClassName="rounded-md bg-bg-input"
       role="group"
       aria-label={`${label} unit`}
       className="flex shrink-0 gap-0.5 rounded-lg bg-bg-surface-raised p-1 text-[11px] leading-none"
@@ -56,16 +59,16 @@ function UnitPill({
             // 28px tall and at least 28 wide, with a gap between them. WCAG
             // 2.5.8 asks for 24; these were 22.8 x 22 and touching, on the one
             // control that guards the 1000x mg/mcg slip.
-            "min-h-7 min-w-7 rounded-md px-1.5 font-medium transition-colors",
-            unit === u
-              ? "bg-bg-input text-foreground"
-              : "text-text-subtle hover:text-text-muted",
+            PRESS.pill,
+            "min-h-7 min-w-7 rounded-md px-1.5 font-medium transition-colors duration-300",
+            // The sliding thumb is the selection (feel pass §6).
+            unit === u ? "text-foreground" : "text-text-subtle hover:text-text-muted",
           )}
         >
           {u}
         </button>
       ))}
-    </div>
+    </ThumbGroup>
   )
 }
 
@@ -85,23 +88,28 @@ function UnitPill({
 function Field({
   label,
   value,
-  onChange,
-  placeholder,
   unit,
   onUnitChange,
   staticUnit,
+  active,
+  onOpen,
+  fieldRef,
 }: {
   label: string
   value: string
-  onChange: (v: string) => void
-  placeholder: string
   unit?: MgUnit
   onUnitChange?: (u: MgUnit) => void
   staticUnit?: string
+  /** This field is being typed on the pad. */
+  active: boolean
+  /** Open the pad on this field. */
+  onOpen: () => void
+  fieldRef?: RefObject<HTMLButtonElement | null>
 }) {
   const id = useId()
   const hintId = useId()
   const hint = unit ? equivalentAmount(value, unit) : null
+  const unitWord = unit ?? staticUnit
 
   return (
     <div className="min-w-0">
@@ -121,16 +129,33 @@ function Field({
       {/* `pl-2.5` + `gap-1` rather than the roomier defaults: the paired
           columns are tightest at 360-390px, where the pill and the number are
           competing for about 110px of field. */}
-      <div className="mt-1.5 flex h-11 items-center gap-1 rounded-xl bg-bg-input pr-1 pl-2.5">
-        <input
+      {/* The value is typed on the Trackd pad (feel pass §3): a button, so
+          nothing summons the system keypad, with the white ring and a caret
+          while it is the field being edited. No placeholder figure: an empty
+          field is empty. */}
+      <div
+        className={cn(
+          "mt-1.5 flex h-11 items-center gap-1 rounded-xl border border-transparent bg-bg-input pr-1 transition-[border-color,box-shadow] duration-200",
+          active && "border-text-primary ring-1 ring-text-primary",
+        )}
+      >
+        <button
           id={id}
-          inputMode="decimal"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
+          ref={fieldRef}
+          type="button"
+          onClick={onOpen}
+          aria-label={`${label}, ${value ? `${value}${unitWord ? ` ${unitWord}` : ""}` : "empty"}`}
           aria-describedby={hint ? hintId : undefined}
-          className="w-full min-w-0 flex-1 bg-transparent font-mono text-base tabular-nums text-foreground outline-none placeholder:text-text-subtle"
-        />
+          className={cn(
+            PRESS.field,
+            "flex h-full w-full min-w-0 flex-1 items-center rounded-xl pl-2.5 text-left font-mono text-base tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          )}
+        >
+          <span className="min-w-0 truncate">
+            {value}
+            {active ? <span aria-hidden className="pad-caret" /> : null}
+          </span>
+        </button>
         {unit && onUnitChange ? (
           <UnitPill unit={unit} onChange={onUnitChange} label={label} />
         ) : (
@@ -162,7 +187,9 @@ export function SyringePills({
   onChange: (id: SyringeSizeId) => void
 }) {
   return (
-    <div
+    <ThumbGroup
+      selection={sizeId}
+      thumbClassName="rounded-full bg-bg-surface-raised"
       role="group"
       aria-label="Syringe size"
       className="grid grid-cols-3 gap-1 rounded-full border border-border-default bg-bg-input p-0.5"
@@ -174,16 +201,15 @@ export function SyringePills({
           aria-pressed={sizeId === s.id}
           onClick={() => onChange(s.id)}
           className={cn(
+            PRESS.pill,
             "rounded-full py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
-            sizeId === s.id
-              ? "bg-bg-surface-raised text-foreground"
-              : "text-text-muted",
+            sizeId === s.id ? "text-foreground" : "text-text-muted",
           )}
         >
           {s.label}
         </button>
       ))}
-    </div>
+    </ThumbGroup>
   )
 }
 
@@ -199,32 +225,34 @@ export function CalculatorInputs({
   sizeId,
   onSizeChange,
   powder,
-  onPowderChange,
   powderUnit,
   onPowderUnitChange,
   bac,
-  onBacChange,
   dose,
-  onDoseChange,
   doseUnit,
   onDoseUnitChange,
   onReset,
   resettable,
+  activeField,
+  onOpenField,
+  fieldRefs,
 }: {
   sizeId: SyringeSizeId
   onSizeChange: (id: SyringeSizeId) => void
+  /** The three values. They are typed on the pad, which the calculator owns. */
   powder: string
-  onPowderChange: (v: string) => void
   powderUnit: MgUnit
   onPowderUnitChange: (u: MgUnit) => void
   bac: string
-  onBacChange: (v: string) => void
   dose: string
-  onDoseChange: (v: string) => void
   doseUnit: MgUnit
   onDoseUnitChange: (u: MgUnit) => void
   onReset: () => void
   resettable: boolean
+  /** Which field the pad is on, or null. */
+  activeField: "powder" | "bac" | "dose" | null
+  onOpenField: (field: "powder" | "bac" | "dose") => void
+  fieldRefs?: Record<"powder" | "bac" | "dose", RefObject<HTMLButtonElement | null>>
 }) {
   return (
     // Heading above the surface at `px-1`, matching Protocol's `CompoundsRow` /
@@ -245,34 +273,37 @@ export function CalculatorInputs({
           <Field
             label="Powder"
             value={powder}
-            onChange={onPowderChange}
-            placeholder="5"
             unit={powderUnit}
             onUnitChange={onPowderUnitChange}
+            active={activeField === "powder"}
+            onOpen={() => onOpenField("powder")}
+            fieldRef={fieldRefs?.powder}
           />
           <Field
             label="BAC water"
             value={bac}
-            onChange={onBacChange}
-            placeholder="2"
             staticUnit="mL"
+            active={activeField === "bac"}
+            onOpen={() => onOpenField("bac")}
+            fieldRef={fieldRefs?.bac}
           />
         </div>
 
         <Field
           label="Dose"
           value={dose}
-          onChange={onDoseChange}
-          placeholder="250"
           unit={doseUnit}
           onUnitChange={onDoseUnitChange}
+          active={activeField === "dose"}
+          onOpen={() => onOpenField("dose")}
+          fieldRef={fieldRefs?.dose}
         />
 
         <button
           type="button"
           onClick={onReset}
           disabled={!resettable}
-          className="w-full rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary disabled:pointer-events-none disabled:opacity-40"
+          className={cn(PRESS.button, "w-full rounded-xl border border-border-strong py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary disabled:pointer-events-none disabled:opacity-40")}
         >
           Reset
         </button>

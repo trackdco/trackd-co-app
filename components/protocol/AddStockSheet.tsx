@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import {
+  PRESS,
   SHEET_TITLE,
   STOCK_FIELD,
   STOCK_FIELD_LABEL,
@@ -18,7 +19,9 @@ import {
   STOCK_PILL_OFF,
   STOCK_PILL_ON,
 } from "@/lib/ui-presets"
-import { Input } from "@/components/ui/input"
+import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
+import { usePadSession } from "@/components/feel/usePadSession"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import {
   addStockItem,
   updateStockItem,
@@ -721,7 +724,38 @@ function AddStockForm({
   // bigger here and coloured its border rather than dropping it — near enough
   // to look like a mistake rather than a variant (Adrian, 2026-08-07).
   const pill = (active: boolean) =>
-    cn(STOCK_PILL, active ? STOCK_PILL_ON : STOCK_PILL_OFF)
+    cn(PRESS.pill, STOCK_PILL, active ? STOCK_PILL_ON : STOCK_PILL_OFF)
+
+  /**
+   * THE PAD (feel pass §3): every amount on this form on one Trackd pad, in
+   * the order the fields appear for the chosen type.
+   */
+  const pad = usePadSession()
+  const padFields: PadField[] = []
+  if (type === "reconstituted") {
+    padFields.push(
+      { id: "powder", label: "Powder", short: "Powder", unit: powderUnits.length === 1 ? powderUnits[0] : powderUnit, value: powder, onChange: setPowder, sanitize: clean },
+      { id: "bacWater", label: "BAC water", short: "Water", unit: "mL", value: bacWater, onChange: setBacWater, sanitize: clean },
+    )
+  } else if (type === "preconcentrated") {
+    padFields.push(
+      { id: "oilMl", label: "Volume", short: "Volume", unit: "mL", value: oilMl, onChange: setOilMl, sanitize: clean },
+      { id: "concentration", label: "Strength", short: "Strength", unit: "mg/mL", value: concentration, onChange: setConcentration, sanitize: clean },
+    )
+  } else if (type === "oral_solid") {
+    padFields.push({ id: "count", label: "How many in the bottle", short: "Count", value: count, onChange: setCount, decimal: false, sanitize: clean })
+    if (strengthRequired) {
+      padFields.push({ id: "strength", label: "Strength each", short: "Each", unit: strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit, value: strength, onChange: setStrength, sanitize: clean })
+    }
+  } else if (type === "bulk_powder") {
+    padFields.push(
+      { id: "tubGrams", label: "Tub weight", short: "Tub", unit: "g", value: tubGrams, onChange: setTubGrams, sanitize: clean },
+      { id: "servingG", label: "Serving", short: "Serving", unit: "g", value: servingG, onChange: setServingG, sanitize: clean },
+    )
+  }
+  if (fill.basis) {
+    padFields.push({ id: "exactLeft", label: `Amount left (${fillUnit})`, short: "Left", unit: fillUnit, value: exactLeft, onChange: setExactLeft, sanitize: clean })
+  }
 
   return (
     <>
@@ -789,13 +823,34 @@ function AddStockForm({
             ) : (
               <div>
                 <span className={STOCK_FIELD_LABEL}>Type</span>
-                <div className="flex flex-wrap gap-2">
+                {/* The stock type on a WHITE sliding thumb with dark text
+                    (feel pass §6): the thumb is the selection. */}
+                <ThumbGroup
+                  selection={type}
+                  thumbClassName="rounded-full bg-accent-primary"
+                  role="group"
+                  aria-label="Stock type"
+                  className="flex flex-wrap gap-2"
+                >
                   {formsToShow.map((v) => (
-                    <button key={v} type="button" onClick={() => setType(v)} className={pill(type === v)}>
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setType(v)}
+                      aria-pressed={type === v}
+                      className={cn(
+                        PRESS.pill,
+                        STOCK_PILL,
+                        "duration-300",
+                        type === v
+                          ? "border-transparent font-medium text-bg-base"
+                          : STOCK_PILL_OFF,
+                      )}
+                    >
                       {TYPES.find((t) => t.value === v)?.label}
                     </button>
                   ))}
-                </div>
+                </ThumbGroup>
                 <div className="flex items-start justify-between gap-2">
                   <span className="block text-xs text-text-subtle">
                     {picker === "all"
@@ -820,7 +875,7 @@ function AddStockForm({
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>Powder</span>
                   <div className="flex items-center gap-2">
-                    <Input value={powder} onChange={(e) => setPowder(clean(e.target.value))} inputMode="decimal" placeholder={powderUnits[0] === "iu" ? "e.g. 5000" : "e.g. 5"}  className={STOCK_FIELD} />
+                    <PadInput {...pad.bind("powder")} value={powder} label="Powder" unit={powderUnits.length === 1 ? powderUnits[0] : powderUnit} className="h-11 w-full" />
                     {/* One unit ⇒ state it, don't ask. A toggle with nothing to
                         toggle to is a question about a compound the user has
                         already named. */}
@@ -846,7 +901,7 @@ function AddStockForm({
                 </label>
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>BAC water (mL)</span>
-                  <Input value={bacWater} onChange={(e) => setBacWater(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 2"  className={STOCK_FIELD} />
+                  <PadInput {...pad.bind("bacWater")} value={bacWater} label="BAC water" unit="mL" className="h-11 w-full" />
                 </label>
               </div>
             )}
@@ -855,11 +910,11 @@ function AddStockForm({
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>Volume (mL)</span>
-                  <Input value={oilMl} onChange={(e) => setOilMl(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 10"  className={STOCK_FIELD} />
+                  <PadInput {...pad.bind("oilMl")} value={oilMl} label="Volume" unit="mL" className="h-11 w-full" />
                 </label>
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>Strength (mg/mL)</span>
-                  <Input value={concentration} onChange={(e) => setConcentration(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 250"  className={STOCK_FIELD} />
+                  <PadInput {...pad.bind("concentration")} value={concentration} label="Strength" unit="mg/mL" className="h-11 w-full" />
                 </label>
               </div>
             )}
@@ -871,7 +926,7 @@ function AddStockForm({
                     and it could not be read (Adrian, 2026-08-07). */}
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>How many in the bottle</span>
-                  <Input value={count} onChange={(e) => setCount(clean(e.target.value))} inputMode="numeric" placeholder="e.g. 100"  className={STOCK_FIELD} />
+                  <PadInput {...pad.bind("count")} value={count} label="How many in the bottle" className="h-11 w-full" />
                 </label>
                 <div>
                   <span className={STOCK_FIELD_LABEL}>Tablets or capsules</span>
@@ -907,7 +962,7 @@ function AddStockForm({
                         tablet is the unit and a strength may not be stored. */}
                     <span className={STOCK_FIELD_LABEL}>Strength each</span>
                     <div className="flex items-center gap-2">
-                      <Input value={strength} onChange={(e) => setStrength(clean(e.target.value))} inputMode="decimal" placeholder={strengthRequired ? "e.g. 5000" : "optional"}  className={STOCK_FIELD} />
+                      <PadInput {...pad.bind("strength")} value={strength} label="Strength each" unit={strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit} placeholder={strengthRequired ? undefined : "optional"} className="h-11 w-full" />
                       {strengthUnits.length === 1 ? (
                         <span className="shrink-0 text-sm text-text-muted">{strengthUnits[0]}</span>
                       ) : (
@@ -955,11 +1010,11 @@ function AddStockForm({
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>Tub weight (g)</span>
-                  <Input value={tubGrams} onChange={(e) => setTubGrams(clean(e.target.value))} inputMode="decimal" placeholder="e.g. 1000"  className={STOCK_FIELD} />
+                  <PadInput {...pad.bind("tubGrams")} value={tubGrams} label="Tub weight" unit="g" className="h-11 w-full" />
                 </label>
                 <label className="block">
                   <span className={STOCK_FIELD_LABEL}>Serving (g)</span>
-                  <Input value={servingG} onChange={(e) => setServingG(clean(e.target.value))} inputMode="decimal" placeholder="optional"  className={STOCK_FIELD} />
+                  <PadInput {...pad.bind("servingG")} value={servingG} label="Serving" unit="g" placeholder="optional" className="h-11 w-full" />
                 </label>
               </div>
             )}
@@ -985,12 +1040,12 @@ function AddStockForm({
                   ))}
                   <span className="text-xs text-text-subtle">or</span>
                   <div className="flex items-center gap-1.5">
-                    <input
+                    <PadInput
+                      {...pad.bind("exactLeft")}
                       value={exactLeft}
-                      onChange={(e) => setExactLeft(clean(e.target.value))}
-                      inputMode="decimal"
-                      placeholder={String(round3(fill.basis.fullNative))}
-                      className={cn(STOCK_FIELD, "h-10 w-20 border px-2 text-base text-foreground outline-none [color-scheme:dark]")}
+                      label={`Amount left in ${fillUnit}`}
+                      unit={fillUnit}
+                      className="h-10 w-20 px-2"
                     />
                     <span className="whitespace-nowrap text-xs text-text-subtle">{fillUnit} left</span>
                   </div>
@@ -1012,7 +1067,7 @@ function AddStockForm({
         <button
           type="button"
           onClick={onClose}
-          className="flex-1 rounded-xl border border-border-default bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary hover:bg-bg-surface-raised"
+          className={cn(PRESS.button, "flex-1 rounded-xl border border-border-default bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary hover:bg-bg-surface-raised")}
         >
           Cancel
         </button>
@@ -1020,11 +1075,13 @@ function AddStockForm({
           type="button"
           onClick={() => void save()}
           disabled={saving || !insert}
-          className="flex-1 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
+          className={cn(PRESS.button, "flex-1 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50")}
         >
           {saving ? "Saving…" : editItem ? "Save changes" : "Add stock"}
         </button>
       </SheetFooter>
+
+      <NumberPad {...pad.padProps(padFields)} label="Stock amounts" />
     </>
   )
 }

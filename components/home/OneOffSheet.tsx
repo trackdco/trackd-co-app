@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 
 import {
   Sheet,
@@ -12,7 +12,9 @@ import { Container } from "@/components/containers"
 import { Input } from "@/components/ui/input"
 import { MagnifyingGlass } from "@/components/icons"
 import { cn } from "@/lib/utils"
-import { DATA_MONO, SHEET_TITLE } from "@/lib/ui-presets"
+import { DATA_MONO, PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { NumberPad, PadInput } from "@/components/feel/NumberPad"
+import { sanitizeDoseInput } from "@/lib/home/stack"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { routesOf } from "@/lib/compound-categories"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
@@ -116,6 +118,9 @@ function OneOffBody({
   const [query, setQuery] = useState("")
   const [picked, setPicked] = useState<OneOffChoice | null>(null)
   const [amount, setAmount] = useState("")
+  // The amount is typed on the Trackd pad (feel pass §3).
+  const [padOpen, setPadOpen] = useState(false)
+  const amountRef = useRef<HTMLButtonElement>(null)
   const [unit, setUnit] = useState<OneOffUnit>("mg")
   const [time24, setTime24] = useState(() =>
     dateKey === todayKey
@@ -157,6 +162,7 @@ function OneOffBody({
 
   const pill = (active: boolean) =>
     cn(
+      PRESS.pill,
       "rounded-full px-3 py-1.5 text-sm transition-colors",
       active
         ? "bg-accent-primary text-bg-base"
@@ -273,12 +279,35 @@ function OneOffBody({
           <div className="grid grid-cols-2 gap-3">
             <label className="block space-y-1.5">
               <span className={LABEL}>How much</span>
-              <Input
+              {/* One decimal point and a bounded length now: the text field
+                  kept any number of dots. "Optional" is a word, so it stays. */}
+              <PadInput
                 value={amount}
-                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-                inputMode="decimal"
+                label="How much"
+                unit={unit}
+                active={padOpen}
+                onOpen={() => setPadOpen(true)}
+                inputRef={amountRef}
                 placeholder="Optional"
-                className={FIELD}
+                className="h-11 w-full"
+              />
+              <NumberPad
+                active={padOpen ? 0 : null}
+                fields={[
+                  {
+                    id: "amount",
+                    label: "How much",
+                    unit,
+                    value: amount,
+                    onChange: setAmount,
+                    sanitize: sanitizeDoseInput,
+                  },
+                ]}
+                onActiveChange={() => {}}
+                onClose={() => setPadOpen(false)}
+                anchorRef={amountRef}
+                returnFocusRef={amountRef}
+                label="Amount"
               />
             </label>
             <label className="block space-y-1.5">

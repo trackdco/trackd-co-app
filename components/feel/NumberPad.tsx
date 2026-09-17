@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type Ref,
   type RefObject,
 } from "react"
 import { createPortal } from "react-dom"
@@ -75,6 +76,8 @@ export interface NumberPadProps {
   anchorRef?: RefObject<HTMLElement | null>
   /** Where focus goes when the pad closes. */
   returnFocusRef?: RefObject<HTMLElement | null>
+  /** The same, asked at close time (a form of several fields). */
+  returnFocus?: () => HTMLElement | null
   /** Announced name for the pad. */
   label?: string
 }
@@ -107,6 +110,7 @@ export function NumberPad({
   selectOnOpen = false,
   anchorRef,
   returnFocusRef,
+  returnFocus,
   label = "Number pad",
 }: NumberPadProps) {
   const open = active !== null && fields[active] !== undefined
@@ -157,9 +161,12 @@ export function NumberPad({
   // Focus goes back to the field when the pad closes.
   const wasOpen = useRef(open)
   useEffect(() => {
-    if (wasOpen.current && !open) returnFocusRef?.current?.focus({ preventScroll: true })
+    if (wasOpen.current && !open) {
+      const el = returnFocus?.() ?? returnFocusRef?.current
+      el?.focus({ preventScroll: true })
+    }
     wasOpen.current = open
-  }, [open, returnFocusRef])
+  }, [open, returnFocusRef, returnFocus])
 
   const panelRef = useRef<HTMLDivElement>(null)
   const shake = useCallback((key: string) => {
@@ -477,6 +484,7 @@ export function PadInput({
   onOpen,
   inputRef,
   className,
+  placeholder,
   suffix,
   align = "left",
   invalid = false,
@@ -489,11 +497,16 @@ export function PadInput({
   unit?: string
   active: boolean
   onOpen: () => void
-  inputRef?: RefObject<HTMLButtonElement | null>
+  inputRef?: Ref<HTMLButtonElement>
   className?: string
+  /**
+   * A WORD for an empty field ("same", "optional"). Never a number: an empty
+   * field is empty (feel pass §3).
+   */
+  placeholder?: string
   /** Rendered inside the field after the value (a unit, a pill). */
   suffix?: ReactNode
-  align?: "left" | "right"
+  align?: "left" | "right" | "center"
   invalid?: boolean
   disabled?: boolean
 }) {
@@ -510,7 +523,11 @@ export function PadInput({
       className={cn(
         PRESS.field,
         "pad-input flex min-w-0 items-center gap-2 rounded-xl border border-border-default bg-bg-input px-3 font-mono text-base text-foreground outline-none transition-[border-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
-        align === "right" ? "justify-end text-right" : "text-left",
+        align === "right"
+          ? "justify-end text-right"
+          : align === "center"
+            ? "justify-center text-center"
+            : "text-left",
         active && "border-text-primary ring-1 ring-text-primary",
         invalid && !active && "border-state-error",
         className,
@@ -518,6 +535,9 @@ export function PadInput({
     >
       <span className={cn("min-w-0 truncate", align === "left" && "flex-1")}>
         {value}
+        {!value && placeholder && !active ? (
+          <span className="font-sans text-sm text-text-subtle">{placeholder}</span>
+        ) : null}
         {active ? <span aria-hidden className="pad-caret" /> : null}
       </span>
       {suffix}

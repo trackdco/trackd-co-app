@@ -1234,15 +1234,39 @@ svg ::-moz-selection {
    `motion-reduce:transition-none` utility, so the reduce opt-out would silently
    never apply. Owning the transition here keeps both on the same specificity
    footing and puts the opt-out below, with every other animation's. */
+/* 420ms on the house ease (feel pass §3): the draw settles as you type on the
+   Calculator's pad, with the stopper on the same clock. */
 .transition-syringe-fill {
   transform-box: fill-box;
   transform-origin: left;
-  transition: transform var(--motion-slow) var(--motion-ease);
+  transition: transform 420ms var(--motion-ease);
+}
+.transition-syringe-stopper {
+  transition: transform 420ms var(--motion-ease);
+}
+
+/* The Calculator's Draw section while the pad is open: pinned under the
+   compact title bar, on the page's own ground. */
+.calc-draw-pinned {
+  position: sticky;
+  top: calc(max(0.625rem, env(safe-area-inset-top)) + 2.125rem);
+  z-index: 30;
+  background-color: var(--bg-base);
+  margin-inline: -1.25rem;
+  padding-inline: 1.25rem;
+  padding-top: 0.5rem;
+  box-shadow: 0 0.5px 0 var(--border-default);
+}
+@media (max-height: 650px) {
+  .calc-draw-pinned > h2 {
+    display: none;
+  }
 }
 
 /* Respect users who opt out of motion — no entrance/ripple/fade for them. */
 @media (prefers-reduced-motion: reduce) {
-  .transition-syringe-fill {
+  .transition-syringe-fill,
+  .transition-syringe-stopper {
     transition: none;
   }
 
@@ -2309,7 +2333,8 @@ body[data-inline-edit="true"] .shortcuts-layer {
    (0,1,0) but LOSES to `.focus-visible\:border-ring:focus-visible` (0,2,0), so
    the focus border still lands. Deliberate; do not raise this to `:is(...)`. */
 .grow-field input,
-.grow-field select {
+.grow-field select,
+.grow-field .pad-input {
   position: relative;
   background-color: transparent;
   border-color: transparent;
@@ -2350,6 +2375,7 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .grow-field::before,
   .grow-field input,
   .grow-field select,
+  .grow-field .pad-input,
   [data-dropup-open="true"] .animate-dropup-item {
     animation: none;
   }

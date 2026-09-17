@@ -5,12 +5,14 @@ import { CalendarDots, CaretDown, PencilSimple, Plus, Trash, Warning } from "@/c
 
 import { cn } from "@/lib/utils"
 import {
-  STOCK_FIELD,
+  PRESS,
   STOCK_FIELD_LABEL,
   STOCK_PILL,
   STOCK_PILL_OFF,
   STOCK_PILL_ON,
 } from "@/lib/ui-presets"
+import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
+import { usePadSession } from "@/components/feel/usePadSession"
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
 import { isInventoryForm, isStockableForm } from "@/lib/containers/form"
 import { containerNoun } from "@/lib/containers/labels"
@@ -725,6 +727,156 @@ function AddCompoundBody({
     // `stEffectiveOralForm`: a capsule-dosed compound showed a forced "cap" pill
     // while this row read "tab left". `AddStockSheet` fixed the identical line.
     stockType === "oral_solid" ? stEffectiveOralForm : stockType === "bulk_powder" ? "g" : "mL"
+
+  /**
+   * THE PAD (feel pass §3). Every number on this sheet is typed on one Trackd
+   * pad, in the order the fields appear, so Next walks the form without the
+   * keyboard ever dropping. Only the fields currently on screen are in it.
+   *
+   * The cycle lengths are numbers in the draft and were clamped on every
+   * keystroke, so clearing one snapped it to 1 under the finger. While the pad
+   * is on them their TEXT is held here and only the draft is clamped.
+   */
+  const pad = usePadSession()
+  const [cycleText, setCycleText] = useState<Partial<Record<CycleNumberId, string>>>({})
+  const [padWas, setPadWas] = useState(pad.activeId)
+  if (pad.activeId !== padWas) {
+    setPadWas(pad.activeId)
+    if (pad.activeId === null) setCycleText({})
+  }
+  const cycleOnOff = cycleDraft?.pattern.type === "onOff" ? cycleDraft.pattern : null
+  const cycleEndType = cycleDraft
+    ? (() => {
+        const offerable = availableCycleEnds(cycleDraft.pattern, { vialTracked: canStock })
+        return offerable.includes(cycleDraft.end.type) ? cycleDraft.end.type : offerable[0]
+      })()
+    : null
+  const clearCycleError = () => {
+    if (errors.cycle) setErrors((p) => ({ ...p, cycle: undefined }))
+  }
+  const cycleField = (
+    id: CycleNumberId,
+    label: string,
+    short: string,
+    unitWord: string,
+    number: number,
+    commit: (n: number) => CycleRule,
+    floor: number,
+  ): PadField => ({
+    id,
+    label,
+    short,
+    unit: unitWord,
+    value: cycleText[id] ?? String(number),
+    onChange: (v) => {
+      setCycleText((t) => ({ ...t, [id]: v }))
+      const n = Number(v)
+      setCycleDraft(commit(Math.max(floor, Number.isFinite(n) && v !== "" ? n : floor)))
+      clearCycleError()
+    },
+    decimal: false,
+    sanitize: digitsOnly3,
+  })
+  const stockPadFields = (): PadField[] => {
+    if (!canStock || !addStockOn) return []
+    const fields: PadField[] = []
+    if (stockType === "reconstituted") {
+      fields.push(
+        { id: "stPowder", label: "Powder in vial", short: "Powder", unit: stPowderUnits.length === 1 ? stPowderUnits[0] : stPowderUnit, value: stPowder, onChange: setStPowder, sanitize: sanitizeDoseInput },
+        { id: "stBac", label: "BAC water", short: "Water", unit: "mL", value: stBac, onChange: setStBac, sanitize: sanitizeDoseInput },
+      )
+    } else if (stockType === "preconcentrated") {
+      fields.push(
+        { id: "stMl", label: "Volume", short: "Volume", unit: "mL", value: stMl, onChange: setStMl, sanitize: sanitizeDoseInput },
+        { id: "stConc", label: "Strength", short: "Strength", unit: "mg/mL", value: stConc, onChange: setStConc, sanitize: sanitizeDoseInput },
+      )
+    } else if (stockType === "oral_solid") {
+      fields.push({ id: "stCount", label: "Count", short: "Count", unit: stEffectiveOralForm === "tab" ? "tab" : "cap", value: stCount, onChange: setStCount, decimal: false, sanitize: sanitizeDoseInput })
+      if (stStrengthRequired) {
+        fields.push({ id: "stStrength", label: "Strength each", short: "Each", unit: stStrengthUnits.length === 1 ? stStrengthUnits[0] : stStrengthUnit, value: stStrength, onChange: setStStrength, sanitize: sanitizeDoseInput })
+      }
+    } else if (stockType === "bulk_powder") {
+      fields.push(
+        { id: "stTubGrams", label: "Tub weight", short: "Tub", unit: "g", value: stTubGrams, onChange: setStTubGrams, sanitize: sanitizeDoseInput },
+        { id: "stServingG", label: "Serving", short: "Serving", unit: "g", value: stServingG, onChange: setStServingG, sanitize: sanitizeDoseInput },
+      )
+    }
+    if (stockFill.basis) {
+      fields.push({ id: "stExactLeft", label: `Amount left (${stFillUnit})`, short: "Left", unit: stFillUnit, value: stExactLeft, onChange: setStExactLeft, sanitize: sanitizeDoseInput })
+    }
+    return fields
+  }
+  const padFields: PadField[] = [
+    {
+      id: "dose",
+      label: "Dose",
+      short: "Dose",
+      unit,
+      value: dose,
+      onChange: (v) => {
+        setDose(v)
+        if (errors.dose) setErrors((p) => ({ ...p, dose: undefined }))
+      },
+      sanitize: sanitizeDoseInput,
+    },
+    ...(cadenceType === "everyNDays"
+      ? [
+          {
+            id: "everyN",
+            label: "Every how many days",
+            short: "Every",
+            unit: "days",
+            value: everyN,
+            onChange: setEveryN,
+            decimal: false,
+            sanitize: digitsOnly3,
+          } satisfies PadField,
+        ]
+      : []),
+    ...laterTimes.map(
+      (_, i): PadField => ({
+        id: `later-${i}`,
+        label: `Dose ${i + 2}`,
+        short: `Dose ${i + 2}`,
+        unit,
+        value: laterDoses[i] ?? "",
+        onChange: (v) =>
+          setLaterDoses((prev) => {
+            const next = [...prev]
+            while (next.length < laterTimes.length) next.push("")
+            next[i] = v
+            return next
+          }),
+        sanitize: sanitizeDoseInput,
+      }),
+    ),
+    ...(cycleDraft && cycleOnOff
+      ? [
+          cycleField("cycleOn", "Days on", "On", "days", cycleOnOff.onDays, (n) => ({
+            ...cycleDraft,
+            pattern: { type: "onOff", onDays: n, offDays: cycleOnOff.offDays },
+          }), 1),
+          cycleField("cycleOff", "Days off", "Off", "days", cycleOnOff.offDays, (n) => ({
+            ...cycleDraft,
+            pattern: { type: "onOff", onDays: cycleOnOff.onDays, offDays: n },
+          }), 0),
+        ]
+      : []),
+    ...(cycleDraft && cycleEndType === "afterRounds"
+      ? [
+          cycleField(
+            "cycleRounds",
+            "Rounds",
+            "Rounds",
+            "",
+            cycleDraft.end.type === "afterRounds" ? cycleDraft.end.rounds : 4,
+            (n) => ({ ...cycleDraft, end: { type: "afterRounds", rounds: n } }),
+            1,
+          ),
+        ]
+      : []),
+    ...stockPadFields(),
+  ]
   // What the thing being filled is CALLED, so the fullness gauge isn't announced
   // as a vial when it is a tub. The visible heading ("How much is in it?") was
   // already form-neutral; only the screen-reader label was not.
@@ -1107,7 +1259,7 @@ function AddCompoundBody({
         <button
           type="button"
           onClick={onCancel}
-          className="-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary"
+          className={cn(PRESS.text, "-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary")}
         >
           Cancel
         </button>
@@ -1117,7 +1269,7 @@ function AddCompoundBody({
         <button
           type="button"
           onClick={() => void handleSave()}
-          className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80"
+          className={cn(PRESS.text, "-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80")}
         >
           {isEdit ? "Save" : "Add"}
         </button>
@@ -1209,23 +1361,17 @@ function AddCompoundBody({
               both specs at once. */}
           <FormRow label="Dose" hint="per dose" error={errors.dose}>
             <div className="flex items-center justify-end gap-2">
-              <Input
-                inputMode="decimal"
+              <PadInput
+                {...pad.bind("dose")}
                 value={dose}
-                onChange={(e) => {
-                  setDose(sanitizeDoseInput(e.target.value))
-                  if (errors.dose) setErrors((p) => ({ ...p, dose: undefined }))
-                }}
-                placeholder="100"
-                aria-label={`Dose in ${unit}`}
-                aria-invalid={errors.dose ? true : undefined}
-                className={cn(
-                  // 44px tall and wide enough for the five characters the
-                  // sanitiser permits. It was 40x80, which failed the tap target
-                  // AND clipped "99999.999" by 29px.
-                  "h-11 w-24 rounded-lg border-border-default bg-bg-input text-right font-mono text-base dark:bg-bg-input",
-                  errors.dose && "border-state-error",
-                )}
+                label={`Dose in ${unit}`}
+                unit={unit}
+                align="right"
+                invalid={Boolean(errors.dose)}
+                // 44px tall and wide enough for the five characters the
+                // sanitiser permits. It was 40x80, which failed the tap target
+                // AND clipped "99999.999" by 29px.
+                className="h-11 w-24 rounded-lg"
               />
               {unitOptions.length > 1 ? (
                 <select
@@ -1276,15 +1422,16 @@ function AddCompoundBody({
           {cadenceType === "everyNDays" && (
             <label className="flex items-center justify-end gap-2 px-4 pb-3">
               <span className="text-sm text-text-muted">Every</span>
-              <Input
-                inputMode="numeric"
+              {/* Digits only, three at most. It took anything once: "0", "-4"
+                  and "abc" all silently became DAILY. The pad has no minus, and
+                  refuses a decimal point here. */}
+              <PadInput
+                {...pad.bind("everyN")}
                 value={everyN}
-                // Digits only. It took anything: "0", "-4" and "abc" were all
-                // kept in the field and all silently became DAILY, with no error
-                // and no clue that the schedule was not what had been typed.
-                onChange={(e) => setEveryN(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
-                aria-label="Number of days between doses"
-                className="h-11 w-16 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
+                label="Number of days between doses"
+                unit="days"
+                align="center"
+                className="h-11 w-16 rounded-lg"
               />
               <span className="text-sm text-text-muted">days</span>
             </label>
@@ -1445,22 +1592,17 @@ function AddCompoundBody({
                       what the placeholder says and what gets stored (null).
                       Per-slot amounts are Adrian's addition over the spec —
                       see `supabase/protocol/021`. */}
-                  <Input
-                    inputMode="decimal"
+                  {/* Blank means "the same as the dose above". It says so in a
+                      word: an empty pad field never shows a number (feel pass
+                      §3). */}
+                  <PadInput
+                    {...pad.bind(`later-${i}`)}
                     value={laterDoses[i] ?? ""}
-                    onChange={(e) =>
-                      setLaterDoses((prev) => {
-                        const next = [...prev]
-                        while (next.length < laterTimes.length) next.push("")
-                        next[i] = sanitizeDoseInput(e.target.value)
-                        return next
-                      })
-                    }
-                    // Blank means "the same as the dose above", so the placeholder IS
-                    // that dose rather than the word "optional".
-                    placeholder={dose || "same"}
-                    aria-label={`Dose ${i + 2} amount`}
-                    className="h-11 w-20 rounded-lg border-border-default bg-bg-input px-3 text-right font-mono text-base dark:bg-bg-input"
+                    label={`Dose ${i + 2} amount`}
+                    unit={unit}
+                    placeholder="same"
+                    align="right"
+                    className="h-11 w-20 rounded-lg"
                   />
                   <span className="font-mono text-xs text-text-muted">{unit}</span>
                   <Input
@@ -1688,6 +1830,8 @@ function AddCompoundBody({
                 <CycleFields
                   cycle={cycleDraft}
                   vialTracked={canStock}
+                  padBind={pad.bind}
+                  numberText={(id, n) => cycleText[id] ?? String(n)}
                   onChange={(next) => {
                     setCycleDraft(next)
                     if (errors.cycle) setErrors((p) => ({ ...p, cycle: undefined }))
@@ -1724,7 +1868,7 @@ function AddCompoundBody({
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>Powder in vial</span>
                       <div className="flex items-center gap-1.5">
-                        <Input inputMode="decimal" value={stPowder} onChange={(e) => setStPowder(sanitizeDoseInput(e.target.value))} placeholder={stPowderUnits[0] === "iu" ? "5000" : "5"} className={cn(STOCK_FIELD, "flex-1")} />
+                        <PadInput {...pad.bind("stPowder")} value={stPowder} label="Powder in vial" unit={stPowderUnits.length === 1 ? stPowderUnits[0] : stPowderUnit} className="h-11 flex-1" />
                         {/* One unit ⇒ state it rather than ask. */}
                         {stPowderUnits.length === 1 ? (
                           <span className="shrink-0 text-sm text-text-muted">{stPowderUnits[0]}</span>
@@ -1746,7 +1890,7 @@ function AddCompoundBody({
                     </label>
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>BAC water (mL)</span>
-                      <Input inputMode="decimal" value={stBac} onChange={(e) => setStBac(sanitizeDoseInput(e.target.value))} placeholder="2" className={STOCK_FIELD} />
+                      <PadInput {...pad.bind("stBac")} value={stBac} label="BAC water" unit="mL" className="h-11 w-full" />
                     </label>
                   </div>
                 )}
@@ -1754,11 +1898,11 @@ function AddCompoundBody({
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>Volume (mL)</span>
-                      <Input inputMode="decimal" value={stMl} onChange={(e) => setStMl(sanitizeDoseInput(e.target.value))} placeholder="10" className={STOCK_FIELD} />
+                      <PadInput {...pad.bind("stMl")} value={stMl} label="Volume" unit="mL" className="h-11 w-full" />
                     </label>
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>Strength (mg/mL)</span>
-                      <Input inputMode="decimal" value={stConc} onChange={(e) => setStConc(sanitizeDoseInput(e.target.value))} placeholder="250" className={STOCK_FIELD} />
+                      <PadInput {...pad.bind("stConc")} value={stConc} label="Strength" unit="mg/mL" className="h-11 w-full" />
                     </label>
                   </div>
                 )}
@@ -1767,7 +1911,7 @@ function AddCompoundBody({
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>Count</span>
                       <div className="flex gap-1.5">
-                        <Input inputMode="numeric" value={stCount} onChange={(e) => setStCount(sanitizeDoseInput(e.target.value))} placeholder="100" className={cn(STOCK_FIELD, "flex-1")} />
+                        <PadInput {...pad.bind("stCount")} value={stCount} label="Count" className="h-11 flex-1" />
                         {stOralRule.countUnit ? (
                           // Forced: `total_amount_unit` must equal `base_unit`
                           // for a compound dosed in tablets or capsules, and the
@@ -1790,7 +1934,7 @@ function AddCompoundBody({
                           strength may not be stored at all. */}
                       <span className={STOCK_FIELD_LABEL}>Strength each</span>
                       <div className="flex items-center gap-1.5">
-                        <Input inputMode="decimal" value={stStrength} onChange={(e) => setStStrength(sanitizeDoseInput(e.target.value))} placeholder={stStrengthRequired ? "5000" : "optional"} className={cn(STOCK_FIELD, "flex-1")} />
+                        <PadInput {...pad.bind("stStrength")} value={stStrength} label="Strength each" unit={stStrengthUnits.length === 1 ? stStrengthUnits[0] : stStrengthUnit} placeholder={stStrengthRequired ? undefined : "optional"} className="h-11 flex-1" />
                         {stStrengthUnits.length === 1 ? (
                           <span className="shrink-0 text-sm text-text-muted">{stStrengthUnits[0]}</span>
                         ) : (
@@ -1820,11 +1964,11 @@ function AddCompoundBody({
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>Tub weight (g)</span>
-                      <Input inputMode="decimal" value={stTubGrams} onChange={(e) => setStTubGrams(sanitizeDoseInput(e.target.value))} placeholder="1000" className={STOCK_FIELD} />
+                      <PadInput {...pad.bind("stTubGrams")} value={stTubGrams} label="Tub weight" unit="g" className="h-11 w-full" />
                     </label>
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>Serving (g)</span>
-                      <Input inputMode="decimal" value={stServingG} onChange={(e) => setStServingG(sanitizeDoseInput(e.target.value))} placeholder="optional" className={STOCK_FIELD} />
+                      <PadInput {...pad.bind("stServingG")} value={stServingG} label="Serving" unit="g" placeholder="optional" className="h-11 w-full" />
                     </label>
                   </div>
                 )}
@@ -1870,12 +2014,12 @@ function AddCompoundBody({
                           </button>
                         ))}
                         <span className="text-xs text-text-subtle">or</span>
-                        <Input
-                          inputMode="decimal"
+                        <PadInput
+                          {...pad.bind("stExactLeft")}
                           value={stExactLeft}
-                          onChange={(e) => setStExactLeft(sanitizeDoseInput(e.target.value))}
-                          placeholder={String(round3(stockFill.basis.fullNative))}
-                          className="h-10 w-16 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input"
+                          label={`Amount left in ${stFillUnit}`}
+                          unit={stFillUnit}
+                          className="h-10 w-16"
                         />
                         <span className="whitespace-nowrap text-xs text-text-subtle">{stFillUnit} left</span>
                       </div>
@@ -1899,8 +2043,17 @@ function AddCompoundBody({
         </p>
       </div>
 
+      <NumberPad {...pad.padProps(padFields)} label="Compound numbers" />
     </div>
   )
+}
+
+/** The cycle's numeric fields on the pad. */
+type CycleNumberId = "cycleOn" | "cycleOff" | "cycleRounds"
+
+/** Whole days, three digits at most (the columns are `smallint`). */
+function digitsOnly3(raw: string): string {
+  return raw.replace(/[^0-9]/g, "").slice(0, 3)
 }
 
 /** Bounds on both cycle date fields. Advisory on their own — `cycleProblem` is
@@ -1972,14 +2125,12 @@ function amt(s: string): number {
 const ROW_BASE = "flex w-full min-h-14 items-center justify-between gap-3 px-4 py-1.5 text-left"
 /** Rows that ARE the control get the press compression `ui-context.md` requires
  *  of a borderless row, since there is no border to say they are tappable. */
-const ROW_PRESSABLE =
-  "transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none"
+const ROW_PRESSABLE = PRESS.button
 
 // px-3 py-2, not px-2.5 py-1: spec 10 shrank these to 26px tall, below both the
 // 44px guideline and the ~34px they had been. 36px is what fits four cadence
 // pills across a 360px row without a third line.
-const ROW_PILL =
-  "rounded-full border px-3 py-2 text-xs transition-colors active:scale-[0.98]"
+const ROW_PILL = `${PRESS.pill} rounded-full border px-3 py-2 text-xs transition-colors`
 const ROW_PILL_ON = "border-transparent bg-accent-primary font-medium text-bg-base"
 const ROW_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
 const ROW_SELECT =
@@ -2128,11 +2279,17 @@ function CycleFields({
   cycle,
   vialTracked,
   onChange,
+  padBind,
+  numberText,
 }: {
   cycle: CycleRule
   /** Gates the "when the vial runs out" end condition. */
   vialTracked: boolean
   onChange: (next: CycleRule) => void
+  /** The form's pad: these lengths are typed on it (feel pass §3). */
+  padBind: ReturnType<typeof usePadSession>["bind"]
+  /** What a length field shows: the text being typed, else the number. */
+  numberText: (id: CycleNumberId, n: number) => string
 }) {
   // Narrowed once, so the fields below read the lengths without re-testing the
   // union on every line. A continuous cycle keeps sensible defaults in the
@@ -2196,38 +2353,22 @@ function CycleFields({
           <RowDivider />
           <FormRow label="Days on / off">
             <div className="flex items-center gap-1.5">
-              <Input
-                inputMode="numeric"
-                value={String(onDays)}
-                onChange={(e) =>
-                  onChange({
-                    ...cycle,
-                    pattern: {
-                      type: "onOff",
-                      onDays: Math.max(1, Number(e.target.value.replace(/[^0-9]/g, "")) || 1),
-                      offDays,
-                    },
-                  })
-                }
-                aria-label="Days on"
-                className="h-11 w-14 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
+              <PadInput
+                {...padBind("cycleOn")}
+                value={numberText("cycleOn", onDays)}
+                label="Days on"
+                unit="days"
+                align="center"
+                className="h-11 w-14 rounded-lg"
               />
               <span className="text-sm text-text-subtle">/</span>
-              <Input
-                inputMode="numeric"
-                value={String(offDays)}
-                onChange={(e) =>
-                  onChange({
-                    ...cycle,
-                    pattern: {
-                      type: "onOff",
-                      onDays,
-                      offDays: Math.max(0, Number(e.target.value.replace(/[^0-9]/g, "")) || 0),
-                    },
-                  })
-                }
-                aria-label="Days off"
-                className="h-11 w-14 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
+              <PadInput
+                {...padBind("cycleOff")}
+                value={numberText("cycleOff", offDays)}
+                label="Days off"
+                unit="days"
+                align="center"
+                className="h-11 w-14 rounded-lg"
               />
             </div>
           </FormRow>
@@ -2318,17 +2459,15 @@ function CycleFields({
         <>
           <RowDivider />
           <FormRow label="Rounds">
-            <Input
-              inputMode="numeric"
-              value={cycle.end.type === "afterRounds" ? String(cycle.end.rounds) : "4"}
-              onChange={(e) =>
-                setEnd({
-                  type: "afterRounds",
-                  rounds: Math.max(1, Number(e.target.value.replace(/[^0-9]/g, "")) || 1),
-                })
-              }
-              aria-label="Number of rounds"
-              className="h-11 w-14 rounded-lg border-border-default bg-bg-input text-center font-mono text-base dark:bg-bg-input"
+            <PadInput
+              {...padBind("cycleRounds")}
+              value={numberText(
+                "cycleRounds",
+                cycle.end.type === "afterRounds" ? cycle.end.rounds : 4,
+              )}
+              label="Number of rounds"
+              align="center"
+              className="h-11 w-14 rounded-lg"
             />
           </FormRow>
         </>
@@ -2346,7 +2485,8 @@ function CycleFields({
               aria-pressed={cycle.colour === c}
               aria-label={CYCLE_COLOUR_LABELS[c]}
               className={cn(
-                "h-7 w-7 rounded-full border-2 transition-transform active:scale-90",
+                PRESS.tick,
+                "h-7 w-7 rounded-full border-2",
                 cycle.colour === c ? "border-foreground" : "border-transparent",
               )}
               style={{ background: cycleColourVar(c) }}
