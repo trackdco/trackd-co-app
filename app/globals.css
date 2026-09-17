@@ -2474,20 +2474,6 @@ body[data-inline-edit="true"] .shortcuts-layer {
   }
 }
 
-/* The carousel's gutter: the first card lines up with the wide column, while
-   the track itself still bleeds to both screen edges. */
-.lp-bleed {
-  padding-inline: 1.25rem;
-  scroll-padding-inline: 1.25rem;
-}
-
-@media (min-width: 800px) {
-  .lp-bleed {
-    padding-inline: max(2rem, calc((100% - 72rem) / 2 + 2rem));
-    scroll-padding-inline: max(2rem, calc((100% - 72rem) / 2 + 2rem));
-  }
-}
-
 /* ---- The phone -------------------------------------------------------------
 
    The screen inside is laid out at the app's REAL logical size, 390 x 844,
@@ -2503,16 +2489,31 @@ body[data-inline-edit="true"] .shortcuts-layer {
   width: var(--phone-w);
 }
 
+.lp-phone-hero {
+  --phone-w: 17.5rem; /* 280px, scale 272 / 390 */
+  --phone-scale: 0.69744;
+}
+
 @media (min-width: 800px) {
   .lp-phone {
     --phone-w: 18.75rem; /* 300px, scale 292 / 390 */
     --phone-scale: 0.74872;
+  }
+
+  .lp-phone-hero {
+    --phone-w: 20rem; /* 320px, scale 312 / 390 */
+    --phone-scale: 0.8;
   }
 }
 
 @media (min-width: 1024px) {
   .lp-phone {
     --phone-w: 20rem;
+    --phone-scale: 0.8;
+  }
+
+  .lp-phone-hero {
+    --phone-w: 20rem; /* the laptop hero keeps the whole device above an 800px fold */
     --phone-scale: 0.8;
   }
 }
@@ -2529,38 +2530,34 @@ body[data-inline-edit="true"] .shortcuts-layer {
   transform-origin: top left;
 }
 
-/* ---- The hero video ---------------------------------------------------------
+/* ---- A phone video (onboarding's free-week screen) ---------------------------
 
-   Adrian's recording of the app, transparent round the phone. The file is a
-   1518x1280 box centred on the phone, and the settled phone takes the middle
-   38.125% of its width (122 of 320 measured columns) and nearly all of its
-   height. So the element is sized by the PHONE (`--pw`) and the video is drawn
-   wider than it, overflowing sideways into transparent space: the phone lands
-   at the size the drawn phone had, and the tilt it opens with has room.
-   Height: (1 / 0.38125) / (1518 / 1280) = 2.2118 phone widths.
+   Adrian's recording of the app, transparent round the phone
+   (`components/onboarding/phone-video.tsx`). It sat in the landing hero for a
+   day; he preferred the drawn phone there and moved the recording to the
+   onboarding screen that offers the free week (2026-09-17).
+
+   The file is a 1518x1280 box centred on the phone, and the settled phone takes
+   the middle 38.125% of its width (122 of 320 measured columns) and nearly all
+   of its height. So the element is sized by the PHONE (`--pw`, set by the
+   caller) and the video is drawn wider than it, overflowing sideways into
+   transparent space. Height: (1 / 0.38125) / (1518 / 1280) = 2.2118 phone
+   widths.
 
    THE EDGES FADE. The sides are feathered for the far edge of the opening
    tilt. The top and bottom fade DEEPLY while the recording opens (the phone
    runs off the bottom of the frame until ~2.4s, and off the top for the first
    half second: those pixels do not exist, so the cut is hidden instead), and
-   ease back as it settles, leaving only a trace under the phone's own shadow.
-   The easing is written per frame from the video's clock by `hero-video.tsx`
-   (a CSS transition here jumped in WebKit); these rules are the opening and
-   the settled ends of it. */
-
-.lp-hero-video {
-  --pw: 17.5rem;
+   ease back as it settles. The easing is written per frame from the video's
+   clock by the component (a CSS transition here jumped in WebKit); these rules
+   are the opening and the settled ends of it. */
+.phone-video {
+  --pw: 9.5rem;
   width: var(--pw);
   height: calc(var(--pw) * 2.2118);
 }
 
-@media (min-width: 800px) {
-  .lp-hero-video {
-    --pw: 20rem;
-  }
-}
-
-.lp-hero-video-media {
+.phone-video-media {
   --lp-fade-b: 68%;
   --lp-fade-t: 7%;
   position: absolute;
@@ -2582,7 +2579,7 @@ body[data-inline-edit="true"] .shortcuts-layer {
   mask-composite: intersect;
 }
 
-.lp-hero-video[data-settled] .lp-hero-video-media {
+.phone-video[data-settled] .phone-video-media {
   --lp-fade-b: 95% !important;
   --lp-fade-t: 0% !important;
 }
@@ -2691,17 +2688,19 @@ body[data-inline-edit="true"] .shortcuts-layer {
 
 /* ---- The call to action ---------------------------------------------------
 
-   "Outlined and gradient-filled, a little bit smoother" (Adrian, 2026-09-17).
+   "More blocky ... a really small gradient ... more like a native button that's
+   in the app ... add a glow" (Adrian, 2026-09-17), after a first version that
+   was a pill with a strong gradient, a ring round it and a bright sheen, which
+   he called too flashy. So: the app's own button geometry (`FlowCta`: 52px,
+   `rounded-2xl`), a deeper amber with only a whisper of gradient, a faint
+   highlight on the top edge, and a soft amber glow under it. The onboarding
+   button it hands over to carries the same kind of glow (`.flow-cta`), so the
+   step from the site into the flow does not change the button's character.
 
-   ⚠️ THE INK IS `--bg-base`, NOT WHITE, and the gradient is bounded by that.
-   Near-black on `--accent-amber` measures 6.19:1. The darkest stop here is
-   amber mixed 12% toward `--bg-base`, which measures 5.0:1 against the same
-   ink, so the label passes AA wherever it sits on the gradient. White on amber
-   is 2.65:1 and fails; do not "fix" the ink.
-
-   The outline is a pseudo-element ring with a gap, not a `border`, so the
-   gradient runs to the button's edge and the outline floats around it. It is
-   also not the `outline` property, which stays free for keyboard focus. */
+   ⚠️ THE INK IS `--bg-base`, NOT WHITE. Near-black on `--accent-amber`
+   measures 6.19:1. The darkest stop here is amber mixed 10% toward `--bg-base`
+   (about 5.2:1 with the same ink), so the label passes AA wherever it sits.
+   White on amber is 2.65:1 and fails; do not "fix" the ink. */
 .lp-cta {
   position: relative;
   isolation: isolate;
@@ -2710,40 +2709,28 @@ body[data-inline-edit="true"] .shortcuts-layer {
   justify-content: center;
   gap: 0.5rem;
   height: 3.25rem;
-  padding-inline: 1.75rem;
-  border-radius: 9999px;
+  padding-inline: 1.5rem;
+  border-radius: 1rem;
   color: var(--bg-base);
-  font-size: 0.975rem;
+  font-size: 0.95rem;
   font-weight: 500;
-  letter-spacing: -0.005em;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--accent-amber) 74%, var(--text-primary)) 0%,
-    var(--accent-amber) 52%,
-    color-mix(in srgb, var(--accent-amber) 88%, var(--bg-base)) 100%
+    color-mix(in srgb, var(--accent-amber) 94%, var(--text-primary)) 0%,
+    color-mix(in srgb, var(--accent-amber) 96%, var(--bg-base)) 55%,
+    color-mix(in srgb, var(--accent-amber) 90%, var(--bg-base)) 100%
   );
   box-shadow:
-    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 55%, transparent),
-    inset 0 -1px 0 0 color-mix(in srgb, var(--bg-base) 22%, transparent),
-    0 12px 32px -14px color-mix(in srgb, var(--accent-amber) 70%, transparent);
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 16%, transparent),
+    0 10px 30px -12px color-mix(in srgb, var(--accent-amber) 60%, transparent),
+    0 0 22px -6px color-mix(in srgb, var(--accent-amber) 38%, transparent);
   transition:
     transform var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-base) var(--motion-ease);
+    box-shadow var(--motion-slow) var(--motion-ease),
+    filter var(--motion-slow) var(--motion-ease);
 }
 
-.lp-cta::before {
-  content: "";
-  position: absolute;
-  inset: -5px;
-  border-radius: inherit;
-  border: 1px solid color-mix(in srgb, var(--accent-amber) 42%, transparent);
-  pointer-events: none;
-  transition: inset var(--motion-base) var(--motion-ease),
-    border-color var(--motion-base) var(--motion-ease);
-}
-
-/* A sheen that crosses once on hover. Clipped by its own wrapper rather than by
-   `overflow: hidden` on the button, which would also clip the outline ring. */
+/* A sheen that crosses once on hover, and faintly. Pointer devices only. */
 .lp-cta-sheen {
   position: absolute;
   inset: 0;
@@ -2757,11 +2744,11 @@ body[data-inline-edit="true"] .shortcuts-layer {
   content: "";
   position: absolute;
   inset: 0;
-  width: 40%;
+  width: 45%;
   background: linear-gradient(
     100deg,
     transparent 0%,
-    color-mix(in srgb, var(--text-primary) 42%, transparent) 50%,
+    color-mix(in srgb, var(--text-primary) 12%, transparent) 50%,
     transparent 100%
   );
   transform: translateX(-160%) skewX(-18deg);
@@ -2769,20 +2756,16 @@ body[data-inline-edit="true"] .shortcuts-layer {
 
 @media (hover: hover) {
   .lp-cta:hover {
+    filter: brightness(1.04);
     box-shadow:
-      inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 60%, transparent),
-      inset 0 -1px 0 0 color-mix(in srgb, var(--bg-base) 22%, transparent),
-      0 16px 40px -14px color-mix(in srgb, var(--accent-amber) 85%, transparent);
-  }
-
-  .lp-cta:hover::before {
-    inset: -7px;
-    border-color: color-mix(in srgb, var(--accent-amber) 60%, transparent);
+      inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 18%, transparent),
+      0 12px 34px -12px color-mix(in srgb, var(--accent-amber) 75%, transparent),
+      0 0 28px -6px color-mix(in srgb, var(--accent-amber) 48%, transparent);
   }
 
   .lp-cta:hover .lp-cta-sheen::after {
-    transform: translateX(360%) skewX(-18deg);
-    transition: transform 900ms var(--motion-ease);
+    transform: translateX(340%) skewX(-18deg);
+    transition: transform 1400ms var(--motion-ease);
   }
 }
 
@@ -2792,7 +2775,21 @@ body[data-inline-edit="true"] .shortcuts-layer {
 
 .lp-cta:focus-visible {
   outline: 2px solid var(--text-primary);
-  outline-offset: 9px;
+  outline-offset: 3px;
+}
+
+/* The onboarding flow's primary button (white, `FlowCta`) with the same kind
+   of soft glow as the site's, so moving from one to the other feels like one
+   product. Much fainter than it reads written down. */
+.flow-cta {
+  box-shadow:
+    inset 0 -1px 0 0 color-mix(in srgb, var(--bg-base) 10%, transparent),
+    0 10px 28px -12px color-mix(in srgb, var(--text-primary) 42%, transparent),
+    0 0 22px -8px color-mix(in srgb, var(--text-primary) 22%, transparent);
+}
+
+.flow-cta:disabled {
+  box-shadow: none;
 }
 
 /* ---- The header menu ------------------------------------------------------ */
@@ -2919,10 +2916,10 @@ body[data-inline-edit="true"] .shortcuts-layer {
    reads the page. */
 .lp-reveal {
   opacity: 0;
-  transform: translateY(18px) scale(0.96);
+  transform: translateY(14px) scale(0.98);
   transition:
-    opacity 700ms var(--motion-ease),
-    transform 900ms var(--motion-ease);
+    opacity 900ms var(--motion-ease),
+    transform 1200ms var(--motion-ease);
 }
 
 .lp-reveal[data-in] {
@@ -2932,18 +2929,18 @@ body[data-inline-edit="true"] .shortcuts-layer {
 
 /* Kyle arrives, then flexes once. */
 .lp-kyle[data-in] {
-  animation: lp-kyle-flex 900ms cubic-bezier(0.34, 1.4, 0.64, 1) 350ms both;
+  animation: lp-kyle-flex 1400ms cubic-bezier(0.37, 0, 0.23, 1) 400ms both;
 }
 
 @keyframes lp-kyle-flex {
   0% {
     transform: scale(1);
   }
-  35% {
-    transform: scale(1.06) rotate(-2deg);
+  40% {
+    transform: scale(1.04) rotate(-1.5deg);
   }
-  65% {
-    transform: scale(0.99) rotate(1.5deg);
+  70% {
+    transform: scale(1.005) rotate(0.8deg);
   }
   100% {
     transform: scale(1) rotate(0deg);
@@ -2960,6 +2957,13 @@ body[data-inline-edit="true"] .shortcuts-layer {
 
 .lp-snap::-webkit-scrollbar {
   display: none;
+}
+
+/* A track whose cards snap to its centre: the side padding is half the track
+   less half a card, so the first and the last card can reach the middle too. */
+.lp-snap-center {
+  --lp-card: min(82vw, 22rem);
+  padding-inline: calc(50% - var(--lp-card) / 2);
 }
 
 /* ---- The FAQ vial ----------------------------------------------------------
@@ -3077,7 +3081,11 @@ body[data-inline-edit="true"] .shortcuts-layer {
 
 .lp-expand {
   display: grid;
-  transition: grid-template-rows 420ms var(--motion-ease);
+  transition: grid-template-rows 560ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-expand-instant {
+  transition: none;
 }
 
 /* A sparkline drawing itself left to right. */
@@ -3109,6 +3117,64 @@ body[data-inline-edit="true"] .shortcuts-layer {
 [data-live] .lp-bar {
   transform: scaleX(var(--to, 1));
   transition: transform 1000ms var(--motion-ease) 300ms;
+}
+
+/* ---- The due dose in the hero phone ------------------------------------------ */
+
+@keyframes landing-ring-settle {
+  to {
+    border-color: transparent;
+    background-color: var(--accent-primary);
+  }
+}
+
+.landing-ring {
+  animation: landing-ring-settle 320ms var(--motion-ease) both;
+}
+
+/* A label handing over to another as the due dose is logged. The BASE style
+   of each is its final state, so under reduced motion (animation: none) the
+   finished screen is what shows. */
+.lp-swap-out {
+  opacity: 0;
+  animation: lp-swap-out 260ms ease-out both;
+}
+
+.lp-swap-in {
+  opacity: 1;
+  animation: lp-swap-in 320ms ease-out both;
+}
+
+.lp-row-done {
+  opacity: 0.6;
+  animation: lp-row-done 360ms ease-out both;
+}
+
+@keyframes lp-swap-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lp-swap-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lp-row-done {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.6;
+  }
 }
 
 /* ---- The docked call to action ---------------------------------------------
@@ -3146,6 +3212,10 @@ body[data-inline-edit="true"] .shortcuts-layer {
 @media (prefers-reduced-motion: reduce) {
   .lp-ring,
   .lp-rise,
+  .lp-swap-out,
+  .lp-swap-in,
+  .lp-row-done,
+  .landing-ring,
   .lp-menu-panel,
   .lp-menu-item,
   .lp-scrim,
@@ -3157,7 +3227,6 @@ body[data-inline-edit="true"] .shortcuts-layer {
   }
 
   .lp-cta,
-  .lp-cta::before,
   .lp-burger span,
   .lp-reveal,
   .lp-vial-liquid,
@@ -3176,6 +3245,11 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .lp-cta:hover .lp-cta-sheen::after {
     transition: none;
     transform: translateX(-160%) skewX(-18deg);
+  }
+
+  .landing-ring {
+    border-color: transparent;
+    background-color: var(--accent-primary);
   }
 
   .lp-ink-stroke,

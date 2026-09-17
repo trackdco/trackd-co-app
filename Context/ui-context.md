@@ -717,9 +717,14 @@ floor WCAG AA sets for body text, so the public site's secondary prose uses
 `--text-muted` out across the app.** The app-wide contrast question is real and
 **OPEN** (raised 2026-09-16); it is not the landing page's to answer.
 
-**The call to action is `.lp-cta`: gradient-filled and outlined** ("a little
-bit smoother", Adrian). A pill, amber lit from above and a ring floating 5px
-outside it, with a sheen that crosses once on hover. **The ink is `--bg-base`,
+**The call to action is `.lp-cta`: the app's own button shape, amber, with a
+glow** (Adrian, 2026-09-17, replacing a gradient pill with an outline ring that
+he found too flashy: "more blocky ... a really small gradient ... more like a
+native button"). 52px, `rounded-2xl`, a deeper amber with a whisper of
+gradient, a faint top highlight, a soft amber glow beneath, and a sheen on hover
+that is barely there. The onboarding flow's white `FlowCta` carries the same
+kind of glow (`.flow-cta`), so the step from the site into the flow keeps one
+button character. **The ink is `--bg-base`,
 not white:** dark on amber is **6.19:1**, and the gradient's darkest stop
 (amber 12% toward `--bg-base`) still measures **5.0:1**; white on amber is
 **2.65:1** and fails. The label is "Start tracking" everywhere except Kyle's
@@ -736,11 +741,16 @@ short phone (under 600px tall) it drops the trial line.
 
 **Amber is still rare: three beats.** The call to action, the drawn underline
 under "movement", and the liquid in the FAQ vials. Testimonial stars are white
-for that reason. Inside a PICTURE of the app, the app's own amber applies (a due
+for that reason. The testimonial cards snap to the CENTRE, with their dots
+centred beneath (`.lp-snap-center`). In the comparison table the mark follows
+the SYMBOL, not the column: a tick is always filled white, a cross always a
+muted outline, so the deliberately inverted last row swaps them. Inside a PICTURE of the app, the app's own amber applies (a due
 count, a run-dry date in its window, the insulin figure, the injection-site
 recency ramp with its day labels), because that is what the app looks like.
 
-**The hero phone is a transparent video**, Adrian's recording of the app,
+**The hero phone is the drawn Dashboard** (Adrian preferred it to his own
+recording, 2026-09-17). The recording moved to the onboarding flow's free-week
+screen (`components/onboarding/phone-video.tsx`, classes `.phone-video`),
 shipped as HEVC with alpha (Safari, every iPhone browser) and VP9 with alpha
 (Chrome, Edge, Firefox), chosen in script because each of those browsers
 claims to play the other's file and then drops the transparency. Its opening
@@ -752,8 +762,11 @@ transition on the mask jumped in WebKit). No fade-in.
 scaled as one piece (`.lp-phone`, which carries its scale beside its width
 because CSS cannot divide lengths), with the app's header, tab bar and add
 button. The whole screen is `inert`, which is what lets a real component (the
-calculator's input sheet) sit in a picture without being tabbable. **Generic
-compound labels only** ("Injectable A"), no score, no streak. Callouts point at
+calculator's input sheet) sit in a picture without being tabbable. **Real
+compound names** (Adrian, 2026-09-17, reversing the generic labels: it is a
+preview with made-up data), no score, no streak. Kyle's section uses the same
+idea at small size: the things round him are previews of the app's cards (a
+stock card whose vial runs down and refills, the site map, the syringe). Callouts point at
 targets that were MEASURED off the rendered screen (`data-mark`); their cards
 overlap the device on a phone and stand clear of it on a laptop, and their
 pointer is a hollow ring, because a filled dot hid a 10px injection site.
@@ -765,9 +778,8 @@ more than the app, and every piece of it collapses under
 with no waiting: no running animations, every moment already resolved). The
 sanctioned list:
 
-- one-shot on load: the rings ripple out, and the hero video (Adrian's own
-  recording, `hero-video.tsx`) plays ONCE and holds its last frame. Under
-  reduced motion, or when autoplay is refused, that last frame is a still;
+- one-shot on load: the rings ripple out, the hero phone rises, and the due
+  dose in it is logged at 900ms (`landing-ring`, the app's `home-tick-*`);
 - one-shot on view: the underline is DRAWN (a tapered brush shape revealed
   along its centreline, then a lighter return pass: never a width wipe), Kyle
   rises and flexes, each feature screen plays its one moment when its row opens
@@ -776,7 +788,9 @@ sanctioned list:
 - on interaction: the menu's items drop in with a stagger, the FAQ vial lifts
   its cap and DRAINS as the answer opens (and refills, then caps, as it closes),
   and the dock slides;
-- the one loop: the chips around Kyle drift. Decorative, `pointer-events-none`.
+- the loops: the cards around Kyle drift, and the stock card's vial runs down
+  and refills while it is on screen. Decorative, `pointer-events-none`, and
+  still under reduced motion.
 
 Inline styles set longhands only (`animationDelay`, `transitionDelay`, custom
 properties), never an `animation` or `transition` shorthand, which would

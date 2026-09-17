@@ -1,5 +1,23 @@
 # Progress Tracker
 
+## 🟡 3-03, SECOND REVIEW ROUND — BUILT 2026-09-17, NOT YET RENDERED LOCALLY
+
+Adrian reviewed the preview on his phone and laptop. Built from his notes (the
+full list is spec 3-03 §9): the drawn hero phone back with real compound names;
+his recording moved into onboarding's free-week screen in place of the
+carousel; a new INTRODUCTION screen as the flow's first step (the notes-app
+hook and its cards deleted); the button reshaped to the app's blocky style with
+a glow, and the same glow on the onboarding button; hero copy trimmed and the
+title enlarged; reviews and dots centred; compare marks by symbol and its
+caption cut; Kyle's chips turned into app-card previews; the features widget
+no longer jumps when switching rows on a phone.
+
+⚠️ **Why it was not rendered here:** iCloud "Optimize Mac Storage" had offloaded
+28,129 files in `trackd-co-app/node_modules` (5,094 of Next's 8,076). Every
+read of one blocks until iCloud downloads it, so the dev server never compiled
+`/`, and tsc and eslint sat at 0% CPU in `read()`. It is also what made
+Adrian's laptop feel slow. Vercel's preview build type-checks the push.
+
 ## 🟡 THE LANDING PAGE, REBUILT FROM ADRIAN'S SKETCH (Spec 3-03) — BUILT 2026-09-17, PR #66, UNMERGED
 
 Same branch (`feat/landing-3-02`), same PR (#66, still "DO NOT MERGE"), same

@@ -78,38 +78,21 @@ trial-conversion risk still open)
 
 ---
 
-## ⏸ 3-03 UI REVIEW FROM ADRIAN (2026-09-17) — ON HOLD UNTIL HE SAYS GO
+## 🟡 3-03 SECOND REVIEW ROUND (2026-09-17) — BUILT, NOT YET SEEN LOCALLY
 
-He reviewed the preview on his phone and said to STAND BY: do none of this
-until he has checked the hero video and given the go-ahead. Copy review comes
-later, separately.
+Every item of Adrian's second round is built and pushed (spec 3-03 §9 lists
+them). ⚠️ It was NOT rendered locally: iCloud had offloaded ~28,000 files in
+`trackd-co-app/node_modules` to the cloud, so the dev server, tsc and eslint
+all blocked on reads. Vercel's preview build is the type check for it.
 
-- [ ] **The button:** less flashy. The sheen ("the little light that goes") much
-      more subtle; a deeper amber, less "gradienty". Ultimately he wants it to
-      read as a **glowing orb** rather than a gradient.
-- [ ] **Keep** the rings ("that circle thing") round the phone.
-- [ ] **Kyle's section:** make the elements round him little previews of the UI
-      (one, a feature at the top, showing stock running up and down), so the
-      whole "What are you waiting for?" section looks more like the app's UI.
-- [ ] **Compare:** the Trackd column's marks stay white; on the LAST row, the
-      Trackd cross takes the other apps' cross colour and the other apps' tick
-      takes the Trackd tick colour (flipped). Delete "The last row is on
-      purpose."
-- [ ] **The transition from Compare into the founders' note** is not good. Fix
-      the section-to-section transitions generally.
-- [ ] **Closing section:** italicise "actually works", i.e. "Get your protocol
-      out of the notes app and into something that *actually works*", with
-      "Start tracking" under it.
-- [ ] **Footer:** replace "Follow along" with "Our socials" (or "Follow our
-      socials").
-- [ ] **Smooth some of the animations** generally.
-- [ ] **Features widget on a phone is "floppy"** when switching from one open
-      row to another (the closing row and the opening row move the page at
-      once). Also: **injection sites is hard to see** at phone size.
-- [ ] **Reviews centred on a phone:** the cards centred, and the dots (the
-      "slider thing") centred too, not bottom right.
-- [ ] **Keep:** the FAQ vials, the question list, the calculator page, the
-      laptop view. He also needs Vercel on his phone to review there.
+- [ ] **ADRIAN: fix the offloaded node_modules** (Finder, right-click the
+      GitHub folder, "Keep Downloaded"; or let a session run `brctl download`
+      on it). Nothing local works properly until then.
+- [ ] Then render and look: hero at 375x548 / 402x700 / 1280, the intro
+      screen and the free-week video at 375x548 and 402x700, Kyle's cards,
+      the features widget switch on a phone, re-measure the injection-site
+      callouts (the map was enlarged, the targets were not re-measured).
+- [ ] **ADRIAN: review on Vercel**, then the copy pass.
 
 ## 🟡 SPEC 3-03 — THE LANDING PAGE, REBUILT FROM THE SKETCH, IS WAITING ON ADRIAN
 

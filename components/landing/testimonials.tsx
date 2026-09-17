@@ -10,9 +10,13 @@ import { cn } from "@/lib/utils";
  * THE TESTIMONIAL CAROUSEL (spec 3-03 §3.3), after Pep AI's.
  *
  * A native horizontal scroller with snap points, so a thumb swipes it and a
- * trackpad scrolls it with no gesture code at all. The dots at the bottom right
- * follow whichever card is showing; on a laptop two arrows sit beside them,
- * because a mouse has no swipe.
+ * trackpad scrolls it with no gesture code at all. Cards snap to the CENTRE and
+ * the dots sit centred under them (Adrian, 2026-09-17: "I want the reviews to
+ * be in the middle"); on a laptop two arrows flank the dots, because a mouse
+ * has no swipe.
+ *
+ * Centring needs room either side of the first and last card, so the track's
+ * side padding is half the screen less half a card (`.lp-snap-center`).
  *
  * ⚠️ THE QUOTES ARE PLACEHOLDERS. See `lib/landing/testimonials.ts`, which also
  * holds the guard that keeps them off the production deployment.
@@ -71,10 +75,7 @@ export function Testimonials() {
         aria-label="What people say"
         tabIndex={0}
         className={cn(
-          "lp-snap flex gap-4 overflow-x-auto pb-6 pt-2",
-          // Full-bleed so a card peeks in from the right edge, which is what
-          // says "swipe" without an instruction.
-          "lp-bleed",
+          "lp-snap lp-snap-center flex gap-4 overflow-x-auto pb-6 pt-2",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
         )}
       >
@@ -83,7 +84,7 @@ export function Testimonials() {
             key={t.name}
             aria-roledescription="slide"
             aria-label={`${i + 1} of ${TESTIMONIALS.length}`}
-            className="lp-panel flex w-[82%] max-w-[22rem] shrink-0 snap-start flex-col rounded-3xl p-6 md:w-[22rem]"
+            className="lp-panel flex w-[var(--lp-card)] shrink-0 snap-center flex-col rounded-3xl p-6"
           >
             <figcaption className="flex items-center gap-3">
               <Avatar initials={t.initials} index={i} />
@@ -100,19 +101,14 @@ export function Testimonials() {
             </blockquote>
           </figure>
         ))}
-        {/* Room after the last card, so it can snap to the start on a phone. */}
-        <span aria-hidden className="w-px shrink-0" />
       </div>
 
-      <div className="lp-wide flex items-center justify-end gap-4">
-        <div className="hidden items-center gap-2 md:flex">
+      <div className="lp-wide flex items-center justify-center gap-4">
+        <span className="hidden md:block">
           <ArrowButton label="Previous review" disabled={active === 0} onClick={() => go(active - 1)}>
             <CaretLeft className="h-4 w-4" />
           </ArrowButton>
-          <ArrowButton label="Next review" disabled={atEnd} onClick={() => go(active + 1)}>
-            <CaretRight className="h-4 w-4" />
-          </ArrowButton>
-        </div>
+        </span>
         <div className="flex items-center gap-1.5">
           {TESTIMONIALS.map((t, i) => (
             <button
@@ -132,6 +128,11 @@ export function Testimonials() {
             </button>
           ))}
         </div>
+        <span className="hidden md:block">
+          <ArrowButton label="Next review" disabled={atEnd} onClick={() => go(active + 1)}>
+            <CaretRight className="h-4 w-4" />
+          </ArrowButton>
+        </span>
       </div>
     </div>
   );

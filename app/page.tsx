@@ -7,7 +7,8 @@ import { FaqList, type Faq } from "@/components/landing/faq";
 import { FeatureWidget } from "@/components/landing/features/feature-widget";
 import { HandUnderline } from "@/components/landing/hand-underline";
 import { KyleCloser } from "@/components/landing/kyle-closer";
-import { HeroVideo } from "@/components/landing/hero-video";
+import { Phone } from "@/components/landing/phone";
+import { TodayScreen } from "@/components/landing/screens/today";
 import { SiteFooter, type LegalLink } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { Testimonials } from "@/components/landing/testimonials";
@@ -143,22 +144,16 @@ export default function LandingPage() {
         <section id="hero" aria-labelledby="hero-title" className="lp-hero relative">
           <SiteHeader hide={reviews ? [] : ["movement"]} />
 
-          <div className="lp-wide grid items-center gap-y-12 pb-16 pt-8 md:pb-20 md:pt-12 lg:min-h-[calc(100svh-5rem)] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-x-12 lg:pb-24 lg:pt-4">
-            {/* `relative z-10`: on a laptop the video's opening zoom swings
-                wider than its column for under a second, and it passes BEHIND
-                the headline rather than over it. */}
+          <div className="lp-wide grid items-center gap-y-12 pb-16 pt-6 md:pb-20 md:pt-10 lg:min-h-[calc(100svh-5rem)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-x-10 lg:pb-24 lg:pt-4">
+            {/* Three lines, not four (Adrian, 2026-09-17: "too much text in the
+                hero"): the title, bigger; the notes-app line as the subtitle,
+                where the compound line used to be; and the founders' line. */}
             <div className="relative z-10 text-center lg:text-left">
-              {/* ⚠️ Four lines of copy, laid out as Adrian dictated them: the
-                  first reads as a line ABOVE the title. He is settling the
-                  order himself in his copy pass. */}
-              <p className="mx-auto max-w-[24rem] text-[0.92rem] leading-snug text-text-secondary lg:mx-0 lg:max-w-[26rem] lg:text-base">
-                Take your protocol out of your notes app and into something actually built for it.
-              </p>
-              <h1 id="hero-title" className={cn(LANDING_DISPLAY, "mt-5 text-balance lg:mt-6")}>
+              <h1 id="hero-title" className={cn(LANDING_DISPLAY, "text-balance")}>
                 Track the whole <em className={FLOW_EMPHASIS}>protocol</em>.
               </h1>
-              <p className="mx-auto mt-5 max-w-[26rem] text-pretty text-[1.08rem] leading-relaxed text-foreground lg:mx-0 lg:mt-6 lg:max-w-[30rem] lg:text-[1.2rem]">
-                Every compound, dose, and injection site in one place.
+              <p className="mx-auto mt-5 max-w-[24rem] text-pretty text-[1.08rem] leading-relaxed text-foreground lg:mx-0 lg:mt-7 lg:max-w-[30rem] lg:text-[1.2rem]">
+                Take your protocol out of your notes app and into something actually built for it.
               </p>
               <p className="mt-2 text-sm text-text-secondary lg:text-[0.95rem]">
                 Built by people who run real protocols.
@@ -303,7 +298,8 @@ export default function LandingPage() {
         <section data-cta aria-labelledby="close-title" className="lp-sec lp-glow">
           <div className="lp-col text-center">
             <h2 id="close-title" className={cn(LANDING_TITLE, "mx-auto max-w-[34rem] text-balance")}>
-              Get your protocol out of the notes app and into something that works.
+              Get your protocol out of the notes app and into something that{" "}
+              <em className={FLOW_EMPHASIS}>actually works</em>.
             </h2>
             <div className="mt-10 flex flex-col items-center gap-4">
               <StartButton className="w-full max-w-[20rem]" />
@@ -320,9 +316,9 @@ export default function LandingPage() {
 }
 
 /**
- * The hero phone: Adrian's recording (`HeroVideo`), with the rings he drew
- * behind it and a pool of light. The rings are centred on the phone, which the
- * video's crop keeps in the middle of its box.
+ * The hero phone: the app's dashboard, drawn (Adrian preferred this to his own
+ * recording, which moved to the onboarding flow on 2026-09-17), with the rings
+ * he drew behind it and a pool of light.
  */
 function HeroDevice() {
   return (
@@ -339,7 +335,14 @@ function HeroDevice() {
           }}
         />
       </div>
-      <HeroVideo label="A recording of the Trackd app on an iPhone: a dose being tracked, the dashboard, the injection site map and a new stack being built." />
+      <Phone
+        hero
+        tab="dashboard"
+        label="The Trackd dashboard: today's log with four compounds, the due one being ticked off, and weight and next-dose cards below."
+        className="lp-rise"
+      >
+        <TodayScreen />
+      </Phone>
     </div>
   );
 }

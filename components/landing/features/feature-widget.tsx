@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 
 import { ArrowRight } from "@/components/icons";
@@ -204,14 +212,42 @@ export function FeatureWidget({ counts, total }: { counts: Counts; total: number
   const inView = useInView(root, { threshold: 0.25 });
   const baseId = useId();
 
+  /**
+   * ⚠️ SWITCHING ROWS ON A PHONE DOES NOT MOVE THE PAGE (Adrian, 2026-09-17:
+   * "a bit floppy when I try to click another one").
+   *
+   * Opening row 4 while row 1 was open collapsed ~600px of phone ABOVE the
+   * tapped row while the new one grew below it, so the row under the thumb
+   * slid up the screen as it opened. Now the row being closed shuts INSTANTLY
+   * (`lp-expand-instant`), and before the browser paints, the page is
+   * scrolled by however far the tapped row moved, so it stays exactly where it
+   * was tapped and only the new panel animates, downwards.
+   */
+  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const anchor = useRef<{ i: number; top: number } | null>(null);
+  const [instant, setInstant] = useState<number | null>(null);
+
   const toggle = (i: number) => {
     const laptop = window.matchMedia("(min-width: 1024px)").matches;
+    const switching = !laptop && open !== null && open !== i;
+    const row = rowRefs.current[i];
+    anchor.current = switching && row ? { i, top: row.getBoundingClientRect().top } : null;
+    setInstant(switching ? open : null);
     // On a laptop the phone beside the list always shows something, so the
     // open row cannot be closed from under it; on a phone it can.
     setOpen((o) => (o === i && !laptop ? null : i));
     setShown(i);
     setSeen((s) => (s.has(i) ? s : new Set(s).add(i)));
   };
+
+  useLayoutEffect(() => {
+    const a = anchor.current;
+    anchor.current = null;
+    const row = a ? rowRefs.current[a.i] : null;
+    if (!a || !row) return;
+    const moved = row.getBoundingClientRect().top - a.top;
+    if (Math.abs(moved) > 0.5) window.scrollBy({ top: moved, behavior: "auto" });
+  }, [open]);
 
   const current = list[shown];
 
@@ -228,6 +264,9 @@ export function FeatureWidget({ counts, total }: { counts: Counts; total: number
             <li key={f.id}>
               <h3>
                 <button
+                  ref={(el) => {
+                    rowRefs.current[i] = el;
+                  }}
                   type="button"
                   aria-expanded={isOpen}
                   aria-controls={panelId}
@@ -268,7 +307,7 @@ export function FeatureWidget({ counts, total }: { counts: Counts; total: number
 
               <div
                 id={panelId}
-                className="lp-expand"
+                className={cn("lp-expand", instant === i && "lp-expand-instant")}
                 style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
               >
                 <div className="min-h-0 overflow-hidden" inert={!isOpen}>

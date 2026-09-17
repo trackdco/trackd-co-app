@@ -371,8 +371,8 @@ Working, verified, and worth keeping unless it fights the new design:
   permanent disclaimer stands on the page instead. Confirm.
 - **Real device checks** on an iPhone and an Android.
 - ~~Where "Log in" lives~~ ✅ inside the drop-down, and under the hero button.
-- **After this merges:** delete the first onboarding step (the "get your protocol
-  off your notes app" hook), because the landing page does that job now.
+- ~~After this merges: delete the first onboarding step~~ ✅ replaced by the
+  introduction screen on 2026-09-17 (§9).
 
 ## 9. Decisions taken during the build (2026-09-17)
 
@@ -405,5 +405,27 @@ Working, verified, and worth keeping unless it fights the new design:
   away as it settles, driven from the video's own clock.
 - **The recording's names are fine** (Adrian, 2026-09-17: "it's a preview,
   it's fake data"), so §5's generic-label rule is waived for the hero video.
+- **Second review round (Adrian, 2026-09-17), applied:**
+  - The hero is the DRAWN phone again, with real compound names ("make it
+    actually say what it says"); his recording moved to the onboarding
+    free-week screen, replacing the four-phone carousel.
+  - Hero copy: the line above the title is gone; the title is bigger; the
+    subtitle is now "Take your protocol out of your notes app and into
+    something actually built for it."; "Built by people who run real
+    protocols." stays.
+  - The button: the app's blocky shape, amber, a faint gradient, a faint top
+    edge, a glow, no outline ring, a barely-there sheen. The onboarding
+    button got the same kind of glow.
+  - "Start tracking" now opens an INTRODUCTION screen that says what the next
+    two minutes hold, then "What's your name?". It renders for the old
+    `hook` step id; the notes-app hook screen and its cards are deleted. (This
+    closes §8's "delete the first onboarding step".)
+  - Reviews centred, dots centred. Compare: ticks always filled white, crosses
+    always muted, "The last row is on purpose." cut. Closing line: "actually
+    works" in italics. Footer: "Our socials". Kyle's chips are app-card
+    previews (a stock card that runs down and refills at the top).
+  - Features widget on a phone: switching rows no longer moves the page; the
+    injection-site map is drawn larger.
+  - Animations softened: the row expand, Kyle's flex, the reveals.
 - **Removed 3-02 components:** `device`, `laptop`, `today-panel`, `glyphs`,
   `sticky-cta`, `updates-form`.

@@ -42,7 +42,8 @@ import { cn } from "@/lib/utils";
  * screen): a dose comes off the vial, a site is logged, a line draws. The base
  * styles are the finished state, so reduced motion shows the result.
  *
- * ⚠️ Generic compound labels only. No score, no streak, no evaluative colour:
+ * Real compound names (Adrian, 2026-09-17, reversing the generic labels: it is
+ * a preview with made-up data). No score, no streak, no evaluative colour:
  * the only amber is the app's own (a due count, a run-dry date inside its
  * window, the insulin figure, the injection-site recency ramp, which carries
  * its day labels).
@@ -93,7 +94,7 @@ export function StockScreen({ live }: ScreenProps) {
         <div className="flex gap-3">
           <StockCard
             mark="stock-1"
-            name="Injectable A"
+            name="Testosterone Enanthate"
             category="anabolic"
             type="preconcentrated"
             fill={live ? 0.8 : 0.85}
@@ -104,7 +105,7 @@ export function StockScreen({ live }: ScreenProps) {
           />
           <StockCard
             mark="stock-2"
-            name="Peptide A"
+            name="BPC-157"
             category="peptide"
             type="reconstituted"
             fill={0.3}
@@ -116,7 +117,7 @@ export function StockScreen({ live }: ScreenProps) {
           />
           <StockCard
             mark="stock-3"
-            name="Oral A"
+            name="Oxandrolone"
             category="oral"
             type="oral_solid"
             fill={0.55}
@@ -148,8 +149,8 @@ export function StockScreen({ live }: ScreenProps) {
             </div>
           </div>
           {[
-            { cat: "anabolic", label: "Anabolics", name: "Injectable A", days: [1, 0, 0, 1, 0, 0, 1] },
-            { cat: "peptide", label: "Peptides", name: "Peptide A", days: [1, 1, 1, 1, 1, 0, 0] },
+            { cat: "anabolic", label: "Anabolics", name: "Testosterone Enanthate", days: [1, 0, 0, 1, 0, 0, 1] },
+            { cat: "peptide", label: "Peptides", name: "BPC-157", days: [1, 1, 1, 1, 1, 0, 0] },
           ].map((g) => (
             <div key={g.cat} className="mt-3">
               <span className="flex items-center gap-1.5 px-0.5 pb-1">
@@ -265,11 +266,13 @@ export function SitesScreen({ live }: ScreenProps) {
   const regions = routeRegions("subq", "anterior", "male");
 
   return (
-    <div className="space-y-5 px-5 pt-4">
-      <Title>Injection sites</Title>
+    <div className="px-4 pt-3">
+      {/* No page title: the map is the screen, drawn as large as the phone
+          allows so the sites read at landing-page size (Adrian, 2026-09-17:
+          "a bit hard to view"). */}
       <section className="rounded-2xl bg-bg-surface">
         <div className="flex items-center justify-between gap-3 px-5 pb-1.5 pt-5">
-          <p className={CARD_EYEBROW}>Rotation</p>
+          <p className={CARD_EYEBROW}>Injection sites</p>
           <span className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]">
             <span className="rounded-full px-2.5 py-1 text-text-muted">IM</span>
             <span className="rounded-full bg-bg-surface-raised px-2.5 py-1 font-medium text-foreground">
@@ -286,7 +289,7 @@ export function SitesScreen({ live }: ScreenProps) {
               <span className="rounded-full px-4 py-1 text-text-muted">Back</span>
             </span>
           </div>
-          <svg viewBox="22 1 56 98" className="mx-auto mt-2 block h-[300px] w-auto">
+          <svg viewBox="22 1 56 98" className="mx-auto mt-2 block h-[462px] w-auto">
             <BodySilhouette aspect="anterior" route="subq" />
             <g transform={routeTransform("subq")}>
               {regions.map((r) => (
@@ -307,7 +310,7 @@ export function SitesScreen({ live }: ScreenProps) {
             </g>
           </svg>
 
-          <div className="mt-3 w-full pt-3.5 hairline-t">
+          <div className="mt-2 w-full pt-3 hairline-t">
             <p className="mb-2.5 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-text-muted">
               Last logged
             </p>
@@ -319,11 +322,11 @@ export function SitesScreen({ live }: ScreenProps) {
                 )}
               >
                 <div className="min-h-0 overflow-hidden">
-                  <SiteRow site="R side abdomen" when="today" who="Peptide B" />
+                  <SiteRow site="Side Abdomen, Right" when="today" who="Ipamorelin" />
                 </div>
               </li>
               <li>
-                <SiteRow site="L side abdomen" when="2d" who="Peptide A" />
+                <SiteRow site="Side Abdomen, Left" when="2d" who="BPC-157" />
               </li>
             </ul>
           </div>
@@ -528,7 +531,7 @@ export function StacksScreen({ live }: ScreenProps) {
             </span>
           </div>
           <ul data-mark="stack-list" className="mt-3 pl-1">
-            {["Peptide A", "Peptide B", "Supplement A"].map((n, i) => (
+            {["BPC-157", "TB-500", "Creatine Monohydrate"].map((n, i) => (
               <li key={n} className="flex items-center gap-3 py-1.5">
                 <span className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong">
                   <span
@@ -564,7 +567,7 @@ export function StacksScreen({ live }: ScreenProps) {
         <h5 className={cn(CARD_EYEBROW, "px-1")}>Cycles</h5>
         <div className="rounded-2xl bg-bg-surface p-5">
           <div className="flex items-baseline justify-between">
-            <span className="text-base text-foreground">Peptide A</span>
+            <span className="text-base text-foreground">Ipamorelin</span>
             <span className={DATA_MONO}>5 on · 2 off</span>
           </div>
           <div data-mark="cycle" className="mt-3 grid grid-cols-7 gap-1.5 text-center">

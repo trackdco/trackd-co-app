@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import Image from "next/image";
 
 import { cn } from "@/lib/utils";
 
 /**
- * THE HERO PHONE: ADRIAN'S RECORDING, WITH ITS BACKGROUND CUT AWAY
+ * ADRIAN'S RECORDING OF THE APP, ON A PHONE, WITH ITS BACKGROUND CUT AWAY
  * (2026-09-17).
+ *
+ * WHERE IT LIVES: the onboarding screen that offers the free week
+ * (`screens/free.tsx`), in place of the carousel. It was the landing page's
+ * hero for a day; Adrian preferred the drawn phone there and moved this here.
  *
  * He supplied a 4K, 60fps, 69 second HEVC recording of the app on an iPhone,
  * already transparent round the phone ("trackd-phone-landing-mockup-final",
@@ -16,9 +20,9 @@ import { cn } from "@/lib/utils";
  * at 30fps, and shipped twice, because no single file is transparent
  * everywhere:
  *
- * - **`hero-phone.mov`, HEVC with alpha**, for Safari and for every browser on
+ * - **`app-preview.mov`, HEVC with alpha**, for Safari and for every browser on
  *   an iPhone (all WebKit).
- * - **`hero-phone.webm`, VP9 with alpha**, for Chrome, Edge and Firefox.
+ * - **`app-preview.webm`, VP9 with alpha**, for Chrome, Edge and Firefox.
  *
  * ## ⚠️ WHY THE FILE IS CHOSEN IN SCRIPT, NOT WITH `<source>` ORDER
  *
@@ -58,9 +62,9 @@ import { cn } from "@/lib/utils";
  * both, then calls `play()` itself.
  */
 
-const MOV = "/landing/hero-phone.mov";
-const WEBM = "/landing/hero-phone.webm";
-const STILL = "/landing/hero-phone-end.webp";
+const MOV = "/onboarding/app-preview.mov";
+const WEBM = "/onboarding/app-preview.webm";
+const STILL = "/onboarding/app-preview-end.webp";
 
 /**
  * The edge fade, as a function of the recording's time. Measured off the
@@ -103,7 +107,16 @@ function subscribeReduce(cb: () => void) {
   return () => mq.removeEventListener("change", cb);
 }
 
-export function HeroVideo({ label, className }: { label: string; className?: string }) {
+export function PhoneVideo({
+  label,
+  phoneWidth,
+  className,
+}: {
+  label: string;
+  /** The PHONE's width, as any CSS length. The box and the video size from it. */
+  phoneWidth: string;
+  className?: string;
+}) {
   // Both answers are client-only. The server snapshot is "not decided yet",
   // which renders an empty, correctly sized box: no flash of the wrong file.
   const engine = useSyncExternalStore<Engine | null>(noop, detectEngine, () => null);
@@ -152,13 +165,14 @@ export function HeroVideo({ label, className }: { label: string; className?: str
       role="img"
       aria-label={label}
       data-settled={settled ? "" : undefined}
-      className={cn("lp-hero-video relative", className)}
+      className={cn("phone-video relative shrink-0", className)}
+      style={{ "--pw": phoneWidth } as CSSProperties}
     >
       {engine && !still ? (
         <video
           ref={video}
           key={engine}
-          className="lp-hero-video-media"
+          className="phone-video-media"
           src={engine === "hevc" ? MOV : WEBM}
           muted
           playsInline
@@ -177,8 +191,8 @@ export function HeroVideo({ label, className }: { label: string; className?: str
           alt=""
           width={1518}
           height={1280}
-          sizes="(min-width: 800px) 52.5rem, 46rem"
-          className="lp-hero-video-media"
+          sizes="26rem"
+          className="phone-video-media"
         />
       ) : null}
     </div>

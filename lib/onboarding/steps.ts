@@ -79,6 +79,9 @@ export interface StepMeta {
  * price list is payment only, so every step from `plans` onward has a session.
  */
 export const STEP_ORDER: readonly StepMeta[] = [
+  // `hook` is the INTRODUCTION now (Adrian, 2026-09-17): what the next two
+  // minutes hold, before the first question. The id is kept so links,
+  // analytics and these tests do not move; the screen is `screens/intro.tsx`.
   { id: "hook", phase: "anonymous" },
   // The four housekeeping screens, in this order and no other. `birthday`
   // carries the date AND the consent tick together (Adrian's call): "I confirm

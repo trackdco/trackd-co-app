@@ -18,8 +18,9 @@ export type PhoneTab = (typeof TABS)[number]["key"];
 /**
  * AN IPHONE WITH THE APP IN IT (spec 3-03 §3.4, the features widget).
  *
- * Replaces 3-02's placeholder device. (The hero's phone is Adrian's own
- * recording now: `hero-video.tsx`.) Two things make this one read as the real
+ * Replaces 3-02's placeholder device. Used by the hero and by the features
+ * widget. (Adrian's own recording lives in the onboarding flow:
+ * `components/onboarding/phone-video.tsx`.) Two things make this one read as the real
  * app rather than a drawing of it:
  *
  * 1. **The screen is laid out at 390 x 844 and scaled as a whole** (see
@@ -42,6 +43,7 @@ export function Phone({
   children,
   label,
   tab,
+  hero = false,
   chrome = true,
   className,
 }: {
@@ -50,6 +52,8 @@ export function Phone({
   label: string;
   /** Which tab is lit. */
   tab: PhoneTab;
+  /** The landing hero's larger size (`.lp-phone-hero`). */
+  hero?: boolean;
   /** The add button and the tab bar. Off when a sheet covers them, as a real
    *  bottom sheet does. */
   chrome?: boolean;
@@ -59,7 +63,7 @@ export function Phone({
     <div
       role="img"
       aria-label={label}
-      className={cn("lp-phone relative shrink-0", className)}
+      className={cn("lp-phone relative shrink-0", hero && "lp-phone-hero", className)}
     >
       {/* Side buttons, on the outer edge behind the band. */}
       <span aria-hidden className="absolute -left-[2px] top-[16%] h-[3.4%] w-[2px] rounded-l-sm bg-gradient-to-l from-border-strong to-bg-base" />

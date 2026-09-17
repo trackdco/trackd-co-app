@@ -12,10 +12,10 @@ import { cn } from "@/lib/utils";
  *
  * ## How the inversion reads as a point rather than a mistake
  *
- * The Trackd column is lit the whole way down, and its mark is always the
- * bright one, whichever symbol it is. So the eye reads "Trackd wins every row",
- * and the one cross in that column lands as the punchline. A line under the
- * table says it outright.
+ * The Trackd column is lit the whole way down. The MARK follows the symbol,
+ * not the column (Adrian, 2026-09-17): a tick is always the filled white one
+ * and a cross is always the muted outline one, so on the last row the two
+ * swap sides, and the flip is the punchline. (A caption saying so was cut.)
  *
  * ## ⚠️ TODO(3-03): THESE ARE CLAIMS ABOUT COMPETITORS
  *
@@ -85,30 +85,27 @@ export function CompareTable() {
                   {r.feature}
                 </th>
                 <td className="px-2 text-center">
-                  <Mark on={r.others} bright={false} />
+                  <Mark on={r.others} />
                 </td>
                 <td className="px-2 text-center">
-                  <Mark on={r.trackd} bright />
+                  <Mark on={r.trackd} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="mt-5 text-center text-sm text-text-secondary">
-        The last row is on purpose.
-      </p>
     </div>
   );
 }
 
-/** A tick or a cross. `bright` is the Trackd column, which is lit either way. */
-function Mark({ on, bright }: { on: boolean; bright: boolean }) {
+/** A tick (filled white) or a cross (muted outline), whichever column. */
+function Mark({ on }: { on: boolean }) {
   return (
     <span
       className={cn(
         "mx-auto flex h-7 w-7 items-center justify-center rounded-full",
-        bright ? "bg-text-primary text-bg-base" : "text-text-muted ring-1 ring-inset ring-border-strong",
+        on ? "bg-text-primary text-bg-base" : "text-text-muted ring-1 ring-inset ring-border-strong",
       )}
     >
       <span className="sr-only">{on ? "Yes" : "No"}</span>

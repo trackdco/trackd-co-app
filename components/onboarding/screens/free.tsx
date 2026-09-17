@@ -5,9 +5,17 @@ import { TRIAL_DAYS } from "@/lib/onboarding/pricing";
 import { FLOW_EMPHASIS, FLOW_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
-import { AppCarousel } from "../app-carousel";
 import { FlowCta, FlowSub, FOOTER_BOTTOM, ScrollPort } from "../chrome";
 import { useFlow } from "../flow-context";
+import { PhoneVideo } from "../phone-video";
+
+/**
+ * The phone's width on this screen: 146px on Adrian's handset, 96px on an
+ * iPhone SE in Safari. The recording's box is 2.21 phone widths tall, so that
+ * is 323px and 212px, the height the carousel it replaced took (its ring plus
+ * its dots). See `lib/onboarding/fit.ts`.
+ */
+const PHONE_WIDTH = fit(146, 96);
 
 /**
  * The free-trial reveal, between the cost argument and the price list (Adrian,
@@ -75,7 +83,15 @@ export function FreeScreen() {
               </FlowSub>
             </header>
 
-            {/* THE CAROUSEL IS THE HERO (Adrian, 2026-08-07), replacing a
+            {/* THE APP, PLAYING (Adrian, 2026-09-17). His own recording of the
+                app on a phone, transparent round it, replacing the four-phone
+                carousel that stood here. It plays once and holds its last
+                frame (`phone-video.tsx`).
+
+                The note below is the carousel's, and its argument still holds:
+                this screen has to SHOW what the free week contains.
+
+                THE CAROUSEL WAS THE HERO (Adrian, 2026-08-07), replacing a
                 single still photo of the Home screen.
 
                 This screen is the one that has to say what the free week
@@ -91,7 +107,10 @@ export function FreeScreen() {
                 cannot be squeezed to nothing on a short handset the way a
                 photo sized by aspect ratio could. */}
             <div className="flex min-h-0 flex-1 items-center justify-center">
-              <AppCarousel />
+              <PhoneVideo
+                phoneWidth={PHONE_WIDTH}
+                label="A recording of the Trackd app on an iPhone: the dashboard, a dose being logged, the injection site map and a new stack being built."
+              />
             </div>
           </div>
         </ScrollPort>

@@ -73,7 +73,7 @@ export const FLOW_DISPLAY =
  * AA-safe `--text-secondary` because this page must measure, not just look.
  */
 export const LANDING_DISPLAY =
-  "text-[2.75rem] md:text-[3.75rem] lg:text-[4.25rem] font-light leading-[1] tracking-[-0.04em] text-foreground"
+  "text-[3rem] md:text-[4.25rem] lg:text-[4.75rem] font-light leading-[0.98] tracking-[-0.045em] text-foreground"
 
 export const LANDING_TITLE =
   "text-[2.1rem] md:text-[2.9rem] font-light leading-[1.04] tracking-[-0.035em] text-foreground"
