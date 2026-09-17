@@ -109,92 +109,95 @@ export function JournalFeedSheet({
               </button>
             </div>
 
-            {/* The "+" branch — Write vs Markers. */}
-            {branchOpen && (
-              <div className="animate-shortcut-in mt-2 grid grid-cols-2 gap-2">
-                <BranchButton
-                  icon={<NotePencil className="h-4 w-4" aria-hidden />}
-                  label="Write a note"
-                  sub="Free-write + optional markers"
-                  onClick={() => {
-                    setBranchOpen(false);
-                    onWrite();
-                  }}
-                />
-                <BranchButton
-                  icon={<Tag className="h-4 w-4" aria-hidden />}
-                  label="Log markers"
-                  sub="Dial how you feel"
-                  onClick={() => {
-                    setBranchOpen(false);
-                    onMarkers();
-                  }}
-                />
-              </div>
-            )}
+            {/* The sections rise in as the sheet lands (feel pass §4). The
+                "+" branch keeps its own drop-in. */}
+            <div data-sheet-body>
+              {/* The "+" branch — Write vs Markers. */}
+              {branchOpen && (
+                <div className="animate-shortcut-in mt-2 grid grid-cols-2 gap-2">
+                  <BranchButton
+                    icon={<NotePencil className="h-4 w-4" aria-hidden />}
+                    label="Write a note"
+                    sub="Free-write + optional markers"
+                    onClick={() => {
+                      setBranchOpen(false);
+                      onWrite();
+                    }}
+                  />
+                  <BranchButton
+                    icon={<Tag className="h-4 w-4" aria-hidden />}
+                    label="Log markers"
+                    sub="Dial how you feel"
+                    onClick={() => {
+                      setBranchOpen(false);
+                      onMarkers();
+                    }}
+                  />
+                </div>
+              )}
 
-            {entries.length === 0 ? (
-              <p className="mt-4 text-sm text-text-muted">
-                No entries yet. Tap New to write a note or log markers.
-              </p>
-            ) : (
-              <>
-                {/* Month filter — jump to a particular month's entries. */}
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => setMonthMenuOpen((o) => !o)}
-                    aria-expanded={monthMenuOpen}
-                    className="flex w-full items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3.5 py-2.5 text-sm transition-colors hover:border-border-strong"
-                  >
-                    <span className="flex items-center gap-2">
-                      <CalendarBlank className="h-4 w-4 text-text-muted" aria-hidden />
-                      <span className="font-medium text-foreground">
-                        {selectedMonth === "all"
-                          ? "All months"
-                          : formatMonthLabel(selectedMonth)}
+              {entries.length === 0 ? (
+                <p className="mt-4 text-sm text-text-muted">
+                  No entries yet. Tap New to write a note or log markers.
+                </p>
+              ) : (
+                <>
+                  {/* Month filter — jump to a particular month's entries. */}
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setMonthMenuOpen((o) => !o)}
+                      aria-expanded={monthMenuOpen}
+                      className="flex w-full items-center justify-between gap-2 rounded-xl border border-border-default bg-bg-input px-3.5 py-2.5 text-sm transition-colors hover:border-border-strong"
+                    >
+                      <span className="flex items-center gap-2">
+                        <CalendarBlank className="h-4 w-4 text-text-muted" aria-hidden />
+                        <span className="font-medium text-foreground">
+                          {selectedMonth === "all"
+                            ? "All months"
+                            : formatMonthLabel(selectedMonth)}
+                        </span>
                       </span>
-                    </span>
-                    <CaretDown
-                      className={cn(
-                        "h-4 w-4 text-text-muted transition-transform duration-200",
-                        monthMenuOpen && "rotate-180",
-                      )}
-                      aria-hidden
-                    />
-                  </button>
-
-                  {monthMenuOpen && (
-                    <div className="animate-shortcut-in mt-1.5 divide-hairline overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
-                      <MonthOption
-                        label="All months"
-                        count={entries.length}
-                        active={selectedMonth === "all"}
-                        onClick={() => {
-                          setSelectedMonth("all");
-                          setMonthMenuOpen(false);
-                        }}
+                      <CaretDown
+                        className={cn(
+                          "h-4 w-4 text-text-muted transition-transform duration-200",
+                          monthMenuOpen && "rotate-180",
+                        )}
+                        aria-hidden
                       />
-                      {months.map((g) => (
+                    </button>
+
+                    {monthMenuOpen && (
+                      <div className="animate-shortcut-in mt-1.5 divide-hairline overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
                         <MonthOption
-                          key={g.key}
-                          label={g.label}
-                          count={g.entries.length}
-                          active={selectedMonth === g.key}
+                          label="All months"
+                          count={entries.length}
+                          active={selectedMonth === "all"}
                           onClick={() => {
-                            setSelectedMonth(g.key);
+                            setSelectedMonth("all");
                             setMonthMenuOpen(false);
                           }}
                         />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        {months.map((g) => (
+                          <MonthOption
+                            key={g.key}
+                            label={g.label}
+                            count={g.entries.length}
+                            active={selectedMonth === g.key}
+                            onClick={() => {
+                              setSelectedMonth(g.key);
+                              setMonthMenuOpen(false);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                {/* Entries, grouped under a month heading. */}
-                <div className="mt-4 space-y-5">
-                  {visibleMonths.map((group) => (
-                    <section key={group.key}>
+                  {/* Entries, grouped under a month heading. Each month is a
+                      direct child of the body, so each rises in its turn. */}
+                  {visibleMonths.map((group, gi) => (
+                    <section key={group.key} className={gi === 0 ? "mt-4" : "mt-5"}>
                       <h3 className={`px-1 pb-2 ${CARD_EYEBROW}`}>
                         {group.label}
                       </h3>
@@ -257,9 +260,9 @@ export function JournalFeedSheet({
                       </ul>
                     </section>
                   ))}
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </SheetContent>

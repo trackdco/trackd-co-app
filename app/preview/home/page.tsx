@@ -3,11 +3,35 @@ import { notFound } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
-import { HomeScreen } from "@/components/home/HomeScreen";
+import { PreviewHome } from "./PreviewHome";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import type { StackCompound } from "@/lib/home/stack";
 import type { Stack } from "@/lib/home/stacks";
 import type { DayLogs } from "@/lib/home/doseLog";
+import { IM_SITES, SUBQ_SITES } from "@/lib/home/siteCatalog";
+import type { InjectionSiteRow } from "@/lib/db/types";
+
+/** The static site list standing in for the catalogue read (as /preview/sites). */
+function previewCatalogue(): InjectionSiteRow[] {
+  const rows = (defs: { id: string; label: string }[], route: "im" | "subq") =>
+    defs.map((d, i) => ({
+      id: d.id,
+      label: d.label,
+      route,
+      side: d.id.endsWith("-l") ? "left" : d.id.endsWith("-r") ? "right" : "n_a",
+      aspect: "anterior",
+      x: 0,
+      y: 0,
+      sort_order: i,
+    })) as InjectionSiteRow[];
+  return [...rows(IM_SITES, "im"), ...rows(SUBQ_SITES, "subq")];
+}
+
+/** A day `n` days before today, as a key. */
+function daysAgo(n: number): string {
+  const d = new Date();
+  return toDateKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() - n));
+}
 
 /**
  * DEV-ONLY preview of the Home / Dashboard screen, viewable without signing in
@@ -15,8 +39,16 @@ import type { DayLogs } from "@/lib/home/doseLog";
  * nav) so the sticky week strip behaves exactly as it does in the real app.
  * Returns 404 in production so it never ships.
  */
-export default function PreviewHomePage() {
+export default async function PreviewHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ loading?: string; live?: string }>;
+}) {
   if (process.env.NODE_ENV === "production") notFound();
+  // `?loading=1500` holds the loading skeleton that long, then lands the log,
+  // so the feel pass's skeleton and crossfade can be reviewed (wave 3 §1).
+  const { loading, live } = await searchParams;
+  const loadingMs = loading ? Number(loading) : null;
 
   const todayKey = toDateKey(new Date());
 
@@ -117,7 +149,19 @@ export default function PreviewHomePage() {
   ];
 
   // One member already logged, so the stack row shows PARTIAL state (1 of 3).
+  // A few past Sub-Q and IM doses WITH sites, so the log sheet's map has a
+  // history to shade and day counts to show (feel pass §5).
+  const site = (siteId: string, amount: string, unit: string) => ({
+    amount,
+    unit,
+    siteId,
+    time24: "08:00",
+  });
   const sampleLogs: DayLogs = {
+    [daysAgo(1)]: { "c-bpc": site("sq-abdo-l", "250", "mcg"), "c-test": site("im-delt-l", "250", "mg") },
+    [daysAgo(2)]: { "c-bpc": site("sq-glute-l", "250", "mcg"), "c-tb": site("sq-abdo-r", "2", "mg") },
+    [daysAgo(3)]: { "c-bpc": site("sq-thigh-up-l", "250", "mcg"), "c-test": site("im-quad-front-r", "250", "mg") },
+    [daysAgo(5)]: { "c-bpc": site("sq-abdo-ll", "250", "mcg"), "c-test": site("im-vglute-l", "250", "mg") },
     [todayKey]: {
       "c-bpc": { amount: "250", unit: "mcg", siteId: null, time24: "08:05" },
       // Metformin's MORNING dose only — slot 0, whose key is the bare compound
@@ -160,20 +204,22 @@ export default function PreviewHomePage() {
       </header>
 
       <main className="flex-1">
-        <HomeScreen
+        <PreviewHome
+          loadingMs={loadingMs}
+          live={live === "1"}
           previewStack={sampleCompounds}
           previewStacks={sampleStacks}
           previewLogs={sampleLogs}
           todayKey={todayKey}
           userId="preview-local"
           firstName="Adrian"
-          injectionCatalogue={[]}
+          injectionCatalogue={previewCatalogue()}
         bodySex="male"
         />
       </main>
 
       <BottomNav />
-      <QuickActionsFab userId="preview-local" unit="kg" bodySex="male" />
+      <QuickActionsFab userId="preview-local" unit="kg" bodySex="male" lastWeightKg={84.6} />
     </div>
   );
 }

@@ -124,21 +124,25 @@ export function InstallHomeScreenPopup({
                 Get the full app, not a browser tab. Full-screen and one tap away.
               </p>
             </div>
-            <div className="mt-4 flex items-center gap-3">
-              <Button
-                type="button"
-                onClick={install}
-                className="h-11 flex-1 rounded-xl"
-              >
-                Add to Home Screen
-              </Button>
-              <button
-                type="button"
-                onClick={dismiss}
-                className="px-3 text-sm text-text-muted transition-colors hover:text-foreground"
-              >
-                Not now
-              </button>
+            {/* The actions rise in as the sheet lands (feel pass §4); the
+                heading above lands with it. */}
+            <div data-sheet-body>
+              <div className="mt-4 flex items-center gap-3">
+                <Button
+                  type="button"
+                  onClick={install}
+                  className="h-11 flex-1 rounded-xl"
+                >
+                  Add to Home Screen
+                </Button>
+                <button
+                  type="button"
+                  onClick={dismiss}
+                  className="px-3 text-sm text-text-muted transition-colors hover:text-foreground"
+                >
+                  Not now
+                </button>
+              </div>
             </div>
           </>
         ) : (
@@ -146,13 +150,19 @@ export function InstallHomeScreenPopup({
             {/* Visible heading lives inside each prompt. Safari → Share-sheet steps;
                 any other iOS browser → "open in Safari" (it can't install a PWA). */}
             {platform === "ios" ? <AddToHomeScreenPrompt /> : <OpenInSafariPrompt />}
-            <Button
-              type="button"
-              onClick={dismiss}
-              className="mt-4 h-11 w-full rounded-xl"
-            >
-              Got it
-            </Button>
+            {/* The prompt carries its own heading and steps, so only the action
+                below it rises (feel pass §4). */}
+            <div data-sheet-body>
+              <div>
+                <Button
+                  type="button"
+                  onClick={dismiss}
+                  className="mt-4 h-11 w-full rounded-xl"
+                >
+                  Got it
+                </Button>
+              </div>
+            </div>
           </>
         )}
       </SheetContent>

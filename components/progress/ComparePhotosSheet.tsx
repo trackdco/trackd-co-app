@@ -5,7 +5,8 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
-import { SHEET_TITLE } from "@/lib/ui-presets";
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets";
+import { ThumbGroup } from "@/components/feel/SlidingThumb";
 import {
   comparablePoses,
   dateKeyDaysApart,
@@ -154,7 +155,16 @@ export function ComparePhotosSheet({
               /* Wraps, never scrolls. A scrolling row put chips off the edge of
                  the phone with nothing to say they were there, which is the
                  whole reason this control was rebuilt. */
-              <div className="mt-3 flex flex-wrap gap-2 pb-1">
+              /* The selected pose is a sliding thumb (feel pass §6). "More"
+                 and "Fewer" sit in the same row and are not choices, so the
+                 thumb never lands on them. */
+              <ThumbGroup
+                selection={poseFilter}
+                thumbClassName="rounded-full border border-border-strong bg-bg-surface-raised"
+                role="group"
+                aria-label="Pose"
+                className="mt-3 flex flex-wrap gap-2 pb-1"
+              >
                 {visiblePoses.map((id) => (
                   <button
                     key={id}
@@ -162,9 +172,10 @@ export function ComparePhotosSheet({
                     onClick={() => changePose(id)}
                     aria-pressed={poseFilter === id}
                     className={cn(
-                      "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                      PRESS.pill,
+                      "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-300",
                       poseFilter === id
-                        ? "border-border-strong bg-bg-surface-raised text-foreground"
+                        ? "border-transparent text-foreground"
                         : "border-border-default text-text-muted hover:text-foreground",
                     )}
                   >
@@ -189,7 +200,7 @@ export function ComparePhotosSheet({
                     Fewer
                   </button>
                 )}
-              </div>
+              </ThumbGroup>
             )}
 
             {/* Side-by-side */}

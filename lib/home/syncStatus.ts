@@ -20,18 +20,36 @@ export const SYNC_FAILED_EVENT = "trackd:sync-failed"
 const NOTICE_COOLDOWN_MS = 60_000
 let lastNotifiedAt = 0
 
-function notifySyncFailed(): void {
+/** What failed: a WRITE (the device has it, the account does not yet) or the
+ *  first READ of the session (the account could not be reached at all). */
+export type SyncFailure = "write" | "pull"
+
+function notifySyncFailed(kind: SyncFailure = "write"): void {
   if (typeof window === "undefined") return
   const now = Date.now()
   if (now - lastNotifiedAt < NOTICE_COOLDOWN_MS) return
   lastNotifiedAt = now
-  window.dispatchEvent(new CustomEvent(SYNC_FAILED_EVENT))
+  window.dispatchEvent(new CustomEvent<SyncFailure>(SYNC_FAILED_EVENT, { detail: kind }))
 }
 
-export function subscribeSyncFailed(callback: () => void): () => void {
+/**
+ * The first cloud hydration of a session failed (feel pass §1): it threw, it
+ * fell back, it ran out of patience, or the device is offline. Home stops
+ * showing its skeleton and falls back to what the device has, and this says so,
+ * under the same once-a-minute rule as a failed write. Unlike a write, it DOES
+ * fire offline: the brief asks for the signal there, and it is the only thing
+ * explaining why a fresh device shows an empty log.
+ */
+export function notifyHydrationFailed(): void {
+  notifySyncFailed("pull")
+}
+
+export function subscribeSyncFailed(callback: (kind: SyncFailure) => void): () => void {
   if (typeof window === "undefined") return () => {}
-  window.addEventListener(SYNC_FAILED_EVENT, callback)
-  return () => window.removeEventListener(SYNC_FAILED_EVENT, callback)
+  const listener = (e: Event) =>
+    callback((e as CustomEvent<SyncFailure | undefined>).detail ?? "write")
+  window.addEventListener(SYNC_FAILED_EVENT, listener)
+  return () => window.removeEventListener(SYNC_FAILED_EVENT, listener)
 }
 
 /**

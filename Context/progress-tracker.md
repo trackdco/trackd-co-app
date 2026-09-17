@@ -1,5 +1,139 @@
 # Progress Tracker
 
+## ✅ THE FEEL PASS — MERGED TO `main` (2026-09-18)
+
+The brief is `Context/Feature Specs/wave 3/feel-pass.md` (6 prototype rounds,
+all approved by Adrian on 17 Sep 2026; his verdicts are in the prototype
+artifact's `signoff` … `signoff-r6` collections). Built in the worktree
+`../trackd-feel-wt`, one commit per phase. Adrian looked at it on the Vercel
+preview on 18 Sep, asked for one change (the add-compound pad), and said to
+merge; it went to `main` through PR #68, which deploys. The rules it created are in
+`ui-context.md` (Motion & Interaction, States, Charts, the Spec 19 picker ramp,
+"a number field opens the Trackd pad") and `code-standards.md` (Styling).
+
+- **1. Foundations** (`983615e`). `components/feel/`: one delegated press
+  listener and twelve `PRESS` presets (`lib/feel/press.ts`, tested);
+  `ThumbGroup`, the shared sliding thumb; skeleton blocks, the wave, the ghost
+  graph and `SkeletonSwap`. `PRIMARY_BUTTON` presses through the system.
+- **2. Home** (`cec887e`). `lib/home/hydrationState.ts` (pending / done /
+  failed, per user; a 10s patience timer and offline both fall back to the
+  device and raise the existing sync-failed notice). Home shows a skeleton,
+  never "Start your log", while the log is unknown. The week strip waves and its
+  day pill slides. Rows press whole; a tick presses alone and pops after Track.
+  **Log weight is the pad alone** (`components/weight/LogWeightPad.tsx`) from
+  the FAB and the desktop rail: the last weight opens selected, Done saves
+  (30–300 kg) and drops "Weight logged: X kg". `AddWeightSheet` is no longer
+  mounted; it is kept, noted as such, so the old sheet is a two-line revert.
+- **3. The Log dose sheet** (`2326471`). The catalogue comes from the dashboard;
+  the draw, stock, back-dated vial and (if needed) catalogue arrive in ONE
+  server action (`lib/home/doseSheetRead.ts`), because Next runs server actions
+  one at a time. The Draw row and the stock card are reserved, so nothing
+  pushes. Sections rise as the sheet lands; the map arrives in beats; the picker
+  ramp, margin day chips with leaders and the "Last time" line are in; the dose
+  is on the pad; "Mono" replaced the green tracked state.
+- **4. The pad everywhere** (`ce54eed`). `NumberPad`, `PadInput`,
+  `usePadSession`, `lib/feel/pad.ts` (tested). Every number field: dose,
+  compound schedule and cycle numbers, all stock fields, one-off amount, cycle
+  rule, block target, height, the Weight screen, the photo sheet's weight, and
+  the Calculator's compact variant (no scrim, units on the pad, the Draw
+  section pinned while it is open, the syringe's fill and a new stopper line
+  easing to the value). No `inputMode="decimal"` input is left in a mounted
+  screen.
+- **5. Tabs and graphs** (`5e6dc23`). A `loading.tsx` on every tab-reachable
+  route, shaped like its screen, handing over to the screen without a second
+  fade; `experimental.staleTimes.dynamic = 300` so a revisit is instant. The
+  first-load draw (`components/feel/FirstDraw.tsx`) on Progress's weight and
+  consistency cards and the `/weight` graph. There is no Home weight card, so
+  the brief's "Weight card" draw lives on those.
+- **6. Notice and copy** (`3d22907`). `AmberNotice` takes `icon={null}` (a
+  status, no glyph) for confirmations. `EmptyLogCard`'s step 1 and footer copy.
+- **7. Sweep.** Every other sheet rises (`data-sheet-body`), the remaining
+  single-select pill menus slide, and `active:scale-*` is gone from app screens
+  (auth, onboarding, admin and the protected `components/ui/**` left alone).
+
+**Decisions taken in the build (flagged to Adrian):**
+- The Calculator's Draw section now PINS while the pad is open, reversing the
+  2026-07-31 "not pinned" call, because the brief asks for it.
+- Log weight lost its date step and photo attach; back-dating is on the Weight
+  screen and the Progress photo sheet (whose pad label carries the date).
+- Revisited tabs are served from the client cache for up to 5 minutes; a server
+  change made elsewhere shows after that, or on any action that refreshes.
+- Protocol and Progress's consistency card also wait on hydration, for the same
+  reason Home does.
+
+**Verification.**
+- Every phase: `tsc`, eslint and vitest clean (2121 tests at the end), and
+  measured in Chromium and WebKit at 402x700, 390x844, 375x548 and 360x560,
+  with reduced motion, by per-frame recorders (press depth, the wave, the
+  thumbs gliding, the sheet rise from ~250ms and settled by ~560ms, the map's
+  beats, the pad's rules, the tab handoff, the graph draw).
+- **Independent review** (five lenses: runtime core, forms, iOS Safari, layout
+  at the four sizes, brief fidelity; then skeptics trying to refute each
+  finding): 26 findings, 25 confirmed, all 25 fixed and re-measured. The one
+  refuted was the one-off amount's 5-digit ceiling, which is the app's
+  existing dose ceiling. The fixes that matter most:
+  - a guarded pull that fell back, timed out or ran offline was read as "done",
+    so a fresh device could show "Start with a compound" to a user with a full
+    protocol and no notice. It now counts as failed and says so, in wording
+    for a read ("No connection. We're having trouble connecting to your
+    account…", Adrian's wording);
+  - a failed weight save (offline, deploy skew) threw into the error boundary
+    and replaced the shell; it now shows "Couldn't save. Try again.";
+  - revisiting a graph replayed recharts' 450ms draw; it now shows finished;
+  - the pad: focus moves in and back, the closing panel keeps its field, a key
+    typed on a focused field opens it (and no longer fires a desktop shortcut
+    that navigated away), no ellipsis in narrow fields;
+  - the Calculator: pinning no longer shifts the page, the title bar shows
+    while pinned, the warning folds to one line while the pad is open, and the
+    results card stays above the pad on an SE (measured without insets);
+  - the Log dose sheet reserves its stock card at the card's real height and
+    eases it shut, and skips both reservations when Home knows there is no
+    stock;
+  - loading shells: the dashboard strip and eyebrow now match the screen to
+    the pixel (measured), Calendar/Notifications/Billing hand over like the
+    other tabs, and a full page load no longer fades the title in twice;
+  - Profile and billing rows, and danger rows, are on the press system.
+- **Production build** (`next build` in the worktree, with
+  `TRACKD_TURBOPACK_ROOT`): **PASSED on `5a26700`** (17 Sep 2026: compiled in
+  30s from cache, TypeScript 64 min on iCloud, 63 pages, exit 0). The fixes below
+  came after it and were gated with tsc, eslint and vitest (2121) in the local
+  copy, not with a second build.
+- **Second review, of `5a26700` itself** (four lenses: runtime/state, iOS
+  Safari, layout at the four sizes, brief fidelity; each finding then checked
+  against the code): 15 findings, 10 fixed, 5 left. Committed on `polish/feel`
+  (18 Sep). Still unpushed and unmerged: merging is Adrian's call.
+  - A closing pad let a quick second tap through to what was under it (a
+    sheet's overlay closing the sheet, "Remove dose", a tab). The scrim now
+    catches taps through the exit, the panel acts on none, and the Calculator
+    (no scrim) gets an invisible layer while the pad slides away. Measured: three
+    quick taps all caught, Chromium and WebKit.
+  - A figure too long for a narrow field was cut off ("10000" read "1000" in the
+    Calculator's Powder field at 360 wide). It now steps its font down to fit
+    (`components/feel/useFitText.ts`). Measured: "100000" whole at 360 and 375.
+  - A screen mounted after a good load, with a slow re-pull, said "No
+    connection…". The notice now speaks only while the load has not succeeded.
+  - A range switch before a graph drew made it draw again on the next visit.
+  - The Dashboard shell drew a collapsed week strip 20px short, with its chevron
+    unturned. Measured: shell and screen both put the first card at 116px.
+  - `/billing/manage` opened on Billing's skeleton and title. It has its own
+    `loading.tsx` and hands over like Billing.
+  - The title bar's band was measured once, so turning the phone left it wrong;
+    it now follows the bar's height.
+  - The empty Weight card gave focus back to nothing on iOS; the card now hands
+    itself over.
+  - Docs: ui-context (the pad, loading), and "Will not fit a 0.3 mL syringe" is
+    marked as not yet approved.
+  - Adrian, on the preview (18 Sep): adding a compound no longer walks the pad
+    into "Amount left". It has its own pad, opened by tapping the field.
+  - **Left as found** (low, none introduced by `5a26700`): two "Edit" text
+    buttons (`StackDetailSheet`, `CycleDetailSheet`) still press with
+    `active:text-*`; the Log dose stock skeleton matches the one-vial card only
+    (2+ vials, or a note that wraps, still push); desktop's Calculator grid adds
+    gaps around the folded warning; the empty Weight card has no visible "log"
+    cue; the Calendar shell shows the server's month on a full load (the screen
+    does too, then corrects); the desktop rail's Log weight gets no focus return
+    in Safari.
+
 ## ✅ SIZING ON A LARGE MONITOR (2026-09-17)
 
 Adrian, on a 27-inch monitor: the landing page read small, the flow's cost

@@ -90,49 +90,52 @@ export function BlockWeightSheet({
               {formatPhotoDateShort(from)} to {formatPhotoDateShort(to)}
             </p>
 
-            <WeightGraph
-              entries={points}
-              unit={unit}
-              anchorKey={to}
-              spanDays={days}
-              className="mt-4 bg-bg-surface-raised"
-            />
+            {/* The sections rise in as the sheet lands (feel pass §4). */}
+            <div data-sheet-body>
+              <WeightGraph
+                entries={points}
+                unit={unit}
+                anchorKey={to}
+                spanDays={days}
+                className="mt-4 bg-bg-surface-raised"
+              />
 
-            {newestFirst.length > 0 && (
-              <div className="mt-5">
-                <p className={CARD_EYEBROW}>Readings</p>
-                <ul className="mt-2 overflow-hidden rounded-2xl bg-bg-surface-raised">
-                  {newestFirst.map((p, i) => (
-                    <li
-                      key={p.key}
-                      className={cn(
-                        "flex items-center justify-between gap-3 px-4 py-3",
-                        i > 0 && "hairline-t",
-                      )}
-                    >
-                      <span className="text-sm text-foreground">
-                        {formatPhotoDateShort(p.key)}
-                      </span>
-                      <span className={DATA_MONO}>
-                        {formatWeight(p.kg, unit)} {unit}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+              {newestFirst.length > 0 && (
+                <div className="mt-5">
+                  <p className={CARD_EYEBROW}>Readings</p>
+                  <ul className="mt-2 overflow-hidden rounded-2xl bg-bg-surface-raised">
+                    {newestFirst.map((p, i) => (
+                      <li
+                        key={p.key}
+                        className={cn(
+                          "flex items-center justify-between gap-3 px-4 py-3",
+                          i > 0 && "hairline-t",
+                        )}
+                      >
+                        <span className="text-sm text-foreground">
+                          {formatPhotoDateShort(p.key)}
+                        </span>
+                        <span className={DATA_MONO}>
+                          {formatWeight(p.kg, unit)} {unit}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-            <button
-              type="button"
-              onClick={() => {
-                onOpenChange(false)
-                router.push("/weight")
-              }}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm text-text-muted transition-colors hover:text-foreground"
-            >
-              See all weight
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenChange(false)
+                  router.push("/weight")
+                }}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm text-text-muted transition-colors hover:text-foreground"
+              >
+                See all weight
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
           </div>
         </div>
       </SheetContent>

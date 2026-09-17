@@ -43,6 +43,14 @@ tokens — **no hardcoded hex values** outside `globals.css`.
 | Success          | `--state-success`      | `#4ADE80`                |
 | Warning          | `--state-warning`      | `#F59E0B`                |
 | Destructive      | `--accent-destructive` | `#B91C1C`                |
+| Skeleton block   | `--skeleton`           | `var(--bg-surface-raised)` |
+| Skeleton graph   | `--skeleton-line`      | a mix of the two borders |
+| Pad scrim        | `--pad-scrim`          | `rgba(0,0,0,0.42)`       |
+| Picker body      | `--pick-body`          | `#31312e`                |
+| Picker region    | `--pick-region`        | `#46463f`                |
+
+The last five are the feel pass's (2026-09-17): the two picker tones are the
+Log dose map's body on a raised surface (see the Spec 19 ramp below).
 
 ### Rule: state colours are for system/UI feedback ONLY
 
@@ -142,6 +150,21 @@ the ramp is achieved with **opacity on `--accent-amber`** (lower opacity = more
 rested), so it stays token-based with **no hardcoded hex**. The feature
 **reports, it does not recommend**: never a suggested-next-site, ranking, risk
 score, or warning icon.
+
+**The picker's ramp is one shade down** (feel pass §5, Adrian, 2026-09-17). In
+the Log dose sheet's map, the site being PICKED is the only full amber (no white
+outline), so the history under it starts a shade lighter and gains one extra,
+faintest shade: heat = `1 - (d + 1) / (window + 1)` for `d < window`. The
+rotation view keeps its own `siteHeat`. The day counts sit in the MARGINS there,
+the way onboarding's demo body does it: a mono 10px chip (`--bg-surface`, full
+radius) on the side the site is on, level with its centre, reading "Today" /
+"1 day" / "N days", with a 1px non-scaling `--border-strong` leader to the site
+and no dot. Chips on one side keep 9% apart. **Only the most recent site's chip
+is amber.** In that sheet the body sits on `--bg-surface-raised`, so it takes the
+`raised` tone (`--pick-body` / `--pick-region`) or the Sub-Q silhouette vanishes
+into the card; the other maps keep `--muscle-region`. Under the map one reserved
+two-line slot reads "Last time: <site>, <yesterday | N days ago>." until a site
+is picked, then the existing `REST_DAYS` observation line.
 
 ### User palette — twelve colours a user picks from
 
@@ -575,6 +598,63 @@ visible state, so switching the animation off leaves them correct. That is the
 opposite of `.animate-flow-confetti`, which needs `display: none` because it ends
 at zero.
 
+### Rule: a number field opens the Trackd pad, never the phone keyboard
+
+Feel pass §3 (Adrian, 2026-09-17). The iOS decimal pad has no Return key, and
+none of the app's number inputs had `enterKeyHint`, Enter handling or a form, so
+moving between figures meant dropping the keyboard every time. Every numeric
+field in the app is now a **`PadInput`** (a button that looks like the
+field) that opens **`NumberPad`** (`components/feel/`); a sheet with several
+uses **`usePadSession`**, which owns which field is open. Text, dates and times
+keep the system controls.
+
+- **Focus layout** (the default). A 42% `--pad-scrim` over the sheet, the pad
+  rising from the bottom (`max-w-md`, `rounded-t-3xl`): the field's label, a
+  44px light readout, a chip per field on a sliding thumb (tap to jump), an open
+  3x4 key grid, then hide and Next / **Done** (white on the last field).
+  Portalled into the sheet it belongs to, so the sheet's own focus trap and
+  drag still work.
+- **The value opens SELECTED.** The first key replaces it; Delete clears it.
+  Rules live in `lib/feel/pad.ts` (`applyPadKey`, unit tested): six digits at
+  most, one decimal point, "." on an empty field reads "0.", a lone 0 is
+  replaced. A key the field's own sanitiser would strip is REFUSED with a shake,
+  never silently eaten.
+- **The open field shows it**: a white ring and a blinking caret on the
+  `PadInput`, so you can see which figure the pad is writing to. The caret
+  takes no width, and a field never shows an ellipsis: a figure with a digit
+  swapped for "…" is a wrong figure. Nor is it cut off (a clipped "10000"
+  reads "1000"): a figure too long for its field steps its font down until it
+  fits (`useFitText`).
+- **A closing pad still catches taps** through its exit and acts on none, so
+  a quick second tap never lands on the sheet or page under it (a sheet's
+  overlay would close the sheet; a footer button would fire).
+- **Focus moves into the pad** once it is on screen (it is announced as a
+  group) and goes back to the field, or to whatever opened it, on close.
+- **A hardware keyboard still works**: digits, "." or ",", Backspace, Enter or
+  Tab for Next, Shift+Tab back, Escape to hide. Typing a digit on a focused
+  field opens the pad with that digit, as an input would; a number field
+  counts as typing for the desktop shortcuts.
+- **Compact variant: the Calculator only.** No scrim, three chips across, a
+  shorter key grid (34px keys at or under 650px tall) and the unit pills on the
+  pad, because the point of that screen is watching the syringe and the result
+  change as you type. While it is open, the Draw section pins under the header
+  (`.calc-draw-pinned`, sticky), which REVERSES the 2026-07-31 "not pinned"
+  call: the pad takes the bottom half, so an unpinned syringe scrolls away.
+  Pinning never changes the section's box (on a short phone the "Draw" heading
+  tucks under the title bar, which shows while pinned), and while the pad is
+  open the misuse warning folds into one amber line beside the figure, so the
+  results card stays above the pad on an SE.
+- **"Amount left" is not on the add-compound pad's chain** (Adrian, 18 Sep).
+  The chips there are what the container HOLDS, and Next ends on the last
+  amount. Someone who knows a vial is part used taps the field, which opens a
+  pad of its own (one field, so it opens on Done). Saying how full something is
+  belongs to the Stock tab, where `AddStockSheet` keeps its "Left" chip: on the
+  add flow it invited a careless "half".
+- **Log weight is the pad alone** (the FAB, the desktop rail, and the empty
+  Weight card on Progress): it opens on
+  the last weight, selected, and a confirmation drops down on Done. Back-dating
+  and the photo live on the Weight screen and the Progress photo sheet.
+
 ### Rule: a sheet leads with one job, and the second one is a drop-up
 
 Adrian, 2026-09-11, from a four-state prototype: **"I like eyebrow. More
@@ -871,6 +951,21 @@ Chart hues are a deliberately **neutral** teal/periwinkle (never red/green),
 because trend visuals must stay **non-evaluative** per the health-data rule
 above — a graph shows *movement*, never "good" or "bad".
 
+**The first-load draw-in (a scoped exception to the scroll-triggered ban below;
+feel pass §7, Adrian, 2026-09-17).** It is a data reveal he asked for, not
+decoration, and it runs **once per session per graph**, only when the card is
+genuinely in view (ratio ≥ 0.85 or ≥ 90% of the band above the tab bar). The
+line sweeps left to right over **1470ms** on a quintic ease-out behind a px mask
+with a 2px soft edge; a 7px ring in the series colour (filled `--bg-surface`)
+rides the tip, sampled from the rendered path, and fades over 320ms; the
+tapered fill stays hidden until the line is down, then fades in over 520ms.
+Wrap the chart in `DrawFrame` with a `useFirstDraw("<screen>:<graph>")` key and
+switch recharts' own animation off for that mount. A revisit shows the graph
+finished, a range switch mid-draw finishes it, and **range switching itself is
+unchanged** (the remount with recharts' 450ms line, no tracer, no fill fade).
+Reduced motion shows it finished. Where it runs: Progress's weight and
+consistency cards, and the `/weight` graph.
+
 ## Desktop (`>=1024px` AND a pointer)
 
 Trackd is a phone app that also runs on a laptop. Adrian's call, 2026-09-10:
@@ -1150,10 +1245,51 @@ part of the design, not a fallback.
 - **Loading** — shaped **skeletons** on `--bg-surface-raised` that match
   the final layout (no layout shift). No spinners for content areas; a
   spinner is only for a discrete in-flight action (e.g. a button).
+  Feel pass §1 (Adrian, 2026-09-17), built in `components/feel/Skeleton.tsx`:
+  - **A skeleton, never the empty state, while the data is unknown.** "Start
+    your log" shown to someone with a full protocol is a wrong statement.
+    Home and Protocol wait on the cloud hydration flag
+    (`lib/home/hydrationState.ts`: pending / done / failed); a device that
+    already holds a stack renders it at once. A failed, timed-out (10s),
+    fallen-back or offline first pull falls back to what the device has and
+    says so with the sync notice, worded for a read (Adrian, 2026-09-17): "No connection. We're having trouble connecting to your account, so you're seeing what's saved on this phone. We'll keep trying."
+    (A failed WRITE keeps "Saved on your device…".)
+  - **Graph cards get a ghost graph** (`SkGraph`): the real curve and taper in
+    skeleton tones, not a flat block.
+  - **The wave** (`.sk`): opacity 0.5 → 1 → 0.5 over 1.9s, delayed 110ms per
+    row (`--i`), so the breath travels down the page. The only loop allowed
+    outside `/onboarding`, and only while loading; still under reduced motion.
+  - **The sequence**: the skeleton fades in (320ms), waves, then fades out
+    (240ms) laid absolutely over the content (`SkeletonSwap`) while the real
+    cards rise through it with `animate-home-up` (55ms stagger). **One rise per
+    arrival**: the title and week strip fade without moving; only content
+    rises. Home's week strip waves its figures and fades its dots in.
+  - **Every tab route has a `loading.tsx`** (`components/feel/RouteSkeletons.tsx`),
+    so the tap switches at once and the route skeleton hands straight over to
+    the screen's own, with no second fade (`useArrivedFromSkeleton` for the
+    leaving skeleton; `useSkeletonOnScreen` for the title and a still
+    skeleton, which also covers a full page load). A nested route that is its
+    own screen gets its own `loading.tsx` (`/billing/manage`), or it opens on
+    its parent's shell and title. `experimental.staleTimes.dynamic` (300s) keeps a visited tab in the
+    client router cache, so a revisit shows the screen, not a skeleton.
+  - **Late data in a sheet fills space that is already reserved.** It never
+    pushes: the Log dose sheet holds a skeleton row for the Draw row and the
+    stock card, then crossfades.
+- **Success** — logging a dose ends on **"Mono"** (feel pass §8): the sheet's
+  body is covered by `--bg-surface-raised`, an `--accent-primary` disc with a
+  `--bg-base` tick pops (`animate-home-tick-pop`, one `animate-home-tick-ring`
+  pulse at `--text-primary`/35), "Tracked" or "Updated" in `--text-primary`,
+  and it closes itself at 900ms or on tap. The Home row's tick then pops as
+  well. This replaced a green full-bleed state: `--state-success` is not the
+  app's colour for its own heartbeat.
 - **Error** — `--state-error`, one line + a retry. UI / system errors
   **only**, never health data (per the colour rule above). The one
   notification style is the amber pop-down notice
   (`components/notifications/amber-notice.tsx`) — never a modal pop-up.
+  A **confirmation** uses the same notice with `icon={null}` (same shape,
+  blur and amber outline, no glyph, announced as a status): the default
+  `Warning` glyph means a problem, and Adrian rejected a tick ("Weight logged:
+  85.2 kg").
 - **Partial** — a card with some data shows what it has plus a muted
   placeholder for the rest, not a full empty state.
 
@@ -1165,19 +1301,66 @@ hand-rolling animation per screen.
 
 - **Entrance** — tab screens stagger their cards in with `animate-home-up`
   (fade + rise) via a per-card inline `animation-delay`. Same idiom on
-  Home and Progress. `METRIC_VALUE` numbers **count up** (~400ms,
-  ease-out) as part of the same stagger — one shared hook, not
-  per-card timing — and render instantly under `prefers-reduced-motion`.
+  Home and Progress. **Figures never count up** (feel pass §7): a figure
+  shows its value. A dose or draw mid-count is a wrong dose on screen.
 - **The log action gets a moment.** Logging a dose is the app's
   heartbeat: the tick pops in (`animate-home-tick-pop` + one
   `animate-home-tick-ring` pulse) as the amber due-ring resolves to the
   white tick, the affected state updates, and the sheet dismisses. This
   is the line between "entered data" and "tracked".
-- **Touch feedback** — borderless cards need it: interactive cards and
-  rows compress on press (`active:scale-[0.98]` + a slight opacity dip),
-  so touches land even without borders. A blocked tap shakes
-  (`animate-card-shake`); a notice slides down from the top edge
-  (`animate-notice-in`).
+- **Touch feedback: one press system** (feel pass §2, Adrian, 2026-09-17).
+  Borderless cards need it, and iOS applies `:active` late and briefly, so a
+  quick tap showed nothing. **Never write `active:scale-*`.** Put a `PRESS`
+  preset from `lib/ui-presets.ts` on the element instead; one delegated
+  listener (`components/feel/PressFeedback.tsx`, mounted in the root layout)
+  sets `data-pressed` on pointerdown, holds it at least 110ms, and drops it on
+  pointercancel or 10px of movement. Rows and cards wait 45ms first, so a
+  scroll that starts on them does not flash; everything else presses at once.
+  Press-in 70ms (`--motion-press-in`), release 180ms (`--motion-press-out`).
+
+  | Preset | Use | Press |
+  | --- | --- | --- |
+  | `PRESS.card` / `PRESS.button` | cards, ordinary buttons (`PRIMARY_BUTTON` carries it) | scale 0.97, opacity 0.85 |
+  | `PRESS.row` | a list row that presses whole | scale 0.97, `--bg-surface-raised` |
+  | `PRESS.rowPart` | a tappable part inside a row (name, specs, ⋯) | presses its row |
+  | `PRESS.text` | text buttons (Cancel, Track) | opacity 0.45 |
+  | `PRESS.icon` | round icon buttons | scale 0.9, raised round backdrop |
+  | `PRESS.tick` | ticks, swatches | scale 0.86 |
+  | `PRESS.tab` | tab bar | scale 0.92, opacity 0.7 |
+  | `PRESS.fab` | the + | scale 0.92 |
+  | `PRESS.day` | week-strip day | scale 0.92, raised |
+  | `PRESS.field` | a field-shaped button | scale 0.98 |
+  | `PRESS.pill` | pills and segments | scale 0.94, opacity 0.8 |
+  | `PRESS.key` | pad keys | scale 0.95, `--bg-input` |
+
+  Under reduced motion the scale goes and the opacity stays. The state is an
+  ATTRIBUTE, not a class, because React rewrites `className` on re-render.
+  A blocked tap shakes (`animate-card-shake`); a notice slides down from the
+  top edge (`animate-notice-in`).
+- **A pill menu slides its selection** (feel pass §6). Every single-select
+  segmented control (Front/Back, ranges, units, syringe size, stock type,
+  routes, cadences, the week strip's day, the pad's chips) is a
+  **`ThumbGroup`** (`components/feel/SlidingThumb.tsx`): one thumb measured
+  from the `aria-pressed` / `aria-checked` item, gliding left/top/width/height
+  over 300ms, never sliding on first placement, and re-fitting (not gliding)
+  when the whole group resizes. **The thumb is the selection**, so the
+  selected pill has no background of its own. A white thumb carries dark
+  text; its unselected siblings are transparent so the thumb shows through
+  as it passes. Multi-select chips, calendar grids and colour swatches are
+  not segmented controls and do not get one. No transition under reduced
+  motion.
+- **Sheets land, then rise** (feel pass §4). Each section of a sheet fades up
+  10px over 320ms, from 140ms with a 40ms stagger, so the contents rise as
+  the sheet lands. Put `data-sheet-body` on the element whose direct children
+  are the sections and globals.css does the rest; `SHEET_RISE` with an inline
+  `--rise-i` does the same for a sheet that needs per-section control (Log
+  dose). In a flex-column scroll body every section is `shrink-0`, or an
+  `overflow-hidden` card is squashed to half its height. Full-screen viewers
+  do not rise. The Log dose map arrives in its own beats after the landing:
+  the body at ~330ms, the sites from ~450ms (30ms stagger), then the day chips
+  and leaders.
+- **A graph draws itself in once** (feel pass §7, `components/feel/FirstDraw.tsx`).
+  See Charts.
 - **The onboarding flow** (Spec 3-01) carries its own motion, and it is the
   ONLY surface in the product allowed to. (The public site at `/` is the other
   place motion is allowed, on the same argument and with its own list: see
@@ -1261,6 +1444,9 @@ hand-rolling animation per screen.
 - **Banned** — ambient / decorative motion: floating particles, meteor
   or hero effects, cursor-follow, scroll-triggered decorative lines.
   These are the clearest "AI-built" tell and steal attention from the data.
+  Two scoped exceptions, both from the feel pass: the skeleton wave (a loop,
+  only while loading; see States) and a graph's first-load draw-in (a data
+  reveal, once per session; see Charts). Neither is licence for anything else.
 - **Respect `prefers-reduced-motion`** — every `animate-*` class already
   collapses to no motion under the reduce query (see `globals.css`); any
   new motion must do the same.

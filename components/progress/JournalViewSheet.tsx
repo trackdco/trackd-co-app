@@ -101,7 +101,8 @@ export function JournalViewSheet({
             </div>
 
             {shown ? (
-              <div className="mt-5 space-y-5">
+              // Each section rises in as the sheet lands (feel pass §4).
+              <div data-sheet-body className="mt-5 space-y-5">
                 {shown.markers.length > 0 ? (
                   <section>
                     <p className={CARD_EYEBROW}>How you felt</p>

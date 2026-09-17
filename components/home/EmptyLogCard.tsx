@@ -22,8 +22,9 @@ export function EmptyLogCard() {
         <Step
           n={1}
           icon={<Plus className="h-4 w-4" aria-hidden />}
-          title="Add a compound"
-          body="Tap the white + below → Add a compound. Search the catalogue or make your own."
+          // Adrian's wording, approved in the feel pass (round 5).
+          title="Start with a compound"
+          body="Tap the white + at the bottom right. Find your compound in the catalogue, or create one."
         />
         <Step
           n={2}
@@ -39,8 +40,10 @@ export function EmptyLogCard() {
         />
       </ol>
 
+      {/* The same sentence the log sheet uses. The old one ("saved on this
+          device") was false: everything here is saved to the account. */}
       <p className="mt-5 hairline-t pt-4 text-xs text-text-subtle">
-        Everything is saved on this device for you only.
+        Saved to your account. Only you can see it.
       </p>
     </section>
   )

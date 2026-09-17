@@ -28,26 +28,30 @@ export function PhoneHandoffPrompt() {
         once and add it to your Home Screen for reminders.
       </p>
 
-      <div className="mt-5 flex justify-center">
-        {/* Light plate on purpose. A QR code inverted onto a near-black surface
-            is within spec but scans badly in a dim room, which is exactly where
-            somebody sits at a laptop. `--text-primary` rather than pure white
-            keeps the plate in the palette's warm family. */}
-        <div className="rounded-2xl bg-text-primary p-4">
-          <QRCodeSVG
-            value={APP_URL}
-            size={168}
-            bgColor="transparent"
-            fgColor="var(--bg-base)"
-            level="M"
-            aria-label={`QR code linking to ${APP_URL}`}
-          />
+      {/* The code and the address rise in as the sheet lands (feel pass §4).
+          This prompt only ever renders in Profile's install sheet. */}
+      <div data-sheet-body>
+        <div className="mt-5 flex justify-center">
+          {/* Light plate on purpose. A QR code inverted onto a near-black surface
+              is within spec but scans badly in a dim room, which is exactly where
+              somebody sits at a laptop. `--text-primary` rather than pure white
+              keeps the plate in the palette's warm family. */}
+          <div className="rounded-2xl bg-text-primary p-4">
+            <QRCodeSVG
+              value={APP_URL}
+              size={168}
+              bgColor="transparent"
+              fgColor="var(--bg-base)"
+              level="M"
+              aria-label={`QR code linking to ${APP_URL}`}
+            />
+          </div>
         </div>
-      </div>
 
-      <p className="mt-5 text-center font-mono text-xs tracking-[0.08em] text-text-muted">
-        trackdco.app
-      </p>
+        <p className="mt-5 text-center font-mono text-xs tracking-[0.08em] text-text-muted">
+          trackdco.app
+        </p>
+      </div>
     </div>
   )
 }

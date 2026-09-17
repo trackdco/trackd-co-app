@@ -1,6 +1,6 @@
 "use client"
 
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
 import { Plus } from "@/components/icons"
 import {
   CARD_H,
@@ -75,9 +75,10 @@ export function CompoundsRow({
               type="button"
               onClick={onAddCompound}
               className={cn(
+                PRESS.card,
                 CARD_W,
                 CARD_H,
-                "hairline flex shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border-border-default text-text-muted transition hover:text-foreground active:scale-[0.98]"
+                "hairline flex shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border-border-default text-text-muted transition hover:text-foreground"
               )}
             >
               <Plus className="h-5 w-5" aria-hidden />

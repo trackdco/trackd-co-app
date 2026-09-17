@@ -3,7 +3,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
 import { CaretLeft, CaretRight, CaretDown } from "@/components/icons"
 import { ScheduleGrid } from "@/components/protocol/ScheduleGrid"
 import {
@@ -229,7 +229,7 @@ export function ScheduleWeeks({
           /* A div rather than a <button> because the grid scrolls its own rows
              past eight compounds, and a scroll container inside a button is a
              fight on touch. Keyboard and role are carried explicitly instead. */
-          className="cursor-pointer rounded-2xl transition-transform active:scale-[0.98] active:opacity-90"
+          className={cn(PRESS.card, "cursor-pointer rounded-2xl")}
         >
           <div className="flex items-center justify-between gap-2 px-1 pb-3">
             <h2 className={CARD_EYEBROW}>Schedule</h2>

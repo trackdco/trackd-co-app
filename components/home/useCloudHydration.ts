@@ -5,6 +5,15 @@ import { useEffect, useRef } from "react"
 import { hydrateFromPostgres } from "@/lib/home/hydrateProtocol"
 import { migrateDeviceState } from "@/lib/migration/migrateDeviceState"
 import { repushDoseLogs } from "@/lib/home/repushDoseLogs"
+import { getHydrationState, setHydrationState } from "@/lib/home/hydrationState"
+import { notifyHydrationFailed } from "@/lib/home/syncStatus"
+
+/**
+ * How long Home waits for the first pull before it stops showing a skeleton and
+ * falls back to what the device has. The pull carries on; if it lands later,
+ * the screen updates in place.
+ */
+const FIRST_PULL_PATIENCE_MS = 10_000
 
 /**
  * Home flip (Protocol Cutover, Step 3): hydrate the device-local stack + dose-log
@@ -24,12 +33,43 @@ export function useCloudHydration(userId: string): void {
     if (!userId || userId === "anon") return
     let cancelled = false
 
+    // THE HYDRATION SIGNAL (feel pass §1). Home renders a skeleton until this
+    // settles, so it must ALWAYS settle: done, failed, or out of patience.
+    // Every way it fails says so: Home is about to show what the device has,
+    // which on a fresh device is nothing, and that must not read as the account.
+    const giveUp = () => {
+      // Every screen re-pulls when it mounts. Once this session has loaded,
+      // a slow or failed re-pull is not a failed load, so it stays quiet.
+      if (getHydrationState(userId) === "done") return
+      setHydrationState(userId, "failed")
+      notifyHydrationFailed()
+    }
+    const patience = window.setTimeout(giveUp, FIRST_PULL_PATIENCE_MS)
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      // Offline: the pull cannot succeed, so do not make anyone watch it try.
+      giveUp()
+    }
+
     void (async () => {
-      if (migratedFor.current !== userId) {
-        migratedFor.current = userId
-        await migrateDeviceState(userId) // once, marker-guarded
+      try {
+        if (migratedFor.current !== userId) {
+          migratedFor.current = userId
+          await migrateDeviceState(userId) // once, marker-guarded
+        }
+        if (!cancelled) {
+          // A guarded pull that fell back RESOLVES (`ok: false`); it is a
+          // failure all the same.
+          const { ok } = await hydrateFromPostgres(userId)
+          if (ok) setHydrationState(userId, "done")
+          else if (!cancelled) giveUp()
+        }
+      } catch {
+        // A Server Action REJECTS when the request itself fails (offline, a
+        // 5xx, a deploy skew). The cache is untouched; show what the device has.
+        if (!cancelled) giveUp()
+      } finally {
+        window.clearTimeout(patience)
       }
-      if (!cancelled) await hydrateFromPostgres(userId)
     })()
 
     // Reconnect: push anything written offline, then pull.
@@ -44,12 +84,23 @@ export function useCloudHydration(userId: string): void {
     const onOnline = () => {
       void (async () => {
         await repushDoseLogs(userId)
-        if (!cancelled) await hydrateFromPostgres(userId)
+        if (!cancelled) {
+          const { ok } = await hydrateFromPostgres(userId)
+          if (ok) setHydrationState(userId, "done")
+        }
       })()
     }
-    const onFocus = () => void hydrateFromPostgres(userId)
+    // A later re-sync that lands also settles a first pull that failed.
+    const resync = () =>
+      void hydrateFromPostgres(userId).then(
+        ({ ok }) => {
+          if (ok) setHydrationState(userId, "done")
+        },
+        () => {},
+      )
+    const onFocus = () => resync()
     const onVisible = () => {
-      if (document.visibilityState === "visible") void hydrateFromPostgres(userId)
+      if (document.visibilityState === "visible") resync()
     }
     window.addEventListener("online", onOnline)
     window.addEventListener("focus", onFocus)
@@ -57,6 +108,7 @@ export function useCloudHydration(userId: string): void {
 
     return () => {
       cancelled = true
+      window.clearTimeout(patience)
       window.removeEventListener("online", onOnline)
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisible)

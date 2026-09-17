@@ -7,11 +7,20 @@ import { CalendarDots, CaretDown, NotePencil, User } from "@/components/icons"
 import { requestProgressAction } from "@/lib/progress/progressAction"
 import { computeNextDose } from "@/lib/home/nextDose"
 import { belongsInDayLog, ringCounts } from "@/lib/home/dayDoses"
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { cn } from "@/lib/utils"
 
 import { useCloudHydration } from "@/components/home/useCloudHydration"
+import { SkeletonSwap } from "@/components/feel/Skeleton"
+import { HomeSkeleton } from "@/components/home/HomeSkeleton"
+import { useArrivedFromSkeleton, useSkeletonOnScreen } from "@/components/feel/Skeleton"
+import { getStripOpen, subscribeStripOpen, writeStripOpen } from "@/lib/home/weekStripOpen"
+import {
+  getHydrationState,
+  subscribeHydrationState,
+  type HydrationState,
+} from "@/lib/home/hydrationState"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
 import { HomeGreeting } from "@/components/home/HomeGreeting"
@@ -140,47 +149,7 @@ function hhmmNow(): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
 }
 
-/* ------------------------------------------------ week-strip open/closed state */
-/**
- * Whether the week strip is expanded, remembered between sessions and defaulting
- * to OPEN (Spec 02).
- *
- * A `useSyncExternalStore` rather than state synced in an effect: localStorage is
- * an external store, the server has no access to it, and an effect that reads it
- * on mount both trips the set-state-in-effect rule and paints once with the wrong
- * state before correcting itself. The server snapshot is the documented default,
- * so hydration matches whenever the user hasn't changed it.
- */
-const STRIP_OPEN_KEY = "trackd.home.weekStripOpen"
-const STRIP_OPEN_EVENT = "trackd:week-strip-open"
-
-function getStripOpen(): boolean {
-  if (typeof window === "undefined") return true
-  try {
-    return window.localStorage.getItem(STRIP_OPEN_KEY) !== "0"
-  } catch {
-    return true // storage off — the default stands
-  }
-}
-
-function writeStripOpen(open: boolean): void {
-  try {
-    window.localStorage.setItem(STRIP_OPEN_KEY, open ? "1" : "0")
-  } catch {
-    /* storage full / off — the strip still works, it just won't be remembered */
-  }
-  window.dispatchEvent(new CustomEvent(STRIP_OPEN_EVENT))
-}
-
-function subscribeStripOpen(cb: () => void): () => void {
-  if (typeof window === "undefined") return () => {}
-  window.addEventListener(STRIP_OPEN_EVENT, cb)
-  window.addEventListener("storage", cb)
-  return () => {
-    window.removeEventListener(STRIP_OPEN_EVENT, cb)
-    window.removeEventListener("storage", cb)
-  }
-}
+/* The week strip open/closed store lives in `lib/home/weekStripOpen.ts`. */
 
 export function HomeScreen({
   todayKey: serverTodayKey,
@@ -193,6 +162,7 @@ export function HomeScreen({
   previewStack,
   previewStacks,
   previewLogs,
+  previewLogKnown,
 }: {
   todayKey: DateKey
   /** Scopes the device-local stack in localStorage. */
@@ -218,6 +188,8 @@ export function HomeScreen({
   previewStack?: StackCompound[]
   previewStacks?: Stack[]
   previewLogs?: DayLogs
+  /** Dev-preview-only: hold the loading skeleton (false) to review it. */
+  previewLogKnown?: boolean
 }) {
   const router = useRouter()
   /**
@@ -329,6 +301,30 @@ export function HomeScreen({
   // migrate any local-only data up), so the protocol survives a PWA reinstall —
   // localStorage is just the device cache. Best-effort; runs once per user.
   useCloudHydration(userId)
+
+  /**
+   * IS THE LOG KNOWN YET? (feel pass §1)
+   *
+   * The server snapshot is always the empty seed, and a stored `[]` reads back
+   * as nothing, so "no compounds" and "not loaded" used to look the same and the
+   * first-run instructions flashed on every cold load. The log is known when the
+   * device already has a stack (it renders at once), or when the first cloud
+   * pull has settled either way. Until then: a skeleton, never the empty state.
+   */
+  const hydration = useSyncExternalStore<HydrationState>(
+    subscribeHydrationState,
+    () => getHydrationState(userId),
+    () => "pending",
+  )
+  // Did the route's own skeleton just hand over? Then the title and strip are
+  // already on screen and must not fade in again.
+  const fromSkeleton = useArrivedFromSkeleton("dashboard")
+  // The title, strip and skeleton the route's loading shell already drew
+  // (including on a full page load) do not fade in again.
+  const skeletonShown = useSkeletonOnScreen("dashboard")
+  const logKnown =
+    previewLogKnown ??
+    (previewStack !== undefined || stack.length > 0 || hydration !== "pending")
 
   // Persist the seed stack once on a fresh device so the rest of the app (e.g.
   // the Add-to-log menu's "already in your log" check) reads the same source of
@@ -805,6 +801,8 @@ export function HomeScreen({
      */
     if (!guard(() => {})) return
     commitDoseOn(userId, compoundId, log, landsOn, openedOn, slot)
+    // The row's tick pops once the sheet has gone (feel pass §8).
+    trackedRef.current = { id: compoundId, slot, day: landsOn }
     // Follow the dose to its new day — but only AFTER the sheet has closed. The
     // sheet freezes the day it opened on for exactly this reason: moving the
     // selection while it is open used to remount it, wiping the success tick and
@@ -814,6 +812,24 @@ export function HomeScreen({
 
   /** A day the committed dose moved to, applied once the sheet is out of the way. */
   const [pendingDay, setPendingDay] = useState<DateKey | null>(null)
+
+  /**
+   * THE ROW'S TICK POPS AFTER THE SHEET CLOSES (feel pass §8): the app's own
+   * tick-pop and ring, on the dose that was just tracked. Recorded at commit,
+   * played on close, cleared once the ring has finished.
+   */
+  const trackedRef = useRef<{ id: string; slot: number; day: string } | null>(null)
+  const [popKey, setPopKey] = useState<string | null>(null)
+  const popTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(popTimer.current), [])
+  function playTrackedPop() {
+    const t = trackedRef.current
+    trackedRef.current = null
+    if (!t) return
+    setPopKey(`${t.id}|${t.slot}|${t.day}|${performance.now()}`)
+    window.clearTimeout(popTimer.current)
+    popTimer.current = window.setTimeout(() => setPopKey(null), 700)
+  }
 
   /**
    * Undo a logged dose — on the day the SHEET was showing, which the sheet
@@ -836,9 +852,11 @@ export function HomeScreen({
       <div
         data-screen="dashboard"
         data-desktop-layout="grid"
-        className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+        className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
       >
-        <div data-area="title" className="animate-home-up" style={{ animationDelay: "0ms" }}>
+        {/* One rise per arrival (feel pass §1): the title and the week strip
+            fade in where they stand, and only the content below them rises. */}
+        <div data-area="title" className={cn(!skeletonShown && "animate-shortcut-fade")}>
           <PageScrollTitle
             title="Dashboard"
             eyebrow={dayLabel(selectedKey)}
@@ -850,7 +868,7 @@ export function HomeScreen({
                   onClick={() => setStripOpen((o) => !o)}
                   aria-expanded={stripOpen}
                   aria-label={stripOpen ? "Collapse the week" : "Expand the week"}
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={cn(PRESS.icon, "flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
                 >
                   <CaretDown
                     aria-hidden
@@ -863,14 +881,14 @@ export function HomeScreen({
                 <Link
                   href="/calendar"
                   aria-label="Open calendar"
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={cn(PRESS.icon, "flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
                 >
                   <CalendarDots className="h-5 w-5" aria-hidden />
                 </Link>
                 <Link
                   href="/profile"
                   aria-label="Open profile"
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={cn(PRESS.icon, "flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
                 >
                   <User className="h-5 w-5" aria-hidden />
                 </Link>
@@ -883,7 +901,8 @@ export function HomeScreen({
             while closed so its day buttons leave the tab order. */}
         <div
           className={cn(
-            "grid animate-home-up",
+            "grid",
+            !skeletonShown && "animate-shortcut-fade",
             // The transition is suppressed until the store's first CLIENT read.
             // `useSyncExternalStore` prevents a hydration MISMATCH, not a wrong
             // first paint: the server snapshot is "open", so a user who collapsed
@@ -893,7 +912,7 @@ export function HomeScreen({
               "transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
           )}
           data-area="weekstrip"
-          style={{ animationDelay: "55ms", gridTemplateRows: stripOpen ? "1fr" : "0fr" }}
+          style={{ gridTemplateRows: stripOpen ? "1fr" : "0fr" }}
         >
           <div className="overflow-hidden" inert={!stripOpen}>
           <WeekStrip
@@ -905,6 +924,7 @@ export function HomeScreen({
             hasDoseOn={hasDoseOn}
             onSelect={setSelectedKey}
             onWeekChange={handleWeekChange}
+            loading={!logKnown}
           />
           </div>
         </div>
@@ -925,7 +945,12 @@ export function HomeScreen({
             space-y-5 never opens a gap here). */}
         {notificationsBanner}
 
-        <div data-area="log" className="animate-home-up" style={{ animationDelay: "110ms" }}>
+        <SkeletonSwap
+          ready={logKnown}
+          skeleton={skeletonShown ? <HomeSkeleton continued /> : <HomeSkeleton />}
+          leaveOnMount={fromSkeleton}
+        >
+        <div data-area="log" className="animate-home-up" style={{ animationDelay: "0ms" }}>
           {stack.length === 0 ? (
             // First run has no Today's Log card to host the greeting, and that
             // is the one session where the greeting matters most — so it sits
@@ -963,6 +988,7 @@ export function HomeScreen({
               // Grouping is dated, so the card has to know WHICH day it is
               // drawing — a stack made today never reaches back over history.
               dayKey={selectedKey}
+              popKey={popKey}
               paused={[...pausedStackEntries, ...pausedEntries]}
               // The ROW is the stack: the sheet opens headed with the stack's
               // name and already on the whole-stack list.
@@ -1051,7 +1077,7 @@ export function HomeScreen({
         {/* The day's status — ring + next dose, both scoped to the SELECTED day
             (Spec 02). Always rendered: on a day with nothing scheduled the cards
             say so, which is information; a missing card is not. */}
-        <div data-area="status" className="animate-home-up" style={{ animationDelay: "140ms" }}>
+        <div data-area="status" className="animate-home-up" style={{ animationDelay: "55ms" }}>
           <DayStatusWidgets
             // The card is selected-day scoped, so it names the day it is showing
             // rather than always saying "Today".
@@ -1074,7 +1100,7 @@ export function HomeScreen({
 
         {/* Injection sites — the muscle map at a glance (IM / Sub-Q); tap to choose
             your sites or see where you last pinned. */}
-        <div data-area="sites" className="animate-home-up" style={{ animationDelay: "175ms" }}>
+        <div data-area="sites" className="animate-home-up" style={{ animationDelay: "110ms" }}>
           <InjectionSitesGlanceCard
             daysSince={siteDaysSinceToday}
             recentSites={recentInjectionSites}
@@ -1103,7 +1129,7 @@ export function HomeScreen({
             abandoned. Logging a DOSE on a future day stays allowed, so the strip
             still scrolls forward; it is only journalling the server rejects. */}
         {selectedKey <= todayKey && (
-        <div data-area="journal" className="animate-home-up" style={{ animationDelay: "195ms" }}>
+        <div data-area="journal" className="animate-home-up" style={{ animationDelay: "165ms" }}>
           <section className="rounded-2xl bg-bg-surface p-5">
             <h2 className={CARD_EYEBROW}>Journal</h2>
             <button
@@ -1112,7 +1138,7 @@ export function HomeScreen({
                 requestProgressAction("journal-write", selectedKey)
                 router.push("/progress")
               }}
-              className="mt-3 flex w-full items-center gap-3 rounded-xl bg-bg-input px-4 py-3 text-left transition active:scale-[0.99]"
+              className={cn(PRESS.field, "mt-3 flex w-full items-center gap-3 rounded-xl bg-bg-input px-4 py-3 text-left")}
             >
               <NotePencil className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
               <span className="text-sm text-text-muted">How did today go?</span>
@@ -1120,6 +1146,7 @@ export function HomeScreen({
           </section>
         </div>
         )}
+        </SkeletonSwap>
       </div>
 
       <LogDoseSheet
@@ -1134,9 +1161,22 @@ export function HomeScreen({
         todayKey={todayKey}
         siteLastUsedDays={siteLastUsedDays}
         bodySex={bodySex}
+        catalogue={injectionCatalogue}
+        // What the strip's own draw read already knows (same day, same due set),
+        // so the sheet does not reserve a stock card for a compound with none.
+        stockHint={
+          !logTarget
+            ? undefined
+            : drawResult.sources[logTarget.compound.id]
+              ? "has"
+              : noVialIds.has(logTarget.compound.id)
+                ? "none"
+                : undefined
+        }
         onOpenChange={(open) => {
           if (!open) {
             setLogTarget(null)
+            playTrackedPop()
             // The sheet is gone, so following a moved dose to its new day can no
             // longer remount it out from under the user.
             if (pendingDay) {

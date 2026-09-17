@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "@/components/icons";
 
 import { useMounted } from "@/components/home/useMounted";
+import { CalendarBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
 import { MonthGrid } from "@/components/calendar/MonthGrid";
 import { MonthYearPicker } from "@/components/calendar/MonthYearPicker";
 import { DayDetailSheet } from "@/components/calendar/DayDetailSheet";
@@ -350,26 +351,35 @@ export function CalendarScreen({
   return (
     <div
       data-screen="calendar"
-      className="mx-auto w-full max-w-md px-5 pt-4 pb-5 animate-home-up"
+      className="relative mx-auto w-full max-w-md px-5 pt-4 pb-5"
     >
-      {/* "Back to Dashboard" is how a phone reaches Calendar, because a sixth
-          thumb target does not fit in the tab bar. On desktop Calendar IS a
-          sidebar item, so a back link to somewhere you did not come from is
-          just wrong. `desktop:` is the custom variant declared in desktop.css;
-          below the breakpoint the class matches nothing. */}
-      <Link
-        href="/dashboard"
-        className="desktop:hidden -ml-1 inline-flex items-center gap-1.5 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        Dashboard
-      </Link>
+      {/* The back link and the month fade without moving; only the cards
+          below rise. `relative z-10`: the month picker's panel and scrim live
+          in here, and the cards below are their own layers while they rise
+          (a transform), so without it the panel opened UNDER the grid. */}
+      <RouteTitle id="calendar" className="relative z-10">
+        {/* "Back to Dashboard" is how a phone reaches Calendar, because a sixth
+            thumb target does not fit in the tab bar. On desktop Calendar IS a
+            sidebar item, so a back link to somewhere you did not come from is
+            just wrong. `desktop:` is the custom variant declared in desktop.css;
+            below the breakpoint the class matches nothing. */}
+        <Link
+          href="/dashboard"
+          className="desktop:hidden -ml-1 inline-flex items-center gap-1.5 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Dashboard
+        </Link>
 
-      <header className="mt-5 px-1">
-        <MonthYearPicker year={view.year} month0={view.month0} onChange={setView} />
-      </header>
+        <header className="mt-5 px-1">
+          <MonthYearPicker year={view.year} month0={view.month0} onChange={setView} />
+        </header>
+      </RouteTitle>
 
-      <div className="mt-5">
+      <RouteHandoff id="calendar">
+        <CalendarBlocks />
+      </RouteHandoff>
+      <div className="animate-home-up mt-5" style={{ animationDelay: "0ms" }}>
         <MonthGrid
           cells={cells}
           todayKey={todayKey}
@@ -385,7 +395,10 @@ export function CalendarScreen({
       {/* The cycle key — one row per drawn cycle. Omitted entirely when nothing
           is cycled, so a user without cycles sees the calendar unchanged. */}
       {cycleKey.length > 0 && (
-        <section className="mt-5 rounded-2xl bg-bg-surface px-5 py-4">
+        <section
+          className="animate-home-up mt-5 rounded-2xl bg-bg-surface px-5 py-4"
+          style={{ animationDelay: "55ms" }}
+        >
           <h2 className={CARD_EYEBROW}>Cycles</h2>
           <ul className="mt-3 space-y-2">
             {cycleKey.map((row) => (

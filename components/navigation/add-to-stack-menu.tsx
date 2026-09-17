@@ -11,6 +11,8 @@ import {
 } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { PRESS } from "@/lib/ui-presets"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { Input } from "@/components/ui/input"
 import {
   Sheet,
@@ -739,7 +741,14 @@ function BrowseBody({
           section composition exactly where Spec 03 left room for it. */}
       {stacks.length > 0 && !q && (
         <div className="shrink-0 px-4 pb-4">
-          <div className="grid grid-cols-2 gap-1 rounded-xl bg-bg-input p-1">
+          {/* On the shared sliding thumb (feel pass §6). */}
+          <ThumbGroup
+            selection={side}
+            thumbClassName="rounded-lg bg-bg-surface-raised"
+            role="group"
+            aria-label="Show compounds or stacks"
+            className="grid grid-cols-2 gap-1 rounded-xl bg-bg-input p-1"
+          >
             {(["compounds", "stacks"] as const).map((v) => (
               <button
                 key={v}
@@ -747,21 +756,25 @@ function BrowseBody({
                 onClick={() => setSide(v)}
                 aria-pressed={side === v}
                 className={cn(
-                  "rounded-lg py-2 text-sm capitalize transition-colors",
-                  side === v
-                    ? "bg-bg-surface-raised text-foreground"
-                    : "text-text-muted"
+                  PRESS.pill,
+                  "rounded-lg py-2 text-sm capitalize transition-colors duration-300",
+                  side === v ? "text-foreground" : "text-text-muted"
                 )}
               >
                 {v}
               </button>
             ))}
-          </div>
+          </ThumbGroup>
         </div>
       )}
 
-      {/* Scrolling content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      {/* Scrolling content. The browse sections rise in as the sheet lands
+          (feel pass §4). Search results are typed for, so they appear at once:
+          the attribute is off while there is a query. */}
+      <div
+        data-sheet-body={q ? undefined : ""}
+        className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+      >
         {!q && stacks.length > 0 && side === "stacks" ? (
           <StackReferenceList stacks={stacks} />
         ) : q ? (
@@ -846,7 +859,11 @@ function RecentRow({
                   : `Add ${compound.name} to log`
               }
               className={cn(
-                "flex w-32 shrink-0 flex-col gap-2 rounded-2xl bg-bg-surface-raised px-3 py-3 text-left transition-transform active:scale-[0.98]",
+                // A dimmed card presses without the card variant's dim, which
+                // would LIFT it from 50% to 85% under the finger. On its raised
+                // surface the row variant is the same scale and nothing else.
+                inLog ? PRESS.row : PRESS.card,
+                "flex w-32 shrink-0 flex-col gap-2 rounded-2xl bg-bg-surface-raised px-3 py-3 text-left",
                 inLog && "opacity-50",
                 shakingName === compound.name && "animate-card-shake"
               )}
@@ -902,7 +919,10 @@ function CategoryBrowser({
               type="button"
               onClick={() => setOpenCategory(isOpen ? null : category)}
               aria-expanded={isOpen}
-              className="flex w-full items-center gap-3 rounded-2xl bg-bg-surface-raised px-4 py-3.5 text-left transition-transform active:scale-[0.99]"
+              className={cn(
+                PRESS.card,
+                "flex w-full items-center gap-3 rounded-2xl bg-bg-surface-raised px-4 py-3.5 text-left"
+              )}
             >
               <CategoryIcon category={category} className="h-3.5 w-3.5" />
               <span className="min-w-0 flex-1 truncate text-base font-medium text-foreground">
@@ -1060,7 +1080,10 @@ function CompoundList({
                       type="button"
                       onClick={() => onAdd(compound)}
                       aria-label={`Add ${compound.name} to log`}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
+                      className={cn(
+                        PRESS.icon,
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input"
+                      )}
                     >
                       <Plus className="h-4 w-4" aria-hidden />
                     </button>
@@ -1119,7 +1142,10 @@ function CompoundList({
                   type="button"
                   onClick={() => onAdd(compound)}
                   aria-label={`Add ${compound.name} to log`}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input active:scale-95"
+                  className={cn(
+                    PRESS.icon,
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input"
+                  )}
                 >
                   <Plus className="h-4 w-4" aria-hidden />
                 </button>
@@ -1195,7 +1221,11 @@ function CompoundForm({
   onConfirmDelete: () => void
 }) {
   return (
-    <div className="flex-1 space-y-5 overflow-y-auto px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    // The fields rise in as the form arrives (feel pass §4).
+    <div
+      data-sheet-body
+      className="flex-1 space-y-5 overflow-y-auto px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+    >
       <label className="block">
         <FieldLabel>Name</FieldLabel>
         <Input
@@ -1318,7 +1348,16 @@ function PillGroup({
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
-      <div className="flex flex-wrap gap-2">
+      {/* The choice on a WHITE sliding thumb (feel pass §6). The thumb is the
+          selection, so no pill carries a fill: one would hide the thumb as it
+          passes beneath. */}
+      <ThumbGroup
+        selection={value}
+        thumbClassName="rounded-full bg-accent-primary"
+        role="group"
+        aria-label={label}
+        className="flex flex-wrap gap-2"
+      >
         {options.map((o) => {
           const active = o.value === value
           return (
@@ -1328,10 +1367,11 @@ function PillGroup({
               onClick={() => onChange(o.value)}
               aria-pressed={active}
               className={cn(
-                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                PRESS.pill,
+                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors duration-300",
                 active
-                  ? "border-transparent bg-accent-primary font-medium text-bg-base"
-                  : "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+                  ? "border-transparent font-medium text-bg-base"
+                  : "border-border-default text-text-muted hover:text-text-primary"
               )}
             >
               {showDot && (
@@ -1341,7 +1381,7 @@ function PillGroup({
             </button>
           )
         })}
-      </div>
+      </ThumbGroup>
     </div>
   )
 }

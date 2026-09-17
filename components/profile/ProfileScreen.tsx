@@ -19,7 +19,8 @@ import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
-import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
+import { ProfileBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
+import { CARD_EYEBROW, PAGE_TITLE, PRESS } from "@/lib/ui-presets";
 
 /**
  * Profile — everything about your account, on one page (spec 09 · part two).
@@ -66,20 +67,23 @@ export function ProfileScreen({
     <div
       data-screen="profile"
       data-desktop-layout="column"
-      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
       {/* Each block fades + rises in on load, staggered — the same
           `animate-home-up` idiom as Home and Progress (per-section, not a single
           whole-page fade), so every tab page loads in the same way. */}
-      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+      <RouteTitle id="profile">
         {/* Shared scroll-title preset (large heading → fade-in compact bar). */}
         <PageScrollTitle title="Profile" />
-      </div>
+      </RouteTitle>
+      <RouteHandoff id="profile">
+        <ProfileBlocks />
+      </RouteHandoff>
 
       {/* ── Identity ──────────────────────────────────────────────── */}
       <section
         className="animate-home-up flex flex-col items-center text-center"
-        style={{ animationDelay: "55ms" }}
+        style={{ animationDelay: "0ms" }}
       >
         <AvatarUploader initials={initials} signedUrl={avatarUrl} userId={userId} />
 
@@ -107,12 +111,12 @@ export function ProfileScreen({
       </section>
 
       {/* ── Physical (edited in place) ────────────────────────────── */}
-      <div className="animate-home-up" style={{ animationDelay: "85ms" }}>
+      <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
         <PhysicalCard initial={physical} />
       </div>
 
       {/* ── App ───────────────────────────────────────────────────── */}
-      <div className="animate-home-up" style={{ animationDelay: "115ms" }}>
+      <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
         <p className={`mb-3 ${CARD_EYEBROW}`}>App</p>
         <div className="overflow-hidden rounded-2xl bg-bg-surface">
           {/* Billing HAS a destination now (2026-08-12): `/billing` states the
@@ -173,7 +177,7 @@ export function ProfileScreen({
       {/* ── Danger zone ───────────────────────────────────────────── */}
       {/* OUTLINED rather than filled, so it reads as a place you enter
           deliberately rather than an alarm sitting on the page. */}
-      <div className="animate-home-up" style={{ animationDelay: "145ms" }}>
+      <div className="animate-home-up" style={{ animationDelay: "165ms" }}>
         {/* `cn`, not a template string: CARD_EYEBROW already carries
             `text-text-muted`, so concatenating shipped both utilities and the
             muted one won. The label had never been red. */}
@@ -200,7 +204,7 @@ export function ProfileScreen({
 
       <p
         className="animate-home-up text-center text-xs text-text-subtle"
-        style={{ animationDelay: "175ms" }}
+        style={{ animationDelay: "220ms" }}
       >
         Trackd Co · v0.4 (Beta)
       </p>
@@ -243,7 +247,10 @@ function LinkRow({
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 px-4 py-3.5 outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      className={cn(
+        PRESS.row,
+        "flex items-center gap-3 px-4 py-3.5 outline-none transition-colors hover:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+      )}
     >
       <RowIcon className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       <span className="min-w-0 flex-1 truncate text-sm text-foreground">{children}</span>

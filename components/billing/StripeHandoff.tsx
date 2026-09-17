@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 
 import { CaretRight, CreditCard, FileText } from "@/components/icons";
 import { openBillingPortal } from "@/app/(app)/billing/actions";
+import { PRESS } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 
 /**
  * THE STRIPE HANDOFF — the rows that leave, and the dialog that says so first.
@@ -239,7 +241,10 @@ export function StripeHandoff({
               /* `min-h-11` outright rather than padding arithmetic on a line box:
                  44px is Apple's floor and a row with a two-line note must not be
                  the only one that passes. */
-              className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              className={cn(
+                PRESS.row,
+                "flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              )}
             >
               <Icon className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
               <span className="min-w-0 flex-1">

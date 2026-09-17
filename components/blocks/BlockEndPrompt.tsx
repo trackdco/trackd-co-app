@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
 import { closeBlockAction, extendBlockAction } from "@/app/(app)/blocks/actions"
 import { localToday } from "@/lib/blocks/block"
 import type { Block } from "@/lib/blocks/block"
@@ -199,74 +199,78 @@ export function BlockEndPrompt({
                     : "Move its end date, or close it and look back on it."}
             </p>
 
-            {mode === "choose" && (
-              <div className="mt-5 space-y-2">
-                <ChoiceRow
-                  title={block.endsOn ? "Extend" : "Set an end date"}
-                  detail="Still running. Pick a new end date."
-                  onClick={() => setMode("extend")}
-                />
-                <ChoiceRow
-                  title="Close"
-                  detail="Done. Write a reflection and look back on it."
-                  onClick={() => setMode("close")}
-                />
-                {/* Only offered when the block has actually reached its end.
-                    Opened deliberately from the block itself, "leave running"
-                    would be a button that does nothing — it is the answer to a
-                    question nobody asked. */}
-                {reachedEnd && (
+            {/* The sections rise in as the sheet lands (feel pass §4); the
+                title above lands with the sheet. */}
+            <div data-sheet-body>
+              {mode === "choose" && (
+                <div className="mt-5 space-y-2">
                   <ChoiceRow
-                    title="Leave running"
-                    detail="Carry on with no end date in mind. Nothing changes."
-                    onClick={leaveRunning}
+                    title={block.endsOn ? "Extend" : "Set an end date"}
+                    detail="Still running. Pick a new end date."
+                    onClick={() => setMode("extend")}
                   />
-                )}
-              </div>
-            )}
+                  <ChoiceRow
+                    title="Close"
+                    detail="Done. Write a reflection and look back on it."
+                    onClick={() => setMode("close")}
+                  />
+                  {/* Only offered when the block has actually reached its end.
+                      Opened deliberately from the block itself, "leave running"
+                      would be a button that does nothing — it is the answer to a
+                      question nobody asked. */}
+                  {reachedEnd && (
+                    <ChoiceRow
+                      title="Leave running"
+                      detail="Carry on with no end date in mind. Nothing changes."
+                      onClick={leaveRunning}
+                    />
+                  )}
+                </div>
+              )}
 
-            {mode === "extend" && (
-              <label className="mt-5 block">
-                <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                  New end date
-                </span>
-                <Input
-                  type="date"
-                  value={newEnd}
-                  /* Tomorrow, not today: `extendValid` requires a date STRICTLY
-                     after today, so offering today was offering a value the
-                     sheet then rejected. */
-                  min={nextDayKey(todayKey)}
-                  onChange={(e) => setNewEnd(e.target.value)}
-                  aria-label="New end date"
-                  className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
-                />
-                {newEnd !== "" && !extendValid && (
-                  <span className="mt-1.5 block text-xs text-state-error">
-                    Pick a date after today.
+              {mode === "extend" && (
+                <label className="mt-5 block">
+                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+                    New end date
                   </span>
-                )}
-              </label>
-            )}
+                  <Input
+                    type="date"
+                    value={newEnd}
+                    /* Tomorrow, not today: `extendValid` requires a date STRICTLY
+                       after today, so offering today was offering a value the
+                       sheet then rejected. */
+                    min={nextDayKey(todayKey)}
+                    onChange={(e) => setNewEnd(e.target.value)}
+                    aria-label="New end date"
+                    className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
+                  />
+                  {newEnd !== "" && !extendValid && (
+                    <span className="mt-1.5 block text-xs text-state-error">
+                      Pick a date after today.
+                    </span>
+                  )}
+                </label>
+              )}
 
-            {mode === "close" && (
-              <label className="mt-5 block">
-                <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                  Reflection{" "}
-                  <span className="normal-case text-text-subtle">(optional)</span>
-                </span>
-                <Textarea
-                  value={reflection}
-                  onChange={(e) => setReflection(e.target.value)}
-                  rows={5}
-                  maxLength={REFLECTION_MAX}
-                  placeholder="What worked, what you would change, how it felt."
-                  className="rounded-xl border-border-default bg-bg-input text-sm dark:bg-bg-input"
-                />
-              </label>
-            )}
+              {mode === "close" && (
+                <label className="mt-5 block">
+                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+                    Reflection{" "}
+                    <span className="normal-case text-text-subtle">(optional)</span>
+                  </span>
+                  <Textarea
+                    value={reflection}
+                    onChange={(e) => setReflection(e.target.value)}
+                    rows={5}
+                    maxLength={REFLECTION_MAX}
+                    placeholder="What worked, what you would change, how it felt."
+                    className="rounded-xl border-border-default bg-bg-input text-sm dark:bg-bg-input"
+                  />
+                </label>
+              )}
 
-            {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
+              {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
+            </div>
           </div>
 
           {mode !== "choose" && (
@@ -282,7 +286,10 @@ export function BlockEndPrompt({
                 type="button"
                 onClick={mode === "extend" ? doExtend : doClose}
                 disabled={busy || (mode === "extend" && !extendValid)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+                className={cn(
+                  PRESS.button,
+                  "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+                )}
               >
                 {busy && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}
                 {mode === "extend"
@@ -315,8 +322,9 @@ function ChoiceRow({
       type="button"
       onClick={onClick}
       className={cn(
+        PRESS.row,
         "flex w-full items-center gap-3 rounded-xl border border-border-default px-4 py-3.5 text-left transition-colors",
-        "hover:bg-bg-surface-raised/60 active:scale-[0.99]",
+        "hover:bg-bg-surface-raised/60",
       )}
     >
       <span className="min-w-0 flex-1">

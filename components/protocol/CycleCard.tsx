@@ -1,7 +1,7 @@
 "use client"
 
 import { Container } from "@/components/containers"
-import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
+import { CARD_EYEBROW, DATA_MONO, PRESS } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 import { formatDateKeyShort, type StackCompound } from "@/lib/home/stack"
 import {
@@ -50,7 +50,8 @@ export function CycleCard({
       type="button"
       onClick={onEdit}
       disabled={!onEdit}
-      className="w-full rounded-2xl bg-bg-surface p-5 text-left transition active:scale-[0.98] disabled:active:scale-100"
+      // The press system skips a disabled card on its own.
+      className={cn(PRESS.card, "w-full rounded-2xl bg-bg-surface p-5 text-left")}
     >
       <div className="flex items-center gap-4">
         <Container

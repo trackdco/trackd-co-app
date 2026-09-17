@@ -1,11 +1,12 @@
 "use client";
 
-import { type CSSProperties, useActionState, useEffect, useId, useState } from "react";
+import { type CSSProperties, useActionState, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CircleNotch } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { NumberPad, PadInput } from "@/components/feel/NumberPad";
 import {
   CARD_EYEBROW,
   EDIT_BAR,
@@ -130,6 +131,9 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
   );
   const [goal, setGoal] = useState(initial.goal ?? "");
   const [name, setName] = useState(initial.displayName ?? "");
+  // Height is typed on the Trackd pad (feel pass §3).
+  const [heightPad, setHeightPad] = useState(false);
+  const heightRef = useRef<HTMLButtonElement>(null);
   /**
    * Stable id so the PORTALLED Save button can point back at this form. `useId`
    * rather than a literal: the preview route renders two of these cards side by
@@ -350,18 +354,36 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
           <Row label={editing ? (imperial ? "Height (in)" : "Height (cm)") : "Height"}>
             {editing ? (
               <span className={`${GROW_FIELD} w-full`} style={growAt(3)}>
-                <Input
-                  name="height"
-                  type="number"
-                  inputMode="decimal"
-                  min={imperial ? 47 : 120}
-                  max={imperial ? 91 : 230}
-                  step="0.1"
-                  placeholder={imperial ? "71" : "180"}
+                {/* The pad field is a button, so the form reads the value from
+                    this hidden input. The 120-230 cm range the native number
+                    input used to advertise is enforced by `updatePhysical`,
+                    which is where it always had to hold. */}
+                <input type="hidden" name="height" value={height} />
+                <PadInput
                   value={height}
-                  onChange={(e) => setHeight(sanitizeHeight(e.target.value))}
-                  aria-label={imperial ? "Height in inches" : "Height in centimetres"}
-                  className={FIELD}
+                  label={imperial ? "Height in inches" : "Height in centimetres"}
+                  unit={imperial ? "in" : "cm"}
+                  active={heightPad}
+                  onOpen={() => setHeightPad(true)}
+                  inputRef={heightRef}
+                  className="h-11 w-full rounded-lg px-2.5 font-sans"
+                />
+                <NumberPad
+                  active={heightPad ? 0 : null}
+                  fields={[
+                    {
+                      id: "height",
+                      label: "Height",
+                      unit: imperial ? "in" : "cm",
+                      value: height,
+                      onChange: setHeight,
+                      sanitize: sanitizeHeight,
+                    },
+                  ]}
+                  onActiveChange={() => {}}
+                  onClose={() => setHeightPad(false)}
+                  returnFocusRef={heightRef}
+                  label="Height"
                 />
               </span>
             ) : (

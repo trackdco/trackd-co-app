@@ -17,7 +17,7 @@ import { CaretRight } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { Container } from "@/components/containers/Container"
 import { useMounted } from "@/components/home/useMounted"
-import { CARD_EYEBROW, DATA_MONO, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets"
+import { CARD_EYEBROW, DATA_MONO, METRIC_VALUE, PRESS, UNIT_SUFFIX } from "@/lib/ui-presets"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { blockWindow, formatDuration, type Block } from "@/lib/blocks/block"
 import { buildRetrospective, comparePair } from "@/lib/blocks/retrospective"
@@ -192,7 +192,7 @@ export function BlockRetrospective({
         <button
           type="button"
           onClick={() => setWeightOpen(true)}
-          className="w-full rounded-2xl bg-bg-surface p-5 text-left transition-transform active:scale-[0.98] active:opacity-90"
+          className={cn(PRESS.card, "w-full rounded-2xl bg-bg-surface p-5 text-left")}
         >
           <div className="flex items-center justify-between gap-2">
             <p className={CARD_EYEBROW}>Weight</p>
@@ -252,7 +252,7 @@ export function BlockRetrospective({
         <button
           type="button"
           onClick={() => setPhotosOpen(true)}
-          className="w-full rounded-2xl bg-bg-surface p-5 text-left transition-transform active:scale-[0.98] active:opacity-90"
+          className={cn(PRESS.card, "w-full rounded-2xl bg-bg-surface p-5 text-left")}
         >
           <div className="flex items-center justify-between gap-2">
             <p className={CARD_EYEBROW}>Photos</p>

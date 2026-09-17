@@ -227,6 +227,25 @@
   --motion-base: 240ms; /* the default — cross-fades, colour/state changes */
   --motion-slow: 320ms; /* staggered entrances (.animate-shortcut-in) */
   --motion-ease: cubic-bezier(0.16, 1, 0.3, 1); /* the house ease-out */
+  /* The press system (feel pass §2): in fast, out on the release scale. */
+  --motion-press-in: 70ms;
+  --motion-press-out: 180ms;
+
+  /* Loading skeletons (feel pass §1). The block is the raised surface; the
+     ghost graph's line sits a step lighter so the curve reads as a curve. */
+  --skeleton: var(--bg-surface-raised);
+  --skeleton-line: color-mix(in srgb, var(--border-default) 60%, var(--border-strong));
+
+  /* The injection-site PICK map in the log sheet sits on the raised surface,
+     where the default body (--bg-input) and regions (--muscle-region) are nearly
+     the card's own colour. Scoped by `.body-map-raised`; the rotation view and
+     the glance card keep the defaults (feel pass §5). */
+  --pick-body: #31312e;
+  --pick-region: #46463f;
+
+  /* The number pad's scrim: lighter than a sheet's, because the form behind it
+     is still the thing being filled in (feel pass §3). */
+  --pad-scrim: rgba(0, 0, 0, 0.42);
 
   /* ---- shadcn/ui semantic aliases → mapped onto the Trackd palette ---- */
   --background: var(--bg-base);
@@ -1237,15 +1256,50 @@ svg ::-moz-selection {
    `motion-reduce:transition-none` utility, so the reduce opt-out would silently
    never apply. Owning the transition here keeps both on the same specificity
    footing and puts the opt-out below, with every other animation's. */
+/* 420ms on the house ease (feel pass §3): the draw settles as you type on the
+   Calculator's pad, with the stopper on the same clock. */
 .transition-syringe-fill {
   transform-box: fill-box;
   transform-origin: left;
-  transition: transform var(--motion-slow) var(--motion-ease);
+  transition: transform 420ms var(--motion-ease);
+}
+.transition-syringe-stopper {
+  transition: transform 420ms var(--motion-ease);
+}
+
+/* The Calculator's Draw section while the pad is open: pinned under the
+   compact title bar, on the page's own ground.
+
+   Pinning never changes the section's BOX (no padding, no hidden heading
+   collapsing), or everything under it would jump when the pad opens and again
+   when it closes. On a short phone the "Draw" heading (15px line + 12px gap)
+   tucks under the bar instead of being removed. */
+.calc-draw-pinned {
+  position: sticky;
+  top: calc(max(0.625rem, env(safe-area-inset-top)) + 2.125rem);
+  z-index: 30;
+  background-color: var(--bg-base);
+  margin-inline: -1.25rem;
+  padding-inline: 1.25rem;
+  box-shadow: 0 0.5px 0 var(--border-default);
+}
+/* The Calculator warning's own gap, inside its fold (see ReconCalculator). */
+.calc-warning-gap {
+  padding-top: 1.25rem;
+}
+@media (max-height: 650px) {
+  .calc-draw-pinned {
+    top: calc(max(0.625rem, env(safe-area-inset-top)) + 2.125rem - 1.6875rem);
+  }
+  .calc-draw-pinned > h2 {
+    visibility: hidden;
+  }
 }
 
 /* Respect users who opt out of motion — no entrance/ripple/fade for them. */
 @media (prefers-reduced-motion: reduce) {
-  .transition-syringe-fill {
+  .transition-syringe-fill,
+  .transition-syringe-stopper {
     transition: none;
   }
 
@@ -2312,7 +2366,8 @@ body[data-inline-edit="true"] .shortcuts-layer {
    (0,1,0) but LOSES to `.focus-visible\:border-ring:focus-visible` (0,2,0), so
    the focus border still lands. Deliberate; do not raise this to `:is(...)`. */
 .grow-field input,
-.grow-field select {
+.grow-field select,
+.grow-field .pad-input {
   position: relative;
   background-color: transparent;
   border-color: transparent;
@@ -2353,6 +2408,7 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .grow-field::before,
   .grow-field input,
   .grow-field select,
+  .grow-field .pad-input,
   [data-dropup-open="true"] .animate-dropup-item {
     animation: none;
   }
@@ -2416,6 +2472,273 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .animate-date-pop,
   .animate-date-value {
     animation: none;
+  }
+}
+
+/* ===========================================================================
+   FEEL PASS (wave 3) — press, sliding thumbs, skeletons, sheet contents.
+   Adrian approved every section through six prototype rounds (2026-09-17).
+   The brief is `Context/Feature Specs/wave 3/feel-pass.md`; ui-context.md →
+   Motion & Interaction carries the rules.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   PRESS (§2). `components/feel/PressFeedback.tsx` puts `data-pressed` on a
+   `press-<variant>` element while it is touched, then `data-press-release` for
+   the way back. Press-in is 70ms and release 180ms, both on the house ease.
+
+   UNLAYERED on purpose: these must beat the Tailwind utilities on the same
+   element (a pill's `transition-colors`, a key's `bg-*`). The transition list
+   is only overridden during the press window, and it carries colour and border
+   at 300ms so a pill that changes colour on the same tap still fades.
+
+   `scale`, not `transform`: the individual property composes with any
+   transform the element already has (a sliding track, a sheet) instead of
+   replacing it.
+   --------------------------------------------------------------------------- */
+:is(
+    .press-card,
+    .press-button,
+    .press-row,
+    .press-text,
+    .press-icon,
+    .press-tick,
+    .press-tab,
+    .press-fab,
+    .press-day,
+    .press-field,
+    .press-pill,
+    .press-key
+  )[data-pressed] {
+  transition-property: scale, opacity, background-color, color, border-color;
+  transition-duration:
+    var(--motion-press-in), var(--motion-press-in), var(--motion-press-in), 300ms, 300ms;
+  transition-timing-function:
+    var(--motion-ease), var(--motion-ease), var(--motion-ease), ease-out, ease-out;
+}
+
+[data-press-release] {
+  transition-property: scale, opacity, background-color, color, border-color;
+  transition-duration:
+    var(--motion-press-out), var(--motion-press-out), var(--motion-press-out), 300ms, 300ms;
+  transition-timing-function:
+    var(--motion-ease), var(--motion-ease), var(--motion-ease), ease-out, ease-out;
+}
+
+.press-card[data-pressed],
+.press-button[data-pressed] {
+  scale: 0.97;
+  opacity: 0.85;
+}
+.press-row[data-pressed] {
+  scale: 0.97;
+  background-color: var(--bg-surface-raised);
+}
+/* A destructive row (DANGER_ROW) keeps its red tint under the finger. */
+.press-row.danger-row[data-pressed] {
+  background-color: color-mix(in srgb, var(--accent-destructive) 10%, transparent);
+}
+.press-text[data-pressed] {
+  opacity: 0.45;
+}
+.press-icon[data-pressed] {
+  scale: 0.9;
+  background-color: var(--bg-surface-raised);
+}
+.press-tick[data-pressed] {
+  scale: 0.86;
+}
+.press-tab[data-pressed] {
+  scale: 0.92;
+  opacity: 0.7;
+}
+.press-fab[data-pressed] {
+  scale: 0.92;
+}
+.press-day[data-pressed] {
+  scale: 0.92;
+  background-color: var(--bg-surface-raised);
+}
+.press-field[data-pressed] {
+  scale: 0.98;
+}
+.press-pill[data-pressed] {
+  scale: 0.94;
+  opacity: 0.8;
+}
+.press-key[data-pressed] {
+  scale: 0.95;
+  background-color: var(--bg-input);
+}
+
+/* Under reduced motion the press keeps its dim and its surface, and loses the
+   scale. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="press-"][data-pressed] {
+    scale: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   SLIDING THUMB (§6). `components/feel/SlidingThumb.tsx` measures the selected
+   pill and moves this surface to it. The thumb IS the selection: a selected
+   pill in a thumb group carries no background of its own.
+
+   Layered (components), so a pill's own positioning utility still wins.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .pill-thumb {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    z-index: 0;
+    pointer-events: none;
+    transition:
+      left 300ms ease-out,
+      top 300ms ease-out,
+      width 300ms ease-out,
+      height 300ms ease-out,
+      opacity 200ms ease-out;
+  }
+  .thumb-group > :not(.pill-thumb) {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill-thumb {
+    transition: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   SKELETONS (§1). The "wave": opacity 0.5 → 1 → 0.5 over 1.9s, each block
+   delayed by its row (`--i`, one row per 70px, 110ms apart), so the breath
+   travels down the page. The ONE sanctioned loop outside /onboarding, and only
+   while something is loading.
+
+   The group fades in over 320ms without moving. When the data lands the group
+   fades out over 240ms where it stood (`.sk-leaving`, absolutely positioned
+   over the content) while the content rises through it.
+   --------------------------------------------------------------------------- */
+.sk {
+  background-color: var(--skeleton);
+  /* `backwards`: a block waiting for its row's turn holds the wave's first
+     frame (0.5) instead of showing at full strength and snapping down. */
+  animation: sk-wave 1.9s ease-in-out infinite backwards;
+  animation-delay: calc(var(--i, 0) * 110ms);
+}
+.sk:has(> svg) {
+  background-color: transparent;
+}
+.sk-wrap {
+  animation: sk-in var(--motion-slow) ease-out both;
+}
+.sk-wrap.sk-wrap-still {
+  animation: none;
+}
+.sk-leaving {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  pointer-events: none;
+  animation: sk-out var(--motion-base) ease-out forwards;
+}
+/* The copy on its way out is already showing: it must not fade in again. */
+.sk-leaving .sk-wrap {
+  animation: none;
+}
+
+/* Home's week strip while the log is unknown: the dates and day names wave
+   with the page, and the status dots wait and fade in with the data. */
+/* A week day presses its pill, not the whole cell. */
+.week-day[data-pressed] {
+  background-color: transparent;
+}
+.week-day[data-pressed] .week-pill {
+  background-color: var(--bg-surface-raised);
+}
+
+[data-week-loading="true"] .week-figure {
+  animation: sk-wave 1.9s ease-in-out infinite backwards;
+}
+.week-dot {
+  transition: opacity 300ms ease-out;
+}
+[data-week-loading="true"] .week-dot {
+  opacity: 0;
+}
+
+@keyframes sk-wave {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  45% {
+    opacity: 1;
+  }
+}
+@keyframes sk-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sk-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk,
+  .sk-wrap,
+  [data-week-loading="true"] .week-figure {
+    animation: none;
+  }
+  .sk {
+    opacity: 0.75;
+  }
+  /* It animates TO invisible, so without motion it must not show at all. */
+  .sk-leaving {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   SHEETS: LAND, THEN RISE (§4). The sheet itself keeps the house timing (320ms
+   in, 240ms out, `components/ui/sheet.tsx`). Its sections fade up 10px over
+   320ms, starting at 140ms and 40ms apart, so they arrive as the sheet lands.
+   Set `--rise-i` per section.
+
+   The fill is `backwards`, not `both`: a finished rise must hand the section
+   back its own opacity, or a disabled or pressed button inside it can no
+   longer dim.
+
+   In a flex-column scroll body every section also needs `shrink-0`: a card
+   with `overflow: hidden` otherwise gets squashed to half its height.
+   --------------------------------------------------------------------------- */
+.animate-sheet-rise {
+  animation: sheet-rise var(--motion-slow) var(--motion-ease) backwards;
+  animation-delay: calc(140ms + var(--rise-i, 0) * 40ms);
+}
+@keyframes sheet-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -2891,6 +3214,60 @@ body[data-inline-edit="true"] .shortcuts-layer {
   }
 }
 
+/* Late data fades into space that was already reserved for it. */
+.animate-late-in {
+  animation: shortcut-fade var(--motion-base) ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-rise,
+  .animate-late-in {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE NUMBER PAD (§3). `components/feel/NumberPad.tsx`. One panel over the
+   whole phone: 320ms in, 240ms out, both on the house ease. The form behind it
+   never moves.
+   --------------------------------------------------------------------------- */
+.number-pad {
+  transform: translateY(105%);
+  visibility: hidden;
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    visibility 0s linear var(--motion-base);
+}
+.number-pad[data-open="true"] {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--motion-slow) var(--motion-ease);
+}
+
+/* The field being edited, and the pad's own readout, carry a caret. */
+.pad-caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 3px;
+  vertical-align: -0.08em;
+  background-color: var(--text-primary);
+  animation: pad-caret-blink 1.05s steps(1) infinite;
+}
+.pad-caret-dark {
+  background-color: var(--bg-base);
+}
+/* In a field the caret takes no width, so it never pushes a figure out of a
+   narrow box; it sits in the padding after the value. */
+.pad-value .pad-caret {
+  margin-right: -5px;
+}
+@keyframes pad-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 @keyframes lp-menu-item-in {
   from {
     opacity: 0;
@@ -3289,6 +3666,183 @@ body[data-inline-edit="true"] .shortcuts-layer {
   }
   to {
     opacity: 0;
+  }
+}
+
+/* A refused key shakes (a second decimal point, a seventh digit). */
+.animate-key-shake {
+  animation: key-shake 280ms ease-in-out;
+}
+@keyframes key-shake {
+  20%,
+  60% {
+    translate: -3px 0;
+  }
+  40%,
+  80% {
+    translate: 3px 0;
+  }
+}
+
+/* The Calculator's compact pad: 42px keys, 34px on a short phone, where the
+   chip labels go too so the draw figure and syringe stay in view. */
+.pad-keys-compact {
+  grid-auto-rows: 42px;
+}
+@media (max-height: 650px) {
+  .pad-keys-compact {
+    grid-auto-rows: 34px;
+  }
+  .number-pad-compact .pad-chip-label {
+    display: none;
+  }
+  .number-pad-compact {
+    padding-top: 10px;
+  }
+  .number-pad-compact .pad-compact-gap {
+    margin-top: 6px;
+  }
+  .number-pad-compact .pad-compact-row {
+    height: 44px;
+  }
+  .number-pad-compact .pad-compact-hide {
+    width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .number-pad,
+  .number-pad[data-open="true"] {
+    transition: none;
+  }
+  .pad-caret,
+  .animate-key-shake {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE LOG SHEET'S BODY MAP (§4, §5). On the raised card it takes its own paint,
+   and it arrives in sequence once the sheet has landed: the body (330ms), the
+   sites (from 450ms, 30ms apart, 280ms each), then the day chips (750ms). A
+   Front/Back flip shows the new side's chips at once.
+   --------------------------------------------------------------------------- */
+.body-map-raised {
+  --body-base: var(--pick-body);
+  --muscle-region: var(--pick-region);
+}
+.body-map-arrive {
+  animation: shortcut-fade var(--motion-base) ease-out 330ms both;
+}
+.body-map-arrive .muscle-region {
+  animation: shortcut-fade 280ms ease-out both;
+  animation-delay: calc(450ms + var(--rd, 0) * 30ms);
+}
+.body-map-arrive .day-chips {
+  animation: shortcut-fade var(--motion-base) ease-out 750ms both;
+}
+.body-map-arrive .day-chips-flip {
+  animation-delay: 60ms;
+}
+/* The "Last time" line under the map arrives with the sites. */
+.animate-late-in.body-map-late {
+  animation-delay: 810ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .body-map-arrive,
+  .body-map-arrive .muscle-region,
+  .body-map-arrive .day-chips {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   GRAPHS DRAW IN ON FIRST LOAD (§7). `components/feel/FirstDraw.tsx` sweeps a
+   mask across the line (1470ms, quintic ease-out) with a ring on the tip; the
+   fill waits and fades in over 520ms. Until the graph is in view it is hidden.
+   Range switching is untouched (recharts' own 450ms line).
+   --------------------------------------------------------------------------- */
+.draw-clip {
+  /* A little room past the right edge, so the mask never shaves the end dot. */
+  padding-right: 4px;
+  margin-right: -4px;
+}
+[data-draw="pending"] .draw-clip {
+  -webkit-mask-image: linear-gradient(90deg, black 0, transparent 0);
+  mask-image: linear-gradient(90deg, black 0, transparent 0);
+}
+.draw-frame .recharts-area-area,
+.draw-frame .draw-fill {
+  transition: opacity 520ms ease-out;
+}
+[data-draw="pending"] .recharts-area-area,
+[data-draw="drawing"] .recharts-area-area,
+[data-draw="pending"] .draw-fill,
+[data-draw="drawing"] .draw-fill {
+  opacity: 0;
+  transition: none;
+}
+.chart-tracer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--tc);
+  background-color: var(--bg-surface);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 320ms ease-out;
+  will-change: transform;
+}
+.chart-tracer[data-on="true"] {
+  opacity: 1;
+  transition-duration: 80ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-draw="pending"] .draw-clip {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  [data-draw] .recharts-area-area,
+  [data-draw] .draw-fill {
+    opacity: 1;
+    transition: none;
+  }
+  .chart-tracer {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   EVERY OTHER SHEET: LAND, THEN RISE (§4, the sweep). A sheet marks the box
+   that holds its sections with `data-sheet-body`, and each direct child rises
+   in order: 10px over 320ms from 140ms, 40ms apart. The header lands with the
+   sheet and does not rise.
+
+   Layered (components), so a child's own animation class (a shake, a
+   confirm's fade) still wins. A child that mounts later rises when it does,
+   which is the "late content arrives in place" rule.
+   --------------------------------------------------------------------------- */
+@layer components {
+  [data-sheet-body] > * {
+    animation: sheet-rise var(--motion-slow) var(--motion-ease) backwards;
+    animation-delay: calc(140ms + var(--rise-i, 0) * 40ms);
+  }
+  [data-sheet-body] > :nth-child(2) { --rise-i: 1; }
+  [data-sheet-body] > :nth-child(3) { --rise-i: 2; }
+  [data-sheet-body] > :nth-child(4) { --rise-i: 3; }
+  [data-sheet-body] > :nth-child(5) { --rise-i: 4; }
+  [data-sheet-body] > :nth-child(6) { --rise-i: 5; }
+  [data-sheet-body] > :nth-child(7) { --rise-i: 6; }
+  [data-sheet-body] > :nth-child(n + 8) { --rise-i: 7; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-sheet-body] > * {
+    animation: none;
   }
 }
 

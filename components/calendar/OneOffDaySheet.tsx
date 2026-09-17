@@ -54,69 +54,75 @@ export function OneOffDaySheet({
         <div className="space-y-3 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
           <p className={DATA_MONO}>{dateLabel}</p>
 
-          {logs.length === 0 ? (
-            <p className="rounded-2xl bg-bg-surface-raised px-4 py-5 text-center text-sm text-text-muted">
-              Nothing off-plan logged on this day.
-            </p>
-          ) : (
-            <ul>
-              {logs.map((o) => (
-                <li
-                  key={o.id}
-                  className="hairline-t flex min-h-12 items-center gap-3 border-border-default"
-                >
-                  <Container
-                    name={o.compoundName ?? o.label}
-                    inventoryType={inventoryTypeForCompound(
-                      o.compoundName ?? o.label,
-                      o.method ?? "po"
-                    )}
-                    category={o.category ?? "supplement"}
-                    size={28}
-                    className="shrink-0"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-foreground">
-                      {o.label}
-                    </span>
-                    {o.note && (
-                      <span className="block truncate text-xs text-text-subtle">
-                        {o.note}
-                      </span>
-                    )}
-                  </span>
-                  <span className={cn(DATA_MONO, "shrink-0")}>
-                    {o.amount ? `${o.amount}${o.unit ?? ""}` : (o.unit ?? "")}
-                  </span>
-                  {/* A HARD delete, unlike everything else in the app. A one-off
-                      carries no history anything depends on and will be mis-typed
-                      constantly, so the honest verb is the one the user means. */}
-                  <button
-                    type="button"
-                    onClick={() => onRemove(o.id)}
-                    aria-label={`Remove ${o.label}`}
-                    className="shrink-0 p-1 text-text-subtle transition-colors hover:text-accent-destructive"
+          {/* The sections rise in as the sheet lands (feel pass §4); the date
+              lands with the title. */}
+          <div data-sheet-body className="space-y-3">
+            {logs.length === 0 ? (
+              <p className="rounded-2xl bg-bg-surface-raised px-4 py-5 text-center text-sm text-text-muted">
+                Nothing off-plan logged on this day.
+              </p>
+            ) : (
+              <ul>
+                {logs.map((o) => (
+                  <li
+                    key={o.id}
+                    className="hairline-t flex min-h-12 items-center gap-3 border-border-default"
                   >
-                    <Trash className="h-4 w-4" aria-hidden />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                    <Container
+                      name={o.compoundName ?? o.label}
+                      inventoryType={inventoryTypeForCompound(
+                        o.compoundName ?? o.label,
+                        o.method ?? "po"
+                      )}
+                      category={o.category ?? "supplement"}
+                      size={28}
+                      className="shrink-0"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-foreground">
+                        {o.label}
+                      </span>
+                      {o.note && (
+                        <span className="block truncate text-xs text-text-subtle">
+                          {o.note}
+                        </span>
+                      )}
+                    </span>
+                    <span className={cn(DATA_MONO, "shrink-0")}>
+                      {o.amount ? `${o.amount}${o.unit ?? ""}` : (o.unit ?? "")}
+                    </span>
+                    {/* A HARD delete, unlike everything else in the app. A one-off
+                        carries no history anything depends on and will be mis-typed
+                        constantly, so the honest verb is the one the user means. */}
+                    <button
+                      type="button"
+                      onClick={() => onRemove(o.id)}
+                      aria-label={`Remove ${o.label}`}
+                      className="shrink-0 p-1 text-text-subtle transition-colors hover:text-accent-destructive"
+                    >
+                      <Trash className="h-4 w-4" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
 
-          <button
-            type="button"
-            onClick={onAdd}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            Log something else
-          </button>
+            <div>
+              <button
+                type="button"
+                onClick={onAdd}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                Log something else
+              </button>
+            </div>
 
-          <p className="text-xs leading-relaxed text-text-subtle">
-            These are recorded on their own. They do not affect your stock, your
-            schedule or your consistency.
-          </p>
+            <p className="text-xs leading-relaxed text-text-subtle">
+              These are recorded on their own. They do not affect your stock, your
+              schedule or your consistency.
+            </p>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

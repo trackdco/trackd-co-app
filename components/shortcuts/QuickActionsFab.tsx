@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation"
 import { Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { PRESS } from "@/lib/ui-presets"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
-import { AddWeightSheet } from "@/components/home/AddWeightSheet"
+import { LogWeightPad } from "@/components/weight/LogWeightPad"
 import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
 import {
   QUICK_ACTIONS,
@@ -24,6 +25,8 @@ interface QuickActionsFabProps {
   unit: WeightUnit
   /** Forwarded to the quick log-dose flow's body map (which figure to draw). */
   bodySex: BodySex
+  /** The latest weigh-in (kg), which Log weight opens on, selected. */
+  lastWeightKg?: number | null
 }
 
 /** Keep in step with `--motion-fast` — the JS unmount must outlast the CSS exit. */
@@ -71,7 +74,12 @@ const prefersReducedMotion = () =>
  * Rendered once by the (app) shell, so it appears on exactly the screens that
  * show the bottom nav.
  */
-export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps) {
+export function QuickActionsFab({
+  userId,
+  unit,
+  bodySex,
+  lastWeightKg = null,
+}: QuickActionsFabProps) {
   const router = useRouter()
   const { canWrite, guard } = useWriteAccess()
   const fabRef = useRef<HTMLButtonElement>(null)
@@ -310,7 +318,10 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
           aria-expanded={open}
           aria-haspopup="dialog"
           aria-label={open ? "Close quick actions" : "Open quick actions"}
-          className="pointer-events-auto absolute right-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg transition-transform active:scale-95"
+          className={cn(
+            PRESS.fab,
+            "pointer-events-auto absolute right-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg",
+          )}
           style={{ bottom: FAB_BOTTOM }}
         >
           <Plus
@@ -334,12 +345,14 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
       {/* "Add a compound" → the existing, unchanged Add-to-Stack flow. */}
       <AddToStackMenu open={addOpen} onOpenChange={setAddOpen} userId={userId} />
 
-      {/* "Weight" → quick log of today's bodyweight + optional progress photos. */}
-      <AddWeightSheet
+      {/* "Weight" → the number pad, on the last weight (feel pass §3). */}
+      <LogWeightPad
         open={weightOpen}
         onOpenChange={setWeightOpen}
         unit={unit}
-        userId={userId}
+        lastKg={lastWeightKg}
+        // The tile that opened it is gone with the menu; the + is what is left.
+        returnFocusRef={fabRef}
       />
 
     </>
@@ -362,7 +375,10 @@ function ActionTile({
       ref={ref}
       type="button"
       onClick={onPress}
-      className="flex min-h-11 flex-col items-center justify-start gap-2 rounded-2xl p-1 text-center transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input active:bg-bg-input"
+      className={cn(
+        PRESS.card,
+        "flex min-h-11 flex-col items-center justify-start gap-2 rounded-2xl p-1 text-center transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input",
+      )}
     >
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-bg-input text-foreground">
         <Icon className="h-5 w-5" aria-hidden />

@@ -4,6 +4,9 @@ import { useState } from "react"
 import { CaretRight } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { DrawFrame, useFirstDraw } from "@/components/feel/FirstDraw"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
+import { PRESS } from "@/lib/ui-presets"
 import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets"
 import type { DateKey } from "@/lib/home/mockHomeData"
 import { kgToUnit, type WeightUnit } from "@/lib/weight"
@@ -15,6 +18,12 @@ interface WeightGlanceCardProps {
   unit: WeightUnit
   /** Tap → the full Weight view. Logging happens there (and via the + menu). */
   onOpenDetail: () => void
+  /**
+   * Tap on the EMPTY card, when given: log the first weight straight away (the
+   * Log weight pad) instead of opening a Weight view with nothing in it. A
+   * filled card still opens the view.
+   */
+  onLogFirst?: (from: HTMLElement) => void
 }
 
 type WeightMode = "trend" | "scale"
@@ -61,8 +70,12 @@ export function WeightGlanceCard({
   series,
   unit,
   onOpenDetail,
+  onLogFirst,
   compact = false,
+  drawKey = null,
 }: WeightGlanceCardProps & {
+  /** Names the sparkline for its first-load draw (feel pass §7). */
+  drawKey?: string | null
   /**
    * Progress's two-up grid (spec 08 · part two): the same card stacked into a
    * square instead of laid out in a row. Same data, same Trend/Scale toggle,
@@ -75,6 +88,8 @@ export function WeightGlanceCard({
   // themselves (matches the full Weight view — never auto-selects trend).
   const [mode, setMode] = useState<WeightMode>("scale")
   const empty = series.length === 0
+  const draw = useFirstDraw(drawKey)
+  const lineColor = mode === "trend" ? "var(--chart-trend)" : "var(--chart-line)"
 
   const scaleAll = series.map((p) => kgToUnit(p.kg, unit))
   const trendAll = movingAverage(scaleAll, TREND_WINDOW)
@@ -94,7 +109,7 @@ export function WeightGlanceCard({
           // once a reading existed, which is exactly backwards.
           <button
             type="button"
-            onClick={onOpenDetail}
+            onClick={onLogFirst ? (e) => onLogFirst(e.currentTarget) : onOpenDetail}
             aria-label="Log your first weight"
             className="mt-3 flex flex-1 flex-col items-start text-left"
           >
@@ -114,9 +129,15 @@ export function WeightGlanceCard({
                   <ValueBlock active={mode === "scale"} s={scaleStat} unit={unit} kind="scale" />
                 </span>
               </span>
+              <DrawFrame
+                draw={draw}
+                line='[data-active="true"] .draw-line'
+                color={lineColor}
+                className="mt-3 h-10 w-full"
+              >
               <svg
                 viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
-                className="mt-3 h-10 w-full"
+                className="h-10 w-full"
                 preserveAspectRatio="none"
                 aria-hidden
               >
@@ -133,11 +154,18 @@ export function WeightGlanceCard({
                   active={mode === "trend"}
                 />
               </svg>
+              </DrawFrame>
             </button>
             {/* The toggle stays: it is the card's only control and the spec
                 names it explicitly. Full width here rather than railed right,
                 because a third of a square is not enough for two labels. */}
-            <div className="mt-3 grid grid-cols-2 gap-1 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]">
+            <ThumbGroup
+              selection={mode}
+              thumbClassName="rounded-full bg-bg-surface-raised"
+              role="group"
+              aria-label="Weight series"
+              className="mt-3 grid grid-cols-2 gap-1 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]"
+            >
               {(["trend", "scale"] as const).map((m) => (
                 <button
                   key={m}
@@ -145,18 +173,19 @@ export function WeightGlanceCard({
                   onClick={() => setMode(m)}
                   aria-pressed={mode === m}
                   className={cn(
+                    PRESS.pill,
                     "rounded-full py-1 font-medium transition-colors duration-300 ease-out",
                     // Touch area extended to 44px with a transparent
                     // pseudo-element (25 + 2x10), so the pill keeps its compact
                     // look and stops being a 25px-tall target.
                     "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
-                    mode === m ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
+                    mode === m ? "text-foreground" : "text-text-muted",
                   )}
                 >
                   {m === "trend" ? "Trend" : "Scale"}
                 </button>
               ))}
-            </div>
+            </ThumbGroup>
           </>
         )}
       </div>
@@ -172,7 +201,13 @@ export function WeightGlanceCard({
         </div>
 
         {!empty && (
-          <div className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]">
+          <ThumbGroup
+            selection={mode}
+            thumbClassName="rounded-full bg-bg-surface-raised"
+            role="group"
+            aria-label="Weight series"
+            className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]"
+          >
             {(["trend", "scale"] as const).map((m) => (
               <button
                 key={m}
@@ -180,23 +215,24 @@ export function WeightGlanceCard({
                 onClick={() => setMode(m)}
                 aria-pressed={mode === m}
                 className={cn(
+                  PRESS.pill,
                   "rounded-full px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
                   "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
-                  mode === m ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
+                  mode === m ? "text-foreground" : "text-text-muted",
                 )}
               >
                 {m === "trend" ? "Trend" : "Scale"}
               </button>
             ))}
-          </div>
+          </ThumbGroup>
         )}
       </div>
 
       {/* Content — tappable into the full Weight view. */}
       <button
         type="button"
-        onClick={onOpenDetail}
-        aria-label="Open the weight view"
+        onClick={empty && onLogFirst ? (e) => onLogFirst(e.currentTarget) : onOpenDetail}
+        aria-label={empty && onLogFirst ? "Log your first weight" : "Open the weight view"}
         className="flex w-full items-center gap-4 rounded-b-2xl px-5 pb-5 text-left transition-colors hover:bg-bg-surface-raised/30"
       >
         {empty ? (
@@ -214,9 +250,15 @@ export function WeightGlanceCard({
             </span>
 
             {/* Sparkline — both lines rendered, crossfading by mode. */}
+            <DrawFrame
+              draw={draw}
+              line='[data-active="true"] .draw-line'
+              color={lineColor}
+              className="h-10 w-[7.5rem] shrink-0"
+            >
             <svg
               viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
-              className="h-10 w-[7.5rem] shrink-0"
+              className="h-10 w-[7.5rem]"
               preserveAspectRatio="none"
               aria-hidden
             >
@@ -233,6 +275,7 @@ export function WeightGlanceCard({
                 active={mode === "trend"}
               />
             </svg>
+            </DrawFrame>
 
             <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
           </>
@@ -313,7 +356,7 @@ function SparkLine({
   const { line, area } = sparkGeometry(vals, SPARK_W, SPARK_H)
   const last = sparkLastPoint(vals, SPARK_W, SPARK_H)
   return (
-    <g className={cls}>
+    <g className={cls} data-active={active ? "true" : "false"}>
       <defs>
         {/* Same stops as `consistencyFill`: 0.35 at the line, 0 at the base. */}
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -321,8 +364,9 @@ function SparkLine({
           <stop offset="100%" stopColor={color} stopOpacity={0} />
         </linearGradient>
       </defs>
-      <path d={area} fill={`url(#${gradientId})`} stroke="none" />
+      <path d={area} fill={`url(#${gradientId})`} stroke="none" className="draw-fill" />
       <path
+        className="draw-line"
         d={line}
         fill="none"
         stroke={color}

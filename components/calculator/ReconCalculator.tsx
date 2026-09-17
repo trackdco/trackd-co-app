@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useMemo, useState, useSyncExternalStore } from "react"
+import { useId, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { CaretDown, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
@@ -21,6 +21,7 @@ import { CALCULATOR_DISCLAIMER, misuseCopy } from "@/lib/calculator/copy"
 import {
   DEFAULT_SYRINGE_SIZE,
   fillFraction,
+  MIN_READABLE_UNITS,
   misuseKind,
   syringeSize,
   type SyringeSizeId,
@@ -30,6 +31,8 @@ import {
   recordSyringeChoice,
   subscribeSyringeChoice,
 } from "@/lib/calculator/syringeChoice"
+
+import { NumberPad, type PadField } from "@/components/feel/NumberPad"
 
 import { CalculatorInputs } from "./CalculatorInputs"
 import { FirstRunDisclaimer } from "./FirstRunDisclaimer"
@@ -152,7 +155,93 @@ export function ReconCalculator() {
     doseUnit !== DEFAULT_DOSE_UNIT ||
     workingOpen
 
+  /**
+   * THE COMPACT PAD (feel pass §3). The three fields ride in the pad as chips,
+   * the active field's mg/mcg toggle sits in its bottom row, and there is no
+   * scrim: the point is to watch the syringe fill as you type.
+   */
+  const FIELD_ORDER = ["powder", "bac", "dose"] as const
+  const [padIndex, setPadIndex] = useState<number | null>(null)
+  const drawRef = useRef<HTMLElement>(null)
+  const fieldRefs = {
+    powder: useRef<HTMLButtonElement>(null),
+    bac: useRef<HTMLButtonElement>(null),
+    dose: useRef<HTMLButtonElement>(null),
+  }
+  const padFields: PadField[] = [
+    {
+      id: "powder",
+      label: "Powder",
+      short: "Powder",
+      unit: powderUnit,
+      value: powder,
+      onChange: (v) => setPowder(sanitizeAmount(v)),
+      sanitize: sanitizeAmount,
+      unitOptions: {
+        options: ["mg", "mcg"],
+        value: powderUnit,
+        onChange: (u) => setPowderUnit(u as MgUnit),
+      },
+    },
+    {
+      id: "bac",
+      label: "BAC water",
+      short: "Water",
+      unit: "mL",
+      value: bac,
+      onChange: (v) => setBac(sanitizeAmount(v)),
+      sanitize: sanitizeAmount,
+    },
+    {
+      id: "dose",
+      label: "Dose",
+      short: "Dose",
+      unit: doseUnit,
+      value: dose,
+      onChange: (v) => setDose(sanitizeAmount(v)),
+      sanitize: sanitizeAmount,
+      unitOptions: {
+        options: ["mg", "mcg"],
+        value: doseUnit,
+        onChange: (u) => setDoseUnit(u as MgUnit),
+      },
+    },
+  ]
+  const activeField = padIndex === null ? null : FIELD_ORDER[padIndex]
+  const padOpen = padIndex !== null
+  // The field the pad was last on, for focus to go back to once it has closed
+  // (by then `activeField` is already null).
+  const lastFieldRef = useRef<(typeof FIELD_ORDER)[number] | null>(null)
+  const setPadField = (index: number | null) => {
+    if (index !== null) lastFieldRef.current = FIELD_ORDER[index]
+    setPadIndex(index)
+  }
+
+  function openPad(field: (typeof FIELD_ORDER)[number]) {
+    setPadField(FIELD_ORDER.indexOf(field))
+    if (padOpen) return
+    // Bring the Draw section to the top, under the compact title bar, where
+    // it pins: the figure and the syringe stay in view with the results
+    // card under them while the pad covers the inputs.
+    const draw = drawRef.current
+    if (!draw) return
+    const bar = document.querySelector<HTMLElement>("[data-page-scroll-bar]")
+    let top = bar ? bar.getBoundingClientRect().height : 0
+    // On a short phone the pinned section tucks its "Draw" heading under the
+    // bar (see `.calc-draw-pinned`), so it scrolls that much further.
+    if (window.matchMedia("(max-height: 650px)").matches) {
+      const h2 = draw.querySelector("h2")
+      if (h2) top -= h2.offsetHeight + parseFloat(getComputedStyle(h2).marginBottom || "0")
+    }
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    window.scrollTo({
+      top: Math.max(0, draw.getBoundingClientRect().top + window.scrollY - top),
+      behavior: reduce ? "auto" : "smooth",
+    })
+  }
+
   function reset() {
+    setPadField(null)
     setPowder("")
     setPowderUnit("mg")
     setBac("")
@@ -171,21 +260,25 @@ export function ReconCalculator() {
       {/* ---- The reading. Bare, outside any card, so the syringe is the screen
               rather than a thing on the screen.
 
-              NOT PINNED. It was made sticky-while-typing on 2026-07-31 so the
-              keyboard could not push the barrel off-screen, and Adrian reversed
-              that the same day after using it on a real iPhone: iOS resizes the
-              visual viewport when the keyboard opens, so the pinned section
-              stayed put while everything else moved and it covered the field
-              being typed in. The cure was worse than the complaint. Back to
-              scrolling with the page, which is what the 2026-07-30 decision
-              wanted in the first place.
+              PINNED ONLY WHILE THE PAD IS OPEN (feel pass §3, approved round
+              4). It was made sticky-while-typing once before (2026-07-31) and
+              reversed the same day, because iOS resized the visual viewport for
+              its keyboard and the pinned section covered the field being typed
+              in. The Trackd pad has no system keyboard and never resizes
+              anything: it covers the inputs, and the pinned draw figure and
+              syringe are exactly what you want to watch while it does. Closed,
+              the section scrolls with the page as before.
 
               Section heading ABOVE the content at `px-1`, which is Protocol's
               idiom (`CompoundsRow`, `ScheduleGrid`) and what makes a standalone
               tab screen read as one page rather than a stack of boxes. ---- */}
       <section
+        ref={drawRef}
         data-area="calc-draw"
-        className="animate-home-up space-y-3 pb-3"
+        className={cn(
+          "animate-home-up space-y-3 pb-3",
+          padOpen && "calc-draw-pinned",
+        )}
         style={{ animationDelay: "0ms" }}
       >
         <h2 className={cn(CARD_EYEBROW, "px-1")}>Draw</h2>
@@ -200,6 +293,23 @@ export function ReconCalculator() {
               <span className={METRIC_VALUE}>{trim(units, 1)}</span>
               <span className={UNIT_SUFFIX}>units</span>
             </>
+          ) : null}
+          {/* While the pad is open the full warning below is folded away, so
+              the results card stays in view above the pad; this line carries
+              it instead. The full panel (a status region) is what is
+              announced, so this copy is hidden from assistive tech. */}
+          {padOpen && misuse ? (
+            <span
+              aria-hidden
+              className="ml-auto flex min-w-0 items-center gap-1.5 self-center text-xs text-accent-amber"
+            >
+              <Warning className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">
+                {misuse === "under"
+                  ? `Under ${MIN_READABLE_UNITS} units, too little to read`
+                  : `Will not fit a ${size.label} syringe`}
+              </span>
+            </span>
           ) : null}
         </div>
         <div className="-mx-2">
@@ -222,15 +332,21 @@ export function ReconCalculator() {
           behind the keyboard. `role="status"` not `alert`: the text carries the
           live figure and changes on every digit, and an assertive region
           re-announces the whole sentence each time. */}
+      {/* Folded, it takes NO room: `-mt-5` cancels the gap above it and its
+          own gap below stands, so Draw and the figures sit one gap apart
+          rather than two. Open, the gap comes back inside (`calc-warning-gap`).
+          That spare 20px is what keeps the figures above the pad on an SE. */}
       <div
         data-area="calc-warning"
-        className="animate-home-up grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
-        style={{ gridTemplateRows: misuse ? "1fr" : "0fr" }}
+        className="animate-home-up -mt-5 grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+        style={{ gridTemplateRows: misuse && !padOpen ? "1fr" : "0fr" }}
       >
         <div className="overflow-hidden">
-          <div role="status" className={AMBER_PANEL}>
-            <Warning className={AMBER_PANEL_ICON} aria-hidden />
-            <p className={AMBER_PANEL_TEXT}>{warning}</p>
+          <div className="calc-warning-gap">
+            <div role="status" className={AMBER_PANEL}>
+              <Warning className={AMBER_PANEL_ICON} aria-hidden />
+              <p className={AMBER_PANEL_TEXT}>{warning}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -240,7 +356,7 @@ export function ReconCalculator() {
       <section
         data-area="calc-figures"
         className="animate-home-up grid grid-cols-3 divide-x divide-border-default rounded-2xl bg-bg-surface py-3"
-        style={{ animationDelay: "40ms" }}
+        style={{ animationDelay: "55ms" }}
       >
         <Figure
           label="Concentration"
@@ -263,30 +379,41 @@ export function ReconCalculator() {
       </section>
 
       {/* ---- Inputs ---- */}
-      <div data-area="calc-inputs" className="animate-home-up" style={{ animationDelay: "80ms" }}>
+      <div data-area="calc-inputs" className="animate-home-up" style={{ animationDelay: "110ms" }}>
         <CalculatorInputs
           sizeId={sizeId}
           onSizeChange={chooseSize}
           powder={powder}
-          onPowderChange={(v) => setPowder(sanitizeAmount(v))}
           powderUnit={powderUnit}
           onPowderUnitChange={setPowderUnit}
           bac={bac}
-          onBacChange={(v) => setBac(sanitizeAmount(v))}
           dose={dose}
-          onDoseChange={(v) => setDose(sanitizeAmount(v))}
           doseUnit={doseUnit}
           onDoseUnitChange={setDoseUnit}
           onReset={reset}
           resettable={resettable}
+          activeField={activeField}
+          onOpenField={openPad}
+          fieldRefs={fieldRefs}
         />
       </div>
+
+      <NumberPad
+        active={padIndex}
+        fields={padFields}
+        onActiveChange={setPadField}
+        onClose={() => setPadField(null)}
+        variant="compact"
+        scrim={false}
+        returnFocus={() => (lastFieldRef.current ? fieldRefs[lastFieldRef.current].current : null)}
+        label="Calculator inputs"
+      />
 
       {/* ---- The working, collapsed by default ---- */}
       <section
         data-area="calc-working"
         className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface"
-        style={{ animationDelay: "120ms" }}
+        style={{ animationDelay: "165ms" }}
       >
         <button
           type="button"
@@ -363,7 +490,7 @@ export function ReconCalculator() {
       <div
         data-area="calc-legal"
         className={cn("animate-home-up", AMBER_PANEL)}
-        style={{ animationDelay: "160ms" }}
+        style={{ animationDelay: "220ms" }}
       >
         <Warning className={AMBER_PANEL_ICON} aria-hidden />
         <p className={AMBER_PANEL_TEXT}>{CALCULATOR_DISCLAIMER}</p>

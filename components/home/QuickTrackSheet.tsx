@@ -19,7 +19,7 @@ import {
   FALLBACK_CATEGORY_META,
   type CompoundCategory,
 } from "@/lib/compound-categories"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { LogDoseSheet } from "@/components/home/LogDoseSheet"
 import type { BodySex } from "@/lib/db/types"
@@ -245,7 +245,9 @@ function QuickTrackBody({
 
   return (
     <>
-      <div className="px-4">
+      {/* The groups rise in as the sheet lands (feel pass §4), so each one is a
+          direct child here. */}
+      <div data-sheet-body className="px-4">
         {dueCompounds.length === 0 ? (
           // A dead end on a cold start: the user came here to log a dose and the
           // only control was "Done". Empty copy states the fact AND the next
@@ -263,7 +265,7 @@ function QuickTrackBody({
         ) : (
           // Grouped by category, like the dashboard's Today's Log: each category is
           // a slim divider (dot · label · "N due"/"Logged"), not a container.
-          <div>
+          <>
             {groupByCategory(dueCompounds).map((group) => {
               const pending = group.items.filter((c) => !targetLogs[c.id]).length
               return (
@@ -297,7 +299,7 @@ function QuickTrackBody({
                 </div>
               )
             })}
-          </div>
+          </>
         )}
       </div>
 
@@ -361,7 +363,8 @@ function QuickRow({
         onClick={() => (log ? onUnlog() : onOpen())}
         aria-label={log ? `Untick ${compound.name}` : `Log ${compound.name}`}
         className={cn(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
+          PRESS.tick,
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
           log
             ? "border-accent-primary bg-accent-primary text-bg-base"
             : "border-border-strong text-transparent hover:border-text-primary"

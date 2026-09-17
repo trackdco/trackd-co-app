@@ -9,7 +9,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
+import { usePadSession } from "@/components/feel/usePadSession"
 import { cn } from "@/lib/utils"
 import {
   CYCLE_COLOURS,
@@ -121,6 +123,11 @@ function CycleRuleForm({
   const [colour, setColour] = useState<CycleColour>(cycle?.colour ?? DEFAULT_CYCLE_COLOUR)
   const [anchor, setAnchor] = useState(cycle?.anchor ?? todayKey())
 
+  // The three lengths on one Trackd pad (feel pass §3). Whole days, three
+  // digits at most.
+  const pad = usePadSession()
+  const digits = (raw: string) => raw.replace(/\D/g, "").slice(0, 3)
+
   const pattern: CyclePattern = repeats
     ? {
         type: "onOff",
@@ -174,7 +181,8 @@ function CycleRuleForm({
   }
 
   return (
-    <div className="space-y-5 px-4 pb-2">
+    // The sections rise in as the sheet lands (feel pass §4).
+    <div data-sheet-body className="space-y-5 px-4 pb-2">
       {/* Pattern */}
       <div className="space-y-3">
         <p className={LABEL}>Pattern</p>
@@ -196,21 +204,11 @@ function CycleRuleForm({
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1">
               <span className={LABEL}>Days on</span>
-              <input
-                className={FIELD}
-                inputMode="numeric"
-                value={onDays}
-                onChange={(e) => setOnDays(e.target.value.replace(/\D/g, ""))}
-              />
+              <PadInput {...pad.bind("onDays")} value={onDays} label="Days on" unit="days" className="h-11 w-full" />
             </label>
             <label className="space-y-1">
               <span className={LABEL}>Days off</span>
-              <input
-                className={FIELD}
-                inputMode="numeric"
-                value={offDays}
-                onChange={(e) => setOffDays(e.target.value.replace(/\D/g, ""))}
-              />
+              <PadInput {...pad.bind("offDays")} value={offDays} label="Days off" unit="days" className="h-11 w-full" />
             </label>
           </div>
         )}
@@ -236,7 +234,7 @@ function CycleRuleForm({
               key={t}
               type="button"
               onClick={() => setEndType(t)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:scale-[0.98]"
+              className={cn(PRESS.button, "flex w-full items-center gap-3 px-4 py-3 text-left")}
             >
               <span
                 className={cn(
@@ -264,12 +262,7 @@ function CycleRuleForm({
         {effectiveEndType === "afterRounds" && (
           <label className="space-y-1 block">
             <span className={LABEL}>Rounds</span>
-            <input
-              className={FIELD}
-              inputMode="numeric"
-              value={rounds}
-              onChange={(e) => setRounds(e.target.value.replace(/\D/g, ""))}
-            />
+            <PadInput {...pad.bind("rounds")} value={rounds} label="Rounds" className="h-11 w-full" />
             <span className="text-xs text-text-muted">
               One round is {repeats ? `${pattern.type === "onOff" ? pattern.onDays : 0} on plus ${pattern.type === "onOff" ? pattern.offDays : 0} off` : "one on and off period"}.
             </span>
@@ -290,7 +283,8 @@ function CycleRuleForm({
               onClick={() => setColour(c)}
               style={{ background: cycleColourVar(c) }}
               className={cn(
-                "h-9 w-9 rounded-full transition active:scale-[0.94]",
+                PRESS.tick,
+                "h-9 w-9 rounded-full transition",
                 colour === c && "ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-surface"
               )}
             />
@@ -306,7 +300,7 @@ function CycleRuleForm({
               onSave(null)
               onClose()
             }}
-            className="h-11 flex-1 rounded-xl border border-border-default text-sm text-text-muted transition active:scale-[0.98]"
+            className={cn(PRESS.button, "h-11 flex-1 rounded-xl border border-border-default text-sm text-text-muted")}
           >
             Remove
           </button>
@@ -315,11 +309,30 @@ function CycleRuleForm({
           type="button"
           onClick={save}
           disabled={!valid}
-          className="h-11 flex-1 rounded-xl bg-accent-primary text-sm font-medium text-bg-base transition active:scale-[0.98] disabled:opacity-40"
+          className={cn(PRESS.button, "h-11 flex-1 rounded-xl bg-accent-primary text-sm font-medium text-bg-base disabled:opacity-40")}
         >
           Save
         </button>
       </SheetFooter>
+
+      <NumberPad
+        {...pad.padProps(
+          [
+            ...(repeats
+              ? ([
+                  { id: "onDays", label: "Days on", short: "On", unit: "days", value: onDays, onChange: setOnDays, decimal: false, sanitize: digits },
+                  { id: "offDays", label: "Days off", short: "Off", unit: "days", value: offDays, onChange: setOffDays, decimal: false, sanitize: digits },
+                ] satisfies PadField[])
+              : []),
+            ...(effectiveEndType === "afterRounds"
+              ? ([
+                  { id: "rounds", label: "Rounds", short: "Rounds", value: rounds, onChange: setRounds, decimal: false, sanitize: digits },
+                ] satisfies PadField[])
+              : []),
+          ],
+        )}
+        label="Cycle lengths"
+      />
     </div>
   )
 }
@@ -340,7 +353,8 @@ function PatternOption({
       type="button"
       onClick={onSelect}
       className={cn(
-        "rounded-2xl px-3 py-3 text-left transition active:scale-[0.98]",
+        PRESS.card,
+        "rounded-2xl px-3 py-3 text-left transition",
         selected ? "bg-bg-input" : "bg-bg-surface-raised"
       )}
     >

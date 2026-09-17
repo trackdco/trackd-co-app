@@ -13,7 +13,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
-import { CARD_EYEBROW, SHEET_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 import { CycleCard } from "@/components/protocol/CycleCard"
 import { CycleRuleSheet } from "@/components/protocol/CycleRuleSheet"
 import { CycleDetailSheet } from "@/components/protocol/CycleDetailSheet"
@@ -154,7 +155,8 @@ export function CyclesView({
               Which compound should run on a cycle?
             </p>
           </SheetHeader>
-          <ul className="divide-y divide-border-default px-4 pb-4">
+          {/* Each compound rises in as the sheet lands (feel pass §4). */}
+          <ul data-sheet-body className="divide-y divide-border-default px-4 pb-4">
             {uncycled.map((c) => (
               <li key={c.id}>
                 <button
@@ -163,7 +165,7 @@ export function CyclesView({
                     setPicking(false)
                     setEditing(c)
                   }}
-                  className="flex w-full items-center gap-3 py-3 text-left transition active:scale-[0.99]"
+                  className={cn(PRESS.button, "flex w-full items-center gap-3 py-3 text-left")}
                 >
                   <CategoryIcon category={c.category} />
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">

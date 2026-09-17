@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { CategoryIcon } from "@/components/compounds/CategoryIcon";
-import { SHEET_TITLE } from "@/lib/ui-presets";
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 import { formatTimeLabel, type StackCompound } from "@/lib/home/stack";
 import { siteLabel } from "@/lib/home/siteCatalog";
 import { formatJournalDate, type EntryMarker } from "@/lib/progress/journal";
@@ -141,7 +142,9 @@ export function DayDetailSheet({
               {dateKey ? formatJournalDate(dateKey) : ""}
             </h2>
 
-            <div className="space-y-5">
+            {/* Each section rises in as the sheet lands (feel pass §4); the date
+                above lands with the sheet. */}
+            <div data-sheet-body className="space-y-5">
               {/* 0 — Cycles covering this day. Only shown when the day is inside
                   one, so an uncycled day's sheet is unchanged. */}
               {cycles && cycles.length > 0 && (
@@ -283,7 +286,10 @@ export function DayDetailSheet({
                         <button
                           type="button"
                           onClick={() => onLogDose(c)}
-                          className="flex w-full items-center gap-2.5 rounded-lg py-1 text-left transition-opacity active:scale-[0.99] hover:opacity-80"
+                          className={cn(
+                            PRESS.button,
+                            "flex w-full items-center gap-2.5 rounded-lg py-1 text-left transition-opacity hover:opacity-80",
+                          )}
                         >
                           <CategoryIcon category={c.category} className="h-3.5 w-3.5" />
                           <span className="min-w-0 flex-1 truncate text-sm text-foreground">

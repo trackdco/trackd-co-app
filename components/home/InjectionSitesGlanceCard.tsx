@@ -3,7 +3,8 @@
 import { useState } from "react"
 
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import type {
   BodySex,
   InjectionSiteAspect,
@@ -75,7 +76,14 @@ export function InjectionSitesGlanceCard({
           <p className={cn(CARD_EYEBROW, "truncate")}>Injection sites</p>
         </div>
 
-        <div className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]">
+        {/* On the shared sliding thumb (feel pass §6). */}
+        <ThumbGroup
+          selection={route}
+          thumbClassName="rounded-full bg-bg-surface-raised"
+          role="group"
+          aria-label="Route"
+          className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]"
+        >
           {ROUTES.map((r) => (
             <button
               key={r.key}
@@ -83,16 +91,15 @@ export function InjectionSitesGlanceCard({
               onClick={() => setPicked(r.key)}
               aria-pressed={route === r.key}
               className={cn(
+                PRESS.pill,
                 "rounded-full px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
-                route === r.key
-                  ? "bg-bg-surface-raised text-foreground"
-                  : "text-text-muted",
+                route === r.key ? "text-foreground" : "text-text-muted",
               )}
             >
               {r.label}
             </button>
           ))}
-        </div>
+        </ThumbGroup>
       </div>
 
       {/* Content — the big front + back bodies + a small "last logged" strip; the

@@ -257,7 +257,11 @@ export function AvatarUploader({
           <SheetDescription className="sr-only">
             Choose a new profile photo, or remove the current one.
           </SheetDescription>
-          <div className="flex flex-col p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          {/* The two choices rise in as the sheet lands (feel pass §4). */}
+          <div
+            data-sheet-body
+            className="flex flex-col p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+          >
             <button
               type="button"
               onClick={() => {

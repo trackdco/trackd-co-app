@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { StripeHandoff } from "@/components/billing/StripeHandoff";
 import { CaretRight, CreditCard } from "@/components/icons";
+import { ListBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
 import { formatAccessDate, isBetaGrace } from "@/lib/billing/manage";
 import { manageSummaryFor, splitSummary } from "@/lib/billing/manageSummary";
 import { loadBillingFacts } from "@/lib/billing/screenFacts";
@@ -140,13 +141,29 @@ export default async function ManagePage() {
         ? { label: "Choose a plan", href: "/plans" }
         : null;
 
+  // The blocks under the title rise in 55ms steps (feel pass §1); the summary
+  // card leads only when there is one.
+  const rise = (step: number) => ({
+    animationDelay: `${(summary ? step + 1 : step) * 55}ms`,
+  });
+
   return (
     <div
       data-screen="billing-manage"
       data-desktop-layout="column"
-      className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md px-5 pt-4 pb-5"
     >
-      <h1 className={PAGE_TITLE}>Manage</h1>
+      {/* The title fades without moving; only the blocks under it rise. When
+          the route skeleton was just on screen the title was already there. */}
+      <RouteTitle id="billing-manage">
+        <h1 className={PAGE_TITLE}>Manage</h1>
+      </RouteTitle>
+
+      {/* The route skeleton (`manage/loading.tsx`), fading out over the first
+          block below. */}
+      <RouteHandoff id="billing-manage">
+        <ListBlocks cards={3} />
+      </RouteHandoff>
 
       {/**
         * ⚠️ THE ONE SENTENCE (§3.3, D84 re-decided 2026-08-18).
@@ -211,7 +228,10 @@ export default async function ManagePage() {
          * is proven lossless against all fifteen signed lines — no word is
          * rewritten, reordered or dropped, only weighted differently.
          */
-        <div className="mt-3 rounded-2xl bg-bg-surface">
+        <div
+          className="animate-home-up mt-3 rounded-2xl bg-bg-surface"
+          style={{ animationDelay: "0ms" }}
+        >
           <div className="px-4 pt-3.5 pb-3">
             <p className="text-[15px] font-medium leading-snug text-pretty text-foreground">
               {splitSummary(summary).title}
@@ -258,7 +278,7 @@ export default async function ManagePage() {
         </div>
       ) : null}
 
-      <section className="mt-6">
+      <section className="animate-home-up mt-6" style={rise(0)}>
         <p className={`mb-3 ${CARD_EYEBROW}`}>Payment</p>
         <div className="overflow-hidden rounded-2xl bg-bg-surface">
           {/**
@@ -345,7 +365,7 @@ export default async function ManagePage() {
           from. Same 44px shell as Billing's own back link: `min-h-11` outright
           rather than padding arithmetic on a line box, with the negative inline
           margin keeping the text optically where it was. */}
-      <div className="mt-6 text-sm text-text-muted">
+      <div className="animate-home-up mt-6 text-sm text-text-muted" style={rise(1)}>
         <Link
           href="/billing"
           className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"

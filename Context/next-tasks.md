@@ -1,5 +1,54 @@
 # Next Tasks
 
+## 🟡 THE FEEL PASS — BUILT ON `polish/feel`, WAITING ON ADRIAN (2026-09-17)
+
+State, commits and decisions are in `progress-tracker.md`. The branch lives in
+the worktree `../trackd-feel-wt` and is not pushed.
+
+### 1. Look at it on a phone (Adrian)
+Things a simulator cannot settle:
+- **The pad on a real iPhone**: open Log dose, tap the dose, type, Next through
+  a multi-field sheet (Add compound), hide it with the chevron and with a scrim
+  tap. Safari's own keyboard must never appear for a number.
+- **The Log dose map**: the body, then the sites, then the day chips, as the
+  sheet lands; chips on the correct side; only the newest chip amber.
+- **Track, then the row's tick pops** on Home after "Tracked".
+- **Tab switching**: the tap moves at once; a second visit shows no skeleton.
+- **A graph drawing in** on Progress and `/weight`, once.
+- **The Calculator on an SE**: open the pad; the pinned Draw section and the
+  syringe should stay in view. At 375x548 with a notch inset simulated, the
+  pinned section can sit over the results card: judge it on the device.
+- **Log weight** from the +: the pad alone, the last weight selected, the
+  confirmation dropping down.
+
+- **A quick double tap on a pad's Done or hide** (and on the dim area above a
+  sheet): nothing under it should react, and the sheet must stay open.
+- **Add compound:** the pad's chips are the amounts only, and Next ends on the
+  last one. "Amount left" opens on its own when tapped.
+- **A long figure** (Calculator, Powder in mcg, e.g. 10000): shown whole, in a
+  smaller size, never cut off.
+
+### 1b. New words (settled with Adrian, 2026-09-17)
+The review fixes needed lines the brief did not write:
+- The sync notice when the FIRST READ fails (offline, slow, down), Adrian's
+  wording: "No connection. We're having trouble connecting to your account, so you're seeing what's saved on this phone. We'll keep trying." The write-failure wording ("Saved on your device…") was
+  false for a read.
+- The Calculator's one-line warning while its pad is open: "Under 2 units, too
+  little to read" (approved) and "Will not fit a 0.3 mL syringe" (**not yet
+  approved: Adrian to confirm or reword**). The full
+  warning shows again when the pad closes.
+
+### 2. Shipping — DONE (18 Sep)
+Adrian saw it on the Vercel preview and said to merge. `polish/feel` went to
+`main` through PR #68, so it is on production. What is left is his own look on
+the phone, above.
+
+### 3. Left out on purpose
+- `components/home/AddWeightSheet.tsx` is unmounted but kept. Delete it once the
+  pad-only Log weight has been lived with.
+- Onboarding, admin, auth forms and `components/ui/**` keep their own press
+  styles (`active:scale-*`); the rule applies to the app's screens.
+
 ## ✅ ONBOARDING ON AN IPHONE SE — MERGED TO `main` (2026-09-11)
 
 State and measurements are in `progress-tracker.md`; the rule is in

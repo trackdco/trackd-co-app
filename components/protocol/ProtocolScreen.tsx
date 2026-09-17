@@ -3,6 +3,18 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
+import { ProtocolBlocks, RouteTitle } from "@/components/feel/RouteSkeletons"
+import {
+  SkeletonGroup,
+  SkeletonSwap,
+  useArrivedFromSkeleton,
+  useSkeletonOnScreen,
+} from "@/components/feel/Skeleton"
+import {
+  getHydrationState,
+  subscribeHydrationState,
+  type HydrationState,
+} from "@/lib/home/hydrationState"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { CompoundsRow } from "@/components/protocol/CompoundsRow"
 import { ScheduleWeeks } from "@/components/protocol/ScheduleWeeks"
@@ -98,6 +110,17 @@ export function ProtocolScreen({
     () => EMPTY_LOGS
   )
   const compounds = previewCompounds ?? liveStack
+  // Not known until the device has a stack or the first cloud pull has
+  // settled: an empty device must not flash "no compounds" (feel pass §1).
+  const hydration = useSyncExternalStore<HydrationState>(
+    subscribeHydrationState,
+    () => getHydrationState(userId),
+    () => "pending",
+  )
+  const known =
+    previewCompounds !== undefined || compounds.length > 0 || hydration !== "pending"
+  const fromSkeleton = useArrivedFromSkeleton("protocol")
+  const skeletonShown = useSkeletonOnScreen("protocol")
   const logs = previewLogs ?? liveLogs
   const screenToday = toDateKey(new Date())
   // `isRunning`, not just `!archived`. Spec 06 says a compound whose cycle has
@@ -214,14 +237,25 @@ export function ProtocolScreen({
     <div
       data-screen="protocol"
       data-desktop-layout="grid"
-      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
-      <div data-area="title" className="animate-home-up" style={delay(0)}>
+      {/* One arrival (feel pass §1): the title fades in where it stands, or
+          is simply there when the route's skeleton handed over. */}
+      <RouteTitle id="protocol" data-area="title">
         <PageScrollTitle title="Protocol" />
-      </div>
+      </RouteTitle>
+      <SkeletonSwap
+        ready={known}
+        leaveOnMount={fromSkeleton}
+        skeleton={
+          <SkeletonGroup label="Loading your protocol" className="space-y-5" still={skeletonShown}>
+            <ProtocolBlocks />
+          </SkeletonGroup>
+        }
+      >
 
 
-      <div data-area="compounds" className="animate-home-up" style={delay(55)}>
+      <div data-area="compounds" className="animate-home-up" style={delay(0)}>
         <CompoundsRow
           compounds={active}
           stockByCompound={stockByCompound ?? new Map()}
@@ -241,7 +275,7 @@ export function ProtocolScreen({
         />
       </div>
 
-      <div data-area="schedule" className="animate-home-up" style={delay(85)}>
+      <div data-area="schedule" className="animate-home-up" style={delay(55)}>
         {/* The FULL stack, not `active`. A past week needs the compounds that
             are no longer current, and `compoundsInWeek` dates them from the
             `stopped` version Delete writes rather than the undated `archived`
@@ -249,7 +283,7 @@ export function ProtocolScreen({
         <ScheduleWeeks compounds={compounds} logs={logs} todayKey={todayKey} />
       </div>
 
-      <div data-area="stacks" className="animate-home-up" style={delay(115)}>
+      <div data-area="stacks" className="animate-home-up" style={delay(110)}>
         <StacksView
           userId={userId}
           previewCompounds={previewCompounds}
@@ -257,9 +291,10 @@ export function ProtocolScreen({
         />
       </div>
 
-      <div data-area="cycles" className="animate-home-up" style={delay(145)}>
+      <div data-area="cycles" className="animate-home-up" style={delay(165)}>
         <CyclesView userId={userId} previewStack={previewCompounds} />
       </div>
+      </SkeletonSwap>
 
       {/* `context="plan"` — viewing and editing only. The dashboard's
           "log today's dose" path is deliberately absent. */}

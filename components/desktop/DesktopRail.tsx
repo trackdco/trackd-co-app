@@ -1,11 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
 import { NotePencil, Scales, Plus, ClipboardText } from "@/components/icons"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
-import { AddWeightSheet } from "@/components/home/AddWeightSheet"
+import { LogWeightPad } from "@/components/weight/LogWeightPad"
 import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
@@ -99,12 +99,15 @@ export function DesktopRail({
   userId,
   unit,
   bodySex,
+  lastWeightKg = null,
   previewStack,
   previewLogs,
 }: {
   userId: string
   unit: WeightUnit
   bodySex: BodySex
+  /** The latest weigh-in (kg); Log weight opens the pad on it. */
+  lastWeightKg?: number | null
   /** Dev-preview only: render the rail without a signed-in read. Same
    *  convention as `ProtocolScreen` / `ProgressScreen`. */
   previewStack?: StackCompound[]
@@ -115,6 +118,9 @@ export function DesktopRail({
 
   const [quickTrackOpen, setQuickTrackOpen] = useState(false)
   const [weightOpen, setWeightOpen] = useState(false)
+  // Where focus goes back to when the weight pad closes: the rail button that
+  // opened it, if it had focus (a keyboard or a click in Chrome).
+  const weightTrigger = useRef<HTMLElement | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [stock, setStock] = useState<StockItem[]>([])
 
@@ -419,7 +425,15 @@ export function DesktopRail({
         <h3 className={CARD_EYEBROW}>Quick actions</h3>
         <div className="mt-2.5 flex flex-col gap-1">
           <RailAction icon={Plus} label="Log a dose" onClick={() => guard(() => setQuickTrackOpen(true))} />
-          <RailAction icon={Scales} label="Log weight" onClick={() => guard(() => setWeightOpen(true))} />
+          <RailAction
+            icon={Scales}
+            label="Log weight"
+            onClick={() => {
+              const el = document.activeElement
+              weightTrigger.current = el instanceof HTMLElement && el !== document.body ? el : null
+              guard(() => setWeightOpen(true))
+            }}
+          />
           <RailAction
             icon={NotePencil}
             label="Write journal"
@@ -445,11 +459,12 @@ export function DesktopRail({
         userId={userId}
         bodySex={bodySex}
       />
-      <AddWeightSheet
+      <LogWeightPad
         open={weightOpen}
         onOpenChange={setWeightOpen}
         unit={unit}
-        userId={userId}
+        lastKg={lastWeightKg}
+        returnFocusRef={weightTrigger}
       />
       <AddToStackMenu open={addOpen} onOpenChange={setAddOpen} userId={userId} />
     </aside>

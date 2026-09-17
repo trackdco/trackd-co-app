@@ -125,6 +125,17 @@ const nextConfig: NextConfig = {
   // whole barrel never loads — keeps dev compile + prod tree-shaking fast.
   experimental: {
     optimizePackageImports: ["@phosphor-icons/react"],
+    // THE ROUTER CACHE FOR DYNAMIC PAGES (feel pass §1: "a revisit shows the
+    // screen at once"). Every (app) page is dynamic (the layout reads the
+    // session), and Next 16 keeps none of them on the client by default, so a
+    // tab you had just left went back to the server and its skeleton. Five
+    // minutes: long enough that moving between tabs never waits, short enough
+    // that a change made on another device shows up soon. A change made HERE
+    // is not stale for even that long: the server actions behind every
+    // server-rendered figure call `revalidatePath`, which clears this cache.
+    staleTimes: {
+      dynamic: 300,
+    },
   },
 
   /**

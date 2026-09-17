@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, CircleNotch, X } from "@/components/icons"
 
@@ -8,7 +8,10 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { NumberPad, PadInput } from "@/components/feel/NumberPad"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
+import { sanitizeWeightInput } from "@/lib/weight"
 import { startBlockAction } from "@/app/(app)/blocks/actions"
 import { unitToKg, type WeightUnit } from "@/lib/weight"
 import { localToday } from "@/lib/blocks/block"
@@ -154,6 +157,10 @@ export function BlockCreateSheet({
     }
   }
 
+  // The target is typed on the Trackd pad (feel pass §3).
+  const [padOpen, setPadOpen] = useState(false)
+  const targetRef = useRef<HTMLButtonElement>(null)
+
   function onTargetValueChange(next: string) {
     setTargetValue(next)
     const n = Number(next)
@@ -227,179 +234,217 @@ export function BlockCreateSheet({
           <div className="flex-1 overflow-y-auto px-6">
             <h2 className={SHEET_TITLE}>New block</h2>
 
-            <label className="mt-5 block">
-              <span className={FIELD_LABEL}>Name</span>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={NAME_MAX}
-                placeholder="First bodybuilding prep"
-                aria-label="Block name"
-                className={FIELD}
-              />
-            </label>
-
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <label className="block">
-                <span className={FIELD_LABEL}>Starts</span>
+            {/* The fields rise in as the sheet lands (feel pass §4). */}
+            <div data-sheet-body>
+              <label className="mt-5 block">
+                <span className={FIELD_LABEL}>Name</span>
                 <Input
-                  type="date"
-                  value={startedOn}
-                  max={todayKey}
-                  onChange={(e) => {
-                    // An EMPTY change event is not "today". iOS fires one while the
-                    // picker wheels are still moving, and coercing it to today snapped
-                    // the field back mid-pick — so a back-dated entry saved silently
-                    // under today's date. Keep the last good value; the field is
-                    // required, so there is nothing it should clear to.
-                    if (e.target.value) setStartedOn(e.target.value)
-                  }}
-                  aria-label="Start date"
-                  className={DATE_FIELD}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={NAME_MAX}
+                  placeholder="First bodybuilding prep"
+                  aria-label="Block name"
+                  className={FIELD}
                 />
               </label>
-              <label className="block">
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className={FIELD_LABEL}>Starts</span>
+                  <Input
+                    type="date"
+                    value={startedOn}
+                    max={todayKey}
+                    onChange={(e) => {
+                      // An EMPTY change event is not "today". iOS fires one while the
+                      // picker wheels are still moving, and coercing it to today snapped
+                      // the field back mid-pick — so a back-dated entry saved silently
+                      // under today's date. Keep the last good value; the field is
+                      // required, so there is nothing it should clear to.
+                      if (e.target.value) setStartedOn(e.target.value)
+                    }}
+                    aria-label="Start date"
+                    className={DATE_FIELD}
+                  />
+                </label>
+                <label className="block">
+                  <span className={FIELD_LABEL}>
+                    Ends <span className="normal-case text-text-subtle">(optional)</span>
+                  </span>
+                  <Input
+                    type="date"
+                    value={endsOn}
+                    min={startedOn}
+                    onChange={(e) => setEndsOn(e.target.value)}
+                    aria-label="End date"
+                    className={DATE_FIELD}
+                  />
+                </label>
+              </div>
+              <p className="mt-1.5 text-xs text-text-subtle">
+                Leave the end open if you do not have one. An off-season does not
+                need a deadline.
+              </p>
+
+              {/* Target — optional, and never a biomarker. A target turns a reading
+                  into a pass or a fail, which is exactly what the
+                  categorical-never-evaluative invariant exists to prevent, so the
+                  only things offerable here are facts about the user's own
+                  behaviour. */}
+              <div className="mt-6">
                 <span className={FIELD_LABEL}>
-                  Ends <span className="normal-case text-text-subtle">(optional)</span>
+                  Target <span className="normal-case text-text-subtle">(optional)</span>
                 </span>
-                <Input
-                  type="date"
-                  value={endsOn}
-                  min={startedOn}
-                  onChange={(e) => setEndsOn(e.target.value)}
-                  aria-label="End date"
-                  className={DATE_FIELD}
-                />
-              </label>
-            </div>
-            <p className="mt-1.5 text-xs text-text-subtle">
-              Leave the end open if you do not have one. An off-season does not
-              need a deadline.
-            </p>
+                {/* The selection is a sliding thumb (feel pass §6), so the
+                    selected box carries no border or fill of its own. */}
+                <ThumbGroup
+                  selection={targetKind}
+                  thumbClassName="rounded-xl border border-accent-primary bg-accent-primary/10"
+                  role="group"
+                  aria-label="Target"
+                  className="flex gap-2"
+                >
+                  {(
+                    [
+                      { id: "none", label: "None" },
+                      { id: "weight", label: "Weight" },
+                      { id: "consistency", label: "Consistency" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => pickTarget(opt.id)}
+                      aria-pressed={targetKind === opt.id}
+                      className={cn(
+                        PRESS.pill,
+                        "flex-1 rounded-xl border px-3 py-2.5 text-sm transition-colors duration-300",
+                        targetKind === opt.id
+                          ? "border-transparent text-foreground"
+                          : "border-border-default text-text-muted hover:text-foreground",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </ThumbGroup>
 
-            {/* Target — optional, and never a biomarker. A target turns a reading
-                into a pass or a fail, which is exactly what the
-                categorical-never-evaluative invariant exists to prevent, so the
-                only things offerable here are facts about the user's own
-                behaviour. */}
-            <div className="mt-6">
-              <span className={FIELD_LABEL}>
-                Target <span className="normal-case text-text-subtle">(optional)</span>
-              </span>
-              <div className="flex gap-2">
-                {(
-                  [
-                    { id: "none", label: "None" },
-                    { id: "weight", label: "Weight" },
-                    { id: "consistency", label: "Consistency" },
-                  ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => pickTarget(opt.id)}
-                    aria-pressed={targetKind === opt.id}
-                    className={cn(
-                      "flex-1 rounded-xl border px-3 py-2.5 text-sm transition-colors",
-                      targetKind === opt.id
-                        ? "border-accent-primary bg-accent-primary/10 text-foreground"
-                        : "border-border-default text-text-muted hover:text-foreground",
+                {targetKind !== "none" && (
+                  <div className="mt-3 flex items-end gap-3">
+                    <label className="block flex-1">
+                      <span className={FIELD_LABEL}>
+                        {targetKind === "weight"
+                          ? `Target weight (${unit})`
+                          : "Target (%)"}
+                      </span>
+                      <PadInput
+                        value={targetValue}
+                        label={
+                          targetKind === "weight"
+                            ? `Target weight in ${unit === "lbs" ? "pounds" : "kilograms"}`
+                            : "Target percent"
+                        }
+                        unit={targetKind === "weight" ? unit : "%"}
+                        active={padOpen}
+                        onOpen={() => setPadOpen(true)}
+                        inputRef={targetRef}
+                        className="h-12 w-full text-sm"
+                      />
+                      <NumberPad
+                        active={padOpen ? 0 : null}
+                        fields={[
+                          {
+                            id: "target",
+                            label: targetKind === "weight" ? "Target weight" : "Target",
+                            unit: targetKind === "weight" ? unit : "%",
+                            value: targetValue,
+                            onChange: onTargetValueChange,
+                            // A weight takes decimals; a percentage is whole, and
+                            // three digits covers 100.
+                            decimal: targetKind === "weight",
+                            sanitize:
+                              targetKind === "weight"
+                                ? sanitizeWeightInput
+                                : (raw) => raw.replace(/\D/g, "").slice(0, 3),
+                          },
+                        ]}
+                        onActiveChange={() => {}}
+                        onClose={() => setPadOpen(false)}
+                        anchorRef={targetRef}
+                        returnFocusRef={targetRef}
+                        label="Target"
+                      />
+                    </label>
+
+                    {/* Only weight can go either way, so only weight is asked. */}
+                    {targetKind === "weight" && (
+                      <ThumbGroup
+                        selection={direction}
+                        thumbClassName="rounded-xl border border-accent-primary bg-accent-primary/10"
+                        role="group"
+                        aria-label="Direction"
+                        className="flex shrink-0 gap-2"
+                      >
+                        {(
+                          [
+                            { id: "down", label: "Lose" },
+                            { id: "up", label: "Gain" },
+                          ] as const
+                        ).map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              setDirection(opt.id)
+                              setDirectionTouched(true)
+                            }}
+                            aria-pressed={direction === opt.id}
+                            className={cn(
+                              PRESS.pill,
+                              "h-12 rounded-xl border px-3 text-sm transition-colors duration-300",
+                              direction === opt.id
+                                ? "border-transparent text-foreground"
+                                : "border-border-default text-text-muted hover:text-foreground",
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </ThumbGroup>
                     )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+                  </div>
+                )}
               </div>
 
-              {targetKind !== "none" && (
-                <div className="mt-3 flex items-end gap-3">
-                  <label className="block flex-1">
-                    <span className={FIELD_LABEL}>
-                      {targetKind === "weight"
-                        ? `Target weight (${unit})`
-                        : "Target (%)"}
-                    </span>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      value={targetValue}
-                      onChange={(e) => onTargetValueChange(e.target.value)}
-                      min={0}
-                      max={targetKind === "consistency" ? 100 : undefined}
-                      step={targetKind === "weight" ? "0.1" : "1"}
-                      placeholder={
-                        targetKind === "weight" ? (unit === "lbs" ? "185" : "84") : "90"
-                      }
-                      aria-label={
-                        targetKind === "weight"
-                          ? `Target weight in ${unit === "lbs" ? "pounds" : "kilograms"}`
-                          : "Target percent"
-                      }
-                      className={cn(FIELD, "font-mono")}
-                    />
-                  </label>
-
-                  {/* Only weight can go either way, so only weight is asked. */}
-                  {targetKind === "weight" && (
-                    <div className="flex shrink-0 gap-2">
-                      {(
-                        [
-                          { id: "down", label: "Lose" },
-                          { id: "up", label: "Gain" },
-                        ] as const
-                      ).map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => {
-                            setDirection(opt.id)
-                            setDirectionTouched(true)
-                          }}
-                          aria-pressed={direction === opt.id}
-                          className={cn(
-                            "h-12 rounded-xl border px-3 text-sm transition-colors",
-                            direction === opt.id
-                              ? "border-accent-primary bg-accent-primary/10 text-foreground"
-                              : "border-border-default text-text-muted hover:text-foreground",
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              {liveBlockName && (
+                <p className="mt-5 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2.5 text-xs text-text-muted">
+                  Starting this closes{" "}
+                  <span className="text-foreground">{liveBlockName}</span>. One block
+                  runs at a time, and the closed one keeps everything it recorded.
+                </p>
               )}
+
+              {!startNotFuture && (
+                <p className="mt-3 px-1 text-sm text-state-error">
+                  A block starts today or earlier. Set the end date to plan ahead.
+                </p>
+              )}
+              {!datesValid && (
+                <p className="mt-3 px-1 text-sm text-state-error">
+                  The end date is before the start date.
+                </p>
+              )}
+              {targetTooHigh ? (
+                <p className="mt-3 px-1 text-sm text-state-error">
+                  Consistency tops out at 100%.
+                </p>
+              ) : !targetValid ? (
+                <p className="mt-3 px-1 text-sm text-state-error">
+                  Give the target a number above zero, or set it to None.
+                </p>
+              ) : null}
+              {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
             </div>
-
-            {liveBlockName && (
-              <p className="mt-5 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2.5 text-xs text-text-muted">
-                Starting this closes{" "}
-                <span className="text-foreground">{liveBlockName}</span>. One block
-                runs at a time, and the closed one keeps everything it recorded.
-              </p>
-            )}
-
-            {!startNotFuture && (
-              <p className="mt-3 px-1 text-sm text-state-error">
-                A block starts today or earlier. Set the end date to plan ahead.
-              </p>
-            )}
-            {!datesValid && (
-              <p className="mt-3 px-1 text-sm text-state-error">
-                The end date is before the start date.
-              </p>
-            )}
-            {targetTooHigh ? (
-              <p className="mt-3 px-1 text-sm text-state-error">
-                Consistency tops out at 100%.
-              </p>
-            ) : !targetValid ? (
-              <p className="mt-3 px-1 text-sm text-state-error">
-                Give the target a number above zero, or set it to None.
-              </p>
-            ) : null}
-            {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
           </div>
 
           <div className="flex shrink-0 gap-3 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
@@ -415,7 +460,7 @@ export function BlockCreateSheet({
               type="button"
               onClick={save}
               disabled={!canSave || busy}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+              className={cn(PRESS.button, "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50")}
             >
               {busy ? (
                 <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />

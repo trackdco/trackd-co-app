@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 
 import {
   Sheet,
@@ -12,7 +12,10 @@ import { Container } from "@/components/containers"
 import { Input } from "@/components/ui/input"
 import { MagnifyingGlass } from "@/components/icons"
 import { cn } from "@/lib/utils"
-import { DATA_MONO, SHEET_TITLE } from "@/lib/ui-presets"
+import { DATA_MONO, PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { NumberPad, PadInput } from "@/components/feel/NumberPad"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
+import { sanitizeDoseInput } from "@/lib/home/stack"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { routesOf } from "@/lib/compound-categories"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
@@ -116,6 +119,9 @@ function OneOffBody({
   const [query, setQuery] = useState("")
   const [picked, setPicked] = useState<OneOffChoice | null>(null)
   const [amount, setAmount] = useState("")
+  // The amount is typed on the Trackd pad (feel pass §3).
+  const [padOpen, setPadOpen] = useState(false)
+  const amountRef = useRef<HTMLButtonElement>(null)
   const [unit, setUnit] = useState<OneOffUnit>("mg")
   const [time24, setTime24] = useState(() =>
     dateKey === todayKey
@@ -157,6 +163,7 @@ function OneOffBody({
 
   const pill = (active: boolean) =>
     cn(
+      PRESS.pill,
       "rounded-full px-3 py-1.5 text-sm transition-colors",
       active
         ? "bg-accent-primary text-bg-base"
@@ -164,7 +171,11 @@ function OneOffBody({
     )
 
   return (
-    <div className="space-y-4 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    // The sections rise in as the sheet lands (feel pass §4).
+    <div
+      data-sheet-body
+      className="space-y-4 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+    >
       {picked ? (
         <div className="flex items-center gap-3">
           <Container
@@ -273,12 +284,35 @@ function OneOffBody({
           <div className="grid grid-cols-2 gap-3">
             <label className="block space-y-1.5">
               <span className={LABEL}>How much</span>
-              <Input
+              {/* One decimal point and a bounded length now: the text field
+                  kept any number of dots. "Optional" is a word, so it stays. */}
+              <PadInput
                 value={amount}
-                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-                inputMode="decimal"
+                label="How much"
+                unit={unit}
+                active={padOpen}
+                onOpen={() => setPadOpen(true)}
+                inputRef={amountRef}
                 placeholder="Optional"
-                className={FIELD}
+                className="h-11 w-full"
+              />
+              <NumberPad
+                active={padOpen ? 0 : null}
+                fields={[
+                  {
+                    id: "amount",
+                    label: "How much",
+                    unit,
+                    value: amount,
+                    onChange: setAmount,
+                    sanitize: sanitizeDoseInput,
+                  },
+                ]}
+                onActiveChange={() => {}}
+                onClose={() => setPadOpen(false)}
+                anchorRef={amountRef}
+                returnFocusRef={amountRef}
+                label="Amount"
               />
             </label>
             <label className="block space-y-1.5">
@@ -294,18 +328,34 @@ function OneOffBody({
 
           <div className="space-y-2">
             <span className={LABEL}>Unit</span>
-            <div className="flex flex-wrap gap-2">
+            {/* The unit on a WHITE sliding thumb (feel pass §6). The thumb is
+                the selection, so the other units are outlined rather than
+                filled: a fill would hide the thumb as it passes beneath. */}
+            <ThumbGroup
+              selection={unit}
+              thumbClassName="rounded-full bg-accent-primary"
+              role="group"
+              aria-label="Unit"
+              className="flex flex-wrap gap-2"
+            >
               {ONE_OFF_UNITS.map((u) => (
                 <button
                   key={u}
                   type="button"
                   onClick={() => setUnit(u)}
-                  className={pill(unit === u)}
+                  aria-pressed={unit === u}
+                  className={cn(
+                    PRESS.pill,
+                    "rounded-full border px-3 py-1.5 text-sm transition-colors duration-300",
+                    unit === u
+                      ? "border-transparent text-bg-base"
+                      : "border-border-default text-text-muted hover:text-foreground",
+                  )}
                 >
                   {u}
                 </button>
               ))}
-            </div>
+            </ThumbGroup>
           </div>
 
           <label className="block space-y-1.5">
@@ -343,7 +393,10 @@ function OneOffBody({
               })
               onClose()
             }}
-            className="w-full rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+            className={cn(
+              PRESS.button,
+              "w-full rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90",
+            )}
           >
             Log it
           </button>

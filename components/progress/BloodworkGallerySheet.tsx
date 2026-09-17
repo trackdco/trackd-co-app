@@ -67,19 +67,23 @@ export function BloodworkGallerySheet({
               </button>
             </div>
 
+            {/* The contents rise in as the sheet lands (feel pass §4): the
+                empty state as one piece, the photos one by one. */}
             {photos.length === 0 ? (
-              <button
-                type="button"
-                onClick={onAttach}
-                className="mt-4 flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-12 text-center transition-colors hover:bg-bg-input/70"
-              >
-                <ImageSquare className="h-8 w-8 text-text-muted" aria-hidden />
-                <span className="text-sm text-text-muted">
-                  Attach a screenshot of your blood work
-                </span>
-              </button>
+              <div data-sheet-body>
+                <button
+                  type="button"
+                  onClick={onAttach}
+                  className="mt-4 flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-12 text-center transition-colors hover:bg-bg-input/70"
+                >
+                  <ImageSquare className="h-8 w-8 text-text-muted" aria-hidden />
+                  <span className="text-sm text-text-muted">
+                    Attach a screenshot of your blood work
+                  </span>
+                </button>
+              </div>
             ) : (
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <div data-sheet-body className="mt-3 grid grid-cols-2 gap-3">
                 {photos.map((p) => (
                   <button
                     key={p.id}

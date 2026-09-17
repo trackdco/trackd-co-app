@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ListBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
 import { NotificationsToggle } from "@/components/settings/NotificationsToggle";
 import { ReminderSettings } from "@/components/settings/ReminderSettings";
 import { PAGE_TITLE } from "@/lib/ui-presets";
@@ -54,32 +55,46 @@ export default async function NotificationsSettingsPage() {
     <div
       data-screen="notifications"
       data-desktop-layout="column"
-      className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md px-5 pt-4 pb-5"
     >
-      <h1 className={PAGE_TITLE}>Notifications</h1>
-      <p className="mt-2 text-sm leading-relaxed text-text-muted">
-        Reminders for your protocol, sent to this device.
-      </p>
+      {/* The title and its line fade without moving; only the cards rise. When
+          the route skeleton was just on screen they were already there. */}
+      <RouteTitle id="notifications">
+        <h1 className={PAGE_TITLE}>Notifications</h1>
+        <p className="mt-2 text-sm leading-relaxed text-text-muted">
+          Reminders for your protocol, sent to this device.
+        </p>
+      </RouteTitle>
 
-      <div className="mt-6">
+      <RouteHandoff id="notifications">
+        <ListBlocks cards={3} />
+      </RouteHandoff>
+      <div className="animate-home-up mt-6" style={{ animationDelay: "0ms" }}>
         <NotificationsToggle
           initialEnabled={Boolean(profile?.notifications_enabled)}
         />
       </div>
-      <ReminderSettings
-        currentTimezone={(profile?.timezone as string | null) ?? null}
-        initial={{
-          doseRemindersOn: prefs?.dose_reminders_on ?? true,
-          missedOn: prefs?.unlogged_alert_on ?? true,
-          unloggedWait: (prefs?.unlogged_alert_wait as string | null) ?? "hour_2",
-          lowStockOn: prefs?.low_inventory_alert_on ?? true,
-          reminderTime: hhmm(prefs?.reminder_time, "09:00"),
-          quietStart: hhmm(prefs?.quiet_start, "22:00"),
-          quietEnd: hhmm(prefs?.quiet_end, "08:00"),
-        }}
-      />
+      {/* ReminderSettings carries its own `mt-3`; it collapses through this
+          wrapper, so the gap is unchanged. */}
+      <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
+        <ReminderSettings
+          currentTimezone={(profile?.timezone as string | null) ?? null}
+          initial={{
+            doseRemindersOn: prefs?.dose_reminders_on ?? true,
+            missedOn: prefs?.unlogged_alert_on ?? true,
+            unloggedWait: (prefs?.unlogged_alert_wait as string | null) ?? "hour_2",
+            lowStockOn: prefs?.low_inventory_alert_on ?? true,
+            reminderTime: hhmm(prefs?.reminder_time, "09:00"),
+            quietStart: hhmm(prefs?.quiet_start, "22:00"),
+            quietEnd: hhmm(prefs?.quiet_end, "08:00"),
+          }}
+        />
+      </div>
 
-      <div className="mt-10 text-sm text-text-muted">
+      <div
+        className="animate-home-up mt-10 text-sm text-text-muted"
+        style={{ animationDelay: "110ms" }}
+      >
         <Link href="/profile" className="hover:text-foreground">
           ← Back to profile
         </Link>

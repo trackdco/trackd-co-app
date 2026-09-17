@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
 import { ReconCalculator } from "@/components/calculator/ReconCalculator";
+import {
+  CalculatorBlocks,
+  RouteHandoff,
+  RouteTitle,
+} from "@/components/feel/RouteSkeletons";
 
 export const metadata: Metadata = { title: "Calculator · Trackd Co" };
 
@@ -24,11 +29,14 @@ export default function CalculatorPage() {
   return (
     <div
       data-screen="calculator"
-      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
-      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+      <RouteTitle id="calculator">
         <PageScrollTitle title="Calculator" />
-      </div>
+      </RouteTitle>
+      <RouteHandoff id="calculator">
+        <CalculatorBlocks />
+      </RouteHandoff>
 
       {/* No wrapper animation: the calculator staggers its own sections in with
           `animate-home-up`, the way Home and Protocol stagger their cards. */}

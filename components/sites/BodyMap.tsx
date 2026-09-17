@@ -17,8 +17,10 @@
  * sites are relevant (route-filtered), which are active, and per-site heat. Styling
  * is token-only (no hardcoded hex, per ui-context).
  */
-import { useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react"
 
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
+import { PRESS } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 import type {
   BodySex,
@@ -51,6 +53,22 @@ interface BodyMapProps {
    *  them on pointer-move for a "scrub" tooltip (`recency`, read-only). */
   inspectable?: boolean
   disabled?: boolean
+  /**
+   * `pick` only (feel pass §5): days since each site was last used. The picked
+   * site is the only full amber; history sits one shade down, with one extra,
+   * faintest shade: `1 - (d + 1) / (historyWindow + 1)` for `d < historyWindow`.
+   */
+  history?: Record<string, number>
+  /** How many days a site stays shaded (Sub-Q 5, IM 7). */
+  historyWindow?: number
+  /** Day counts in the margins, each with a hairline back to its site. */
+  dayChips?: boolean
+  /** The site used most recently of all: the one chip that reads amber. */
+  freshestId?: string | null
+  /** Arrive in sequence once a sheet has landed: body, then sites, then chips. */
+  arrive?: boolean
+  /** The log sheet draws the map on the raised surface, which needs its own paint. */
+  tone?: "default" | "raised"
 }
 
 const ASPECTS: { key: InjectionSiteAspect; label: string }[] = [
@@ -67,6 +85,12 @@ export function BodyMap({
   onTapSite,
   inspectable = false,
   disabled = false,
+  history,
+  historyWindow = 0,
+  dayChips = false,
+  freshestId = null,
+  arrive = false,
+  tone = "default",
 }: BodyMapProps) {
   const active = new Set(activeIds ?? [])
   const interactive = Boolean(onTapSite) && !disabled && mode !== "recency"
@@ -77,12 +101,29 @@ export function BodyMap({
   // Front / back share one view, switched by a pill toggle with a cross-FADE. Both
   // panels stay mounted (stacked); only the visible one is interactive.
   const [aspect, setAspect] = useState<InjectionSiteAspect>("anterior")
+  // The chips wait for the arrival only the first time; a flip shows them at once.
+  const [flipped, setFlipped] = useState(false)
+
+  /** Shaded history in the picker (feel pass §5). */
+  const historyHeat = (siteId: string): number => {
+    const d = history?.[siteId]
+    if (d == null || d < 0 || d >= historyWindow) return 0
+    return 1 - (d + 1) / (historyWindow + 1)
+  }
 
   return (
-    <div>
-      {/* Front / Back pills — the app's standard segmented-control pattern. */}
+    <div
+      className={cn(
+        arrive && "body-map-arrive",
+        tone === "raised" && "body-map-raised",
+      )}
+    >
+      {/* Front / Back pills on the shared sliding thumb (feel pass §6). Only the
+          pill slides; the bodies keep their crossfade. */}
       <div className="mb-4 flex justify-center">
-        <div
+        <ThumbGroup
+          selection={aspect}
+          thumbClassName="rounded-full bg-bg-surface-raised"
           className="inline-flex rounded-full border border-border-default bg-bg-input p-0.5 text-sm"
           role="group"
           aria-label="Body view"
@@ -91,19 +132,21 @@ export function BodyMap({
             <button
               key={key}
               type="button"
-              onClick={() => setAspect(key)}
+              onClick={() => {
+                if (key !== aspect) setFlipped(true)
+                setAspect(key)
+              }}
               aria-pressed={aspect === key}
               className={cn(
-                "rounded-full px-5 py-1.5 font-medium transition-colors duration-200 ease-out",
-                aspect === key
-                  ? "bg-bg-surface-raised text-foreground"
-                  : "text-text-muted",
+                PRESS.pill,
+                "rounded-full px-5 py-1.5 font-medium transition-colors duration-300 ease-out",
+                aspect === key ? "text-foreground" : "text-text-muted",
               )}
             >
               {label}
             </button>
           ))}
-        </div>
+        </ThumbGroup>
       </div>
 
       {/* Crossfade: front + back stacked in one cell; the active one fades in. */}
@@ -119,29 +162,44 @@ export function BodyMap({
               )}
               aria-hidden={!isActive}
             >
-              <svg
-                  viewBox="0 0 100 100"
-                  className="w-full max-w-[360px] select-none"
-                  role="group"
-                  aria-label={`${label} view`}
-                >
-                  <BodySilhouette aspect={key} route={route} sex={sex} />
-                  <g transform={routeTransform(route, sex)}>
-                    {routeRegions(route, key, sex).map((r) => (
-                      <RegionShape
-                        key={r.siteId}
-                        region={r}
-                        site={sitesById.get(r.siteId)}
-                        mode={mode}
-                        active={active.has(r.siteId)}
-                        heat={heat?.[r.siteId] ?? 0}
-                        interactive={interactive && isActive}
-                        onTap={onTapSite}
-                        inspectable={inspectable && isActive}
-                      />
-                    ))}
-                  </g>
-                </svg>
+              <PanelBox
+                key={key}
+                chips={
+                  dayChips && isActive && history
+                    ? { history, historyWindow, freshestId, flipped }
+                    : null
+                }
+              >
+                {(svgRef) => (
+                  <svg
+                    ref={svgRef}
+                    viewBox="0 0 100 100"
+                    className="block w-full select-none"
+                    role="group"
+                    aria-label={`${label} view`}
+                  >
+                    <BodySilhouette aspect={key} route={route} sex={sex} />
+                    <g transform={routeTransform(route, sex)}>
+                      {routeRegions(route, key, sex).map((r, i) => (
+                        <RegionShape
+                          key={r.siteId}
+                          region={r}
+                          site={sitesById.get(r.siteId)}
+                          mode={mode}
+                          active={active.has(r.siteId)}
+                          heat={
+                            mode === "pick" ? historyHeat(r.siteId) : (heat?.[r.siteId] ?? 0)
+                          }
+                          interactive={interactive && isActive}
+                          onTap={onTapSite}
+                          inspectable={inspectable && isActive}
+                          order={i}
+                        />
+                      ))}
+                    </g>
+                  </svg>
+                )}
+              </PanelBox>
               </div>
             )
           })}
@@ -162,6 +220,7 @@ function RegionShape({
   interactive,
   onTap,
   inspectable,
+  order = 0,
 }: {
   region: BodyRegion
   site?: InjectionSiteRow
@@ -171,6 +230,8 @@ function RegionShape({
   interactive: boolean
   onTap?: (siteId: string) => void
   inspectable?: boolean
+  /** Its place in the arrival stagger. */
+  order?: number
 }) {
   const isInteractive = interactive && Boolean(site)
   const canInspect = Boolean(inspectable) && Boolean(site) && !isInteractive
@@ -181,11 +242,16 @@ function RegionShape({
         : 0
       : active
         ? 1
-        : 0
+        : // `pick` shades history one step below the picked amber.
+          mode === "pick"
+          ? heat
+          : 0
 
   return (
     <g
       data-site-id={canInspect ? site!.id : undefined}
+      data-region={region.siteId}
+      style={{ "--rd": order } as CSSProperties}
       role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
       aria-label={
@@ -233,5 +299,180 @@ function RegionShape({
         <path d={region.d} className="mr-focus" pointerEvents="none" />
       )}
     </g>
+  )
+}
+
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect
+
+interface ChipSpec {
+  history: Record<string, number>
+  historyWindow: number
+  freshestId: string | null
+  flipped: boolean
+}
+
+interface ChipLayout {
+  id: string
+  days: number
+  /** The site's centre, % of the box. */
+  x: number
+  y: number
+  /** The chip's centre line, % of the box (spread so chips never touch). */
+  cy: number
+  left: boolean
+}
+
+/** "Today" / "1 day" / "N days". */
+function dayWords(d: number): string {
+  return d === 0 ? "Today" : d === 1 ? "1 day" : `${d} days`
+}
+
+/**
+ * The box one body is drawn in. It is exactly the svg's box, so a site's
+ * position measured against the svg is the same percentage here, and the
+ * chips (absolute, in the margins) need no second measurement.
+ */
+function PanelBox({
+  chips,
+  children,
+}: {
+  chips: ChipSpec | null
+  children: (svgRef: RefObject<SVGSVGElement | null>) => React.ReactNode
+}) {
+  const svgRef = useRef<SVGSVGElement>(null)
+  return (
+    <div className="relative w-full max-w-[360px]">
+      {children(svgRef)}
+      {chips ? <DayChips svgRef={svgRef} spec={chips} /> : null}
+    </div>
+  )
+}
+
+/**
+ * DAY COUNTS IN THE MARGINS (feel pass §5), the way onboarding's demo body
+ * does it: a chip on the side its site is on (mirror-front, so x < 50% is the
+ * left), level with the site's centre, and a hairline back to that centre.
+ * No dot at the end. Only the most recent site of all reads amber. Chips on one
+ * side stay at least 9% apart.
+ */
+function DayChips({
+  svgRef,
+  spec,
+}: {
+  svgRef: RefObject<SVGSVGElement | null>
+  spec: ChipSpec
+}) {
+  const [layout, setLayout] = useState<ChipLayout[]>([])
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const leadersRef = useRef<SVGSVGElement>(null)
+  // The parent rebuilds `history` on every render (the sheet ticks each
+  // second), so the measurement keys on its CONTENT, not its identity.
+  const { historyWindow } = spec
+  const shaded = Object.entries(spec.history)
+    .filter(([, d]) => d >= 0 && d < historyWindow)
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+  const shadedKey = shaded.map(([id, d]) => `${id}:${d}`).join(",")
+
+  // Measure the shaded regions whenever the box is laid out or resized. In a
+  // ResizeObserver callback (which reports once on observe), not the effect body.
+  useIsoLayoutEffect(() => {
+    const svg = svgRef.current
+    if (!svg || typeof ResizeObserver === "undefined") return
+    const days = new Map(
+      shadedKey ? shadedKey.split(",").map((e) => [e.split(":")[0], Number(e.split(":")[1])]) : [],
+    )
+    let last = ""
+    const measure = () => {
+      const box = svg.getBoundingClientRect()
+      if (!box.width || !box.height) return
+      const items: ChipLayout[] = []
+      svg.querySelectorAll<SVGGElement>("[data-region]").forEach((g) => {
+        const id = g.dataset.region!
+        const d = days.get(id)
+        if (d == null) return
+        const r = g.getBoundingClientRect()
+        const x = ((r.left + r.width / 2 - box.left) / box.width) * 100
+        const y = ((r.top + r.height / 2 - box.top) / box.height) * 100
+        items.push({ id, days: d, x, y, cy: y, left: x < 50 })
+      })
+      for (const side of [true, false]) {
+        let prev = -Infinity
+        items
+          .filter((it) => it.left === side)
+          .sort((a, b) => a.y - b.y)
+          .forEach((it) => {
+            it.cy = Math.max(it.y, prev + 9)
+            prev = it.cy
+          })
+      }
+      const sig = items.map((it) => `${it.id}:${it.x.toFixed(1)}:${it.cy.toFixed(1)}`).join("|")
+      if (sig === last) return
+      last = sig
+      setLayout(items)
+    }
+    const ro = new ResizeObserver(measure)
+    ro.observe(svg)
+    return () => ro.disconnect()
+  }, [svgRef, shadedKey])
+
+  // The leaders run from each chip's inner edge to its site. Written straight
+  // onto the paths (React renders them without a `d`), so there is no second
+  // render to wait for.
+  useIsoLayoutEffect(() => {
+    const wrap = wrapRef.current
+    const leaders = leadersRef.current
+    if (!wrap || !leaders) return
+    const box = wrap.getBoundingClientRect()
+    if (!box.width || !box.height) return
+    for (const it of layout) {
+      const chip = wrap.querySelector<HTMLElement>(`[data-chip="${it.id}"]`)
+      const path = leaders.querySelector<SVGPathElement>(`[data-leader="${it.id}"]`)
+      if (!chip || !path) continue
+      const c = chip.getBoundingClientRect()
+      const x1 = it.left
+        ? ((c.right - box.left) / box.width) * 100 + 1
+        : ((c.left - box.left) / box.width) * 100 - 1
+      path.setAttribute("d", `M${x1.toFixed(2)} ${it.cy.toFixed(2)} L${it.x.toFixed(2)} ${it.y.toFixed(2)}`)
+    }
+  }, [layout])
+
+  return (
+    <div
+      ref={wrapRef}
+      aria-hidden
+      className={cn("day-chips pointer-events-none absolute inset-0", spec.flipped && "day-chips-flip")}
+    >
+      <svg
+        ref={leadersRef}
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        className="absolute inset-0 h-full w-full overflow-visible"
+      >
+        {layout.map((it) => (
+          <path
+            key={it.id}
+            data-leader={it.id}
+            fill="none"
+            stroke="var(--border-strong)"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+      </svg>
+      {layout.map((it) => (
+        <span
+          key={it.id}
+          data-chip={it.id}
+          className={cn(
+            "absolute -translate-y-1/2 whitespace-nowrap rounded-full bg-bg-surface px-[7px] py-[3px] font-mono text-[10px] tracking-[0.04em]",
+            it.left ? "left-0" : "right-0",
+            it.id === spec.freshestId ? "text-accent-amber" : "text-text-muted",
+          )}
+          style={{ top: `${it.cy}%` }}
+        >
+          {dayWords(it.days)}
+        </span>
+      ))}
+    </div>
   )
 }

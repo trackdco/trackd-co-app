@@ -39,19 +39,42 @@ export function PageScrollTitle({ title, eyebrow, subtitle, action }: PageScroll
   const [compact, setCompact] = useState(false)
   const mounted = useMounted()
 
+  // The bar takes over once the heading has gone UNDER it, not only once it
+  // has left the screen. The Calculator pins its Draw section right below the
+  // bar, and the heading ends only 20px above that section, so it can never
+  // scroll fully away there (feel pass §3).
+  const barRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = ref.current
-    if (!el || typeof IntersectionObserver === "undefined") return
-    const io = new IntersectionObserver(
-      ([entry]) => setCompact(!entry.isIntersecting),
-      { threshold: 0 }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
+    const barEl = barRef.current
+    if (!el || !mounted || typeof IntersectionObserver === "undefined") return
+    let io: IntersectionObserver | null = null
+    let barH = -1
+    const watch = () => {
+      const h = Math.round(barEl?.getBoundingClientRect().height ?? 0)
+      if (h === barH) return
+      barH = h
+      io?.disconnect()
+      io = new IntersectionObserver(
+        ([entry]) => setCompact(!entry.isIntersecting),
+        { threshold: 0, rootMargin: `-${h}px 0px 0px 0px` }
+      )
+      io.observe(el)
+    }
+    watch()
+    // The bar's height follows the top safe-area inset, which changes when the
+    // phone turns, so the band is rebuilt when it does.
+    const ro = barEl && typeof ResizeObserver !== "undefined" ? new ResizeObserver(watch) : null
+    if (barEl) ro?.observe(barEl)
+    return () => {
+      ro?.disconnect()
+      io?.disconnect()
+    }
+  }, [mounted])
 
   const bar = (
     <div
+      ref={barRef}
       aria-hidden={!compact}
       // Desktop insets it to the middle column so it does not span the rails.
       data-page-scroll-bar
