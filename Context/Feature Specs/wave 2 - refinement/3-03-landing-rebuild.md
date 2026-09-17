@@ -1,6 +1,8 @@
 # Spec 3-03: the landing page, rebuilt from Adrian's sketch
 
-**Status:** briefed 2026-09-17, not started. This SUPERSEDES the page built under
+**Status:** briefed 2026-09-17; **built 2026-09-17** on `feat/landing-3-02`
+(PR #66, unmerged, awaiting Adrian). Decisions taken during the build are in
+§9; what he still owes is §8. This SUPERSEDES the page built under
 spec 3-02 on branch `feat/landing-3-02` (PR #66, unmerged). Adrian's verdict on
 that build: *"you can just tell that this is AI-generated."* He then sketched the
 page he wants on paper and dictated it top to bottom. This file is that brief.
@@ -84,8 +86,13 @@ column. A line at the bottom: "note from the founders".
   drawer. Items drop and fade in with a stagger.
 - **Phone:** the background dims behind the open menu.
 - **Laptop:** it drops down on the right-hand side, no dim.
-- ⚠️ **Open decision:** where "Log in" lives now. It was a top-right link. Most
-  likely it belongs inside the drop-down. Ask him.
+- ✅ **Decided (Adrian, 2026-09-17):** "Log in" is an item INSIDE the
+  drop-down, and the hero also carries "Already a current user? Log in" under
+  its button, with Log in underlined and linking to `/login`.
+- **The header is part of the hero** (Adrian, 2026-09-17): no band, no divider
+  of colour.
+- **Menu items:** links that jump to each section, the free reconstitution
+  calculator (§3.12), and Log in. More (a compound library) come later.
 
 ### 3.2 Hero
 
@@ -105,8 +112,10 @@ is doing a full copy pass and will settle it himself.
 - **Button: "Start tracking."** He wants it **outlined and gradient-filled**, and
   *"a little bit smoother"*. The current flat amber button is what he means by
   plain.
-- **Beneath the button, as separate text: "7-day free trial. Cancel in one tap."**
-  ⚠️ It must NOT be inside the button.
+- **Beneath the button, as separate text: "7-day free trial. Cancel anytime."**
+  (Adrian, 2026-09-17; it was "Cancel in one tap".) ⚠️ It must NOT be inside
+  the button.
+- **Beneath that: "Already a current user? Log in"**, Log in underlined.
 - **No stars.** The sketch has them; he cut them.
 
 ### 3.3 "Join the movement"
@@ -214,9 +223,32 @@ The current footer is *"a bit crap"*. Rebuild as a divided band:
 
 ### 3.11 Sticky CTA
 
-**Keep it.** He likes the button that slides up and parks at the bottom. It is
-`components/landing/sticky-cta.tsx`; it appears once the hero leaves, is `inert`
-while hidden, and respects reduced motion.
+**Keep it.** He likes the button that slides up and parks at the bottom. It
+appears once the hero leaves, is `inert` while hidden, and respects reduced
+motion.
+
+**Revised (Adrian, 2026-09-17):** make it "its own kind of separate widget", and
+carry the same "Already a current user? Log in" line. Built as
+`components/landing/dock.tsx`: a floating card clear of the screen's edges
+rather than a bar.
+
+### 3.12 The free reconstitution calculator (added 2026-09-17)
+
+Adrian: marketing will run on Reddit and similar, and when someone says "I
+don't know how to do this" he wants to link them to a calculator. So:
+
+- **A public page, `/reconstitution-calculator`**, with the calculator and
+  nothing else from the app. No account, no trip into the app.
+- **A duplicate, so it does not load the app**, and it may look nicer than the
+  in-app one. It must look good on a laptop and on an iPhone.
+- **Linked from the header menu** as a small sub-link, and from the footer's
+  quick links.
+- ⚠️ **It must give the same answers as the app.** It shares the arithmetic,
+  the syringe scale, the drawing, the input sheet and the legal disclaimer with
+  the in-app calculator; only the layout is its own.
+- The compound library is a later page of the same kind. Not now.
+
+This supersedes 3-02's "standalone SEO calculator page: separate spec".
 
 ---
 
@@ -325,14 +357,41 @@ Working, verified, and worth keeping unless it fights the new design:
 
 ## 8. What Adrian still owes
 
-- **The two social URLs** (TikTok, Instagram).
+- ~~The two social URLs~~ ✅ TikTok `https://www.tiktok.com/@trackdcoapp`,
+  Instagram `https://www.instagram.com/trackdcoapp/` (in `lib/brand.ts`).
 - **A copy pass over the whole page.** He asked to be reminded, and he is
-  rewriting the founders' note himself.
-- **A ruling on "Cancel in one tap."** Cancelling today is Billing, then Cancel,
-  then a confirm, and sometimes a retention offer, so the line overstates it.
-  Flagged independently by review.
+  rewriting the founders' note himself. The four hero lines are laid out with
+  the first as a line above the title, for him to settle.
+- ~~A ruling on "Cancel in one tap."~~ ✅ "7-day free trial. Cancel anytime."
 - **The privacy FAQ answer**, still a placeholder.
+- **Real testimonials**, to replace the four invented ones (see §9).
+- **The comparison rows.** Each cross under "Other apps" is a claim about
+  competitors; he confirms each is true before this ships.
+- **The public calculator has no first-run modal** (the in-app one does); the
+  permanent disclaimer stands on the page instead. Confirm.
 - **Real device checks** on an iPhone and an Android.
-- **Where "Log in" lives** now that the header has a menu.
+- ~~Where "Log in" lives~~ ✅ inside the drop-down, and under the hero button.
 - **After this merges:** delete the first onboarding step (the "get your protocol
   off your notes app" hook), because the landing page does that job now.
+
+## 9. Decisions taken during the build (2026-09-17)
+
+- **The features widget draws the app rather than photographing it.** Each
+  screen is rendered from the app's own presentational components (containers,
+  body artwork, syringe, the calculator's input sheet, category icons) at the
+  app's real 390x844 and scaled. Screenshots were considered and rejected: the
+  preview fixtures name real compounds and greet a named user, and a captured
+  PNG cannot play the screen's moment when the row opens.
+- **Section title for the widget:** "Seven things your notes app can't do."
+- **Kyle's subtitle:** "Seven days free, with everything in. Set it up once, and
+  it takes seconds a day after that."
+- **The inverted comparison row** is "AI slop", with the Trackd column lit all
+  the way down and "The last row is on purpose." under the table.
+- **Placeholder testimonials cannot reach production by accident.**
+  `showTestimonials()` hides the section (and its menu item) on Vercel's
+  production environment while `PLACEHOLDER_TESTIMONIALS` is true, and a test
+  pins it. The worst case is a missing section, never a fake review.
+- **The 3-02 footer email field is gone.** The rebuilt footer's brief does not
+  include it. `joinWaitlist` and the `waitlist` table are untouched.
+- **Removed 3-02 components:** `device`, `laptop`, `today-panel`, `glyphs`,
+  `sticky-cta`, `updates-form`.

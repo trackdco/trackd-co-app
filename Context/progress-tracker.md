@@ -1,5 +1,73 @@
 # Progress Tracker
 
+## 🟡 THE LANDING PAGE, REBUILT FROM ADRIAN'S SKETCH (Spec 3-03) — BUILT 2026-09-17, PR #66, UNMERGED
+
+Same branch (`feat/landing-3-02`), same PR (#66, still "DO NOT MERGE"), same
+preview URL. Adrian's verdict on 3-02 was *"you can just tell that this is
+AI-generated"*; he drew the page on paper and 3-03 is that sketch, built as a
+rerun rather than an edit. **Nothing merges without his explicit approval.**
+
+**His answers before the build (2026-09-17):** TikTok `@trackdcoapp` and
+Instagram `trackdcoapp` (in `lib/brand.ts`); Log in lives INSIDE the drop-down,
+and under the hero button as "Already a current user? Log in"; the header is
+part of the hero, with no band of colour; the menu jumps to sections; the trial
+line is "7-day free trial. Cancel anytime."; the docked button becomes its own
+floating widget with the same log-in line; and a NEW free public reconstitution
+calculator he can link from Reddit (spec 3-03 §3.12).
+
+**What is on the page, top to bottom:** header inside a lit hero, a two-column
+laptop hero (one column on a phone) with the app on a phone inside concentric
+rings, "Join the movement" with a hand-drawn underline and a testimonial
+carousel, the features widget, Kyle with drifting app chips, the comparison
+table, the founders' note, the FAQ with draining vials, the closing call to
+action, a three-part footer, and the docked widget.
+
+**How the phone screens are made.** `components/landing/phone.tsx` lays a
+screen out at the app's real 390x844, scales it, and makes it `inert`; the
+eight screens in `components/landing/screens/` are built from the app's own
+presentational components with generic labels. The callout targets were
+measured off the rendered screens (`data-mark`), not guessed; the first guesses
+had cards over the very figures they described.
+
+**Shared with the app, on purpose:** the public calculator uses the app's
+arithmetic, syringe scale, `SyringeGraphic`, `CalculatorInputs`, remembered
+barrel size, and the legal disclaimer and warning copy, which moved from
+`ReconCalculator.tsx` to `lib/calculator/copy.ts` (words unchanged;
+`copy.test.ts` pins the disclaimer against `12-Legal-Direction-Spec.md`).
+
+**The placeholder testimonials cannot ship by accident.** `showTestimonials()`
+hides the section and its menu item on Vercel's production environment while
+`PLACEHOLDER_TESTIMONIALS` is true.
+
+**Verified by rendering and looking, not by reading the markup:**
+
+- 375x548, 402x700 and 1280 (plus 1280x900): no sideways scroll at any of them.
+- Every feature row opened at 402 and at 1280 and looked at.
+- The dock hides over the hero and the two call-to-action sections, and at the
+  very bottom of an SE clears the last footer line by 30px.
+- FAQ vial recorded per frame: cap lifts by 100ms, liquid drains 150 to 700ms,
+  answer open by ~400ms. Refills on close.
+- Carousel dots: a real bug found and fixed. The trailing spacer was counted as
+  a fifth card, so no dot lit at the end of the track.
+- Reduced motion, read with no waiting: no running animations, every moment in
+  its finished state.
+- Keyboard: every control reachable with a visible ring; Enter opens the menu
+  onto its first item, Escape closes it and returns focus. Closed feature rows
+  and the hidden dock are `inert`.
+- Public calculator: 10 mg, 2 mL, 1000 mcg gives 5 mg/mL, 0.2 mL, 20 units, the
+  same as the app; 5000 mcg raises the 0.5 mL over-capacity warning.
+- Built HTML: the four legal links with the statute's full label, the entity and
+  ACN, both social URLs; no "Cancel in one tap", no dotted name, no em dash.
+
+**Gates:** tsc 0, eslint 0, vitest 109 files / 2115 tests, `next build` exit 0
+with `/` and `/reconstitution-calculator` both prerendered static.
+
+**Still owed, all Adrian's:** the copy pass (and the founders' letter), real
+testimonials, confirming each comparison row (they are claims about other
+apps), the privacy FAQ answer, whether the public calculator needs the in-app
+first-run modal, and real iPhone and Android checks. After merge, the first
+onboarding step (the notes-app hook) is deleted.
+
 ## ✅ THE WEIGHT SHEET GETS THE SAME DATE (2026-09-12)
 
 Adrian, the same day the photo sheet shipped: "can you do the same calendar
@@ -289,7 +357,7 @@ session needs at hand.
 
 Last updated: 2026-09-03 (the billing gate has been LIVE since 27 Aug and the repo said otherwise; the seven-day grace notice is built on `warning-popup`)
 
-## The public landing page at `/` (Spec 3-02) — BUILT 2026-09-16, PR #66, UNMERGED
+## The public landing page at `/` (Spec 3-02) — BUILT 2026-09-16, SUPERSEDED 2026-09-17 BY 3-03 (see the top of this file)
 
 Branch `feat/landing-3-02`, pushed. **PR #66 is titled "DO NOT MERGE"** and stays
 that way until Adrian rules: "no merging to main without my final full approval."

@@ -2420,22 +2420,27 @@ body[data-inline-edit="true"] .shortcuts-layer {
 }
 
 /* ---------------------------------------------------------------------------
-   THE PUBLIC LANDING PAGE (`/`, spec 3-02)
-   
-   Two classes, and deliberately only two. The page is built from the app's own
-   tokens, type presets and `.hairline` rules; what it needs that the app does
-   not is a WIDER CONTENT COLUMN than the phone-sized `max-w-md` every tab
-   screen shares, because it is also read on a laptop by someone who has never
-   heard of us.
+   THE PUBLIC SITE: `/` AND `/reconstitution-calculator` (spec 3-03)
 
-   Written once here rather than per section: the spec fixes 560px to tablet and
-   680px on desktop, and spelling that out eleven times is eleven chances to
-   drift by a pixel, which is exactly how a page stops reading as one piece.
+   Everything below is scoped by its `lp-` prefix to the two public marketing
+   pages and must not appear inside the app. Spec 3-03 loosened the LAYOUT
+   vocabulary for these pages on purpose ("it doesn't need to be exactly Trackd
+   UI, the same way Pep AI's website isn't the same as their app"); the palette
+   and the type did not loosen, so every colour here is still mixed FROM a
+   token and no hex appears below.
 
-   Sections separate with the existing `.hairline-t`, never a card. The card
-   treatment belongs to data surfaces inside the app, and a marketing page built
-   out of stacked cards reads as a template.
+   The rules that still bind, and where they are kept:
+     - Amber is rare: the call to action, the drawn underline, and the FAQ
+       vials' liquid. The injection-site ramp inside the features widget is the
+       sanctioned recency exception and carries its own day labels.
+     - Every animation collapses under `prefers-reduced-motion` (the block at
+       the end of this section). Inline styles on these pages set LONGHANDS
+       only (`animationDelay`, custom properties), never an `animation` or
+       `transition` shorthand, which would outrank that block.
    --------------------------------------------------------------------------- */
+
+/* The reading column (carried over from 3-02) and a wide one for the laptop
+   layouts, which are designed rather than a phone column stretched out. */
 .lp-col {
   width: 100%;
   max-width: 35rem; /* 560px */
@@ -2443,8 +2448,16 @@ body[data-inline-edit="true"] .shortcuts-layer {
   padding-inline: 1.25rem; /* the side gutter, never zero at any width */
 }
 
+.lp-wide {
+  width: 100%;
+  max-width: 72rem; /* 1152px */
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
 .lp-sec {
-  padding-block: 3.5rem;
+  padding-block: 4.5rem;
+  scroll-margin-top: 1rem;
 }
 
 @media (min-width: 800px) {
@@ -2452,23 +2465,611 @@ body[data-inline-edit="true"] .shortcuts-layer {
     max-width: 42.5rem; /* 680px */
   }
 
+  .lp-wide {
+    padding-inline: 2rem;
+  }
+
   .lp-sec {
-    padding-block: 5.5rem;
+    padding-block: 7rem;
   }
 }
 
-/* ---------------------------------------------------------------------------
-   THE LANDING PAGE'S TWO MOVING PARTS (spec 3-02)
+/* The carousel's gutter: the first card lines up with the wide column, while
+   the track itself still bleeds to both screen edges. */
+.lp-bleed {
+  padding-inline: 1.25rem;
+  scroll-padding-inline: 1.25rem;
+}
 
-   `landing-ring` is the due dose being LOGGED: an amber ring that settles to a
-   white disc at 900ms, under a tick that pops at 940ms. It is the app's own
-   heartbeat, and it is the only thing on the page that moves unasked. The rest
-   of the page is still, which is what buys this one moment its authority.
+@media (min-width: 800px) {
+  .lp-bleed {
+    padding-inline: max(2rem, calc((100% - 72rem) / 2 + 2rem));
+    scroll-padding-inline: max(2rem, calc((100% - 72rem) / 2 + 2rem));
+  }
+}
 
-   `landing-cta-bar` is the sticky call to action, modelled on `.edit-action-bar`
-   but a separate class because that one is scoped by name to in-place editing
-   and inherits rules this must not.
-   --------------------------------------------------------------------------- */
+/* ---- The phone -------------------------------------------------------------
+
+   The screen inside is laid out at the app's REAL logical size, 390 x 844,
+   and scaled down as one piece. That is what keeps a 14px row a 14px row in
+   proportion to everything around it, instead of a hand-shrunk imitation.
+
+   CSS cannot divide a length by a length, so each size carries its scale as a
+   number beside its width: scale = (width - 8px of band) / 390. Change one,
+   change the other. */
+.lp-phone {
+  --phone-w: 16.25rem; /* 260px, scale 252 / 390 */
+  --phone-scale: 0.64615;
+  width: var(--phone-w);
+}
+
+.lp-phone-hero {
+  --phone-w: 17.5rem; /* 280px, scale 272 / 390 */
+  --phone-scale: 0.69744;
+}
+
+@media (min-width: 800px) {
+  .lp-phone {
+    --phone-w: 18.75rem; /* 300px, scale 292 / 390 */
+    --phone-scale: 0.74872;
+  }
+
+  .lp-phone-hero {
+    --phone-w: 20rem; /* 320px, scale 312 / 390 */
+    --phone-scale: 0.8;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lp-phone {
+    --phone-w: 20rem;
+    --phone-scale: 0.8;
+  }
+
+  .lp-phone-hero {
+    --phone-w: 20rem; /* the laptop hero keeps the whole device above an 800px fold */
+    --phone-scale: 0.8;
+  }
+}
+
+.lp-phone-screen {
+  width: calc(var(--phone-w) - 8px);
+  height: calc((var(--phone-w) - 8px) * 844 / 390);
+}
+
+.lp-phone-logical {
+  width: 390px;
+  height: 844px;
+  transform: scale(var(--phone-scale));
+  transform-origin: top left;
+}
+
+/* ---- Surfaces ------------------------------------------------------------ */
+
+/* A panel that sits ON the page with depth rather than being a flat hole in
+   it. The same recipe as `.flow-card`, one step stronger, because these panels
+   are larger and read at arm's length on a laptop. */
+.lp-panel {
+  background: color-mix(in srgb, var(--text-primary) 3.5%, var(--bg-base));
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 7%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 5%, transparent),
+    0 24px 60px -36px rgb(0 0 0 / 0.9);
+}
+
+/* A small floating widget over a phone or around Kyle: translucent so the
+   thing it floats over still reads through it. */
+.lp-float {
+  background: color-mix(in srgb, var(--bg-surface-raised) 78%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 9%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 6%, transparent),
+    0 14px 34px -16px rgb(0 0 0 / 0.85);
+}
+
+/* The hero's lit ground. The header lives INSIDE this (Adrian, 2026-09-17:
+   "I don't want it to be a divide of colour"), so the light starts above the
+   wordmark and there is no band where a header ends. */
+.lp-hero {
+  background:
+    radial-gradient(
+      60% 46% at 50% 58%,
+      color-mix(in srgb, var(--accent-amber) 10%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      120% 60% at 50% 0%,
+      color-mix(in srgb, var(--text-primary) 6%, var(--bg-base)) 0%,
+      var(--bg-base) 64%
+    ),
+    var(--bg-base);
+}
+
+@media (min-width: 1024px) {
+  .lp-hero {
+    background:
+      radial-gradient(
+        38% 60% at 74% 52%,
+        color-mix(in srgb, var(--accent-amber) 11%, transparent) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        110% 70% at 40% 0%,
+        color-mix(in srgb, var(--text-primary) 6%, var(--bg-base)) 0%,
+        var(--bg-base) 66%
+      ),
+      var(--bg-base);
+  }
+}
+
+/* The closing section's light: a pool of amber under the button, with no
+   edge. (`.lp-hero` here drew a visible band where the section began.) */
+.lp-glow {
+  background: radial-gradient(
+    50% 60% at 50% 62%,
+    color-mix(in srgb, var(--accent-amber) 9%, transparent) 0%,
+    transparent 72%
+  );
+}
+
+/* A soft lift behind a later section, so the page is not one flat field. */
+.lp-lift {
+  background: radial-gradient(
+    70% 55% at 50% 50%,
+    color-mix(in srgb, var(--text-primary) 4%, transparent) 0%,
+    transparent 72%
+  );
+}
+
+/* The concentric rings Adrian drew behind the device. Each ring is a hairline
+   circle; they ripple out ONCE on load and then sit still. */
+.lp-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 22%, transparent);
+  transform: translate(-50%, -50%);
+  animation: lp-ring-in 1600ms var(--motion-ease) both;
+}
+
+@keyframes lp-ring-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* ---- The call to action ---------------------------------------------------
+
+   "Outlined and gradient-filled, a little bit smoother" (Adrian, 2026-09-17).
+
+   ⚠️ THE INK IS `--bg-base`, NOT WHITE, and the gradient is bounded by that.
+   Near-black on `--accent-amber` measures 6.19:1. The darkest stop here is
+   amber mixed 12% toward `--bg-base`, which measures 5.0:1 against the same
+   ink, so the label passes AA wherever it sits on the gradient. White on amber
+   is 2.65:1 and fails; do not "fix" the ink.
+
+   The outline is a pseudo-element ring with a gap, not a `border`, so the
+   gradient runs to the button's edge and the outline floats around it. It is
+   also not the `outline` property, which stays free for keyboard focus. */
+.lp-cta {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 3.25rem;
+  padding-inline: 1.75rem;
+  border-radius: 9999px;
+  color: var(--bg-base);
+  font-size: 0.975rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-amber) 74%, var(--text-primary)) 0%,
+    var(--accent-amber) 52%,
+    color-mix(in srgb, var(--accent-amber) 88%, var(--bg-base)) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 55%, transparent),
+    inset 0 -1px 0 0 color-mix(in srgb, var(--bg-base) 22%, transparent),
+    0 12px 32px -14px color-mix(in srgb, var(--accent-amber) 70%, transparent);
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-base) var(--motion-ease);
+}
+
+.lp-cta::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 42%, transparent);
+  pointer-events: none;
+  transition: inset var(--motion-base) var(--motion-ease),
+    border-color var(--motion-base) var(--motion-ease);
+}
+
+/* A sheen that crosses once on hover. Clipped by its own wrapper rather than by
+   `overflow: hidden` on the button, which would also clip the outline ring. */
+.lp-cta-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.lp-cta-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    color-mix(in srgb, var(--text-primary) 42%, transparent) 50%,
+    transparent 100%
+  );
+  transform: translateX(-160%) skewX(-18deg);
+}
+
+@media (hover: hover) {
+  .lp-cta:hover {
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 60%, transparent),
+      inset 0 -1px 0 0 color-mix(in srgb, var(--bg-base) 22%, transparent),
+      0 16px 40px -14px color-mix(in srgb, var(--accent-amber) 85%, transparent);
+  }
+
+  .lp-cta:hover::before {
+    inset: -7px;
+    border-color: color-mix(in srgb, var(--accent-amber) 60%, transparent);
+  }
+
+  .lp-cta:hover .lp-cta-sheen::after {
+    transform: translateX(360%) skewX(-18deg);
+    transition: transform 900ms var(--motion-ease);
+  }
+}
+
+.lp-cta:active {
+  transform: scale(0.98);
+}
+
+.lp-cta:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 9px;
+}
+
+/* ---- The header menu ------------------------------------------------------ */
+
+.lp-menu-panel {
+  transform-origin: top right;
+  animation: lp-menu-in 220ms var(--motion-ease) both;
+}
+
+.lp-menu-item {
+  animation: lp-menu-item-in 360ms var(--motion-ease) both;
+}
+
+.lp-scrim {
+  animation: lp-fade-in var(--motion-fast) ease-out both;
+}
+
+@keyframes lp-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lp-menu-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lp-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The three lines folding into a cross. */
+.lp-burger span {
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    opacity var(--motion-fast) ease-out;
+}
+
+.lp-burger[aria-expanded="true"] span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.lp-burger[aria-expanded="true"] span:nth-child(2) {
+  opacity: 0;
+}
+
+.lp-burger[aria-expanded="true"] span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+/* ---- The hand-drawn underline ----------------------------------------------
+
+   A tapered brush shape, revealed by a thick stroke that is drawn along the
+   same centreline. The shape gives the ink its uneven weight; the stroke gives
+   it direction and pace. `pathLength="1"` on the stroke makes the dash maths
+   independent of the path's real length. */
+.lp-ink-stroke {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.lp-ink[data-drawn] .lp-ink-stroke {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 760ms cubic-bezier(0.55, 0.08, 0.3, 1);
+}
+
+.lp-ink[data-drawn] .lp-ink-stroke-2 {
+  transition-duration: 300ms;
+  transition-delay: 700ms;
+}
+
+/* The hero device arriving on load. */
+.lp-rise {
+  animation: lp-rise 1100ms var(--motion-ease) 120ms both;
+}
+
+@keyframes lp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Drift and reveal ----------------------------------------------------- */
+
+/* A marketing surface with no figures on it, the same argument that sanctions
+   drift in `/onboarding`. Decorative layers only, always `pointer-events-none`. */
+.lp-drift {
+  animation: lp-drift var(--drift-ms, 9000ms) ease-in-out infinite alternate;
+}
+
+@keyframes lp-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(var(--drift-x, 0px), var(--drift-y, -6px), 0);
+  }
+}
+
+/* Revealed once when scrolled into view. DECORATIVE ELEMENTS ONLY: text never
+   waits on script to become visible, so a crawler or a failed script still
+   reads the page. */
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(18px) scale(0.96);
+  transition:
+    opacity 700ms var(--motion-ease),
+    transform 900ms var(--motion-ease);
+}
+
+.lp-reveal[data-in] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Kyle arrives, then flexes once. */
+.lp-kyle[data-in] {
+  animation: lp-kyle-flex 900ms cubic-bezier(0.34, 1.4, 0.64, 1) 350ms both;
+}
+
+@keyframes lp-kyle-flex {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.06) rotate(-2deg);
+  }
+  65% {
+    transform: scale(0.99) rotate(1.5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* ---- Carousel ------------------------------------------------------------- */
+
+.lp-snap {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.lp-snap::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- The FAQ vial ----------------------------------------------------------
+
+   Opening a question drains the vial beside it: the cap lifts and turns, THEN
+   the liquid runs out. Closing refills it, THEN the cap settles. The delays
+   swap between the two states so each direction runs in its own order, which is
+   what makes it read as a mechanism rather than a fade. */
+.lp-vial-liquid,
+.lp-vial-surface {
+  transition: transform 560ms cubic-bezier(0.7, 0, 0.25, 1) 0ms;
+}
+
+.lp-vial-liquid {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.lp-vial-cap {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: transform 200ms cubic-bezier(0.34, 1.5, 0.64, 1) 540ms;
+}
+
+[data-open] .lp-vial .lp-vial-cap {
+  transform: translateY(-2.5px) rotate(-14deg);
+  transition-delay: 0ms;
+}
+
+[data-open] .lp-vial .lp-vial-liquid {
+  transform: scaleY(0);
+  transition-delay: 150ms;
+}
+
+[data-open] .lp-vial .lp-vial-surface {
+  transform: translateY(var(--vial-drop, 18px));
+  transition-delay: 150ms;
+}
+
+.lp-vial-bubble {
+  opacity: 0;
+}
+
+[data-open] .lp-vial .lp-vial-bubble {
+  animation: lp-bubble 620ms ease-out 170ms both;
+}
+
+[data-open] .lp-vial .lp-vial-bubble:nth-of-type(2) {
+  animation-delay: 260ms;
+}
+
+@keyframes lp-bubble {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-9px);
+  }
+}
+
+/* ---- Callouts on a phone ---------------------------------------------------
+
+   A floating card beside the phone, a dot on the thing it describes, and a
+   hairline between them. Every position is a percentage of the PHONE's box,
+   set inline from `feature-widget.tsx`, which is where the reasoning lives. */
+/* A RING, not a dot: a filled dot hid the very thing it pointed at (a
+   sub-Q site is about 10px across at phone size). */
+.lp-co-dot {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--text-primary);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--bg-base) 55%, transparent),
+    0 0 14px 1px color-mix(in srgb, var(--text-primary) 35%, transparent);
+}
+
+.lp-co-line {
+  stroke: color-mix(in srgb, var(--text-primary) 50%, transparent);
+  stroke-width: 1;
+}
+
+.lp-co-card {
+  position: absolute;
+  width: max-content;
+  max-width: 9.25rem;
+  translate: 0 -50%;
+}
+
+@media (min-width: 1024px) {
+  .lp-co-card {
+    max-width: 11.5rem;
+  }
+}
+
+/* The callouts arrive after the phone has, one after the other. */
+.lp-co {
+  opacity: 0;
+  transition: opacity 500ms ease-out;
+}
+
+[data-live] > .lp-co,
+[data-live] .lp-co {
+  opacity: 1;
+}
+
+/* ---- The expanding feature row -------------------------------------------- */
+
+.lp-expand {
+  display: grid;
+  transition: grid-template-rows 420ms var(--motion-ease);
+}
+
+/* A sparkline drawing itself left to right. */
+.lp-draw-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+[data-live] .lp-draw-line {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1100ms cubic-bezier(0.45, 0.05, 0.25, 1) 250ms;
+}
+
+.lp-draw-area {
+  opacity: 0;
+}
+
+[data-live] .lp-draw-area {
+  opacity: 1;
+  transition: opacity 700ms ease-out 900ms;
+}
+
+/* A progress bar filling to its value. */
+.lp-bar {
+  transform-origin: left;
+  transform: scaleX(0);
+}
+
+[data-live] .lp-bar {
+  transform: scaleX(var(--to, 1));
+  transition: transform 1000ms var(--motion-ease) 300ms;
+}
+
+/* ---- The due dose in the hero phone (carried over from 3-02) --------------- */
+
 @keyframes landing-ring-settle {
   to {
     border-color: transparent;
@@ -2480,28 +3081,142 @@ body[data-inline-edit="true"] .shortcuts-layer {
   animation: landing-ring-settle 320ms var(--motion-ease) both;
 }
 
-.landing-cta-bar {
-  background: color-mix(in srgb, var(--bg-base) 86%, transparent);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  border-top: 0.5px solid var(--border-default);
-  padding-bottom: env(safe-area-inset-bottom);
-  transform: translateY(100%);
-  transition: transform var(--motion-slow) var(--motion-ease);
+/* A label handing over to another as the due dose is logged. The BASE style
+   of each is its final state, so under reduced motion (animation: none) the
+   finished screen is what shows. */
+.lp-swap-out {
+  opacity: 0;
+  animation: lp-swap-out 220ms ease-out both;
 }
 
-.landing-cta-bar-on {
-  transform: none;
+.lp-swap-in {
+  opacity: 1;
+  animation: lp-swap-in 260ms ease-out both;
 }
+
+.lp-row-done {
+  opacity: 0.6;
+  animation: lp-row-done 300ms ease-out both;
+}
+
+@keyframes lp-swap-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lp-swap-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lp-row-done {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.6;
+  }
+}
+
+/* ---- The docked call to action ---------------------------------------------
+
+   "Its own kind of separate widget" (Adrian, 2026-09-17): a floating card that
+   parks above the bottom edge rather than a bar welded to it. */
+.lp-dock {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  width: min(calc(100% - 1.5rem), 34rem);
+  border-radius: 1.5rem;
+  background: color-mix(in srgb, var(--bg-surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 9%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 7%, transparent),
+    0 22px 50px -18px rgb(0 0 0 / 0.95);
+  transform: translate(-50%, calc(100% + 2rem));
+  opacity: 0;
+  transition:
+    transform 520ms var(--motion-ease),
+    opacity 300ms ease-out;
+}
+
+.lp-dock[data-shown] {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+/* ---- Reduced motion: every class above, collapsed ------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-ring {
+  .lp-ring,
+  .lp-rise,
+  .lp-menu-panel,
+  .lp-menu-item,
+  .lp-scrim,
+  .lp-drift,
+  .lp-kyle[data-in],
+  .lp-swap-out,
+  .lp-swap-in,
+  .lp-row-done,
+  .landing-ring,
+  [data-open] .lp-vial .lp-vial-bubble {
     animation: none;
+  }
+
+  .landing-ring {
     border-color: transparent;
     background-color: var(--accent-primary);
   }
 
-  .landing-cta-bar {
+  .lp-cta,
+  .lp-cta::before,
+  .lp-burger span,
+  .lp-reveal,
+  .lp-vial-liquid,
+  .lp-vial-surface,
+  .lp-vial-cap,
+  .lp-expand,
+  .lp-co,
+  .lp-dock,
+  .lp-ink[data-drawn] .lp-ink-stroke,
+  [data-live] .lp-draw-line,
+  [data-live] .lp-draw-area,
+  [data-live] .lp-bar {
     transition: none;
+  }
+
+  .lp-cta:hover .lp-cta-sheen::after {
+    transition: none;
+    transform: translateX(-160%) skewX(-18deg);
+  }
+
+  .lp-ink-stroke,
+  .lp-draw-line {
+    stroke-dashoffset: 0;
+  }
+
+  .lp-draw-area {
+    opacity: 1;
+  }
+
+  .lp-bar {
+    transform: scaleX(var(--to, 1));
+  }
+
+  .lp-reveal,
+  .lp-co {
+    opacity: 1;
+    transform: none;
   }
 }

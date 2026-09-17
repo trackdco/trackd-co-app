@@ -2,40 +2,95 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
+/** Where every call to action on the public pages goes: the onboarding quiz. */
+export const START_HREF = "/start";
+
+/** The existing sign-in route. */
+export const LOGIN_HREF = "/login";
+
 /**
- * ONE CONTROL, ONE LABEL, ONE OBJECTION LINE (spec 3-02 §Copy).
+ * The line under a call to action (Adrian, 2026-09-17). It was "Cancel in one
+ * tap", and review flagged that cancelling is Billing, Cancel, a confirm and
+ * sometimes a retention offer, so the line promised more than the app does.
  *
- * The spec fixes both strings and requires the objection line under EVERY
- * instance of the button, so button and line are one component rather than two
- * things a future edit can separate.
- *
- * ## ⚠️ THE INK IS `--bg-base`, NOT WHITE
- *
- * Measured: near-black on `--accent-amber` is 6.19:1 and passes AA at every
- * size; `--text-primary` on the same amber is 2.65:1 and fails badly. Amber is
- * a mid-luminance hue, so it takes dark text. The instinct to put white on a
- * filled button is the wrong one here.
- *
- * Geometry is `FlowCta`'s, so the button a visitor presses on the landing page
- * is the same object they meet on every screen of the flow it leads into.
+ * ⚠️ It sits BENEATH the button as its own text, never inside it (spec 3-03
+ * §3.2).
  */
-export function PrimaryCta({ className }: { className?: string }) {
+export const TRIAL_LINE = "7-day free trial. Cancel anytime.";
+
+/**
+ * THE BUTTON. Gradient-filled and outlined; the whole recipe, including why the
+ * ink is `--bg-base` rather than white, is `.lp-cta` in `globals.css`.
+ *
+ * `data-cta` is how the docked widget knows a call to action is already on
+ * screen and gets out of the way, so two of the same button are never in view
+ * at once.
+ */
+export function StartButton({
+  label = "Start tracking",
+  className,
+}: {
+  label?: string;
+  className?: string;
+}) {
   return (
-    <div className={cn("flex flex-col items-center gap-2.5", className)}>
+    <Link href={START_HREF} data-cta className={cn("lp-cta", className)}>
+      <span aria-hidden className="lp-cta-sheen" />
+      {label}
+    </Link>
+  );
+}
+
+/**
+ * "Already a current user? Log in" (Adrian, 2026-09-17), with the link
+ * underlined. Under the hero button and in the docked widget.
+ *
+ * "Log in" rather than "Login": the verb, which is how the app's own sign-in
+ * link has always read.
+ */
+export function LoginLine({ className }: { className?: string }) {
+  return (
+    <p className={cn("text-xs text-text-secondary", className)}>
+      Already a current user?{" "}
       <Link
-        href="/start"
-        className={cn(
-          "flex h-13 w-full items-center justify-center rounded-2xl px-6",
-          "bg-accent-amber text-[0.95rem] font-medium text-bg-base",
-          "transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)]",
-          "active:scale-[0.98]",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
-          "motion-reduce:transition-none motion-reduce:active:scale-100",
-        )}
+        href={LOGIN_HREF}
+        className="rounded-sm text-foreground underline decoration-text-secondary underline-offset-[3px] transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
       >
-        Start tracking
+        Log in
       </Link>
-      <p className="text-xs text-text-secondary">7-day free trial. Cancel in one tap.</p>
+    </p>
+  );
+}
+
+/**
+ * The button with its trial line beneath it, and optionally the sign-in line.
+ * `align="start"` left-aligns the group from the laptop breakpoint up, for the
+ * two-column hero; on a phone everything is centred.
+ */
+export function PrimaryCta({
+  label,
+  withLogin = false,
+  align = "center",
+  className,
+}: {
+  label?: string;
+  withLogin?: boolean;
+  align?: "center" | "start";
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center gap-4 text-center",
+        align === "start" && "lg:items-start lg:text-left",
+        className,
+      )}
+    >
+      <StartButton label={label} className="w-full max-w-[20rem]" />
+      <div className="space-y-1.5">
+        <p className="text-xs text-text-secondary">{TRIAL_LINE}</p>
+        {withLogin ? <LoginLine /> : null}
+      </div>
     </div>
   );
 }

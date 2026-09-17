@@ -87,3 +87,13 @@ const WEEKS_PER_YEAR = 52;
  * which rounds to the $1.35 the spec's checklist names.
  */
 export const YEARLY_PER_WEEK = Math.round((PLANS.yearly.amount / WEEKS_PER_YEAR) * 100) / 100;
+
+/**
+ * Trackd Co's own social accounts (Adrian, 2026-09-17). The footer links to
+ * both. Kept here rather than in the footer because a handle change is the same
+ * kind of edit as a name change: one line, found in one place.
+ */
+export const SOCIAL_LINKS = {
+  tiktok: "https://www.tiktok.com/@trackdcoapp",
+  instagram: "https://www.instagram.com/trackdcoapp/",
+} as const;

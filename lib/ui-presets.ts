@@ -60,19 +60,26 @@ export const FLOW_DISPLAY =
   "text-[2.5rem] font-light leading-[1.02] tracking-[-0.035em] text-foreground"
 
 /**
- * The PUBLIC LANDING PAGE's headline (spec 3-02), and the only place it is used.
+ * The PUBLIC SITE's type (spec 3-02, re-cut for 3-03). Used on `/` and
+ * `/reconstitution-calculator` and nowhere in the app.
  *
- * `FLOW_DISPLAY` is sized for a phone-width flow screen, where 2.5rem fills the
- * column. The landing page is also read on a laptop at 680px, where the same
- * size reads as a paragraph rather than an opening statement, and Adrian asked
- * for a hero that lands (2026-09-16: "a massive hero section which is visual").
+ * `LANDING_DISPLAY` is the hero headline. `FLOW_DISPLAY` is sized for a
+ * phone-width flow screen; the landing page is also read on a laptop, where
+ * that size reads as a paragraph rather than an opening statement, so this one
+ * steps up at each breakpoint. Still Geist Light, still one `<em>` of emphasis
+ * at most: the step is size, never a second typeface or a heavier weight.
  *
- * It steps up ONLY at the desktop breakpoint, so the phone keeps the flow's
- * proportions exactly. Still Geist Light, still one `<em>` of emphasis at most:
- * the step is size, never a second typeface or a heavier weight.
+ * `LANDING_TITLE` heads each section; `LANDING_SUB` sits under it, in the
+ * AA-safe `--text-secondary` because this page must measure, not just look.
  */
 export const LANDING_DISPLAY =
-  "text-[2.5rem] md:text-[3.25rem] font-light leading-[1.02] tracking-[-0.035em] text-foreground"
+  "text-[2.75rem] md:text-[3.75rem] lg:text-[4.25rem] font-light leading-[1] tracking-[-0.04em] text-foreground"
+
+export const LANDING_TITLE =
+  "text-[2.1rem] md:text-[2.9rem] font-light leading-[1.04] tracking-[-0.035em] text-foreground"
+
+export const LANDING_SUB =
+  "text-[0.98rem] md:text-[1.08rem] leading-relaxed text-text-secondary"
 
 /* ---------------------------------------------------------------------------
    Inversion presets (see ui-context.md → Typography): card TITLES recede into

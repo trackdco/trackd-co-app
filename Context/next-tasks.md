@@ -78,7 +78,35 @@ trial-conversion risk still open)
 
 ---
 
-## 🟡 SPEC 3-02 — THE LANDING PAGE IS BUILT AND WAITING ON ADRIAN
+## 🟡 SPEC 3-03 — THE LANDING PAGE, REBUILT FROM THE SKETCH, IS WAITING ON ADRIAN
+
+Branch `feat/landing-3-02`, **PR #66, still "DO NOT MERGE"**, same preview URL
+(SSO-gated): `https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.vercel.app`.
+Also look at `/reconstitution-calculator` on the preview. State is in
+`progress-tracker.md`; the brief and the decisions are
+`Feature Specs/wave 2 - refinement/3-03-landing-rebuild.md` §8 and §9.
+
+- [ ] **⚠️ ADRIAN ASKED TO BE REMINDED: the copy pass over the whole page**, and
+      his own founders' letter. The four hero lines are laid out with the first
+      above the title, for him to settle.
+- [ ] **Real testimonials** (with permission) to replace the four invented ones
+      in `lib/landing/testimonials.ts`, then set `PLACEHOLDER_TESTIMONIALS` to
+      false and flip its test. Until then production hides the section.
+- [ ] **Confirm each comparison row** in `components/landing/compare.tsx`. A
+      cross under "Other apps" is a claim about competitors.
+- [ ] **The privacy FAQ answer** (`TODO(3-03)` in `app/page.tsx`).
+- [ ] **Rule on the public calculator's missing first-run modal.** The in-app
+      calculator shows one; the public page shows the permanent disclaimer on
+      the page instead.
+- [ ] **Real iPhone and real Android**, including the FAQ vials and the menu.
+- [ ] **CodeRabbit** on the new head (`@coderabbitai review`, and push nothing
+      straight after).
+- [ ] Merge is Adrian's call alone.
+- [ ] **After merge: delete the first onboarding step** (the notes-app hook).
+- [ ] Later, his words: a public compound library page, the same kind of page
+      as the free calculator.
+
+## ⏸ SPEC 3-02 — SUPERSEDED BY 3-03 (kept for its review history)
 
 Branch `feat/landing-3-02`, pushed. **PR #66, titled "DO NOT MERGE."** Adrian's
 instruction 2026-09-16: "no merging to main without my final full approval."
