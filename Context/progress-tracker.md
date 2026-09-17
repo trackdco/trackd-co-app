@@ -125,6 +125,15 @@ merge; it went to `main` through PR #68, which deploys. The rules it created are
     marked as not yet approved.
   - Adrian, on the preview (18 Sep): adding a compound no longer walks the pad
     into "Amount left". It has its own pad, opened by tapping the field.
+  - Merging `main` in (the landing page, the large-monitor sizing) was clean in
+    git and broken in fact, twice: `ReconCalculator` had lost
+    `MIN_READABLE_UNITS` from its imports, and `main`'s public calculator calls
+    `CalculatorInputs` with the change handlers the feel pass had replaced with
+    the pad's props. `CalculatorInputs` now takes either, so the public pages
+    keep their plain inputs. `app/globals.css` conflicted the same way: both
+    sides had appended blocks, and git spliced them at their shared closing
+    braces, leaving two keyframes unclosed. Gates on the merged tree: tsc,
+    eslint, vitest (2143), and the Vercel preview built it.
   - **Left as found** (low, none introduced by `5a26700`): two "Edit" text
     buttons (`StackDetailSheet`, `CycleDetailSheet`) still press with
     `active:text-*`; the Log dose stock skeleton matches the one-vial card only
