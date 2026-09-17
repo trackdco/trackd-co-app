@@ -111,7 +111,7 @@ const OUTSIDE_SHELL: Screen[] = [
     desktop: "Also newly reachable on a laptop.",
   },
   {
-    href: "/onboarding",
+    href: "/start",
     name: "Onboarding",
     desktop:
       'Was already exempt from the old gate. What changed: there is no "add to home screen" step on a laptop (nothing to add it to), so the founder letter is the last screen and its button reads "Open Trackd". The notification prompt is drawn as a browser panel rather than an Android sheet.',

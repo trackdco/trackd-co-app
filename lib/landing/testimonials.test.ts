@@ -1,0 +1,61 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  PLACEHOLDER_TESTIMONIALS,
+  TESTIMONIALS,
+  nearestIndex,
+  showTestimonials,
+} from "./testimonials";
+
+describe("placeholder testimonials", () => {
+  it("⚠️ never render invented quotes on the production deployment", () => {
+    expect(showTestimonials({ VERCEL_ENV: "production" }, true)).toBe(false);
+  });
+
+  it("render on previews and locally, where they are useful", () => {
+    expect(showTestimonials({ VERCEL_ENV: "preview" }, true)).toBe(true);
+    expect(showTestimonials({ VERCEL_ENV: "development" }, true)).toBe(true);
+    expect(showTestimonials({}, true)).toBe(true);
+  });
+
+  it("render everywhere once the quotes are real", () => {
+    expect(showTestimonials({ VERCEL_ENV: "production" }, false)).toBe(true);
+  });
+
+  it("are still flagged as placeholders (flip this test when real ones land)", () => {
+    // TODO(3-03): when real, attributable reviews replace these, set
+    // PLACEHOLDER_TESTIMONIALS to false and change this expectation with it.
+    expect(PLACEHOLDER_TESTIMONIALS).toBe(true);
+  });
+
+  it("follow the voice rules: no em dash, no exclamation mark", () => {
+    for (const t of TESTIMONIALS) {
+      expect(t.quote).not.toMatch(/[—!]/);
+      expect(t.name).not.toMatch(/^@/);
+    }
+  });
+});
+
+describe("nearestIndex", () => {
+  const offsets = [0, 300, 600, 900];
+
+  it("picks the card whose edge is nearest the scroll position", () => {
+    expect(nearestIndex(0, offsets)).toBe(0);
+    expect(nearestIndex(140, offsets)).toBe(0);
+    expect(nearestIndex(160, offsets)).toBe(1);
+    expect(nearestIndex(890, offsets)).toBe(3);
+  });
+
+  it("lights the last dot at the end of the track, even short of its edge", () => {
+    // A wide screen stops scrolling at 700, before the last card's edge (900)
+    // lines up. By distance alone that is card 2, and the last dot never lit.
+    expect(nearestIndex(700, offsets)).toBe(2);
+    expect(nearestIndex(700, offsets, 700)).toBe(3);
+    expect(nearestIndex(699, offsets, 700)).toBe(3);
+    expect(nearestIndex(500, offsets, 700)).toBe(2);
+  });
+
+  it("is safe with no cards", () => {
+    expect(nearestIndex(50, [])).toBe(0);
+  });
+});

@@ -232,7 +232,7 @@ function toSubscriptionFact(s: Stripe.Subscription): SubscriptionFact {
 }
 
 /**
- * The grace marker's key, written by `app/onboarding/billing-actions.ts:865`.
+ * The grace marker's key, written by `app/start/billing-actions.ts:865`.
  *
  * Declared here rather than imported because `freeTime.ts` writes it as an inline
  * object literal and exports no constant for it. ⚠️ THAT IS A REAL FRAGILITY and

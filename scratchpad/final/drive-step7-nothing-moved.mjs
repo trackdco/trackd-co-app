@@ -62,7 +62,7 @@ const CHANGED = "start";
 async function capture(ctx, step) {
   const page = await ctx.newPage();
   try {
-    await page.goto(`${BASE}/onboarding?step=${step}`, {
+    await page.goto(`${BASE}/start?step=${step}`, {
       waitUntil: "domcontentloaded", timeout: 120_000,
     });
     await page.waitForTimeout(3500);

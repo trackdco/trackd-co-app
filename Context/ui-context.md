@@ -468,6 +468,13 @@ Two things follow, and they are the ones that break silently:
   cannot be half-mixed: adding `min-h-0` under a scrolling page is what made the
   hook's phone go small and the paywall's carousel compress to nothing.
 
+**One exception, by Adrian's call (2026-09-17): the first screen.** The flow
+now opens on Kyle waving (`screens/intro.tsx`, rendered for the `hook` id),
+and its button sits directly under the welcome text rather than pinned: "the
+button should not be glued to the bottom of the screen in this section". Only
+its fine print (18+ and the statutory links) is pinned. Every other screen
+keeps the pinned CTA.
+
 **Give the top the same respect as the bottom.** The footer has carried
 `env(safe-area-inset-bottom)` since day one; the top was missed, and on a
 notched iPhone the progress bar sat level with the clock. If the inset is
@@ -750,6 +757,151 @@ SAME key, so the session stays one thing.
 **When to reach for it:** a sheet whose date is normally today but legitimately
 sometimes is not. If the date can never move, state it in a line and do not
 build a picker.
+
+### The public site: `/` and `/reconstitution-calculator` (Spec 3-03)
+
+**A scoped exception, like `/admin`, and scoped the same way.** Everything below
+applies to `app/page.tsx`, `app/reconstitution-calculator/**` and
+`components/landing/**`, and to nothing inside the app. Its CSS lives in
+`globals.css` under the **`lp-`** prefix. A `lp-` class on an app screen is a
+bug, not a precedent.
+
+**What loosened, and what did not (Adrian, 2026-09-17).** *"It doesn't need to
+be exactly Trackd UI, the same way that Pep AI's website isn't the same as the
+UI of their app."* So the LAYOUT vocabulary is the site's own: panels with
+depth, a two-column laptop hero, floating widgets, a carousel. The PALETTE and
+the TYPE did not loosen: every colour is `color-mix`ed from a token (no new
+hex), the faces are Geist and Geist Mono, weights stop at 500, and data figures
+are mono. **The laptop layouts are designed, not the phone column stretched**:
+he called the 3-02 page out for exactly that.
+
+**The header is part of the hero.** No band, no divider, not sticky
+(`.lp-hero` carries the light from above the wordmark). The menu is a
+**drop-down** (not a drawer): full width with the page dimmed on a phone, a
+narrow panel on the right with no dim on a laptop. It is a disclosure, not
+`role="menu"`. Log in lives inside it, and under the hero button as "Already a
+current user? Log in".
+
+**Columns and rhythm.** `.lp-col` (reading column, 560px, 680px from 800px),
+`.lp-wide` (1152px, for the laptop layouts), `.lp-sec` (72px, 112px from
+800px), `.lp-bleed` (a carousel track that bleeds to both edges while its first
+card lines up with `.lp-wide`).
+
+**Surfaces.** `.lp-panel` (a panel with a caught top edge and a soft shadow,
+one step stronger than `.flow-card`), `.lp-float` (a translucent widget over a
+phone or around Kyle), `.lp-hero` / `.lp-glow` / `.lp-lift` (the grounds), and
+`.lp-ring` (the concentric rings Adrian drew behind the hero device).
+
+**Type.** `LANDING_DISPLAY` (the hero headline: 2.75rem, 3.75rem, 4.25rem),
+`LANDING_TITLE` (each section's heading) and `LANDING_SUB` (the line under it,
+in `--text-secondary`). All in `lib/ui-presets.ts`.
+
+**It is measured, so it gets an AA-safe muted.** `--text-muted` measures
+**4.38:1** on `--bg-base` and **3.95:1** on `--bg-surface`, under the **4.5:1**
+floor WCAG AA sets for body text, so the public site's secondary prose uses
+**`--text-secondary`** (`--text-muted` mixed a quarter of the way toward
+`--text-primary`): **6.45:1** and **5.83:1**. **This is not a licence to swap
+`--text-muted` out across the app.** The app-wide contrast question is real and
+**OPEN** (raised 2026-09-16); it is not the landing page's to answer.
+
+**The call to action is `.lp-cta`: the app's own button shape, plain amber a
+step lighter than the token, with a soft glow** (third round, 2026-09-17:
+"just amber, like a lighter amber", glow turned down; the gradient is gone) (Adrian, 2026-09-17, replacing a gradient pill with an outline ring that
+he found too flashy: "more blocky ... a really small gradient ... more like a
+native button"). 52px, `rounded-2xl`, a deeper amber with a whisper of
+gradient, a faint top highlight, a soft amber glow beneath, and a sheen on hover
+that is barely there. The onboarding flow's white `FlowCta` carries the same
+kind of glow (`.flow-cta`), so the step from the site into the flow keeps one
+button character. **The ink is `--bg-base`,
+not white:** dark on amber is **6.19:1**, and the gradient's darkest stop
+(amber 12% toward `--bg-base`) still measures **5.0:1**; white on amber is
+**2.65:1** and fails. The label is "Start tracking" everywhere except Kyle's
+section ("Let's get started", never "Begin tracking"). Under it, as its own
+text and never inside it: **"7-day free trial. Cancel anytime."** (Adrian,
+2026-09-17; it was "Cancel in one tap", which overstated a Billing, Cancel,
+confirm flow). Every button carries `data-cta`.
+
+**The docked widget** (`.lp-dock`) is a floating card, not a bar welded to the
+edge. It arrives once the hero has gone and steps aside while any other
+`data-cta` element (a button, or the two sections built round one) is on
+screen, so two of the same button are never in view. `inert` while hidden. On a
+short phone (under 600px tall) it drops the trial line.
+
+**Between sections** (`.lp-sec-tight`, `.lp-band`, `.lp-enter`): Compare, the
+founders' note and the questions sit closer, with a thin centred rule between
+each; the note and the questions share one faint band; and headings and panels
+rise in on a CSS scroll timeline (nothing waits on script). The founders' note
+has a real heading above its card, like every other section.
+
+**Features on a phone are pills and one phone** (Adrian's pick): a swipeable
+tab row, the feature's line, one phone you can also swipe. The laptop keeps the
+list beside the phone. The docked button stays out of the way while the widget
+is on screen (`data-dock-hide`). **Kyle on a phone** has five small circles
+round him instead of cards.
+
+**Amber is still rare: three beats.** The call to action, the drawn underline
+under "movement", and the liquid in the FAQ vials. Testimonial stars are white
+for that reason. The testimonial cards snap to the CENTRE, with their dots
+centred beneath (`.lp-snap-center`). In the comparison table the mark follows
+the SYMBOL, not the column: a tick is always filled white, a cross always a
+muted outline, so the deliberately inverted last row swaps them. Inside a PICTURE of the app, the app's own amber applies (a due
+count, a run-dry date in its window, the insulin figure, the injection-site
+recency ramp with its day labels), because that is what the app looks like.
+
+**The hero phone is the drawn Dashboard** (Adrian preferred it to his own
+recording, 2026-09-17). The recording moved to the onboarding flow's free-week
+screen (`components/onboarding/phone-video.tsx`, classes `.phone-video`),
+shipped as HEVC with alpha (Safari, every iPhone browser) and VP9 with alpha
+(Chrome, Edge, Firefox), chosen in script because each of those browsers
+claims to play the other's file and then drops the transparency. Its opening
+is zoomed past the frame, so the box's top and bottom fade while it opens and
+ease away as it settles, written per frame from the video's clock (a CSS
+transition on the mask jumped in WebKit). No fade-in.
+
+**The app, drawn: `Phone`.** In the features widget, a screen is laid out at the app's real 390x844 and
+scaled as one piece (`.lp-phone`, which carries its scale beside its width
+because CSS cannot divide lengths), with the app's header, tab bar and add
+button. The whole screen is `inert`, which is what lets a real component (the
+calculator's input sheet) sit in a picture without being tabbable. **Real
+compound names** (Adrian, 2026-09-17, reversing the generic labels: it is a
+preview with made-up data), no score, no streak. Kyle's section uses the same
+idea at small size: the things round him are previews of the app's cards (a
+stock card whose vial runs down and refills, the site map, the syringe). Callouts point at
+targets that were MEASURED off the rendered screen (`data-mark`); their cards
+overlap the device on a phone and stand clear of it on a laptop, and their
+pointer is a hollow ring, because a filled dot hid a 10px injection site.
+
+**A large monitor scales the whole site** (Adrian, 2026-09-17, on a 27-inch
+screen: "a bit small"). From 1800 x 900 the root size is 112.5%, and from
+2200 x 1100 it is 125%, via `html:has(.lp-site)`; every rem follows and a
+laptop is untouched. The drawn phones are immune: `.lp-phone-logical` pins
+Tailwind's rem theme values to px and carries `text-[16px]`, so anything
+arbitrary inside a phone screen is written in px, never rem.
+
+**Motion: a marketing surface, so the `/onboarding` argument applies.** There
+are no figures on this page that motion could compete with, so it may move
+more than the app, and every piece of it collapses under
+`prefers-reduced-motion` with the **finished state as the base style** (checked
+with no waiting: no running animations, every moment already resolved). The
+sanctioned list:
+
+- one-shot on load: the rings ripple out, the hero phone rises, and the due
+  dose in it is logged at 900ms (`landing-ring`, the app's `home-tick-*`);
+- one-shot on view: the underline is DRAWN (a tapered brush shape revealed
+  along its centreline, then a lighter return pass: never a width wipe), Kyle
+  rises and flexes, each feature screen plays its one moment when its row opens
+  (a dose comes off the vial, a site is logged, a line draws), and the callouts
+  arrive after it;
+- on interaction: the menu's items drop in with a stagger, the FAQ vial lifts
+  its cap and DRAINS as the answer opens (and refills, then caps, as it closes),
+  and the dock slides;
+- the loops: the cards around Kyle drift, and the stock card's vial runs down
+  and refills while it is on screen. Decorative, `pointer-events-none`, and
+  still under reduced motion.
+
+Inline styles set longhands only (`animationDelay`, `transitionDelay`, custom
+properties), never an `animation` or `transition` shorthand, which would
+outrank the reduced-motion block.
 
 ### Rule: new screens reuse the system
 
@@ -1210,7 +1362,9 @@ hand-rolling animation per screen.
 - **A graph draws itself in once** (feel pass §7, `components/feel/FirstDraw.tsx`).
   See Charts.
 - **The onboarding flow** (Spec 3-01) carries its own motion, and it is the
-  ONLY surface allowed to. Entrances: `animate-flow-in`, `animate-flow-forward`
+  ONLY surface in the product allowed to. (The public site at `/` is the other
+  place motion is allowed, on the same argument and with its own list: see
+  "The public site" above.) Entrances: `animate-flow-in`, `animate-flow-forward`
   / `animate-flow-back` (directional step transitions), `animate-flow-hero`,
   `animate-flow-caption`, `animate-kyle`'s arrival, `animate-flow-confetti` and
   `animate-dollar-fall` (both one-shot).

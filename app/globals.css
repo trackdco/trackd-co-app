@@ -22,6 +22,27 @@
   --text-muted: #7a7a74;
   --text-subtle: #4a4a46;
 
+  /**
+   * THE AA-SAFE MUTED, for surfaces that must MEASURE rather than merely look
+   * right (spec 3-02, the public landing page).
+   *
+   * `--text-muted` measures 4.38:1 on `--bg-base` and 3.95:1 on `--bg-surface`.
+   * Both are under the 4.5:1 floor WCAG AA sets for body text, and the landing
+   * page's spec requires AA, so its secondary prose cannot use it. Mixed a
+   * quarter of the way toward `--text-primary`: measured 6.45:1 on `--bg-base`
+   * and 5.83:1 on `--bg-surface`, while staying clearly secondary beside white.
+   *
+   * Mixed from the two tokens rather than written as a third hex, so a palette
+   * retune carries it and nothing new has to be kept in step by hand.
+   *
+   * ⚠️ NOT a licence to swap `--text-muted` out across the app. The app's own
+   * screens have used it since the first restyle and changing them is a
+   * deliberate pass with Adrian's eyes on it, not a side effect of building a
+   * marketing page. That contrast question is real and it is open; it is not
+   * this spec's to answer.
+   */
+  --text-secondary: color-mix(in srgb, var(--text-muted) 75%, var(--text-primary));
+
   /* Accents */
   --accent-primary: #ffffff;
   --accent-amber: #c8861a;
@@ -274,6 +295,7 @@
   --color-text-primary: var(--text-primary);
   --color-text-muted: var(--text-muted);
   --color-text-subtle: var(--text-subtle);
+  --color-text-secondary: var(--text-secondary);
   --color-accent-primary: var(--accent-primary);
   --color-accent-amber: var(--accent-amber);
   --color-accent-green: var(--accent-green);
@@ -1378,7 +1400,7 @@ svg ::-moz-selection {
    that keeps pulsing after you have read it is exactly that. Each plays once,
    settles, and stops.
 
-   These are candidates for review at `/onboarding/welcome-effects`; whichever
+   These are candidates for review at `/start/welcome-effects`; whichever
    Adrian picks stays and the rest come out with the harness.
    --------------------------------------------------------------------------- */
 
@@ -2720,6 +2742,478 @@ body[data-inline-edit="true"] .shortcuts-layer {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   THE PUBLIC SITE: `/` AND `/reconstitution-calculator` (spec 3-03)
+
+   Everything below is scoped by its `lp-` prefix to the two public marketing
+   pages and must not appear inside the app. Spec 3-03 loosened the LAYOUT
+   vocabulary for these pages on purpose ("it doesn't need to be exactly Trackd
+   UI, the same way Pep AI's website isn't the same as their app"); the palette
+   and the type did not loosen, so every colour here is still mixed FROM a
+   token and no hex appears below.
+
+   The rules that still bind, and where they are kept:
+     - Amber is rare: the call to action, the drawn underline, and the FAQ
+       vials' liquid. The injection-site ramp inside the features widget is the
+       sanctioned recency exception and carries its own day labels.
+     - Every animation collapses under `prefers-reduced-motion` (the block at
+       the end of this section). Inline styles on these pages set LONGHANDS
+       only (`animationDelay`, custom properties), never an `animation` or
+       `transition` shorthand, which would outrank that block.
+   --------------------------------------------------------------------------- */
+
+/* The reading column (carried over from 3-02) and a wide one for the laptop
+   layouts, which are designed rather than a phone column stretched out. */
+.lp-col {
+  width: 100%;
+  max-width: 35rem; /* 560px */
+  margin-inline: auto;
+  padding-inline: 1.25rem; /* the side gutter, never zero at any width */
+}
+
+.lp-wide {
+  width: 100%;
+  max-width: 72rem; /* 1152px */
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+.lp-sec {
+  padding-block: 4.5rem;
+  scroll-margin-top: 1rem;
+}
+
+@media (min-width: 800px) {
+  .lp-col {
+    max-width: 42.5rem; /* 680px */
+  }
+
+  .lp-wide {
+    padding-inline: 2rem;
+  }
+
+  .lp-sec {
+    padding-block: 7rem;
+  }
+}
+
+/* ---- The phone -------------------------------------------------------------
+
+   The screen inside is laid out at the app's REAL logical size, 390 x 844,
+   and scaled down as one piece. That is what keeps a 14px row a 14px row in
+   proportion to everything around it, instead of a hand-shrunk imitation.
+
+   CSS cannot divide a length by a length, so each size carries its scale as a
+   number beside its width: scale = (width - 8px of band) / 390. Change one,
+   change the other. */
+.lp-phone {
+  --phone-w: 16.25rem; /* 260px, scale 252 / 390 */
+  --phone-scale: 0.64615;
+  width: var(--phone-w);
+}
+
+.lp-phone-hero {
+  --phone-w: 17.5rem; /* 280px, scale 272 / 390 */
+  --phone-scale: 0.69744;
+}
+
+@media (min-width: 800px) {
+  .lp-phone {
+    --phone-w: 18.75rem; /* 300px, scale 292 / 390 */
+    --phone-scale: 0.74872;
+  }
+
+  .lp-phone-hero {
+    --phone-w: 20rem; /* 320px, scale 312 / 390 */
+    --phone-scale: 0.8;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lp-phone {
+    --phone-w: 20rem;
+    --phone-scale: 0.8;
+  }
+
+  .lp-phone-hero {
+    --phone-w: 20rem; /* the laptop hero keeps the whole device above an 800px fold */
+    --phone-scale: 0.8;
+  }
+}
+
+.lp-phone-screen {
+  width: calc(var(--phone-w) - 8px);
+  height: calc((var(--phone-w) - 8px) * 844 / 390);
+}
+
+.lp-phone-logical {
+  width: 390px;
+  height: 844px;
+  transform: scale(var(--phone-scale));
+  transform-origin: top left;
+
+  /* THE APP INSIDE IS LAID OUT IN PIXELS, WHATEVER THE PAGE'S ROOT SIZE.
+     Tailwind's utilities read these theme values (`text-sm` is
+     `var(--text-sm)`, `p-4` is `calc(var(--spacing) * 4)`), and they are rem.
+     When a large monitor raises the root size (below), rem text inside a
+     fixed 390px screen grew and truncated. Pinned here to what they are at
+     16px, so nothing changes at any other size; the screens themselves use
+     px for anything arbitrary for the same reason. The base size is pinned
+     too (an inline box's line height comes from the size it inherits), but by
+     `text-[16px]` on the element in `phone.tsx`: a `font-size` written here
+     was silently dropped by the build's CSS minifier (2026-09-17). */
+  --spacing: 4px;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+  --radius: 16px;
+  --radius-lg: 16px; /* declared as var(--radius) at the root, inherited as 1rem */
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+  --container-xs: 320px;
+  --container-sm: 384px;
+  --container-md: 448px;
+}
+
+/* ---- A large monitor ------------------------------------------------------
+   On a 27-inch screen the page read small (Adrian, 2026-09-17): it was laid
+   out for a laptop and simply stopped growing, so a 2560px window showed a
+   1152px page in the middle of it. From 1800px wide AND 900px tall, the whole
+   public site scales by raising the root size, which every rem on these pages
+   (the columns, the type, the phones, the panels) follows; at 2200 x 1100 it
+   steps again. A laptop, up to a 16-inch MacBook Pro's default 1728px, is
+   untouched. Media queries measure in the browser's initial 16px, so no
+   breakpoint moves with it. `.lp-site` is the `<main>` of the two public
+   pages; nothing in the app carries it.
+
+   The phones keep their scale beside their width (see `.lp-phone` above):
+   20rem is 360px at 112.5% and 400px at 125%. */
+@media (min-width: 1800px) and (min-height: 900px) {
+  html:has(.lp-site) {
+    font-size: 112.5%;
+  }
+
+  .lp-phone,
+  .lp-phone-hero {
+    --phone-scale: 0.90256; /* (360 - 8) / 390 */
+  }
+}
+
+@media (min-width: 2200px) and (min-height: 1100px) {
+  html:has(.lp-site) {
+    font-size: 125%;
+  }
+
+  .lp-phone,
+  .lp-phone-hero {
+    --phone-scale: 1.00513; /* (400 - 8) / 390 */
+  }
+}
+
+/* ---- A phone video (onboarding's free-week screen) ---------------------------
+
+   Adrian's recording of the app, transparent round the phone
+   (`components/onboarding/phone-video.tsx`). It sat in the landing hero for a
+   day; he preferred the drawn phone there and moved the recording to the
+   onboarding screen that offers the free week (2026-09-17).
+
+   The file is a 1518x1280 box centred on the phone, and the settled phone takes
+   the middle 38.125% of its width (122 of 320 measured columns) and nearly all
+   of its height. So the element is sized by the PHONE (`--pw`, set by the
+   caller) and the video is drawn wider than it, overflowing sideways into
+   transparent space. Height: (1 / 0.38125) / (1518 / 1280) = 2.2118 phone
+   widths.
+
+   THE EDGES FADE. The sides are feathered for the far edge of the opening
+   tilt. The top and bottom fade DEEPLY while the recording opens (the phone
+   runs off the bottom of the frame until ~2.4s, and off the top for the first
+   half second: those pixels do not exist, so the cut is hidden instead), and
+   ease back as it settles. The easing is written per frame from the video's
+   clock by the component (a CSS transition here jumped in WebKit); these rules
+   are the opening and the settled ends of it. */
+.phone-video {
+  --pw: 9.5rem;
+  width: var(--pw);
+  height: calc(var(--pw) * 2.2118);
+}
+
+.phone-video-media {
+  --lp-fade-b: 68%;
+  --lp-fade-t: 7%;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: calc(var(--pw) / 0.38125);
+  max-width: none;
+  height: 100%;
+  object-fit: contain;
+  transform: translateX(-50%);
+  pointer-events: none;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, black 9%, black 91%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, black var(--lp-fade-t), black var(--lp-fade-b), transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, black 9%, black 91%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, black var(--lp-fade-t), black var(--lp-fade-b), transparent 100%);
+  mask-composite: intersect;
+}
+
+.phone-video[data-settled] .phone-video-media {
+  --lp-fade-b: 95% !important;
+  --lp-fade-t: 0% !important;
+}
+
+/* THE FREE-WEEK PHONE ON A LAPTOP OR A MONITOR (Adrian, 2026-09-17: "way too
+   small"). The screen's phone is `max(fit(172, 118), var(--free-phone-lg))`,
+   and this is the only place the second term exists, so a phone keeps its
+   handset figure. Here it is as tall as the window allows: the header row,
+   the headline and the offer line with its button take about 340px, and the
+   recording's box is 2.2118 phone widths tall. Capped at 320px, where the
+   settled phone is already ~700px tall; below 172px the handset figure wins,
+   so a short window is no worse than before. Width-gated, never height-gated
+   (see `.flow-viewport` for why a height query is wrong on a phone). */
+@media (min-width: 1024px) {
+  .free-stage {
+    --free-phone-lg: clamp(0px, calc((100svh - 340px) / 2.2118), 320px);
+  }
+}
+
+/* ---- Surfaces ------------------------------------------------------------ */
+
+/* A panel that sits ON the page with depth rather than being a flat hole in
+   it. The same recipe as `.flow-card`, one step stronger, because these panels
+   are larger and read at arm's length on a laptop. */
+.lp-panel {
+  background: color-mix(in srgb, var(--text-primary) 3.5%, var(--bg-base));
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 7%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 5%, transparent),
+    0 24px 60px -36px rgb(0 0 0 / 0.9);
+}
+
+/* A small floating widget over a phone or around Kyle: translucent so the
+   thing it floats over still reads through it. */
+.lp-float {
+  background: color-mix(in srgb, var(--bg-surface-raised) 78%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 9%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 6%, transparent),
+    0 14px 34px -16px rgb(0 0 0 / 0.85);
+}
+
+/* The hero's lit ground. The header lives INSIDE this (Adrian, 2026-09-17:
+   "I don't want it to be a divide of colour"), so the light starts above the
+   wordmark and there is no band where a header ends. */
+.lp-hero {
+  background:
+    radial-gradient(
+      60% 46% at 50% 58%,
+      color-mix(in srgb, var(--accent-amber) 10%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      120% 60% at 50% 0%,
+      color-mix(in srgb, var(--text-primary) 6%, var(--bg-base)) 0%,
+      var(--bg-base) 64%
+    ),
+    var(--bg-base);
+}
+
+@media (min-width: 1024px) {
+  .lp-hero {
+    background:
+      radial-gradient(
+        38% 60% at 74% 52%,
+        color-mix(in srgb, var(--accent-amber) 11%, transparent) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        110% 70% at 40% 0%,
+        color-mix(in srgb, var(--text-primary) 6%, var(--bg-base)) 0%,
+        var(--bg-base) 66%
+      ),
+      var(--bg-base);
+  }
+}
+
+/* The closing section's light: a pool of amber under the button, with no
+   edge. (`.lp-hero` here drew a visible band where the section began.) */
+.lp-glow {
+  background: radial-gradient(
+    50% 60% at 50% 62%,
+    color-mix(in srgb, var(--accent-amber) 9%, transparent) 0%,
+    transparent 72%
+  );
+}
+
+/* A soft lift behind a later section, so the page is not one flat field. */
+.lp-lift {
+  background: radial-gradient(
+    70% 55% at 50% 50%,
+    color-mix(in srgb, var(--text-primary) 4%, transparent) 0%,
+    transparent 72%
+  );
+}
+
+/* The concentric rings Adrian drew behind the device. Each ring is a hairline
+   circle; they ripple out ONCE on load and then sit still. */
+.lp-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 22%, transparent);
+  transform: translate(-50%, -50%);
+  animation: lp-ring-in 1600ms var(--motion-ease) both;
+}
+
+@keyframes lp-ring-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* ---- The call to action ---------------------------------------------------
+
+   "More blocky ... a really small gradient ... more like a native button that's
+   in the app ... add a glow" (Adrian, 2026-09-17), after a first version that
+   was a pill with a strong gradient, a ring round it and a bright sheen, which
+   he called too flashy. So: the app's own button geometry (`FlowCta`: 52px,
+   `rounded-2xl`), a deeper amber with only a whisper of gradient, a faint
+   highlight on the top edge, and a soft amber glow under it. The onboarding
+   button it hands over to carries the same kind of glow (`.flow-cta`), so the
+   step from the site into the flow does not change the button's character.
+
+   ⚠️ THE INK IS `--bg-base`, NOT WHITE. The fill is amber mixed 14% toward
+   `--text-primary`, which measures about 7.1:1 against `--bg-base` ink.
+   White on amber is 2.65:1 and fails; do not "fix" the ink. */
+.lp-cta {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 3.25rem;
+  padding-inline: 1.5rem;
+  border-radius: 1rem;
+  color: var(--bg-base);
+  font-size: 0.95rem;
+  font-weight: 500;
+  /* Plain amber, a step lighter than the token (Adrian, 2026-09-17: "just
+     amber, like a lighter amber"), with the glow turned down a notch. */
+  background: color-mix(in srgb, var(--accent-amber) 86%, var(--text-primary));
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 10%, transparent),
+    0 8px 24px -12px color-mix(in srgb, var(--accent-amber) 48%, transparent),
+    0 0 16px -6px color-mix(in srgb, var(--accent-amber) 28%, transparent);
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-slow) var(--motion-ease),
+    filter var(--motion-slow) var(--motion-ease);
+}
+
+/* A sheen that crosses once on hover, and faintly. Pointer devices only. */
+.lp-cta-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.lp-cta-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    color-mix(in srgb, var(--text-primary) 8%, transparent) 50%,
+    transparent 100%
+  );
+  transform: translateX(-160%) skewX(-18deg);
+}
+
+@media (hover: hover) {
+  .lp-cta:hover {
+    filter: brightness(1.04);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 12%, transparent),
+      0 10px 28px -12px color-mix(in srgb, var(--accent-amber) 60%, transparent),
+      0 0 20px -6px color-mix(in srgb, var(--accent-amber) 36%, transparent);
+  }
+
+  .lp-cta:hover .lp-cta-sheen::after {
+    transform: translateX(340%) skewX(-18deg);
+    transition: transform 1400ms var(--motion-ease);
+  }
+}
+
+.lp-cta:active {
+  transform: scale(0.98);
+}
+
+.lp-cta:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
+}
+
+/* The onboarding flow's primary button (white, `FlowCta`) with the same kind
+   of soft glow as the site's, so moving from one to the other feels like one
+   product. Much fainter than it reads written down. */
+.flow-cta {
+  box-shadow:
+    inset 0 -1px 0 0 color-mix(in srgb, var(--bg-base) 10%, transparent),
+    0 10px 28px -12px color-mix(in srgb, var(--text-primary) 42%, transparent),
+    0 0 22px -8px color-mix(in srgb, var(--text-primary) 22%, transparent);
+}
+
+.flow-cta:disabled {
+  box-shadow: none;
+}
+
+/* ---- The header menu ------------------------------------------------------ */
+
+.lp-menu-panel {
+  transform-origin: top right;
+  animation: lp-menu-in 220ms var(--motion-ease) both;
+}
+
+.lp-menu-item {
+  animation: lp-menu-item-in 360ms var(--motion-ease) both;
+}
+
+.lp-scrim {
+  animation: lp-fade-in var(--motion-fast) ease-out both;
+}
+
+@keyframes lp-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Late data fades into space that was already reserved for it. */
 .animate-late-in {
   animation: shortcut-fade var(--motion-base) ease-out backwards;
@@ -2770,6 +3264,407 @@ body[data-inline-edit="true"] .shortcuts-layer {
 }
 @keyframes pad-caret-blink {
   50% {
+    opacity: 0;
+  }
+}
+
+@keyframes lp-menu-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lp-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The three lines folding into a cross. */
+.lp-burger span {
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    opacity var(--motion-fast) ease-out;
+}
+
+.lp-burger[aria-expanded="true"] span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.lp-burger[aria-expanded="true"] span:nth-child(2) {
+  opacity: 0;
+}
+
+.lp-burger[aria-expanded="true"] span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+/* ---- The hand-drawn underline ----------------------------------------------
+
+   A tapered brush shape, revealed by a thick stroke that is drawn along the
+   same centreline. The shape gives the ink its uneven weight; the stroke gives
+   it direction and pace. `pathLength="1"` on the stroke makes the dash maths
+   independent of the path's real length. */
+.lp-ink-stroke {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.lp-ink[data-drawn] .lp-ink-stroke {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 760ms cubic-bezier(0.55, 0.08, 0.3, 1);
+}
+
+.lp-ink[data-drawn] .lp-ink-stroke-2 {
+  transition-duration: 300ms;
+  transition-delay: 700ms;
+}
+
+/* The hero device arriving on load. */
+.lp-rise {
+  animation: lp-rise 1100ms var(--motion-ease) 120ms both;
+}
+
+@keyframes lp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Between sections ----------------------------------------------------------
+
+   Adrian, 2026-09-17: the move from Compare into the founders' note, and from
+   there into the questions, was "pretty crap". Three things fix it together:
+
+   - `.lp-sec-tight`: those sections sit closer (the full rhythm left ~220px
+     of empty black between two floating panels).
+   - `.lp-band`: the note and the questions share one faint lift in the
+     ground, so they read as one room rather than islands.
+   - `.lp-enter`: headings and panels rise in as they scroll into view. Pure
+     CSS on a scroll timeline, so text never waits on script; a browser
+     without scroll timelines shows everything as it is. */
+@media (min-width: 800px) {
+  .lp-sec-tight {
+    padding-block: 4.5rem;
+  }
+}
+
+.lp-band {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--text-primary) 2.5%, var(--bg-base)) 18%,
+    color-mix(in srgb, var(--text-primary) 2.5%, var(--bg-base)) 82%,
+    transparent 100%
+  );
+}
+
+@supports (animation-timeline: view()) {
+  .lp-enter {
+    animation: lp-enter linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 70%;
+  }
+}
+
+@keyframes lp-enter {
+  from {
+    opacity: 0.001;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A phone's screen changing in the features widget's phone layout. */
+.lp-stage-in {
+  animation: lp-stage-in 420ms var(--motion-ease) both;
+}
+
+@keyframes lp-stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Drift and reveal ----------------------------------------------------- */
+
+/* A marketing surface with no figures on it, the same argument that sanctions
+   drift in `/onboarding`. Decorative layers only, always `pointer-events-none`. */
+.lp-drift {
+  animation: lp-drift var(--drift-ms, 9000ms) ease-in-out infinite alternate;
+}
+
+@keyframes lp-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(var(--drift-x, 0px), var(--drift-y, -6px), 0);
+  }
+}
+
+/* Revealed once when scrolled into view. DECORATIVE ELEMENTS ONLY: text never
+   waits on script to become visible, so a crawler or a failed script still
+   reads the page. */
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+  transition:
+    opacity 900ms var(--motion-ease),
+    transform 1200ms var(--motion-ease);
+}
+
+.lp-reveal[data-in] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Kyle arrives, then flexes once. */
+.lp-kyle[data-in] {
+  animation: lp-kyle-flex 1400ms cubic-bezier(0.37, 0, 0.23, 1) 400ms both;
+}
+
+@keyframes lp-kyle-flex {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.04) rotate(-1.5deg);
+  }
+  70% {
+    transform: scale(1.005) rotate(0.8deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* ---- Carousel ------------------------------------------------------------- */
+
+.lp-snap {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.lp-snap::-webkit-scrollbar {
+  display: none;
+}
+
+/* A track whose cards snap to its centre: the side padding is half the track
+   less half a card, so the first and the last card can reach the middle too. */
+.lp-snap-center {
+  --lp-card: min(82vw, 22rem);
+  padding-inline: calc(50% - var(--lp-card) / 2);
+}
+
+/* ---- The FAQ vial ----------------------------------------------------------
+
+   Opening a question drains the vial beside it: the cap lifts and turns, THEN
+   the liquid runs out. Closing refills it, THEN the cap settles. The delays
+   swap between the two states so each direction runs in its own order, which is
+   what makes it read as a mechanism rather than a fade. */
+.lp-vial-liquid,
+.lp-vial-surface {
+  transition: transform 560ms cubic-bezier(0.7, 0, 0.25, 1) 0ms;
+}
+
+.lp-vial-liquid {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.lp-vial-cap {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: transform 200ms cubic-bezier(0.34, 1.5, 0.64, 1) 540ms;
+}
+
+[data-open] .lp-vial .lp-vial-cap {
+  transform: translateY(-2.5px) rotate(-14deg);
+  transition-delay: 0ms;
+}
+
+[data-open] .lp-vial .lp-vial-liquid {
+  transform: scaleY(0);
+  transition-delay: 150ms;
+}
+
+[data-open] .lp-vial .lp-vial-surface {
+  transform: translateY(var(--vial-drop, 18px));
+  transition-delay: 150ms;
+}
+
+.lp-vial-bubble {
+  opacity: 0;
+}
+
+[data-open] .lp-vial .lp-vial-bubble {
+  animation: lp-bubble 620ms ease-out 170ms both;
+}
+
+[data-open] .lp-vial .lp-vial-bubble:nth-of-type(2) {
+  animation-delay: 260ms;
+}
+
+@keyframes lp-bubble {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-9px);
+  }
+}
+
+/* ---- Callouts on a phone ---------------------------------------------------
+
+   A floating card beside the phone, a dot on the thing it describes, and a
+   hairline between them. Every position is a percentage of the PHONE's box,
+   set inline from `feature-widget.tsx`, which is where the reasoning lives. */
+/* A RING, not a dot: a filled dot hid the very thing it pointed at (a
+   sub-Q site is about 10px across at phone size). */
+.lp-co-dot {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--text-primary);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--bg-base) 55%, transparent),
+    0 0 14px 1px color-mix(in srgb, var(--text-primary) 35%, transparent);
+}
+
+.lp-co-line {
+  stroke: color-mix(in srgb, var(--text-primary) 50%, transparent);
+  stroke-width: 1;
+}
+
+.lp-co-card {
+  position: absolute;
+  width: max-content;
+  max-width: 9.25rem;
+  translate: 0 -50%;
+}
+
+@media (min-width: 1024px) {
+  .lp-co-card {
+    max-width: 11.5rem;
+  }
+}
+
+/* The callouts arrive after the phone has, one after the other. */
+.lp-co {
+  opacity: 0;
+  transition: opacity 500ms ease-out;
+}
+
+[data-live] > .lp-co,
+[data-live] .lp-co {
+  opacity: 1;
+}
+
+/* ---- The expanding feature row -------------------------------------------- */
+
+.lp-expand {
+  display: grid;
+  transition: grid-template-rows 560ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+
+/* A sparkline drawing itself left to right. */
+.lp-draw-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+[data-live] .lp-draw-line {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1100ms cubic-bezier(0.45, 0.05, 0.25, 1) 250ms;
+}
+
+.lp-draw-area {
+  opacity: 0;
+}
+
+[data-live] .lp-draw-area {
+  opacity: 1;
+  transition: opacity 700ms ease-out 900ms;
+}
+
+/* A progress bar filling to its value. */
+.lp-bar {
+  transform-origin: left;
+  transform: scaleX(0);
+}
+
+[data-live] .lp-bar {
+  transform: scaleX(var(--to, 1));
+  transition: transform 1000ms var(--motion-ease) 300ms;
+}
+
+/* ---- The due dose in the hero phone ------------------------------------------ */
+
+@keyframes landing-ring-settle {
+  to {
+    border-color: transparent;
+    background-color: var(--accent-primary);
+  }
+}
+
+.landing-ring {
+  animation: landing-ring-settle 320ms var(--motion-ease) both;
+}
+
+/* A label handing over to another as the due dose is logged. The BASE style
+   of each is its final state, so under reduced motion (animation: none) the
+   finished screen is what shows. */
+.lp-swap-out {
+  opacity: 0;
+  animation: lp-swap-out 260ms ease-out both;
+}
+
+.lp-swap-in {
+  opacity: 1;
+  animation: lp-swap-in 320ms ease-out both;
+}
+
+.lp-row-done {
+  opacity: 0.6;
+  animation: lp-row-done 360ms ease-out both;
+}
+
+@keyframes lp-swap-out {
+  from {
+    opacity: 1;
+  }
+  to {
     opacity: 0;
   }
 }
@@ -2948,5 +3843,120 @@ body[data-inline-edit="true"] .shortcuts-layer {
 @media (prefers-reduced-motion: reduce) {
   [data-sheet-body] > * {
     animation: none;
+  }
+}
+
+@keyframes lp-swap-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lp-row-done {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.6;
+  }
+}
+
+/* ---- The docked call to action ---------------------------------------------
+
+   "Its own kind of separate widget" (Adrian, 2026-09-17): a floating card that
+   parks above the bottom edge rather than a bar welded to it. */
+.lp-dock {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  width: min(calc(100% - 1.5rem), 34rem);
+  border-radius: 1.5rem;
+  background: color-mix(in srgb, var(--bg-surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 9%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 7%, transparent),
+    0 22px 50px -18px rgb(0 0 0 / 0.95);
+  transform: translate(-50%, calc(100% + 2rem));
+  opacity: 0;
+  transition:
+    transform 520ms var(--motion-ease),
+    opacity 300ms ease-out;
+}
+
+.lp-dock[data-shown] {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+/* ---- Reduced motion: every class above, collapsed ------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-ring,
+  .lp-rise,
+  .lp-enter,
+  .lp-stage-in,
+  .lp-swap-out,
+  .lp-swap-in,
+  .lp-row-done,
+  .landing-ring,
+  .lp-menu-panel,
+  .lp-menu-item,
+  .lp-scrim,
+  .lp-drift,
+  .lp-kyle[data-in],
+
+  [data-open] .lp-vial .lp-vial-bubble {
+    animation: none;
+  }
+
+  .lp-cta,
+  .lp-burger span,
+  .lp-reveal,
+  .lp-vial-liquid,
+  .lp-vial-surface,
+  .lp-vial-cap,
+  .lp-expand,
+  .lp-co,
+  .lp-dock,
+  .lp-ink[data-drawn] .lp-ink-stroke,
+  [data-live] .lp-draw-line,
+  [data-live] .lp-draw-area,
+  [data-live] .lp-bar {
+    transition: none;
+  }
+
+  .lp-cta:hover .lp-cta-sheen::after {
+    transition: none;
+    transform: translateX(-160%) skewX(-18deg);
+  }
+
+  .landing-ring {
+    border-color: transparent;
+    background-color: var(--accent-primary);
+  }
+
+  .lp-ink-stroke,
+  .lp-draw-line {
+    stroke-dashoffset: 0;
+  }
+
+  .lp-draw-area {
+    opacity: 1;
+  }
+
+  .lp-bar {
+    transform: scaleX(var(--to, 1));
+  }
+
+  .lp-reveal,
+  .lp-co {
+    opacity: 1;
+    transform: none;
   }
 }

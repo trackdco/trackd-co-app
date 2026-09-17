@@ -15,7 +15,7 @@ import { CostVariantG } from "./cost-variants";
  * as one bar, each row carrying a MASKED amount (`$X,XXX`) rather than a figure
  * we would be inventing, and Trackd last as the only real price on the screen.
  *
- * The full set stays reachable at `/onboarding/cost` until he says the choice is
+ * The full set stays reachable at `/start/cost` until he says the choice is
  * final, at which point the losers and that route both get deleted. Swapping the
  * winner is one import.
  */

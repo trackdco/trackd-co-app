@@ -27,7 +27,7 @@ function source(relative: string): string {
 
 describe("the unknown-state string is the one already signed under D74", () => {
   it("is character for character what the checkout path refuses with", () => {
-    const writer = source("app/onboarding/billing-actions.ts");
+    const writer = source("app/start/billing-actions.ts");
     expect(ACCESS_UNKNOWN_MESSAGE).toBe(
       "We couldn't check your account just now. Please try again in a moment.",
     );
@@ -42,7 +42,7 @@ describe("the unknown-state string is the one already signed under D74", () => {
   });
 
   it("refuses on the read having FAILED, which is the same state", () => {
-    const writer = source("app/onboarding/billing-actions.ts");
+    const writer = source("app/start/billing-actions.ts");
     // The string sits inside the `comp.kind === "unknown"` branch — the
     // entitlements read failing, reached from the purchase side.
     const at = writer.indexOf(ACCESS_UNKNOWN_MESSAGE);

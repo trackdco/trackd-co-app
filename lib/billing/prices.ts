@@ -59,7 +59,7 @@ export interface PlanPrice {
  *
  * The amounts are needed by three ANONYMOUS screens as well as the paywall (the
  * payoff screen's weekly anchor, the cost comparison), so this is on the path of
- * every `/onboarding` load including the very first screen. A Stripe round-trip
+ * every `/start` load including the very first screen. A Stripe round-trip
  * there would be three network calls in front of a page that is otherwise
  * static.
  *

@@ -94,6 +94,10 @@ export function FlowSub({
 /**
  * The primary action. White, per "the primary action takes the primary accent".
  * Full width because it is the only thing to do on the screen.
+ *
+ * `flow-cta` adds a soft glow (Adrian, 2026-09-17), the same kind the landing
+ * page's button carries, so the step from the site into the flow keeps one
+ * button character. See `globals.css`.
  */
 export function FlowCta({
   children,
@@ -114,7 +118,7 @@ export function FlowCta({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "h-13 w-full rounded-2xl bg-accent-primary px-6 text-[0.95rem] font-medium text-bg-base",
+        "flow-cta h-13 w-full rounded-2xl bg-accent-primary px-6 text-[0.95rem] font-medium text-bg-base",
         "transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)]",
         "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",

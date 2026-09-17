@@ -59,6 +59,28 @@ export const FLOW_SUB = "text-[0.95rem] leading-relaxed text-text-muted"
 export const FLOW_DISPLAY =
   "text-[2.5rem] font-light leading-[1.02] tracking-[-0.035em] text-foreground"
 
+/**
+ * The PUBLIC SITE's type (spec 3-02, re-cut for 3-03). Used on `/` and
+ * `/reconstitution-calculator` and nowhere in the app.
+ *
+ * `LANDING_DISPLAY` is the hero headline. `FLOW_DISPLAY` is sized for a
+ * phone-width flow screen; the landing page is also read on a laptop, where
+ * that size reads as a paragraph rather than an opening statement, so this one
+ * steps up at each breakpoint. Still Geist Light, still one `<em>` of emphasis
+ * at most: the step is size, never a second typeface or a heavier weight.
+ *
+ * `LANDING_TITLE` heads each section; `LANDING_SUB` sits under it, in the
+ * AA-safe `--text-secondary` because this page must measure, not just look.
+ */
+export const LANDING_DISPLAY =
+  "text-[3rem] md:text-[4.25rem] lg:text-[4.75rem] font-light leading-[0.98] tracking-[-0.045em] text-foreground"
+
+export const LANDING_TITLE =
+  "text-[2.1rem] md:text-[2.9rem] font-light leading-[1.04] tracking-[-0.035em] text-foreground"
+
+export const LANDING_SUB =
+  "text-[0.98rem] md:text-[1.08rem] leading-relaxed text-text-secondary"
+
 /* ---------------------------------------------------------------------------
    Inversion presets (see ui-context.md → Typography): card TITLES recede into
    small tracked-uppercase eyebrows, and the DATA VALUE becomes the display layer

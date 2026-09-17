@@ -80,8 +80,20 @@ describe("⚠️ strings the legal documents quote word for word", () => {
    * describes. This is the kind of string a tidy-up shortens.
    */
   it("⚠️ the homepage links the Consumer Health Data Privacy Policy by its full name", () => {
+    /**
+     * ⚠️ REPOINTED 2026-09-16, and the move is the whole point of this control.
+     *
+     * This read `components/onboarding/screens/hook.tsx`, which WAS the first
+     * screen a visitor met while `/` did nothing but redirect into the flow.
+     * Spec 3-02 puts a real landing page at `/`, so that is now the page a
+     * visitor lands on, and this test's own rule is that it must point there
+     * rather than at whichever file still happens to contain the strings.
+     *
+     * The hook screen keeps its own links; it is simply no longer the front
+     * page, and a control aimed at the wrong page passes for the wrong reason.
+     */
     const homepage = readFileSync(
-      new URL("../../components/onboarding/screens/hook.tsx", import.meta.url),
+      new URL("../../app/page.tsx", import.meta.url),
       "utf8",
     );
     /**

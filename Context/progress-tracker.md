@@ -1,12 +1,13 @@
 # Progress Tracker
 
-## 🟡 THE FEEL PASS — BUILT ON `polish/feel`, NOT MERGED (2026-09-17)
+## ✅ THE FEEL PASS — MERGED TO `main` (2026-09-18)
 
 The brief is `Context/Feature Specs/wave 3/feel-pass.md` (6 prototype rounds,
 all approved by Adrian on 17 Sep 2026; his verdicts are in the prototype
 artifact's `signoff` … `signoff-r6` collections). Built in the worktree
-`../trackd-feel-wt`, one commit per phase, unpushed. **Pushing or merging to
-`main` deploys, and that is Adrian's call.** The rules it created are in
+`../trackd-feel-wt`, one commit per phase. Adrian looked at it on the Vercel
+preview on 18 Sep, asked for one change (the add-compound pad), and said to
+merge; it went to `main` through PR #68, which deploys. The rules it created are in
 `ui-context.md` (Motion & Interaction, States, Charts, the Spec 19 picker ramp,
 "a number field opens the Trackd pad") and `code-standards.md` (Styling).
 
@@ -132,6 +133,189 @@ artifact's `signoff` … `signoff-r6` collections). Built in the worktree
     cue; the Calendar shell shows the server's month on a full load (the screen
     does too, then corrects); the desktop rail's Log weight gets no focus return
     in Safari.
+
+## ✅ SIZING ON A LARGE MONITOR (2026-09-17)
+
+Adrian, on a 27-inch monitor: the landing page read small, the flow's cost
+card was "humongous, very long", and the free-week video was "way too small".
+Fixed, all from 1024px wide up, so no phone changes:
+
+- **Landing:** the site scales to 112.5% from 1800 x 900 and to 125% from
+  2200 x 1100 (root size). The drawn phones keep their inner layout exactly,
+  checked element by element at 16, 18 and 20px roots.
+- **Cost card:** capped at 27rem, its handset proportions, instead of filling
+  a 1300px window.
+- **Free-week video:** the phone grows with the window (208px at 1440 x 800,
+  276px at 1920 x 950, capped at 320px), and the port pads out 10rem each side
+  so the zoomed opening is not cut. Nothing to scroll from 1280 x 720 to
+  2560 x 1300.
+- A `font-size` written in `.lp-phone-logical` was silently dropped by the CSS
+  minifier; it is a `text-[16px]` class instead.
+- Pre-existing and unchanged: the cost screen at 402 x 700 has 16px of
+  overflow, faded by the port (production has the same).
+
+## ✅ SPEC 3-03 SHIPPED: THE LANDING PAGE, THE FREE CALCULATOR, THE FLOW'S INTRO (2026-09-17)
+
+**Merged:** PR #66 (renamed "Spec 3-03: landing page rebuild, free calculator,
+onboarding intro") into `main` as `d755a7b`, on Adrian's advance approval,
+after a cold review. Production (trackdco.app) deployed and checked.
+
+**The cold review** (one pass over the whole diff, rendered, not only read):
+
+- Rendered `/` at 375x548, 402x700 and 1280x800 full page, the calculator at
+  375 and 1280, the flow's intro and name screens at 375x548 and 402x700, and
+  the free-week screen at both, with and without reduced motion. No sideways
+  scroll anywhere, no overflow in the flow's scroll port, no running animation
+  under reduced motion, no hydration errors.
+- Behaviour: the menu opens onto its first item, Escape closes it and returns
+  focus, an outside click closes it on a laptop, and a section jump moves focus
+  to the section. The dock is `inert` over the hero and live after it. The
+  feature pills move selection and focus with the arrow keys without moving
+  the page. The FAQ opens from the keyboard. The review arrows reach the last
+  card and disable. The calculator gives 5 mg/mL, 0.2 mL, 20 units for 10 mg,
+  2 mL, 1000 mcg.
+- Video: Chromium gets the VP9 file, muted as an attribute, not looping; it
+  ends, holds its last frame and settles its mask; reduced motion shows the
+  still. Headless WebKit chose the HEVC path and fell back to the still (it
+  could not autoplay or decode it), so real Safari is still unproven.
+- Routing: `/onboarding?step=name` 308s to `/start?step=name`, the assets under
+  `/onboarding/` are not redirected, the videos are outside the proxy and
+  answer range requests.
+
+**Fixed (`a7a0e27`):** the calculator page's menu still offered "Reviews" on
+production, a jump to a section production does not render (it now takes the
+same server-side `showTestimonials()` decision as the home page, pinned by
+`landingSections.test.ts`); and the comparison table's wordmark was squeezed
+about 8% on phones (`object-contain`).
+
+**Gates** (in a copy under `/private/tmp`, off iCloud): tsc 0, eslint 0, vitest
+109 files / 2116 tests, `next build` exit 0 with `/` and
+`/reconstitution-calculator` static (○). Vercel preview passed on `a7a0e27`;
+production deploy passed on `d755a7b`.
+
+**Production, checked live at 402x700 and 1280x800:** `/` and the calculator
+are served from the prerender cache; the reviews section and its menu item are
+absent on both pages, as intended; the four legal links (the Consumer Health
+Data Privacy Policy by its full name) and "Trackd Co Pty Ltd, ACN 698 405 462"
+are in the footer; no "Trackd.co"; no sideways scroll; `/start` opens on Kyle
+waving and "Let's go" reaches "What's your name?"; `/terms`, `/privacy`,
+`/medical-disclaimer` and `/consumer-health-data` all load signed out.
+
+**⚠️ Found on the way out: `.git` is partly in iCloud too.** The fetch after
+the merge had to append to an offloaded reflog and stalled for ~10 minutes
+before iCloud delivered it; 64 reflogs and two pack files are still offloaded.
+The docs commit was made from a clone under `/private/tmp` instead. See
+`next-tasks.md`.
+
+**Still Adrian's:** listed in `next-tasks.md` (the copy pass, real
+testimonials, the comparison rows, the privacy answer, the calculator modal
+ruling, "Keep Downloaded", real devices).
+
+## ✅ 3-03, THIRD REVIEW ROUND — BUILT AND CHECKED 2026-09-17 (merged)
+
+From Adrian's laptop and phone review: plain lighter-amber button with less
+glow; Kyle's stock card runs down once; section transitions reworked (tighter,
+ruled, banded, scroll-driven rise-in, a heading for the founders' note);
+Compare reformatted for phones; features on a phone as pills and one phone;
+Kyle's section on a phone as circles; the flow's first screen is Kyle waving
+with the button under the text; the free-week video larger.
+
+**Checked by rendering**, from a copy of the site in `/private/tmp` with its own
+packages (the iCloud-offloaded node_modules made the worktree unusable):
+laptop and phone full pages; the pills (tap moves nothing, swipe advances, arrow
+keys move focus and selection); Kyle's circles; the intro at 402x700 and
+375x548 with nothing to scroll; the free-week video at 402x700, 390x844,
+375x548 and 360x560 with nothing to scroll and no sideways scroll; the
+injection-site callouts re-measured after the map grew.
+
+**Gates (in that copy):** tsc 0, eslint 0, vitest 109 files / 2115 tests,
+`next build` exit 0 with `/` and `/reconstitution-calculator` static.
+
+## ✅ 3-03, SECOND REVIEW ROUND — BUILT 2026-09-17 (rendered in the third round; merged)
+
+Adrian reviewed the preview on his phone and laptop. Built from his notes (the
+full list is spec 3-03 §9): the drawn hero phone back with real compound names;
+his recording moved into onboarding's free-week screen in place of the
+carousel; a new INTRODUCTION screen as the flow's first step (the notes-app
+hook and its cards deleted); the button reshaped to the app's blocky style with
+a glow, and the same glow on the onboarding button; hero copy trimmed and the
+title enlarged; reviews and dots centred; compare marks by symbol and its
+caption cut; Kyle's chips turned into app-card previews; the features widget
+no longer jumps when switching rows on a phone.
+
+⚠️ **Why it was not rendered here:** iCloud "Optimize Mac Storage" had offloaded
+28,129 files in `trackd-co-app/node_modules` (5,094 of Next's 8,076). Every
+read of one blocks until iCloud downloads it, so the dev server never compiled
+`/`, and tsc and eslint sat at 0% CPU in `read()`. It is also what made
+Adrian's laptop feel slow. Vercel's preview build type-checks the push.
+
+## ✅ THE LANDING PAGE, REBUILT FROM ADRIAN'S SKETCH (Spec 3-03) — BUILT 2026-09-17, MERGED THE SAME DAY (see the top of this file)
+
+Same branch (`feat/landing-3-02`), same PR (#66, still "DO NOT MERGE"), same
+preview URL. Adrian's verdict on 3-02 was *"you can just tell that this is
+AI-generated"*; he drew the page on paper and 3-03 is that sketch, built as a
+rerun rather than an edit. **Nothing merges without his explicit approval.**
+
+**His answers before the build (2026-09-17):** TikTok `@trackdcoapp` and
+Instagram `trackdcoapp` (in `lib/brand.ts`); Log in lives INSIDE the drop-down,
+and under the hero button as "Already a current user? Log in"; the header is
+part of the hero, with no band of colour; the menu jumps to sections; the trial
+line is "7-day free trial. Cancel anytime."; the docked button becomes its own
+floating widget with the same log-in line; and a NEW free public reconstitution
+calculator he can link from Reddit (spec 3-03 §3.12).
+
+**What is on the page, top to bottom:** header inside a lit hero, a two-column
+laptop hero (one column on a phone) with the app on a phone inside concentric
+rings, "Join the movement" with a hand-drawn underline and a testimonial
+carousel, the features widget, Kyle with drifting app chips, the comparison
+table, the founders' note, the FAQ with draining vials, the closing call to
+action, a three-part footer, and the docked widget.
+
+**How the phone screens are made.** `components/landing/phone.tsx` lays a
+screen out at the app's real 390x844, scales it, and makes it `inert`; the
+eight screens in `components/landing/screens/` are built from the app's own
+presentational components with generic labels. The callout targets were
+measured off the rendered screens (`data-mark`), not guessed; the first guesses
+had cards over the very figures they described.
+
+**Shared with the app, on purpose:** the public calculator uses the app's
+arithmetic, syringe scale, `SyringeGraphic`, `CalculatorInputs`, remembered
+barrel size, and the legal disclaimer and warning copy, which moved from
+`ReconCalculator.tsx` to `lib/calculator/copy.ts` (words unchanged;
+`copy.test.ts` pins the disclaimer against `12-Legal-Direction-Spec.md`).
+
+**The placeholder testimonials cannot ship by accident.** `showTestimonials()`
+hides the section and its menu item on Vercel's production environment while
+`PLACEHOLDER_TESTIMONIALS` is true.
+
+**Verified by rendering and looking, not by reading the markup:**
+
+- 375x548, 402x700 and 1280 (plus 1280x900): no sideways scroll at any of them.
+- Every feature row opened at 402 and at 1280 and looked at.
+- The dock hides over the hero and the two call-to-action sections, and at the
+  very bottom of an SE clears the last footer line by 30px.
+- FAQ vial recorded per frame: cap lifts by 100ms, liquid drains 150 to 700ms,
+  answer open by ~400ms. Refills on close.
+- Carousel dots: a real bug found and fixed. The trailing spacer was counted as
+  a fifth card, so no dot lit at the end of the track.
+- Reduced motion, read with no waiting: no running animations, every moment in
+  its finished state.
+- Keyboard: every control reachable with a visible ring; Enter opens the menu
+  onto its first item, Escape closes it and returns focus. Closed feature rows
+  and the hidden dock are `inert`.
+- Public calculator: 10 mg, 2 mL, 1000 mcg gives 5 mg/mL, 0.2 mL, 20 units, the
+  same as the app; 5000 mcg raises the 0.5 mL over-capacity warning.
+- Built HTML: the four legal links with the statute's full label, the entity and
+  ACN, both social URLs; no "Cancel in one tap", no dotted name, no em dash.
+
+**Gates:** tsc 0, eslint 0, vitest 109 files / 2115 tests, `next build` exit 0
+with `/` and `/reconstitution-calculator` both prerendered static.
+
+**Still owed, all Adrian's:** the copy pass (and the founders' letter), real
+testimonials, confirming each comparison row (they are claims about other
+apps), the privacy FAQ answer, whether the public calculator needs the in-app
+first-run modal, and real iPhone and Android checks. After merge, the first
+onboarding step (the notes-app hook) is deleted.
 
 ## ✅ THE WEIGHT SHEET GETS THE SAME DATE (2026-09-12)
 
@@ -421,6 +605,74 @@ blow-by-blow history of every spec is in git; this file keeps only what a future
 session needs at hand.
 
 Last updated: 2026-09-03 (the billing gate has been LIVE since 27 Aug and the repo said otherwise; the seven-day grace notice is built on `warning-popup`)
+
+## The public landing page at `/` (Spec 3-02) — BUILT 2026-09-16, SUPERSEDED 2026-09-17 BY 3-03 (see the top of this file)
+
+Branch `feat/landing-3-02`, pushed. **PR #66 is titled "DO NOT MERGE"** and stays
+that way until Adrian rules: "no merging to main without my final full approval."
+Preview: `https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.vercel.app`
+(Vercel "Ready"; the preview is SSO-gated, so it opens for a signed-in team member
+and redirects anyone else to `vercel.com/login`).
+
+**⚠️ REVISED THE SAME DAY, after Adrian read it on a laptop.** Three of the
+spec's eleven sections are gone by his instruction: the proof strip, social proof
+(*"remove all that stuff that says from the beta"*) and pricing (*"they don't
+have pricing, so I don't want us to have pricing"*). The page now carries eight.
+Removing the invented quotes also settles the review finding that they must never
+reach production. The hero is centred and re-ordered, and carries a laptop beside
+the phone because the site is read on one; both devices are placeholders he
+replaces tomorrow.
+
+His overall verdict was *"you can just tell that this is AI-generated"*. He is
+drawing up a better landing page himself tomorrow, so nothing here should be
+treated as settled design.
+
+⚠️ **CodeRabbit does not auto-review this repo** — it skips any repository with
+fewer than ten stars, and the green "CodeRabbit: success" check on a PR is that
+SKIP, not a review. It has to be triggered with an `@coderabbitai review` comment.
+Anyone reading that check as a passed review is reading it wrong.
+
+The front door is a real page again. `/` rendered nothing but a redirect into the
+onboarding flow since 2026-08-27; the funnel is now landing → "Start tracking" →
+the quiz at `/start` → account → paywall.
+
+**What shipped on the branch**
+
+- **`/onboarding` moved to `/start`**, with a 308 in `next.config.ts` naming the
+  three paths that ever served HTML. ⚠️ A `/onboarding/:path*` wildcard is the
+  obvious spelling and would have broken every asset under `public/onboarding/`
+  (Kyle, the carousel, the nineteen install frames), because redirects are
+  matched before the filesystem.
+- **`lib/brand.ts`** holds the product name, entity, ACN, support address and the
+  three display prices. The weekly anchor is DERIVED ($69.99 / 52 = $1.35), never
+  typed twice. Scope is the landing page and site metadata only: the ~270 other
+  "Trackd" strings wait for the rename spec and the trademark search.
+- **The hero is the app, drawn rather than captured.** A device carrying the real
+  today's log, with the due dose logged at 900ms. The four real screenshots in
+  `public/onboarding/` were rejected for it: each bakes in the old wordmark
+  (defeating `brand.ts`), carries a "Sign out" control, and names real compounds
+  where a public page wants generic labels.
+- **Four legal links, not the spec's three.** Washington's MHMDA requires the
+  Consumer Health Data Privacy Policy under that exact name; `verbatimQuotes.test.ts`
+  was repointed from the onboarding hook screen to `app/page.tsx`, which is what
+  its own comment always demanded.
+- **`--text-secondary`** exists because the spec requires WCAG AA and `--text-muted`
+  does not meet it (4.38:1 on `--bg-base`, 3.95:1 on `--bg-surface`). Mixed from the
+  two existing tokens, measured at 6.45:1 and 5.83:1.
+
+**⚠️ OPEN, and it is Adrian's:** the app-wide contrast question. Every tab screen
+uses `--text-muted` for body copy and it is under the AA floor. Changing them is a
+deliberate pass, not a side effect of a marketing page.
+
+**⚠️ A SECOND RECORDED INSTANCE of the stale-CSS trap on this tree.** The sticky CTA
+shipped VISIBLE across the hero in the first pass, and the markup was correct all
+along: no new rule in `globals.css` had reached the served stylesheet. Clearing
+`.next` fixed it both times. Confirm a rule is in the served chunk before concluding
+anything about it.
+
+**Still owed before this can merge:** three TODO placeholders (the proof line, the
+three quotes, the privacy answer), and a look on a real iPhone and a real Android.
+The quotes especially: invented testimonials cannot reach production.
 
 ## ⚠️ THE BILLING GATE HAS BEEN ON SINCE 27 AUGUST (2026-09-03)
 

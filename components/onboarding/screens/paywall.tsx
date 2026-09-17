@@ -30,7 +30,7 @@ import { useFlow } from "../flow-context";
  * Account creation moved to its own step immediately before this one
  * (`screens/account.tsx`). So this screen may ASSUME A SIGNED-IN USER — the
  * route refuses to render it otherwise, server-side, in
- * `app/onboarding/page.tsx`. That assumption is what spec w2b-15 builds a
+ * `app/start/page.tsx`. That assumption is what spec w2b-15 builds a
  * Stripe Payment Element on.
  *
  * The `GoogleSignInButton` that used to sit at the bottom of this file is gone

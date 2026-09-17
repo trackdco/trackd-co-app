@@ -16,7 +16,7 @@ export const metadata: Metadata = {
  * `components/onboarding/screens/greeting.tsx`; the other three and this route
  * are deleted together.
  *
- * It sits under `/onboarding` so it inherits the desktop-gate exemption and can
+ * It sits under `/start` so it inherits the desktop-gate exemption and can
  * be opened on a laptop as well as a phone.
  *
  * ## NOT REACHABLE IN PRODUCTION, and that is a compliance requirement

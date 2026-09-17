@@ -38,8 +38,10 @@ The review fixes needed lines the brief did not write:
   approved: Adrian to confirm or reword**). The full
   warning shows again when the pad closes.
 
-### 2. Decide on shipping (Adrian)
-Merge `polish/feel` to `main` only on Adrian's word; that deploys.
+### 2. Shipping — DONE (18 Sep)
+Adrian saw it on the Vercel preview and said to merge. `polish/feel` went to
+`main` through PR #68, so it is on production. What is left is his own look on
+the phone, above.
 
 ### 3. Left out on purpose
 - `components/home/AddWeightSheet.tsx` is unmounted but kept. Delete it once the
@@ -54,7 +56,8 @@ State and measurements are in `progress-tracker.md`; the rule is in
 
 ### 1. Look at it on the SE itself
 The simulated sizes and a live check of production are the evidence so far; the
-SE in Safari is the real test. Walk trackdco.app/onboarding on it.
+SE in Safari is the real test. Walk trackdco.app/start on it (the flow moved
+there from `/onboarding` on 2026-09-17).
 
 ### 2. When you touch a flow screen after this
 Measure it at 375x548 as well as 402x700. An overflow there is fixed with a
@@ -124,6 +127,115 @@ environment blockers are GONE; the Safari handoff is still held; one UNVERIFIED
 trial-conversion risk still open)
 
 ---
+
+## ✅ SPEC 3-03 — THE LANDING PAGE IS LIVE (merged 2026-09-17, `d755a7b`)
+
+PR #66 merged after a cold review (two small fixes, `a7a0e27`) with every gate
+green and the Vercel preview passing; production was checked the same
+afternoon. State is in `progress-tracker.md`; the brief and every decision are
+`Feature Specs/wave 2 - refinement/3-03-landing-rebuild.md` §8 and §9.
+`/onboarding` is now `/start` (old links 308 with their `?step=`).
+
+Live and deliberately incomplete: the reviews section is HIDDEN on production
+(placeholder quotes), and so is its menu item on both public pages.
+
+**Adrian still owes, in rough order:**
+
+- [ ] **⚠️ ADRIAN: the offloaded files in `trackd-co-app`.** Finder, right-click
+      the GitHub folder, "Keep Downloaded". It is not only `node_modules`
+      (28,129 files): `.git` has offloaded files too (64 reflogs and two pack
+      files on 2026-09-17). A git command that needs one sits at 0% CPU until
+      iCloud gets round to it: the fetch after this merge had to append to the
+      offloaded `origin/main` reflog and waited ~10 minutes, holding
+      `refs/remotes/origin/main.lock`, before it finished on its own.
+      `find .git -flags +dataless` shows what is still in the cloud.
+- [ ] **⚠️ ADRIAN ASKED TO BE REMINDED: the copy pass over the whole page**, and
+      his own founders' letter. The hero lines are his to settle.
+- [ ] **Real testimonials** (with permission) to replace the four invented ones
+      in `lib/landing/testimonials.ts`, then set `PLACEHOLDER_TESTIMONIALS` to
+      false and flip its test. Until then production hides the section.
+- [ ] **Confirm each comparison row** in `components/landing/compare.tsx`. A
+      cross under "Other apps" is a claim about competitors, and it is live.
+- [ ] **The privacy FAQ answer** (`TODO(3-03)` in `app/page.tsx`), also live.
+- [ ] **Rule on the public calculator's missing first-run modal.** The in-app
+      calculator shows one; the public page shows the permanent disclaimer on
+      the page instead.
+- [ ] **Real devices:** an iPhone in Safari (the free-week video is the HEVC
+      file there, and headless WebKit could only prove the still fallback), an
+      iPhone SE, and an Android. Include the FAQ vials and the menu.
+- [ ] Optional: **CodeRabbit** never reviewed this (it skips the repo).
+- [ ] Later, his words: a public compound library page, the same kind of page
+      as the free calculator.
+
+**Small things the cold review left alone** (copy, or not worth a change on
+their own): the public calculator's "no value" placeholder is the app's em
+dash; the intro screen says "Sign in" where the site says "Log in"; the hero
+phone's and the video's labels spell "Trackd" instead of reading
+`PRODUCT_NAME`; the review arrows read the dot index before a smooth scroll
+lands, so two very fast clicks advance one card; the report-only CSP logs an
+`upgrade-insecure-requests` notice in Chromium.
+
+## ⏸ SPEC 3-02 — SUPERSEDED BY 3-03 (kept for its review history)
+
+Branch `feat/landing-3-02`, pushed. **PR #66, titled "DO NOT MERGE."** Adrian's
+instruction 2026-09-16: "no merging to main without my final full approval."
+Preview (SSO-gated, sign in to Vercel first):
+`https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.vercel.app`
+
+Gates all green: tsc 0, eslint 0, 106 files / 2099 tests, `next build` exit 0 with
+`/` prerendered to static HTML.
+
+**⚠️ REVISED 2026-09-16, SECOND PASS, after Adrian read it on a laptop.** His
+verdict on the first build: *"you can just tell that this is AI-generated"*, and
+he intends to draw up a better landing page himself tomorrow. **Treat the current
+page as a staging post, not a finished design.** His reference for the feel is
+Pep AI's site: premium, and no pricing.
+
+What he had removed, and it is his call rather than a shortcut: the **proof
+strip**, the whole **"from the beta"** quotes section, and **pricing entirely**.
+⚠️ The cost, named: charge timing, cancellation terms and read-only-on-lapse went
+with the pricing section, and those were partly there for Apple's review of the
+domain. The trial promise under every button and the FAQ answers survive.
+`lib/brand.ts` keeps the amounts and the live Stripe guard still runs, so pricing
+can come back without re-deriving anything.
+
+What he had changed: hero re-ordered and centred (name, claim, device, sentence,
+button), wordmark centred with Log in hard right, a more realistic iPhone **plus a
+laptop** (he reads the site on one), figures stepped up, founder letter rewritten.
+**Both devices are PLACEHOLDERS** and he is replacing them tomorrow with "a cool
+thing" of his own. Do not polish them.
+
+- [ ] **⚠️ ADRIAN ASKED TO BE REMINDED: go over the landing copy tomorrow.**
+- [ ] **After this merges, delete the first onboarding step** (the "get your
+      protocol off your notes app" hook). The landing page does that job now, so
+      the flow would say it twice. His call, 2026-09-16.
+- [ ] **ADRIAN: read the page and rule on it.** It is a draft in every sense: the
+      mockup the spec pins the copy to never existed, so all the words are mine.
+- [ ] **ADRIAN: "Cancel in one tap."** The spec fixes that line, but cancelling
+      today is Billing → Cancel → confirm, and sometimes a retention offer. Keep
+      the line, soften it, or change the flow.
+- [ ] **Replace the three placeholders.** Proof strip line, three quotes, privacy
+      FAQ answer. All carry `TODO(3-02)` comments. The quotes are the blocking one.
+- [ ] **Real iPhone and real Android.** Measured at 375x548, 402x700 and 1280
+      in WebKit and Chromium, which is not the same thing.
+- [ ] Merge is Adrian's call alone. Preview deployed, PR #66 open and reviewed.
+
+**CodeRabbit reviewed on the second ask (5 findings). Two fixed, three are yours.**
+
+- ✅ **The sticky bar covered the footer.** Measured 39px of overlap at both
+  402x700 and 375x548, across the 18+/not-medical-advice line. Now 0.
+- ✅ **Landing prices could drift from Stripe.** `test/live/brandPrices.live.test.ts`
+  fails loudly if `brand.ts` and the live price objects disagree on amount,
+  currency or interval. Live-only (`npx vitest run --config vitest.live.config.ts`),
+  so the ordinary suite still passes with no keys and no network.
+- ⏸ **The placeholder quotes** (rated Major). Not removed: social proof is one of
+  the eleven sections the spec fixes, the preview is SSO-gated, and the branch
+  cannot merge. Replace them or drop the section, Adrian's call.
+- ⏸ **"Cancel in one tap"** (rated Major, independently of our own note). The spec
+  fixes that copy, so it is not ours to rewrite.
+- ⏭ **`/plans` vs `/checkout` in `flow.tsx:601`.** Real but PRE-EXISTING and
+  outside this spec, which says the quiz moves route and its contents do not
+  change. Worth its own task.
 
 ## 🔴 SPEC 16 — THE COLD REVIEWS CAME BACK. ONE HIGH IS OPEN, AND IT IS ADRIAN'S.
 

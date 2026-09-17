@@ -53,7 +53,7 @@ try {
   await ctx.addCookies([...sess.jar].map(([name, value]) => ({ name, value, domain: "localhost", path: "/" })));
   const page = await ctx.newPage();
 
-  await page.goto(`${BASE}/onboarding?step=plans`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await page.goto(`${BASE}/start?step=plans`, { waitUntil: "domcontentloaded", timeout: 120_000 });
   await page.waitForTimeout(2500);
   const planText = await page.evaluate(() => document.body.innerText);
   c.arrived("the price list rendered, and it is the price list",

@@ -36,11 +36,11 @@ import {
 } from "@/lib/onboarding/steps";
 import { firstIncompleteHousekeeping } from "@/lib/onboarding/session";
 import { PLANS, type PlanId, type PricedPlan } from "@/lib/onboarding/pricing";
-import type { TrialEligibility } from "@/app/onboarding/billing-actions";
+import type { TrialEligibility } from "@/app/start/billing-actions";
 import { guessPlatform } from "@/lib/onboarding/platform";
 import { todayKey as resolveTodayKey } from "@/lib/protocol/cycle";
 
-import type { ClaimStatus } from "@/app/onboarding/actions";
+import type { ClaimStatus } from "@/app/start/actions";
 
 import { AnswerHandoff } from "./answer-handoff";
 import { HowItWorks } from "./how-it-works";
@@ -144,11 +144,11 @@ export function OnboardingFlow({
    * Which screen to open on when the URL carries no `?step=`.
    *
    * `/plans` and `/checkout` are real routes rather than query strings, so the
-   * step cannot be read out of the address bar the way `/onboarding?step=` is.
+   * step cannot be read out of the address bar the way `/start?step=` is.
    * The route names the screen and passes it here.
    */
   startAt?: StepId;
-  /** A session exists. Server-verified in `app/onboarding/page.tsx`. */
+  /** A session exists. Server-verified in `app/start/page.tsx`. */
   signedIn?: boolean;
   /**
    * The account has PASSED the 18+/ToS gate. Strictly stronger than `signedIn`,
@@ -311,7 +311,7 @@ function OnboardingFlowClient({
   /**
    * A SIGNED-IN USER NEVER STANDS ON THE ACCOUNT SCREEN.
    *
-   * `app/onboarding/page.tsx` enforces this for every request that reaches a
+   * `app/start/page.tsx` enforces this for every request that reaches a
    * server. This is the same rule for the moves that do not — chiefly `popstate`
    * inside one mounted tree, which no server sees.
    *
@@ -453,7 +453,7 @@ function OnboardingFlowClient({
     /**
      * ⚠️ THE BILLING ENTRY POINTS OWN THEIR URLS AND MUST NOT BE REWRITTEN.
      *
-     * This exists so `/onboarding` reflects the step in its address bar. On
+     * This exists so `/start` reflects the step in its address bar. On
      * `/plans` and `/checkout` the ROUTE already names the screen, and stamping
      * `?step=` onto it would produce `/plans?step=plans` and put an onboarding
      * query string on a billing route — exactly the bleed Adrian asked to end.
@@ -634,8 +634,8 @@ function OnboardingFlowClient({
     (status: ClaimStatus, name: string | null, gated: boolean) => {
       if (status === "no-session") {
         // Not a client-side redirect standing in for a guard — it is a request,
-        // and the guard runs on it. See `app/onboarding/page.tsx`.
-        window.location.assign("/onboarding");
+        // and the guard runs on it. See `app/start/page.tsx`.
+        window.location.assign("/start");
         return;
       }
 
@@ -967,7 +967,7 @@ function OnboardingFlowClient({
 
               It takes the SESSION, not the step. Gating it on the step's phase
               meant one failed claim was unrecoverable: the user taps past the
-              banner to the end of the flow, and re-entering `/onboarding` lands
+              banner to the end of the flow, and re-entering `/start` lands
               on `hook`, an anonymous step, so it never fired again. */}
           <AnswerHandoff signedIn={signedIn} step={step} onResolved={onResolved} />
 
