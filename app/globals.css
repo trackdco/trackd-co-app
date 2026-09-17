@@ -2528,6 +2528,68 @@ body[data-inline-edit="true"] .shortcuts-layer {
   height: 844px;
   transform: scale(var(--phone-scale));
   transform-origin: top left;
+
+  /* THE APP INSIDE IS LAID OUT IN PIXELS, WHATEVER THE PAGE'S ROOT SIZE.
+     Tailwind's utilities read these theme values (`text-sm` is
+     `var(--text-sm)`, `p-4` is `calc(var(--spacing) * 4)`), and they are rem.
+     When a large monitor raises the root size (below), rem text inside a
+     fixed 390px screen grew and truncated. Pinned here to what they are at
+     16px, so nothing changes at any other size; the screens themselves use
+     px for anything arbitrary for the same reason. The base size is pinned
+     too (an inline box's line height comes from the size it inherits), but by
+     `text-[16px]` on the element in `phone.tsx`: a `font-size` written here
+     was silently dropped by the build's CSS minifier (2026-09-17). */
+  --spacing: 4px;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+  --radius: 16px;
+  --radius-lg: 16px; /* declared as var(--radius) at the root, inherited as 1rem */
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+  --container-xs: 320px;
+  --container-sm: 384px;
+  --container-md: 448px;
+}
+
+/* ---- A large monitor ------------------------------------------------------
+   On a 27-inch screen the page read small (Adrian, 2026-09-17): it was laid
+   out for a laptop and simply stopped growing, so a 2560px window showed a
+   1152px page in the middle of it. From 1800px wide AND 900px tall, the whole
+   public site scales by raising the root size, which every rem on these pages
+   (the columns, the type, the phones, the panels) follows; at 2200 x 1100 it
+   steps again. A laptop, up to a 16-inch MacBook Pro's default 1728px, is
+   untouched. Media queries measure in the browser's initial 16px, so no
+   breakpoint moves with it. `.lp-site` is the `<main>` of the two public
+   pages; nothing in the app carries it.
+
+   The phones keep their scale beside their width (see `.lp-phone` above):
+   20rem is 360px at 112.5% and 400px at 125%. */
+@media (min-width: 1800px) and (min-height: 900px) {
+  html:has(.lp-site) {
+    font-size: 112.5%;
+  }
+
+  .lp-phone,
+  .lp-phone-hero {
+    --phone-scale: 0.90256; /* (360 - 8) / 390 */
+  }
+}
+
+@media (min-width: 2200px) and (min-height: 1100px) {
+  html:has(.lp-site) {
+    font-size: 125%;
+  }
+
+  .lp-phone,
+  .lp-phone-hero {
+    --phone-scale: 1.00513; /* (400 - 8) / 390 */
+  }
 }
 
 /* ---- A phone video (onboarding's free-week screen) ---------------------------
@@ -2582,6 +2644,21 @@ body[data-inline-edit="true"] .shortcuts-layer {
 .phone-video[data-settled] .phone-video-media {
   --lp-fade-b: 95% !important;
   --lp-fade-t: 0% !important;
+}
+
+/* THE FREE-WEEK PHONE ON A LAPTOP OR A MONITOR (Adrian, 2026-09-17: "way too
+   small"). The screen's phone is `max(fit(172, 118), var(--free-phone-lg))`,
+   and this is the only place the second term exists, so a phone keeps its
+   handset figure. Here it is as tall as the window allows: the header row,
+   the headline and the offer line with its button take about 340px, and the
+   recording's box is 2.2118 phone widths tall. Capped at 320px, where the
+   settled phone is already ~700px tall; below 172px the handset figure wins,
+   so a short window is no worse than before. Width-gated, never height-gated
+   (see `.flow-viewport` for why a height query is wrong on a phone). */
+@media (min-width: 1024px) {
+  .free-stage {
+    --free-phone-lg: clamp(0px, calc((100svh - 340px) / 2.2118), 320px);
+  }
 }
 
 /* ---- Surfaces ------------------------------------------------------------ */

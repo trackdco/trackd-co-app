@@ -791,6 +791,13 @@ targets that were MEASURED off the rendered screen (`data-mark`); their cards
 overlap the device on a phone and stand clear of it on a laptop, and their
 pointer is a hollow ring, because a filled dot hid a 10px injection site.
 
+**A large monitor scales the whole site** (Adrian, 2026-09-17, on a 27-inch
+screen: "a bit small"). From 1800 x 900 the root size is 112.5%, and from
+2200 x 1100 it is 125%, via `html:has(.lp-site)`; every rem follows and a
+laptop is untouched. The drawn phones are immune: `.lp-phone-logical` pins
+Tailwind's rem theme values to px and carries `text-[16px]`, so anything
+arbitrary inside a phone screen is written in px, never rem.
+
 **Motion: a marketing surface, so the `/onboarding` argument applies.** There
 are no figures on this page that motion could compete with, so it may move
 more than the app, and every piece of it collapses under

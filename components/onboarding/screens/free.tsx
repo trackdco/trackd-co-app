@@ -19,8 +19,14 @@ import { PhoneVideo } from "../phone-video";
  * slightly and move it up"). On a phone taller than his, the spare height is
  * split one part above to two below, so it does not all pool under the phone.
  * See `lib/onboarding/fit.ts`.
+ *
+ * ⚠️ ON A LAPTOP OR A MONITOR IT GROWS (Adrian, 2026-09-17, on a 27-inch
+ * screen: "way too small"). `fit()` only ever shrinks for a short phone, so a
+ * 1300px-tall window still got the 172px phone. `--free-phone-lg` is defined
+ * from the laptop breakpoint up only (`.free-stage` in `globals.css`), so on a
+ * phone it is `0px` and this is exactly the handset figure.
  */
-const PHONE_WIDTH = fit(172, 118);
+const PHONE_WIDTH = `max(${fit(172, 118)}, var(--free-phone-lg, 0px))`;
 
 /**
  * The free-trial reveal, between the cost argument and the price list (Adrian,
@@ -55,9 +61,13 @@ export function FreeScreen() {
   const { goNext } = useFlow();
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="free-stage relative flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
-        <ScrollPort>
+        {/* On a laptop the port reaches 10rem past the column each side and
+            pads back in, so the text keeps the column's width while the
+            recording's opening, which starts zoomed to 1.3 phone widths either
+            side of centre, is not cut by the port's edge. */}
+        <ScrollPort className="lg:-mx-40 lg:px-40">
           {/* A small gap: the video's phone sits close under the subtitle
               (Adrian, 2026-09-17). The 40px this used to be was for the
               carousel, whose front phone spilled out of the top of its ring;

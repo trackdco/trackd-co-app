@@ -139,7 +139,7 @@ export default function LandingPage() {
 
   return (
     <>
-      <main className="min-h-dvh overflow-x-clip bg-bg-base">
+      <main className="lp-site min-h-dvh overflow-x-clip bg-bg-base">
         {/* ------------------------------------------------ Header and hero */}
         <section id="hero" aria-labelledby="hero-title" className="lp-hero relative">
           <SiteHeader hide={reviews ? [] : ["movement"]} />

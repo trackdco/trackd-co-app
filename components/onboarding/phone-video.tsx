@@ -191,7 +191,9 @@ export function PhoneVideo({
           alt=""
           width={1518}
           height={1280}
-          sizes="26rem"
+          // The box is 2.62 phone widths: up to ~53rem on a laptop, where the
+          // free-week phone grows (`.free-stage`), and under 26rem on a phone.
+          sizes="(min-width: 1024px) 53rem, 26rem"
           className="phone-video-media"
         />
       ) : null}

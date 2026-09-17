@@ -56,7 +56,7 @@ export interface ScreenProps {
 }
 
 function Title({ children }: { children: ReactNode }) {
-  return <h4 className={cn(PAGE_TITLE, "text-[2rem]")}>{children}</h4>;
+  return <h4 className={cn(PAGE_TITLE, "text-[32px]")}>{children}</h4>;
 }
 
 /** A figure that changes when the moment plays: old fades out, new fades in. */
@@ -311,7 +311,7 @@ export function SitesScreen({ live }: ScreenProps) {
           </svg>
 
           <div className="mt-2 w-full pt-3 hairline-t">
-            <p className="mb-2.5 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-text-muted">
+            <p className="mb-2.5 text-[10.4px] font-medium uppercase tracking-[0.14em] text-text-muted">
               Last logged
             </p>
             <ul className="flex flex-col gap-2.5">
@@ -341,9 +341,9 @@ function SiteRow({ site, when, who }: { site: string; when: string; who: string 
     <>
       <div className="flex items-baseline justify-between gap-3">
         <span className="min-w-0 truncate text-sm text-foreground">{site}</span>
-        <span className="shrink-0 font-mono text-[0.7rem] text-text-muted">{when}</span>
+        <span className="shrink-0 font-mono text-[11.2px] text-text-muted">{when}</span>
       </div>
-      <p className="truncate text-[0.7rem] text-text-muted">{who}</p>
+      <p className="truncate text-[11.2px] text-text-muted">{who}</p>
     </>
   );
 }
