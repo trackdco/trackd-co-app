@@ -7,8 +7,7 @@ import { FaqList, type Faq } from "@/components/landing/faq";
 import { FeatureWidget } from "@/components/landing/features/feature-widget";
 import { HandUnderline } from "@/components/landing/hand-underline";
 import { KyleCloser } from "@/components/landing/kyle-closer";
-import { Phone } from "@/components/landing/phone";
-import { TodayScreen } from "@/components/landing/screens/today";
+import { HeroVideo } from "@/components/landing/hero-video";
 import { SiteFooter, type LegalLink } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { Testimonials } from "@/components/landing/testimonials";
@@ -317,10 +316,14 @@ export default function LandingPage() {
   );
 }
 
-/** The hero phone, with the rings Adrian drew behind it and a pool of light. */
+/**
+ * The hero phone: Adrian's recording (`HeroVideo`), with the rings he drew
+ * behind it and a pool of light. The rings are centred on the phone, which the
+ * video's crop keeps in the middle of its box.
+ */
 function HeroDevice() {
   return (
-    <div className="relative flex justify-center py-6 lg:py-0">
+    <div className="relative flex justify-center py-4 lg:py-0">
       <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 h-0 w-0">
         <span className="lp-ring h-[26rem] w-[26rem] md:h-[32rem] md:w-[32rem]" style={{ animationDelay: "100ms" }} />
         <span className="lp-ring h-[36rem] w-[36rem] opacity-70 md:h-[44rem] md:w-[44rem]" style={{ animationDelay: "250ms" }} />
@@ -333,14 +336,7 @@ function HeroDevice() {
           }}
         />
       </div>
-      <Phone
-        hero
-        tab="dashboard"
-        label="The Trackd dashboard: today's log with three compounds, the due one being ticked off, and weight and next-dose cards below."
-        className="lp-rise"
-      >
-        <TodayScreen />
-      </Phone>
+      <HeroVideo label="A recording of the Trackd app on an iPhone: a dose being tracked, the dashboard, the injection site map and a new stack being built." />
     </div>
   );
 }

@@ -78,6 +78,39 @@ trial-conversion risk still open)
 
 ---
 
+## ⏸ 3-03 UI REVIEW FROM ADRIAN (2026-09-17) — ON HOLD UNTIL HE SAYS GO
+
+He reviewed the preview on his phone and said to STAND BY: do none of this
+until he has checked the hero video and given the go-ahead. Copy review comes
+later, separately.
+
+- [ ] **The button:** less flashy. The sheen ("the little light that goes") much
+      more subtle; a deeper amber, less "gradienty". Ultimately he wants it to
+      read as a **glowing orb** rather than a gradient.
+- [ ] **Keep** the rings ("that circle thing") round the phone.
+- [ ] **Kyle's section:** make the elements round him little previews of the UI
+      (one, a feature at the top, showing stock running up and down), so the
+      whole "What are you waiting for?" section looks more like the app's UI.
+- [ ] **Compare:** the Trackd column's marks stay white; on the LAST row, the
+      Trackd cross takes the other apps' cross colour and the other apps' tick
+      takes the Trackd tick colour (flipped). Delete "The last row is on
+      purpose."
+- [ ] **The transition from Compare into the founders' note** is not good. Fix
+      the section-to-section transitions generally.
+- [ ] **Closing section:** italicise "actually works", i.e. "Get your protocol
+      out of the notes app and into something that *actually works*", with
+      "Start tracking" under it.
+- [ ] **Footer:** replace "Follow along" with "Our socials" (or "Follow our
+      socials").
+- [ ] **Smooth some of the animations** generally.
+- [ ] **Features widget on a phone is "floppy"** when switching from one open
+      row to another (the closing row and the opening row move the page at
+      once). Also: **injection sites is hard to see** at phone size.
+- [ ] **Reviews centred on a phone:** the cards centred, and the dots (the
+      "slider thing") centred too, not bottom right.
+- [ ] **Keep:** the FAQ vials, the question list, the calculator page, the
+      laptop view. He also needs Vercel on his phone to review there.
+
 ## 🟡 SPEC 3-03 — THE LANDING PAGE, REBUILT FROM THE SKETCH, IS WAITING ON ADRIAN
 
 Branch `feat/landing-3-02`, **PR #66, still "DO NOT MERGE"**, same preview URL

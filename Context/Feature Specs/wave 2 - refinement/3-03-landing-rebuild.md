@@ -393,5 +393,12 @@ Working, verified, and worth keeping unless it fights the new design:
   pins it. The worst case is a missing section, never a fake review.
 - **The 3-02 footer email field is gone.** The rebuilt footer's brief does not
   include it. `joinWaitlist` and the `waitlist` table are untouched.
+- **The hero phone is Adrian's video** (supplied 2026-09-17: 4K 60fps HEVC,
+  69s, already transparent round the phone). Cropped to a box centred on the
+  phone, 1294x1280 at 30fps, shipped as HEVC-with-alpha and VP9-with-alpha.
+  It plays once and holds its last frame. ⚠️ **The recording shows real
+  compound names, "Good morning, Marcus" and "Sign out"**, which §5's
+  generic-label rule forbids on the public page. Built as supplied; Adrian to
+  rule (re-record with generic labels, or accept).
 - **Removed 3-02 components:** `device`, `laptop`, `today-panel`, `glyphs`,
   `sticky-cta`, `updates-form`.

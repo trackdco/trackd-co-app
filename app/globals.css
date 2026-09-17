@@ -2503,31 +2503,16 @@ body[data-inline-edit="true"] .shortcuts-layer {
   width: var(--phone-w);
 }
 
-.lp-phone-hero {
-  --phone-w: 17.5rem; /* 280px, scale 272 / 390 */
-  --phone-scale: 0.69744;
-}
-
 @media (min-width: 800px) {
   .lp-phone {
     --phone-w: 18.75rem; /* 300px, scale 292 / 390 */
     --phone-scale: 0.74872;
-  }
-
-  .lp-phone-hero {
-    --phone-w: 20rem; /* 320px, scale 312 / 390 */
-    --phone-scale: 0.8;
   }
 }
 
 @media (min-width: 1024px) {
   .lp-phone {
     --phone-w: 20rem;
-    --phone-scale: 0.8;
-  }
-
-  .lp-phone-hero {
-    --phone-w: 20rem; /* the laptop hero keeps the whole device above an 800px fold */
     --phone-scale: 0.8;
   }
 }
@@ -2542,6 +2527,49 @@ body[data-inline-edit="true"] .shortcuts-layer {
   height: 844px;
   transform: scale(var(--phone-scale));
   transform-origin: top left;
+}
+
+/* ---- The hero video ---------------------------------------------------------
+
+   Adrian's recording of the app, transparent round the phone. The file is a
+   1294x1280 box centred on the phone, and the phone takes the middle 45% of
+   its width and nearly all of its height. So the element is sized by the PHONE
+   (`--pw`) and the video is drawn wider than it, overflowing sideways into
+   transparent space: the phone lands at the same size the drawn phone had,
+   and the tilt it opens with has room.
+
+   The edges are feathered: the crop cut the far edge of the opening tilt's
+   shadow, and the phone's own shadow reaches the bottom of the frame. */
+.lp-hero-video {
+  --pw: 17.5rem;
+  width: var(--pw);
+  height: calc(var(--pw) * 2.198);
+}
+
+@media (min-width: 800px) {
+  .lp-hero-video {
+    --pw: 20rem;
+  }
+}
+
+.lp-hero-video-media {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: calc(var(--pw) / 0.45);
+  max-width: none;
+  height: 100%;
+  object-fit: contain;
+  transform: translateX(-50%);
+  pointer-events: none;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%),
+    linear-gradient(to bottom, black 96%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%),
+    linear-gradient(to bottom, black 96%, transparent 100%);
+  mask-composite: intersect;
 }
 
 /* ---- Surfaces ------------------------------------------------------------ */
@@ -3068,64 +3096,6 @@ body[data-inline-edit="true"] .shortcuts-layer {
   transition: transform 1000ms var(--motion-ease) 300ms;
 }
 
-/* ---- The due dose in the hero phone (carried over from 3-02) --------------- */
-
-@keyframes landing-ring-settle {
-  to {
-    border-color: transparent;
-    background-color: var(--accent-primary);
-  }
-}
-
-.landing-ring {
-  animation: landing-ring-settle 320ms var(--motion-ease) both;
-}
-
-/* A label handing over to another as the due dose is logged. The BASE style
-   of each is its final state, so under reduced motion (animation: none) the
-   finished screen is what shows. */
-.lp-swap-out {
-  opacity: 0;
-  animation: lp-swap-out 220ms ease-out both;
-}
-
-.lp-swap-in {
-  opacity: 1;
-  animation: lp-swap-in 260ms ease-out both;
-}
-
-.lp-row-done {
-  opacity: 0.6;
-  animation: lp-row-done 300ms ease-out both;
-}
-
-@keyframes lp-swap-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes lp-swap-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes lp-row-done {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0.6;
-  }
-}
-
 /* ---- The docked call to action ---------------------------------------------
 
    "Its own kind of separate widget" (Adrian, 2026-09-17): a floating card that
@@ -3166,17 +3136,9 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .lp-scrim,
   .lp-drift,
   .lp-kyle[data-in],
-  .lp-swap-out,
-  .lp-swap-in,
-  .lp-row-done,
-  .landing-ring,
+
   [data-open] .lp-vial .lp-vial-bubble {
     animation: none;
-  }
-
-  .landing-ring {
-    border-color: transparent;
-    background-color: var(--accent-primary);
   }
 
   .lp-cta,
