@@ -743,7 +743,10 @@ recency ramp with its day labels), because that is what the app looks like.
 **The hero phone is a transparent video**, Adrian's recording of the app,
 shipped as HEVC with alpha (Safari, every iPhone browser) and VP9 with alpha
 (Chrome, Edge, Firefox), chosen in script because each of those browsers
-claims to play the other's file and then drops the transparency.
+claims to play the other's file and then drops the transparency. Its opening
+is zoomed past the frame, so the box's top and bottom fade while it opens and
+ease away as it settles, written per frame from the video's clock (a CSS
+transition on the mask jumped in WebKit). No fade-in.
 
 **The app, drawn: `Phone`.** In the features widget, a screen is laid out at the app's real 390x844 and
 scaled as one piece (`.lp-phone`, which carries its scale beside its width

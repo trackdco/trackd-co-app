@@ -144,7 +144,10 @@ export default function LandingPage() {
           <SiteHeader hide={reviews ? [] : ["movement"]} />
 
           <div className="lp-wide grid items-center gap-y-12 pb-16 pt-8 md:pb-20 md:pt-12 lg:min-h-[calc(100svh-5rem)] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-x-12 lg:pb-24 lg:pt-4">
-            <div className="text-center lg:text-left">
+            {/* `relative z-10`: on a laptop the video's opening zoom swings
+                wider than its column for under a second, and it passes BEHIND
+                the headline rather than over it. */}
+            <div className="relative z-10 text-center lg:text-left">
               {/* ⚠️ Four lines of copy, laid out as Adrian dictated them: the
                   first reads as a line ABOVE the title. He is settling the
                   order himself in his copy pass. */}

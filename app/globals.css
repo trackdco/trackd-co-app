@@ -2532,18 +2532,26 @@ body[data-inline-edit="true"] .shortcuts-layer {
 /* ---- The hero video ---------------------------------------------------------
 
    Adrian's recording of the app, transparent round the phone. The file is a
-   1294x1280 box centred on the phone, and the phone takes the middle 45% of
-   its width and nearly all of its height. So the element is sized by the PHONE
-   (`--pw`) and the video is drawn wider than it, overflowing sideways into
-   transparent space: the phone lands at the same size the drawn phone had,
-   and the tilt it opens with has room.
+   1518x1280 box centred on the phone, and the settled phone takes the middle
+   38.125% of its width (122 of 320 measured columns) and nearly all of its
+   height. So the element is sized by the PHONE (`--pw`) and the video is drawn
+   wider than it, overflowing sideways into transparent space: the phone lands
+   at the size the drawn phone had, and the tilt it opens with has room.
+   Height: (1 / 0.38125) / (1518 / 1280) = 2.2118 phone widths.
 
-   The edges are feathered: the crop cut the far edge of the opening tilt's
-   shadow, and the phone's own shadow reaches the bottom of the frame. */
+   THE EDGES FADE. The sides are feathered for the far edge of the opening
+   tilt. The top and bottom fade DEEPLY while the recording opens (the phone
+   runs off the bottom of the frame until ~2.4s, and off the top for the first
+   half second: those pixels do not exist, so the cut is hidden instead), and
+   ease back as it settles, leaving only a trace under the phone's own shadow.
+   The easing is written per frame from the video's clock by `hero-video.tsx`
+   (a CSS transition here jumped in WebKit); these rules are the opening and
+   the settled ends of it. */
+
 .lp-hero-video {
   --pw: 17.5rem;
   width: var(--pw);
-  height: calc(var(--pw) * 2.198);
+  height: calc(var(--pw) * 2.2118);
 }
 
 @media (min-width: 800px) {
@@ -2553,23 +2561,30 @@ body[data-inline-edit="true"] .shortcuts-layer {
 }
 
 .lp-hero-video-media {
+  --lp-fade-b: 68%;
+  --lp-fade-t: 7%;
   position: absolute;
   top: 0;
   left: 50%;
-  width: calc(var(--pw) / 0.45);
+  width: calc(var(--pw) / 0.38125);
   max-width: none;
   height: 100%;
   object-fit: contain;
   transform: translateX(-50%);
   pointer-events: none;
   -webkit-mask-image:
-    linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%),
-    linear-gradient(to bottom, black 96%, transparent 100%);
+    linear-gradient(to right, transparent 0%, black 9%, black 91%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, black var(--lp-fade-t), black var(--lp-fade-b), transparent 100%);
   -webkit-mask-composite: source-in;
   mask-image:
-    linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%),
-    linear-gradient(to bottom, black 96%, transparent 100%);
+    linear-gradient(to right, transparent 0%, black 9%, black 91%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, black var(--lp-fade-t), black var(--lp-fade-b), transparent 100%);
   mask-composite: intersect;
+}
+
+.lp-hero-video[data-settled] .lp-hero-video-media {
+  --lp-fade-b: 95% !important;
+  --lp-fade-t: 0% !important;
 }
 
 /* ---- Surfaces ------------------------------------------------------------ */

@@ -393,12 +393,17 @@ Working, verified, and worth keeping unless it fights the new design:
   pins it. The worst case is a missing section, never a fake review.
 - **The 3-02 footer email field is gone.** The rebuilt footer's brief does not
   include it. `joinWaitlist` and the `waitlist` table are untouched.
-- **The hero phone is Adrian's video** (supplied 2026-09-17: 4K 60fps HEVC,
-  69s, already transparent round the phone). Cropped to a box centred on the
-  phone, 1294x1280 at 30fps, shipped as HEVC-with-alpha and VP9-with-alpha.
-  It plays once and holds its last frame. ⚠️ **The recording shows real
-  compound names, "Good morning, Marcus" and "Sign out"**, which §5's
-  generic-label rule forbids on the public page. Built as supplied; Adrian to
-  rule (re-record with generic labels, or accept).
+- **The hero phone is Adrian's video**: `trackd-phone-landing-mockup-final.mov`
+  (supplied 2026-09-17; it replaced a first cut that opened dark). 4K 60fps
+  HEVC, 69s, already transparent round the phone. Cropped to a box centred on
+  the phone, 1518x1280 at 30fps, shipped as HEVC-with-alpha (9.1 MB) and
+  VP9-with-alpha (2.3 MB). It plays once, with no fade-in, and holds its last
+  frame.
+- **Its opening is cut off, so it fades.** The recording opens zoomed in, with
+  the phone off the bottom of the frame until ~2.4s. Adrian asked for a fade at
+  the bottom; the top and bottom of the box fade deeply while it opens and ease
+  away as it settles, driven from the video's own clock.
+- **The recording's names are fine** (Adrian, 2026-09-17: "it's a preview,
+  it's fake data"), so §5's generic-label rule is waived for the hero video.
 - **Removed 3-02 components:** `device`, `laptop`, `today-panel`, `glyphs`,
   `sticky-cta`, `updates-form`.
