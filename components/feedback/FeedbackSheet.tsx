@@ -6,7 +6,8 @@ import { ChatCircleDots, Check, CircleNotch } from "@/components/icons"
 import { Textarea } from "@/components/ui/textarea"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 import { submitBetaFeedback } from "@/lib/db/feedback"
 
 const MAX_LEN = 4000
@@ -113,29 +114,32 @@ export function FeedbackSheet({
             </div>
             <p className="mt-2 text-sm text-text-muted">{description}</p>
 
-            <label className="mt-4 block">
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                Your note
-              </span>
-              <Textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value.slice(0, MAX_LEN))}
-                disabled={signedOut || busy}
-                placeholder={placeholder}
-                rows={7}
-                aria-label="Your feedback"
-                className="min-h-[9.5rem] rounded-xl border-border-default bg-bg-input text-sm leading-relaxed dark:bg-bg-input"
-              />
-            </label>
+            {/* The note rises in as the sheet lands (feel pass §4). */}
+            <div data-sheet-body>
+              <label className="mt-4 block">
+                <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+                  Your note
+                </span>
+                <Textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value.slice(0, MAX_LEN))}
+                  disabled={signedOut || busy}
+                  placeholder={placeholder}
+                  rows={7}
+                  aria-label="Your feedback"
+                  className="min-h-[9.5rem] rounded-xl border-border-default bg-bg-input text-sm leading-relaxed dark:bg-bg-input"
+                />
+              </label>
 
-            {signedOut ? (
-              <p className="mt-3 px-1 text-sm text-text-muted">
-                Sign in to send feedback.
-              </p>
-            ) : (
-              error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>
-            )}
-            <div className="h-2" />
+              {signedOut ? (
+                <p className="mt-3 px-1 text-sm text-text-muted">
+                  Sign in to send feedback.
+                </p>
+              ) : (
+                error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>
+              )}
+              <div className="h-2" />
+            </div>
           </div>
 
           {/* Action bar */}
@@ -151,7 +155,10 @@ export function FeedbackSheet({
               type="button"
               onClick={() => void handleSend()}
               disabled={!canSend}
-              className="flex flex-[1.6] items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+              className={cn(
+                PRESS.button,
+                "flex flex-[1.6] items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+              )}
             >
               {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : null}
               {busy ? "Sending…" : submitLabel}

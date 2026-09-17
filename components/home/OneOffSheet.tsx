@@ -14,6 +14,7 @@ import { MagnifyingGlass } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { DATA_MONO, PRESS, SHEET_TITLE } from "@/lib/ui-presets"
 import { NumberPad, PadInput } from "@/components/feel/NumberPad"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { sanitizeDoseInput } from "@/lib/home/stack"
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import { routesOf } from "@/lib/compound-categories"
@@ -170,7 +171,11 @@ function OneOffBody({
     )
 
   return (
-    <div className="space-y-4 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    // The sections rise in as the sheet lands (feel pass §4).
+    <div
+      data-sheet-body
+      className="space-y-4 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+    >
       {picked ? (
         <div className="flex items-center gap-3">
           <Container
@@ -323,18 +328,34 @@ function OneOffBody({
 
           <div className="space-y-2">
             <span className={LABEL}>Unit</span>
-            <div className="flex flex-wrap gap-2">
+            {/* The unit on a WHITE sliding thumb (feel pass §6). The thumb is
+                the selection, so the other units are outlined rather than
+                filled: a fill would hide the thumb as it passes beneath. */}
+            <ThumbGroup
+              selection={unit}
+              thumbClassName="rounded-full bg-accent-primary"
+              role="group"
+              aria-label="Unit"
+              className="flex flex-wrap gap-2"
+            >
               {ONE_OFF_UNITS.map((u) => (
                 <button
                   key={u}
                   type="button"
                   onClick={() => setUnit(u)}
-                  className={pill(unit === u)}
+                  aria-pressed={unit === u}
+                  className={cn(
+                    PRESS.pill,
+                    "rounded-full border px-3 py-1.5 text-sm transition-colors duration-300",
+                    unit === u
+                      ? "border-transparent text-bg-base"
+                      : "border-border-default text-text-muted hover:text-foreground",
+                  )}
                 >
                   {u}
                 </button>
               ))}
-            </div>
+            </ThumbGroup>
           </div>
 
           <label className="block space-y-1.5">
@@ -372,7 +393,10 @@ function OneOffBody({
               })
               onClose()
             }}
-            className="w-full rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+            className={cn(
+              PRESS.button,
+              "w-full rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90",
+            )}
           >
             Log it
           </button>

@@ -116,80 +116,82 @@ export function ProgressPhotoGallerySheet({
               )}
             </div>
 
-            {/* Two photos is the gate, as it always was. Gating on
-                `comparablePoses` instead removed Compare from Progress for
-                anyone whose poses were each shot once, which was never the ask:
-                the chip CULL belongs inside the sheet, and its own fallback
-                already covers a set where nothing is comparable. */}
-            {photos.length >= 2 && (
-              <button
-                type="button"
-                onClick={onCompare}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-surface-raised py-3 text-sm font-medium text-text-primary transition-colors hover:bg-bg-input/60"
-              >
-                <ArrowsLeftRight className="h-4 w-4" aria-hidden />
-                Compare before &amp; after
-              </button>
-            )}
-
-            {photos.length === 0 ? (
-              onAdd ? (
+            {/* Everything under the title rises in as the sheet lands (feel
+                pass §4). */}
+            <div data-sheet-body>
+              {/* Two photos is the gate, as it always was. Gating on
+                  `comparablePoses` instead removed Compare from Progress for
+                  anyone whose poses were each shot once, which was never the ask:
+                  the chip CULL belongs inside the sheet, and its own fallback
+                  already covers a set where nothing is comparable. */}
+              {photos.length >= 2 && (
                 <button
                   type="button"
-                  onClick={onAdd}
-                  className="mt-4 flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-12 text-center transition-colors hover:bg-bg-input/70"
+                  onClick={onCompare}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-surface-raised py-3 text-sm font-medium text-text-primary transition-colors hover:bg-bg-input/60"
                 >
-                  <Camera className="h-8 w-8 text-text-muted" aria-hidden />
-                  <span className="text-sm text-text-muted">Add your first progress photo</span>
+                  <ArrowsLeftRight className="h-4 w-4" aria-hidden />
+                  Compare before &amp; after
                 </button>
-              ) : (
-                /* A scope with nothing in it cannot offer to add, because the
-                   photo would land on today and today may sit outside it. */
-                <div className="mt-4 flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-12 text-center">
-                  <Camera className="h-8 w-8 text-text-muted" aria-hidden />
-                  <span className="text-sm text-text-muted">No photos in here yet</span>
-                </div>
-              )
-            ) : (
-              <div className="mt-5 space-y-6">
-                {months.map((month, mi) => (
-                  <div
-                    key={month.key}
-                    className="animate-shortcut-in"
-                    style={{ animationDelay: `${mi * 50}ms` }}
-                  >
-                    <h3 className={`px-1 ${CARD_EYEBROW}`}>
-                      {month.label}
-                    </h3>
-                    <ul className="mt-2 overflow-hidden rounded-2xl border border-border-default bg-bg-surface-raised">
-                      {month.days.map((day, i) => (
-                        <li
-                          key={day.date}
-                          className={cn(i > 0 && "hairline-t")}
-                        >
-                          <DayRow
-                            day={day}
-                            onView={onView}
-                            onEdit={onEditDay ? () => onEditDay(day.date) : undefined}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
+              )}
 
-            {scope && (
-              <button
-                type="button"
-                onClick={scope.onSeeAll}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm text-text-muted transition-colors hover:text-foreground"
-              >
-                See all progress photos
-                <ArrowRight className="h-4 w-4" aria-hidden />
-              </button>
-            )}
+              {photos.length === 0 ? (
+                onAdd ? (
+                  <button
+                    type="button"
+                    onClick={onAdd}
+                    className="mt-4 flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-12 text-center transition-colors hover:bg-bg-input/70"
+                  >
+                    <Camera className="h-8 w-8 text-text-muted" aria-hidden />
+                    <span className="text-sm text-text-muted">Add your first progress photo</span>
+                  </button>
+                ) : (
+                  /* A scope with nothing in it cannot offer to add, because the
+                     photo would land on today and today may sit outside it. */
+                  <div className="mt-4 flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-12 text-center">
+                    <Camera className="h-8 w-8 text-text-muted" aria-hidden />
+                    <span className="text-sm text-text-muted">No photos in here yet</span>
+                  </div>
+                )
+              ) : (
+                // The months are direct children of the body, so each one rises
+                // in its turn. They used to stagger in on their own.
+                <>
+                  {months.map((month, mi) => (
+                    <div key={month.key} className={mi === 0 ? "mt-5" : "mt-6"}>
+                      <h3 className={`px-1 ${CARD_EYEBROW}`}>
+                        {month.label}
+                      </h3>
+                      <ul className="mt-2 overflow-hidden rounded-2xl border border-border-default bg-bg-surface-raised">
+                        {month.days.map((day, i) => (
+                          <li
+                            key={day.date}
+                            className={cn(i > 0 && "hairline-t")}
+                          >
+                            <DayRow
+                              day={day}
+                              onView={onView}
+                              onEdit={onEditDay ? () => onEditDay(day.date) : undefined}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {scope && (
+                <button
+                  type="button"
+                  onClick={scope.onSeeAll}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm text-text-muted transition-colors hover:text-foreground"
+                >
+                  See all progress photos
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </SheetContent>

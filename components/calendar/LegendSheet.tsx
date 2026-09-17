@@ -87,7 +87,8 @@ export function LegendSheet({
             <h2 className={`pb-4 ${SHEET_TITLE}`}>
               Calendar key
             </h2>
-            <ul className="space-y-4">
+            {/* Each key rises in as the sheet lands (feel pass §4). */}
+            <ul data-sheet-body className="space-y-4">
               {KEY.map((k) => (
                 <li key={k.status} className="flex items-start gap-3.5">
                   <span

@@ -11,7 +11,8 @@ import {
 import { Container } from "@/components/containers"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { DATA_MONO, PRIMARY_BUTTON, SHEET_TITLE } from "@/lib/ui-presets"
+import { DATA_MONO, PRESS, PRIMARY_BUTTON, SHEET_TITLE } from "@/lib/ui-presets"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { formatDateKeyShort, type StackCompound } from "@/lib/home/stack"
 import {
@@ -341,12 +342,16 @@ function PauseBody({
   const alreadyOver = endsOn !== null && endsOn < todayKey
   const lengthLabel = DURATIONS.find((d) => d.days === duration)?.label ?? "2 weeks"
 
+  // The selected length is a WHITE sliding thumb (feel pass §6), so a chip
+  // carries no fill of its own: the others are outlined, because a fill would
+  // hide the thumb as it passes beneath them.
   const chip = (active: boolean) =>
     cn(
-      "rounded-full px-3 py-1.5 text-sm transition-colors",
+      PRESS.pill,
+      "rounded-full border px-3 py-1.5 text-sm transition-colors duration-300",
       active
-        ? "bg-accent-primary text-bg-base"
-        : "bg-bg-surface-raised text-text-muted hover:text-foreground"
+        ? "border-transparent text-bg-base"
+        : "border-border-default text-text-muted hover:text-foreground"
     )
 
   const toggle = (on: boolean) => (
@@ -389,7 +394,10 @@ function PauseBody({
               : "Paused, no end date set"
           }
         />
-        <div className="mt-3 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        <div
+          data-sheet-body
+          className="mt-3 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+        >
           <Row label="Started" value={formatDateKeyShort(existing.startedOn)} />
           <Row
             label="Back on"
@@ -543,7 +551,12 @@ function PauseBody({
   return (
     <>
       <PauseHeader compound={compound} name={title} />
-      <div className="mt-3 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      {/* The rows rise in as the sheet lands (feel pass §4); the header lands
+          with the sheet. */}
+      <div
+        data-sheet-body
+        className="mt-3 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+      >
         <Row
           label="How long"
           value={lengthLabel}
@@ -551,11 +564,18 @@ function PauseBody({
           onClick={() => setOpenRow((r) => (r === "length" ? null : "length"))}
         />
         <Drawer open={openRow === "length"}>
-          <div className="flex flex-wrap gap-2 py-2.5">
+          <ThumbGroup
+            selection={duration}
+            thumbClassName="rounded-full bg-accent-primary"
+            role="group"
+            aria-label="How long"
+            className="flex flex-wrap gap-2 py-2.5"
+          >
             {DURATIONS.map((d) => (
               <button
                 key={d.label}
                 type="button"
+                aria-pressed={duration === d.days}
                 onClick={() => {
                   setDuration(d.days)
                   // Leaving the Back-on drawer open for a duration that does not
@@ -575,7 +595,7 @@ function PauseBody({
                 {d.label}
               </button>
             ))}
-          </div>
+          </ThumbGroup>
         </Drawer>
 
         <Row

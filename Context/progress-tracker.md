@@ -1,5 +1,68 @@
 # Progress Tracker
 
+## 🟡 THE FEEL PASS — BUILT ON `polish/feel`, NOT MERGED (2026-09-17)
+
+The brief is `Context/Feature Specs/wave 3/feel-pass.md` (6 prototype rounds,
+all approved by Adrian on 17 Sep 2026; his verdicts are in the prototype
+artifact's `signoff` … `signoff-r6` collections). Built in the worktree
+`../trackd-feel-wt`, one commit per phase, unpushed. **Pushing or merging to
+`main` deploys, and that is Adrian's call.** The rules it created are in
+`ui-context.md` (Motion & Interaction, States, Charts, the Spec 19 picker ramp,
+"a number field opens the Trackd pad") and `code-standards.md` (Styling).
+
+- **1. Foundations** (`983615e`). `components/feel/`: one delegated press
+  listener and twelve `PRESS` presets (`lib/feel/press.ts`, tested);
+  `ThumbGroup`, the shared sliding thumb; skeleton blocks, the wave, the ghost
+  graph and `SkeletonSwap`. `PRIMARY_BUTTON` presses through the system.
+- **2. Home** (`cec887e`). `lib/home/hydrationState.ts` (pending / done /
+  failed, per user; a 10s patience timer and offline both fall back to the
+  device and raise the existing sync-failed notice). Home shows a skeleton,
+  never "Start your log", while the log is unknown. The week strip waves and its
+  day pill slides. Rows press whole; a tick presses alone and pops after Track.
+  **Log weight is the pad alone** (`components/weight/LogWeightPad.tsx`) from
+  the FAB and the desktop rail: the last weight opens selected, Done saves
+  (30–300 kg) and drops "Weight logged: X kg". `AddWeightSheet` is no longer
+  mounted; it is kept, noted as such, so the old sheet is a two-line revert.
+- **3. The Log dose sheet** (`2326471`). The catalogue comes from the dashboard;
+  the draw, stock, back-dated vial and (if needed) catalogue arrive in ONE
+  server action (`lib/home/doseSheetRead.ts`), because Next runs server actions
+  one at a time. The Draw row and the stock card are reserved, so nothing
+  pushes. Sections rise as the sheet lands; the map arrives in beats; the picker
+  ramp, margin day chips with leaders and the "Last time" line are in; the dose
+  is on the pad; "Mono" replaced the green tracked state.
+- **4. The pad everywhere** (`ce54eed`). `NumberPad`, `PadInput`,
+  `usePadSession`, `lib/feel/pad.ts` (tested). Every number field: dose,
+  compound schedule and cycle numbers, all stock fields, one-off amount, cycle
+  rule, block target, height, the Weight screen, the photo sheet's weight, and
+  the Calculator's compact variant (no scrim, units on the pad, the Draw
+  section pinned while it is open, the syringe's fill and a new stopper line
+  easing to the value). No `inputMode="decimal"` input is left in a mounted
+  screen.
+- **5. Tabs and graphs** (`5e6dc23`). A `loading.tsx` on every tab-reachable
+  route, shaped like its screen, handing over to the screen without a second
+  fade; `experimental.staleTimes.dynamic = 300` so a revisit is instant. The
+  first-load draw (`components/feel/FirstDraw.tsx`) on Progress's weight and
+  consistency cards and the `/weight` graph. There is no Home weight card, so
+  the brief's "Weight card" draw lives on those.
+- **6. Notice and copy** (`3d22907`). `AmberNotice` takes `icon={null}` (a
+  status, no glyph) for confirmations. `EmptyLogCard`'s step 1 and footer copy.
+- **7. Sweep.** Every other sheet rises (`data-sheet-body`), the remaining
+  single-select pill menus slide, and `active:scale-*` is gone from app screens
+  (auth, onboarding, admin and the protected `components/ui/**` left alone).
+
+**Decisions taken in the build (flagged to Adrian):**
+- The Calculator's Draw section now PINS while the pad is open, reversing the
+  2026-07-31 "not pinned" call, because the brief asks for it.
+- Log weight lost its date step and photo attach; back-dating is on the Weight
+  screen and the Progress photo sheet (whose pad label carries the date).
+- Revisited tabs are served from the client cache for up to 5 minutes; a server
+  change made elsewhere shows after that, or on any action that refreshes.
+- Protocol and Progress's consistency card also wait on hydration, for the same
+  reason Home does.
+
+**Verification:** see the review section of this entry, filled in when the
+multi-lens review and the worktree build finish.
+
 ## ✅ THE WEIGHT SHEET GETS THE SAME DATE (2026-09-12)
 
 Adrian, the same day the photo sheet shipped: "can you do the same calendar

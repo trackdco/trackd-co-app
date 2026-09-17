@@ -181,7 +181,8 @@ function CycleRuleForm({
   }
 
   return (
-    <div className="space-y-5 px-4 pb-2">
+    // The sections rise in as the sheet lands (feel pass §4).
+    <div data-sheet-body className="space-y-5 px-4 pb-2">
       {/* Pattern */}
       <div className="space-y-3">
         <p className={LABEL}>Pattern</p>
@@ -282,7 +283,8 @@ function CycleRuleForm({
               onClick={() => setColour(c)}
               style={{ background: cycleColourVar(c) }}
               className={cn(
-                "h-9 w-9 rounded-full transition active:scale-[0.94]",
+                PRESS.tick,
+                "h-9 w-9 rounded-full transition",
                 colour === c && "ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-surface"
               )}
             />
@@ -351,7 +353,8 @@ function PatternOption({
       type="button"
       onClick={onSelect}
       className={cn(
-        "rounded-2xl px-3 py-3 text-left transition active:scale-[0.98]",
+        PRESS.card,
+        "rounded-2xl px-3 py-3 text-left transition",
         selected ? "bg-bg-input" : "bg-bg-surface-raised"
       )}
     >

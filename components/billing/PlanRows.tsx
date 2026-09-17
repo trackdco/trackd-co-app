@@ -9,6 +9,7 @@ import {
   type PricedPlan,
 } from "@/lib/onboarding/pricing";
 import { cn } from "@/lib/utils";
+import { PRESS } from "@/lib/ui-presets";
 
 /**
  * THE PLAN ROWS. One component, two callers, so the prices cannot drift.
@@ -73,10 +74,11 @@ export function PlanRows({
             aria-checked={active}
             onClick={() => onSelect(id)}
             className={cn(
+              PRESS.card,
               "relative flex w-full items-center gap-4 rounded-2xl px-4 py-3.5 text-left",
               "transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              "motion-reduce:transition-none active:scale-[0.99]",
+              "motion-reduce:transition-none",
               active ? "bg-bg-surface-raised" : "bg-bg-surface/40",
             )}
           >

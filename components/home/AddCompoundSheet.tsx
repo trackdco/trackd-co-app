@@ -4,14 +4,9 @@ import { useEffect, useMemo, useState } from "react"
 import { CalendarDots, CaretDown, PencilSimple, Plus, Trash, Warning } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import {
-  PRESS,
-  STOCK_FIELD_LABEL,
-  STOCK_PILL,
-  STOCK_PILL_OFF,
-  STOCK_PILL_ON,
-} from "@/lib/ui-presets"
+import { PRESS, STOCK_FIELD_LABEL, STOCK_PILL } from "@/lib/ui-presets"
 import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { usePadSession } from "@/components/feel/usePadSession"
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
 import { isInventoryForm, isStockableForm } from "@/lib/containers/form"
@@ -1282,13 +1277,17 @@ function AddCompoundBody({
         // Unreachable while the confirm is up. `aria-modal` alone is a claim,
         // not an enforcement — Tab still walked into the form behind it.
         inert={confirmManyDoses}
+        // Each section rises in as the sheet lands (feel pass §4), and a
+        // notice that appears later rises when it does. The sections carry no
+        // entrance of their own.
+        data-sheet-body
         className="flex-1 space-y-5 overflow-y-auto px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
       >
         {/* Compound header — the container, the name, and one detail line.
             Replaces the bordered name card (spec 10). The container is the thing
             that identifies a compound at a glance, and it is the same header
             spec 11 reuses on the log form. */}
-        <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+        <div>
           <CompoundHeader
             name={source.name}
             category={source.category}
@@ -1301,7 +1300,7 @@ function AddCompoundBody({
             covered by a blend you track (or vice versa). Add it anyway only if you
             want the extra dose; the blend itself logs as one unit. */}
         {overlapNote && (
-          <div className="animate-home-up flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
+          <div className="flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
             <Warning
               className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
               aria-hidden
@@ -1321,15 +1320,18 @@ function AddCompoundBody({
             row (the day-of-week picker, the date selects) expands BENEATH its
             row rather than being pulled out into its own section, so the rhythm
             holds and nothing about the field changes. */}
-        <div
-          className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface-raised"
-          style={{ animationDelay: "40ms" }}
-        >
+        <div className="overflow-hidden rounded-2xl bg-bg-surface-raised">
           {/* Route — only when the compound supports more than one. */}
           {multiRoute && (
             <>
               <FormRow label="Route">
-                <div className="flex flex-wrap justify-end gap-1.5">
+                <ThumbGroup
+                  selection={method}
+                  thumbClassName={PILL_THUMB}
+                  role="group"
+                  aria-label="Route"
+                  className="flex flex-wrap justify-end gap-1.5"
+                >
                   {routeForms.map((f) => {
                     const active = toMethod(f.route) === method
                     const label =
@@ -1346,7 +1348,7 @@ function AddCompoundBody({
                       </button>
                     )
                   })}
-                </div>
+                </ThumbGroup>
               </FormRow>
               <RowDivider />
             </>
@@ -1398,7 +1400,13 @@ function AddCompoundBody({
           {/* Schedule. The cadence pills sit on the row; the two cadences that
               need more (every N days, specific days) expand beneath it. */}
           <FormRow label="Schedule" error={errors.days}>
-            <div className="flex flex-wrap justify-end gap-1.5">
+            <ThumbGroup
+              selection={cadenceType}
+              thumbClassName={PILL_THUMB}
+              role="group"
+              aria-label="Schedule"
+              className="flex flex-wrap justify-end gap-1.5"
+            >
               {CADENCE_OPTIONS.map((o) => {
                 const active = o.value === cadenceType
                 return (
@@ -1416,7 +1424,7 @@ function AddCompoundBody({
                   </button>
                 )
               })}
-            </div>
+            </ThumbGroup>
           </FormRow>
 
           {cadenceType === "everyNDays" && (
@@ -1675,7 +1683,7 @@ function AddCompoundBody({
             back-dated cycle is deliberate rather than a mis-set dropdown. Muted,
             not amber: this is a supported thing to do, not a warning. */}
         {startsInPast && (
-          <div className="animate-home-up flex items-center gap-2 rounded-xl bg-bg-surface-raised px-3 py-2">
+          <div className="flex items-center gap-2 rounded-xl bg-bg-surface-raised px-3 py-2">
             <CalendarDots
               className="h-3.5 w-3.5 shrink-0 text-text-muted"
               aria-hidden
@@ -1707,7 +1715,7 @@ function AddCompoundBody({
         {/* Changing the dose (amount or unit) while EDITING — a non-alarming
             heads-up that the change applies going forward, with the disclaimer. */}
         {isEdit && (Number(dose) !== Number(source.dose) || unit !== source.unit) && (
-          <div className="animate-home-up flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
+          <div className="flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
             <Warning
               className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
               aria-hidden
@@ -1733,7 +1741,7 @@ function AddCompoundBody({
             pills above say the pattern. Proposed wording, flagged for approval:
             the first date, then the next one, and nothing else. */}
         {upcoming.length > 0 ? (
-          <p className="animate-home-up px-1 text-xs text-text-subtle">
+          <p className="px-1 text-xs text-text-subtle">
             First dose{" "}
             <span className="font-mono text-text-muted">
               {formatDateKeyShort(upcoming[0])}
@@ -1748,7 +1756,7 @@ function AddCompoundBody({
             )}
           </p>
         ) : (
-          <p className="animate-home-up px-1 text-xs text-text-subtle">
+          <p className="px-1 text-xs text-text-subtle">
             Pick days above to preview the dates.
           </p>
         )}
@@ -1766,10 +1774,7 @@ function AddCompoundBody({
             ends, and its colour. Nothing about the RULE changed, only where you
             set it: the draft is a `CycleRule` exactly as before, and Protocol →
             Cycles still uses `CycleRuleSheet` for editing one after the fact. */}
-        <div
-          className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface-raised"
-          style={{ animationDelay: "80ms" }}
-        >
+        <div className="overflow-hidden rounded-2xl bg-bg-surface-raised">
           <FormRow label="Cycle this" error={errors.cycle}>
             <button
               type="button"
@@ -1846,10 +1851,7 @@ function AddCompoundBody({
             Injectables only (Spec 03's gate, unchanged) — absent entirely
             otherwise rather than shown disabled. */}
         {canStock && (
-          <div
-            className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface-raised"
-            style={{ animationDelay: "120ms" }}
-          >
+          <div className="overflow-hidden rounded-2xl bg-bg-surface-raised">
             <FormRow
               label="Stock on hand"
               hint="Optional"
@@ -1873,11 +1875,11 @@ function AddCompoundBody({
                         {stPowderUnits.length === 1 ? (
                           <span className="shrink-0 text-sm text-text-muted">{stPowderUnits[0]}</span>
                         ) : (
-                          <div className="flex gap-1">
+                          <ThumbGroup selection={stPowderUnit} thumbClassName={PILL_THUMB} role="group" aria-label="Powder unit" className="flex gap-1">
                             {stPowderUnits.map((u) => (
-                              <button key={u} type="button" onClick={() => setStPowderUnit(u)} className={cn(STOCK_PILL, stPowderUnit === u ? STOCK_PILL_ON : STOCK_PILL_OFF)}>{u}</button>
+                              <button key={u} type="button" onClick={() => setStPowderUnit(u)} aria-pressed={stPowderUnit === u} className={cn(PRESS.pill, STOCK_PILL, "duration-300", stPowderUnit === u ? ROW_PILL_ON : ROW_PILL_OFF)}>{u}</button>
                             ))}
-                          </div>
+                          </ThumbGroup>
                         )}
                       </div>
                       {/* The conversion, shown as it happens — HGH's box says
@@ -1920,10 +1922,10 @@ function AddCompoundBody({
                             {stOralRule.countUnit === "tab" ? "tab" : "cap"}
                           </span>
                         ) : (
-                          <div className="flex gap-1">
-                            <button type="button" onClick={() => setStOralForm("tab")} className={cn(STOCK_PILL, stOralForm === "tab" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>tab</button>
-                            <button type="button" onClick={() => setStOralForm("capsule")} className={cn(STOCK_PILL, stOralForm === "capsule" ? STOCK_PILL_ON : STOCK_PILL_OFF)}>cap</button>
-                          </div>
+                          <ThumbGroup selection={stOralForm} thumbClassName={PILL_THUMB} role="group" aria-label="Tablet or capsule" className="flex gap-1">
+                            <button type="button" onClick={() => setStOralForm("tab")} aria-pressed={stOralForm === "tab"} className={cn(PRESS.pill, STOCK_PILL, "duration-300", stOralForm === "tab" ? ROW_PILL_ON : ROW_PILL_OFF)}>tab</button>
+                            <button type="button" onClick={() => setStOralForm("capsule")} aria-pressed={stOralForm === "capsule"} className={cn(PRESS.pill, STOCK_PILL, "duration-300", stOralForm === "capsule" ? ROW_PILL_ON : ROW_PILL_OFF)}>cap</button>
+                          </ThumbGroup>
                         )}
                       </div>
                     </label>
@@ -1938,11 +1940,11 @@ function AddCompoundBody({
                         {stStrengthUnits.length === 1 ? (
                           <span className="shrink-0 text-sm text-text-muted">{stStrengthUnits[0]}</span>
                         ) : (
-                          <div className="flex gap-1">
+                          <ThumbGroup selection={stStrengthUnit} thumbClassName={PILL_THUMB} role="group" aria-label="Strength unit" className="flex gap-1">
                             {stStrengthUnits.map((u) => (
-                              <button key={u} type="button" onClick={() => setStStrengthUnit(u)} className={cn(STOCK_PILL, stStrengthUnit === u ? STOCK_PILL_ON : STOCK_PILL_OFF)}>{u}</button>
+                              <button key={u} type="button" onClick={() => setStStrengthUnit(u)} aria-pressed={stStrengthUnit === u} className={cn(PRESS.pill, STOCK_PILL, "duration-300", stStrengthUnit === u ? ROW_PILL_ON : ROW_PILL_OFF)}>{u}</button>
                             ))}
-                          </div>
+                          </ThumbGroup>
                         )}
                       </div>
                     </label>
@@ -1995,24 +1997,39 @@ function AddCompoundBody({
                         />
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {FILL_PRESETS.map((p) => (
-                          <button
-                            key={p.label}
-                            type="button"
-                            onClick={() => {
-                              setStFillPreset(p.f)
-                              setStExactLeft("")
-                            }}
-                            className={cn(
-                              STOCK_PILL,
-                              !stockFill.exactActive && stFillPreset === p.f
-                                ? STOCK_PILL_ON
-                                : STOCK_PILL_OFF,
-                            )}
-                          >
-                            {p.label}
-                          </button>
-                        ))}
+                        {/* The presets only: the exact-amount field beside them
+                            is not a choice on the thumb. Typing an amount
+                            deselects every preset, and the thumb hides. */}
+                        <ThumbGroup
+                          selection={stockFill.exactActive ? null : stFillPreset}
+                          thumbClassName={PILL_THUMB}
+                          role="group"
+                          aria-label={`How full the ${stContainerNoun} is`}
+                          className="flex flex-wrap items-center gap-1.5"
+                        >
+                          {FILL_PRESETS.map((p) => {
+                            const on = !stockFill.exactActive && stFillPreset === p.f
+                            return (
+                              <button
+                                key={p.label}
+                                type="button"
+                                onClick={() => {
+                                  setStFillPreset(p.f)
+                                  setStExactLeft("")
+                                }}
+                                aria-pressed={on}
+                                className={cn(
+                                  PRESS.pill,
+                                  STOCK_PILL,
+                                  "duration-300",
+                                  on ? ROW_PILL_ON : ROW_PILL_OFF,
+                                )}
+                              >
+                                {p.label}
+                              </button>
+                            )
+                          })}
+                        </ThumbGroup>
                         <span className="text-xs text-text-subtle">or</span>
                         <PadInput
                           {...pad.bind("stExactLeft")}
@@ -2130,9 +2147,16 @@ const ROW_PRESSABLE = PRESS.button
 // px-3 py-2, not px-2.5 py-1: spec 10 shrank these to 26px tall, below both the
 // 44px guideline and the ~34px they had been. 36px is what fits four cadence
 // pills across a 360px row without a third line.
-const ROW_PILL = `${PRESS.pill} rounded-full border px-3 py-2 text-xs transition-colors`
-const ROW_PILL_ON = "border-transparent bg-accent-primary font-medium text-bg-base"
-const ROW_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+//
+// Every pill group in this form sits on a WHITE sliding thumb (`PILL_THUMB`,
+// feel pass §6): the thumb is the selection, so the selected pill has no fill of
+// its own and the others have none either, or the thumb would vanish beneath
+// them as it passes. The stock panel's `STOCK_PILL`s take the same ON/OFF pair
+// for that reason (`STOCK_PILL_OFF` carries a fill).
+const ROW_PILL = `${PRESS.pill} rounded-full border px-3 py-2 text-xs transition-colors duration-300`
+const ROW_PILL_ON = "border-transparent font-medium text-bg-base"
+const ROW_PILL_OFF = "border-border-default text-text-muted hover:text-text-primary"
+const PILL_THUMB = "rounded-full bg-accent-primary"
 const ROW_SELECT =
   "h-11 min-w-0 rounded-lg border border-border-default bg-bg-input px-2 text-sm text-foreground outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 
@@ -2330,7 +2354,13 @@ function CycleFields({
     <>
       <RowDivider />
       <FormRow label="Pattern">
-        <div className="flex gap-1.5">
+        <ThumbGroup
+          selection={repeats}
+          thumbClassName={PILL_THUMB}
+          role="group"
+          aria-label="Pattern"
+          className="flex gap-1.5"
+        >
           {[
             { on: false, label: "Continuous" },
             { on: true, label: "On / off" },
@@ -2345,7 +2375,7 @@ function CycleFields({
               {o.label}
             </button>
           ))}
-        </div>
+        </ThumbGroup>
       </FormRow>
 
       {repeats && (
@@ -2395,7 +2425,13 @@ function CycleFields({
 
       <RowDivider />
       <FormRow label="Ends">
-        <div className="flex flex-wrap justify-end gap-1.5">
+        <ThumbGroup
+          selection={endType}
+          thumbClassName={PILL_THUMB}
+          role="group"
+          aria-label="Ends"
+          className="flex flex-wrap justify-end gap-1.5"
+        >
           {offerable.map((t) => (
             <button
               key={t}
@@ -2431,7 +2467,7 @@ function CycleFields({
               {END_LABELS[t]}
             </button>
           ))}
-        </div>
+        </ThumbGroup>
       </FormRow>
 
       {endType === "onDate" && (

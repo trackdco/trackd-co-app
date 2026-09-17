@@ -22,7 +22,7 @@ import {
   type PhotoAdjustResult,
 } from "@/components/media/PhotoAdjustSheet";
 import { DOCUMENT_ASPECT } from "@/lib/media/framing";
-import { SHEET_TITLE } from "@/lib/ui-presets";
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/client";
 import {
   formatJournalDate,
@@ -353,119 +353,122 @@ export function JournalEntrySheet({
               )}
             </div>
 
-            {/* Date (new entries only — editing keeps the entry's day) */}
-            {mode !== "edit" && (
-              <label className="mt-4 block">
-                <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                  Date
-                </span>
-                <Input
-                  type="date"
-                  value={date}
-                  max={todayKey}
-                  onChange={(e) => changeDate(e.target.value)}
-                  aria-label="Entry date"
-                  className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
-                />
-              </label>
-            )}
+            {/* The fields rise in as the sheet lands (feel pass §4). */}
+            <div data-sheet-body>
+              {/* Date (new entries only — editing keeps the entry's day) */}
+              {mode !== "edit" && (
+                <label className="mt-4 block">
+                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+                    Date
+                  </span>
+                  <Input
+                    type="date"
+                    value={date}
+                    max={todayKey}
+                    onChange={(e) => changeDate(e.target.value)}
+                    aria-label="Entry date"
+                    className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
+                  />
+                </label>
+              )}
 
-            {/* Body */}
-            {bodyVisible && (
-              <label className="mt-4 block">
-                <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                  Note
-                </span>
-                <Textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder="How did today go? Training, sleep, how the protocol's treating you…"
-                  rows={7}
-                  className="min-h-[9.5rem] rounded-xl border-border-default bg-bg-input text-sm leading-relaxed dark:bg-bg-input"
-                />
-              </label>
-            )}
+              {/* Body */}
+              {bodyVisible && (
+                <label className="mt-4 block">
+                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+                    Note
+                  </span>
+                  <Textarea
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder="How did today go? Training, sleep, how the protocol's treating you…"
+                    rows={7}
+                    className="min-h-[9.5rem] rounded-xl border-border-default bg-bg-input text-sm leading-relaxed dark:bg-bg-input"
+                  />
+                </label>
+              )}
 
-            {/* Markers */}
-            <div className="mt-5">
-              {bodyVisible && mode === "write" && !showDialer ? (
+              {/* Markers */}
+              <div className="mt-5">
+                {bodyVisible && mode === "write" && !showDialer ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDialer(true);
+                      setDialerAnim(true);
+                    }}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-default py-3 text-sm text-text-muted transition-colors hover:border-border-strong hover:text-foreground"
+                  >
+                    <Tag className="h-4 w-4" aria-hidden />
+                    Add markers
+                  </button>
+                ) : (
+                  <div className={cn(dialerAnim && "animate-shortcut-in")}>
+                    <p className="mb-3 text-xs font-medium uppercase tracking-wider text-text-muted">
+                      Markers
+                    </p>
+                    <MarkerDialer
+                      key={date}
+                      options={options}
+                      initial={entryForDate?.markers ?? []}
+                      onChange={setMarkers}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Photos — a QUIET affordance (Spec 22 · 3): a small icon, not a CTA.
+                  Thumbnails tap through to a full-screen view; each has a remove ×. */}
+              <div className="mt-5">
+                {(keptAttachments.length > 0 || pendingAdds.length > 0) && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {keptAttachments.map((a) => (
+                      <Thumb
+                        key={a.id}
+                        url={a.url}
+                        onView={() => a.url && setViewingUrl(a.url)}
+                        onRemove={() => removeExisting(a.id)}
+                      />
+                    ))}
+                    {pendingAdds.map((a) => (
+                      <Thumb
+                        key={a.path}
+                        url={a.url}
+                        onView={() => setViewingUrl(a.url)}
+                        onRemove={() => removePending(a.path)}
+                      />
+                    ))}
+                  </div>
+                )}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => queueForAdjust(e.target.files)}
+                />
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowDialer(true);
-                    setDialerAnim(true);
-                  }}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-default py-3 text-sm text-text-muted transition-colors hover:border-border-strong hover:text-foreground"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-1.5 rounded-lg px-1 py-1 text-xs text-text-muted transition-colors hover:text-foreground disabled:opacity-50"
                 >
-                  <Tag className="h-4 w-4" aria-hidden />
-                  Add markers
+                  {uploading ? (
+                    <CircleNotch className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <ImageSquare className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  {uploading ? "Adding…" : keptAttachments.length + pendingAdds.length > 0 ? "Add another photo" : "Add a photo"}
                 </button>
-              ) : (
-                <div className={cn(dialerAnim && "animate-shortcut-in")}>
-                  <p className="mb-3 text-xs font-medium uppercase tracking-wider text-text-muted">
-                    Markers
-                  </p>
-                  <MarkerDialer
-                    key={date}
-                    options={options}
-                    initial={entryForDate?.markers ?? []}
-                    onChange={setMarkers}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Photos — a QUIET affordance (Spec 22 · 3): a small icon, not a CTA.
-                Thumbnails tap through to a full-screen view; each has a remove ×. */}
-            <div className="mt-5">
-              {(keptAttachments.length > 0 || pendingAdds.length > 0) && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {keptAttachments.map((a) => (
-                    <Thumb
-                      key={a.id}
-                      url={a.url}
-                      onView={() => a.url && setViewingUrl(a.url)}
-                      onRemove={() => removeExisting(a.id)}
-                    />
-                  ))}
-                  {pendingAdds.map((a) => (
-                    <Thumb
-                      key={a.path}
-                      url={a.url}
-                      onView={() => setViewingUrl(a.url)}
-                      onRemove={() => removePending(a.path)}
-                    />
-                  ))}
-                </div>
-              )}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic"
-                multiple
-                className="hidden"
-                onChange={(e) => queueForAdjust(e.target.files)}
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={uploading}
-                className="flex items-center gap-1.5 rounded-lg px-1 py-1 text-xs text-text-muted transition-colors hover:text-foreground disabled:opacity-50"
-              >
-                {uploading ? (
-                  <CircleNotch className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <ImageSquare className="h-3.5 w-3.5" aria-hidden />
+                {attachError && (
+                  <p className="mt-1 px-1 text-xs text-state-error">{attachError}</p>
                 )}
-                {uploading ? "Adding…" : keptAttachments.length + pendingAdds.length > 0 ? "Add another photo" : "Add a photo"}
-              </button>
-              {attachError && (
-                <p className="mt-1 px-1 text-xs text-state-error">{attachError}</p>
-              )}
-            </div>
+              </div>
 
-            {error && <p className="mt-4 px-1 text-sm text-state-error">{error}</p>}
-            <div className="h-2" />
+              {error && <p className="mt-4 px-1 text-sm text-state-error">{error}</p>}
+              <div className="h-2" />
+            </div>
           </div>
 
           {/* Action bar */}
@@ -510,7 +513,10 @@ export function JournalEntrySheet({
                 type="button"
                 onClick={handleSave}
                 disabled={busy || !canSave}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+                className={cn(
+                  PRESS.button,
+                  "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+                )}
               >
                 {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
                 {busy ? "Saving…" : "Save"}

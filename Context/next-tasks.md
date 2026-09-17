@@ -1,5 +1,35 @@
 # Next Tasks
 
+## 🟡 THE FEEL PASS — BUILT ON `polish/feel`, WAITING ON ADRIAN (2026-09-17)
+
+State, commits and decisions are in `progress-tracker.md`. The branch lives in
+the worktree `../trackd-feel-wt` and is not pushed.
+
+### 1. Look at it on a phone (Adrian)
+Things a simulator cannot settle:
+- **The pad on a real iPhone**: open Log dose, tap the dose, type, Next through
+  a multi-field sheet (Add compound), hide it with the chevron and with a scrim
+  tap. Safari's own keyboard must never appear for a number.
+- **The Log dose map**: the body, then the sites, then the day chips, as the
+  sheet lands; chips on the correct side; only the newest chip amber.
+- **Track, then the row's tick pops** on Home after "Tracked".
+- **Tab switching**: the tap moves at once; a second visit shows no skeleton.
+- **A graph drawing in** on Progress and `/weight`, once.
+- **The Calculator on an SE**: open the pad; the pinned Draw section and the
+  syringe should stay in view. At 375x548 with a notch inset simulated, the
+  pinned section can sit over the results card: judge it on the device.
+- **Log weight** from the +: the pad alone, the last weight selected, the
+  confirmation dropping down.
+
+### 2. Decide on shipping (Adrian)
+Merge `polish/feel` to `main` only on Adrian's word; that deploys.
+
+### 3. Left out on purpose
+- `components/home/AddWeightSheet.tsx` is unmounted but kept. Delete it once the
+  pad-only Log weight has been lived with.
+- Onboarding, admin, auth forms and `components/ui/**` keep their own press
+  styles (`active:scale-*`); the rule applies to the app's screens.
+
 ## ✅ ONBOARDING ON AN IPHONE SE — MERGED TO `main` (2026-09-11)
 
 State and measurements are in `progress-tracker.md`; the rule is in

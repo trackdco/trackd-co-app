@@ -14,6 +14,8 @@ import {
 } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
+import { PRESS } from "@/lib/ui-presets";
+import { ThumbGroup } from "@/components/feel/SlidingThumb";
 import {
   customMarkerUserMarkerId,
   isCustomMarkerKey,
@@ -104,7 +106,8 @@ function WordScale({
             onClick={() => onPick(i + 1)}
             aria-pressed={sel}
             className={cn(
-              "relative z-10 shrink-0 rounded-full border px-3 py-1.5 text-sm transition-colors duration-300 active:scale-95",
+              PRESS.pill,
+              "relative z-10 shrink-0 rounded-full border px-3 py-1.5 text-sm transition-colors duration-300",
               sel
                 ? "border-transparent font-medium text-bg-base"
                 : "border-border-default text-text-muted hover:text-foreground",
@@ -567,7 +570,14 @@ function CreateMarkerForm({
         <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
           Polarity
         </p>
-        <div className="flex gap-1.5">
+        {/* On a WHITE sliding thumb (feel pass §6): the thumb is the selection. */}
+        <ThumbGroup
+          selection={polarity}
+          thumbClassName="rounded-lg bg-accent-primary"
+          role="group"
+          aria-label="Polarity"
+          className="flex gap-1.5"
+        >
           {POLARITIES.map((p) => {
             const on = polarity === p.value;
             return (
@@ -577,9 +587,10 @@ function CreateMarkerForm({
                 onClick={() => setPolarity(p.value)}
                 aria-pressed={on}
                 className={cn(
-                  "flex-1 rounded-lg border px-2 py-1.5 text-xs transition-colors",
+                  PRESS.pill,
+                  "flex-1 rounded-lg border px-2 py-1.5 text-xs transition-colors duration-300",
                   on
-                    ? "border-transparent bg-accent-primary font-medium text-bg-base"
+                    ? "border-transparent font-medium text-bg-base"
                     : "border-border-default text-text-muted hover:text-foreground",
                 )}
               >
@@ -587,7 +598,7 @@ function CreateMarkerForm({
               </button>
             );
           })}
-        </div>
+        </ThumbGroup>
         <p className="mt-1.5 text-[11px] text-text-subtle">
           Only orients this marker on future charts. Never a score.
         </p>

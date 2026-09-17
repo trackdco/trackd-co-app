@@ -16,8 +16,6 @@ import {
   STOCK_FIELD,
   STOCK_FIELD_LABEL,
   STOCK_PILL,
-  STOCK_PILL_OFF,
-  STOCK_PILL_ON,
 } from "@/lib/ui-presets"
 import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
 import { usePadSession } from "@/components/feel/usePadSession"
@@ -52,6 +50,12 @@ import { StockAddedCard } from "@/components/protocol/StockAddedCard"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
 const EMPTY: StackCompound[] = []
+
+/** A stock pill ON and OFF over the white sliding thumb (`PILL_THUMB`). Not
+ *  `STOCK_PILL_ON`/`_OFF`: those carry fills, and the thumb is the fill here. */
+const PILL_ON = "border-transparent font-medium text-bg-base"
+const PILL_OFF = "border-border-default text-text-muted hover:text-text-primary"
+const PILL_THUMB = "rounded-full bg-accent-primary"
 
 /**
  * The four inventory forms, as the picker names them.
@@ -723,8 +727,12 @@ function AddStockForm({
   // The SAME pill the add-compound stock panel uses. It was a few pixels
   // bigger here and coloured its border rather than dropping it — near enough
   // to look like a mistake rather than a variant (Adrian, 2026-08-07).
+  //
+  // Every pill group here sits on a WHITE sliding thumb (feel pass §6), so no
+  // pill carries a fill: the thumb is the selection, and a fill on the others
+  // would hide it as it passes beneath them.
   const pill = (active: boolean) =>
-    cn(PRESS.pill, STOCK_PILL, active ? STOCK_PILL_ON : STOCK_PILL_OFF)
+    cn(PRESS.pill, STOCK_PILL, "duration-300", active ? PILL_ON : PILL_OFF)
 
   /**
    * THE PAD (feel pass §3): every amount on this form on one Trackd pad, in
@@ -759,7 +767,8 @@ function AddStockForm({
 
   return (
     <>
-      <div className="space-y-4 px-4">
+      {/* The fields rise in as the sheet lands (feel pass §4). */}
+      <div data-sheet-body className="space-y-4 px-4">
         {compounds.length === 0 ? (
           <p className="rounded-2xl bg-bg-surface-raised px-4 py-6 text-center text-sm text-text-muted">
             Add a compound to your cycle first, then add its stock.
@@ -827,7 +836,7 @@ function AddStockForm({
                     (feel pass §6): the thumb is the selection. */}
                 <ThumbGroup
                   selection={type}
-                  thumbClassName="rounded-full bg-accent-primary"
+                  thumbClassName={PILL_THUMB}
                   role="group"
                   aria-label="Stock type"
                   className="flex flex-wrap gap-2"
@@ -838,14 +847,7 @@ function AddStockForm({
                       type="button"
                       onClick={() => setType(v)}
                       aria-pressed={type === v}
-                      className={cn(
-                        PRESS.pill,
-                        STOCK_PILL,
-                        "duration-300",
-                        type === v
-                          ? "border-transparent font-medium text-bg-base"
-                          : STOCK_PILL_OFF,
-                      )}
+                      className={pill(type === v)}
                     >
                       {TYPES.find((t) => t.value === v)?.label}
                     </button>
@@ -882,11 +884,11 @@ function AddStockForm({
                     {powderUnits.length === 1 ? (
                       <span className="shrink-0 text-sm text-text-muted">{powderUnits[0]}</span>
                     ) : (
-                      <div className="flex gap-1">
+                      <ThumbGroup selection={powderUnit} thumbClassName={PILL_THUMB} role="group" aria-label="Powder unit" className="flex gap-1">
                         {powderUnits.map((u) => (
-                          <button key={u} type="button" onClick={() => setPowderUnit(u)} className={pill(powderUnit === u)}>{u}</button>
+                          <button key={u} type="button" onClick={() => setPowderUnit(u)} aria-pressed={powderUnit === u} className={pill(powderUnit === u)}>{u}</button>
                         ))}
-                      </div>
+                      </ThumbGroup>
                     )}
                   </div>
                   {/* The conversion, shown as it happens. HGH is dosed in iu
@@ -943,14 +945,14 @@ function AddStockForm({
                       </span>
                     </p>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
+                    <ThumbGroup selection={oralForm} thumbClassName={PILL_THUMB} role="group" aria-label="Tablets or capsules" className="flex flex-wrap gap-2">
                       {/* The stored value stays `tab`/`capsule` — that is the
                           `dose_unit` enum and a database contract. Only the WORDS
                           change: "cap" beside a number is an abbreviation of
                           nothing. */}
-                      <button type="button" onClick={() => setOralForm("tab")} className={pill(oralForm === "tab")}>Tablet</button>
-                      <button type="button" onClick={() => setOralForm("capsule")} className={pill(oralForm === "capsule")}>Capsule</button>
-                    </div>
+                      <button type="button" onClick={() => setOralForm("tab")} aria-pressed={oralForm === "tab"} className={pill(oralForm === "tab")}>Tablet</button>
+                      <button type="button" onClick={() => setOralForm("capsule")} aria-pressed={oralForm === "capsule"} className={pill(oralForm === "capsule")}>Capsule</button>
+                    </ThumbGroup>
                   )}
                 </div>
                 <div className={cn("grid grid-cols-1 gap-2", !strengthRequired && "hidden")}>
@@ -966,11 +968,11 @@ function AddStockForm({
                       {strengthUnits.length === 1 ? (
                         <span className="shrink-0 text-sm text-text-muted">{strengthUnits[0]}</span>
                       ) : (
-                        <div className="flex gap-1">
+                        <ThumbGroup selection={strengthUnit} thumbClassName={PILL_THUMB} role="group" aria-label="Strength unit" className="flex gap-1">
                           {strengthUnits.map((u) => (
-                            <button key={u} type="button" onClick={() => setStrengthUnit(u)} className={pill(strengthUnit === u)}>{u}</button>
+                            <button key={u} type="button" onClick={() => setStrengthUnit(u)} aria-pressed={strengthUnit === u} className={pill(strengthUnit === u)}>{u}</button>
                           ))}
-                        </div>
+                        </ThumbGroup>
                       )}
                     </div>
                   </label>
@@ -1025,19 +1027,34 @@ function AddStockForm({
               <div className="space-y-2 rounded-2xl bg-bg-surface-raised/40 p-3">
                 <span className={STOCK_FIELD_LABEL}>How much is in it?</span>
                 <div className="flex flex-wrap items-center gap-2">
-                  {FILL_PRESETS.map((p) => (
-                    <button
-                      key={p.label}
-                      type="button"
-                      onClick={() => {
-                        setFillPreset(p.f)
-                        setExactLeft("")
-                      }}
-                      className={pill(!fill.exactActive && fillPreset === p.f)}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
+                  {/* The presets only: the exact-amount field is not a choice
+                      on the thumb. Typing an amount deselects every preset, and
+                      the thumb hides. */}
+                  <ThumbGroup
+                    selection={fill.exactActive ? null : fillPreset}
+                    thumbClassName={PILL_THUMB}
+                    role="group"
+                    aria-label="How full it is"
+                    className="flex flex-wrap items-center gap-2"
+                  >
+                    {FILL_PRESETS.map((p) => {
+                      const on = !fill.exactActive && fillPreset === p.f
+                      return (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={() => {
+                            setFillPreset(p.f)
+                            setExactLeft("")
+                          }}
+                          aria-pressed={on}
+                          className={pill(on)}
+                        >
+                          {p.label}
+                        </button>
+                      )
+                    })}
+                  </ThumbGroup>
                   <span className="text-xs text-text-subtle">or</span>
                   <div className="flex items-center gap-1.5">
                     <PadInput

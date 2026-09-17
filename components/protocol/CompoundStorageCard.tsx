@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
+import { CARD_EYEBROW, DATA_MONO, PRESS } from "@/lib/ui-presets"
 import { AnimatedContainer } from "@/components/containers"
 import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
@@ -135,7 +135,7 @@ export function CompoundStorageCard({
         type="button"
         onClick={onOpen}
         aria-label={`View ${compound.name}`}
-        className="flex w-full flex-col items-center gap-2 transition active:scale-[0.98]"
+        className={cn(PRESS.card, "flex w-full flex-col items-center gap-2")}
       >
         {/* ANIMATED, so adding stock is something you watch happen rather than
             a number that has changed by the time you look back (Adrian,
@@ -180,7 +180,7 @@ export function CompoundStorageCard({
           type="button"
           onClick={onAddStock}
           aria-label={`Add stock for ${compound.name}`}
-          className="flex w-full items-center justify-center py-2 text-xs text-text-muted transition active:scale-[0.98]"
+          className={cn(PRESS.text, "flex w-full items-center justify-center py-2 text-xs text-text-muted")}
         >
           Add stock
         </button>
@@ -194,7 +194,7 @@ export function CompoundStorageCard({
           aria-label={
             stock ? `Refill ${compound.name}` : `Add stock for ${compound.name}`
           }
-          className="flex w-full flex-col items-center gap-1 transition active:scale-[0.98]"
+          className={cn(PRESS.card, "flex w-full flex-col items-center gap-1")}
         >
           {/* No separate fill bar: the CONTAINER above already shows the level,
               and a bar beside it stated the same fact twice. Dropping it left

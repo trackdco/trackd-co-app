@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Camera, Check, CircleNotch, Plus, X } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
+import { PRESS } from "@/lib/ui-presets";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { PoseIcon } from "@/components/progress/PoseIcon";
@@ -329,152 +330,157 @@ export function AddProgressPhotoSheet({
             step={dateStep}
             onStepChange={setDateStep}
           >
-            <p className="text-xs text-text-muted">
-              Tap a pose to add a photo. Fill any or all.
-            </p>
+            {/* One box for the step's contents, so each section rises in as
+                the sheet lands (feel pass §4). The date title lands with the
+                sheet. */}
+            <div data-sheet-body>
+              <p className="text-xs text-text-muted">
+                Tap a pose to add a photo. Fill any or all.
+              </p>
 
-            {/* Pose circles — tap to take or choose a photo for each. Compact so
-                the sheet stays short instead of scrolling. */}
-            <div className="mt-4 flex flex-wrap gap-3">
-              {slots.map((pose) => {
-                const att = attachments[pose];
-                const shape = poseShape(pose);
-                return (
-                  <div
-                    key={pose}
-                    className="animate-shortcut-in flex w-[4.5rem] flex-col items-center gap-1.5"
-                  >
-                    <div className="relative">
-                      <button
-                        type="button"
-                        // A FILLED slot re-opens the adjust step on the original
-                        // with its framing intact (Spec 05) — re-framing is the
-                        // common intent; swapping the photo entirely is the X.
-                        onClick={() => (att ? readjust(pose) : pickFor(pose))}
-                        aria-label={`${att ? "Adjust" : "Add"} ${poseLabel(pose)} photo`}
-                        className={cn(
-                          "flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border transition-colors",
-                          att
-                            ? "border-accent-primary/50"
-                            : "border-dashed border-border-strong bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
-                        )}
-                      >
-                        {att ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={att.previewUrl} alt="" className="h-full w-full object-cover object-top" />
-                        ) : shape ? (
-                          <PoseIcon shape={shape} className="h-9 w-7" />
-                        ) : (
-                          <Camera className="h-6 w-6" aria-hidden />
-                        )}
-                      </button>
-                      {att && (
+              {/* Pose circles — tap to take or choose a photo for each. Compact so
+                  the sheet stays short instead of scrolling. */}
+              <div className="mt-4 flex flex-wrap gap-3">
+                {slots.map((pose) => {
+                  const att = attachments[pose];
+                  const shape = poseShape(pose);
+                  return (
+                    <div
+                      key={pose}
+                      className="animate-shortcut-in flex w-[4.5rem] flex-col items-center gap-1.5"
+                    >
+                      <div className="relative">
                         <button
                           type="button"
-                          onClick={() => removeAttachment(pose)}
-                          aria-label={`Remove ${poseLabel(pose)} photo`}
-                          className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-bg-base/80 text-text-primary"
+                          // A FILLED slot re-opens the adjust step on the original
+                          // with its framing intact (Spec 05) — re-framing is the
+                          // common intent; swapping the photo entirely is the X.
+                          onClick={() => (att ? readjust(pose) : pickFor(pose))}
+                          aria-label={`${att ? "Adjust" : "Add"} ${poseLabel(pose)} photo`}
+                          className={cn(
+                            "flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border transition-colors",
+                            att
+                              ? "border-accent-primary/50"
+                              : "border-dashed border-border-strong bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
+                          )}
                         >
-                          <X className="h-3.5 w-3.5" aria-hidden />
+                          {att ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={att.previewUrl} alt="" className="h-full w-full object-cover object-top" />
+                          ) : shape ? (
+                            <PoseIcon shape={shape} className="h-9 w-7" />
+                          ) : (
+                            <Camera className="h-6 w-6" aria-hidden />
+                          )}
                         </button>
-                      )}
+                        {att && (
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(pose)}
+                            aria-label={`Remove ${poseLabel(pose)} photo`}
+                            className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-bg-base/80 text-text-primary"
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-center text-[11px] leading-tight text-text-muted">
+                        {poseLabel(pose)}
+                      </span>
                     </div>
-                    <span className="text-center text-[11px] leading-tight text-text-muted">
-                      {poseLabel(pose)}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
 
-              {/* Add a pose. */}
-              <div className="flex w-[4.5rem] flex-col items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen((o) => !o)}
-                  aria-expanded={pickerOpen}
-                  aria-label="Add a pose"
-                  className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border border-border-default bg-bg-surface-raised text-text-muted transition-colors hover:text-foreground"
-                >
-                  <Plus className="h-6 w-6" aria-hidden />
-                </button>
-                <span className="text-center text-[11px] leading-tight text-text-muted">
-                  Add pose
+                {/* Add a pose. */}
+                <div className="flex w-[4.5rem] flex-col items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen((o) => !o)}
+                    aria-expanded={pickerOpen}
+                    aria-label="Add a pose"
+                    className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border border-border-default bg-bg-surface-raised text-text-muted transition-colors hover:text-foreground"
+                  >
+                    <Plus className="h-6 w-6" aria-hidden />
+                  </button>
+                  <span className="text-center text-[11px] leading-tight text-text-muted">
+                    Add pose
+                  </span>
+                </div>
+              </div>
+
+              {pickerOpen && (
+                <div className="animate-shortcut-in mt-3">
+                  <PosePicker exclude={slots} onPick={addPose} />
+                </div>
+              )}
+
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/heic"
+                onChange={onFile}
+                className="hidden"
+              />
+
+              {/* WEIGHT, BEHIND A DROP-UP (Adrian, 2026-09-11).
+                  The mirror of what "Log weight" now does with photos, and
+                  deliberately symmetric: each sheet leads with the thing it is
+                  named after and folds the other away. Still logged for the date
+                  in the title, so it still links to these photos — which is why
+                  the label stops saying "today" the moment that date is not. */}
+              <DropUp
+                label={
+                  drawnOn === todayKey ? "Log today’s weight" : "Log weight for this date"
+                }
+                open={weightOpen}
+                onOpenChange={setWeightOpen}
+              >
+              <div className="block">
+                <PadInput
+                  value={weight}
+                  label={`Weight in ${unit}`}
+                  unit={unit}
+                  active={weightPad}
+                  onOpen={() => setWeightPad(true)}
+                  inputRef={weightRef}
+                  className="h-12 w-full text-sm"
+                  suffix={<span className="shrink-0 font-sans text-sm text-text-muted">{unit}</span>}
+                />
+                <span className="mt-1 block text-xs text-text-subtle">
+                  Saved as your weight for this date.
                 </span>
               </div>
-            </div>
-
-            {pickerOpen && (
-              <div className="animate-shortcut-in mt-3">
-                <PosePicker exclude={slots} onPick={addPose} />
-              </div>
-            )}
-
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/heic"
-              onChange={onFile}
-              className="hidden"
-            />
-
-            {/* WEIGHT, BEHIND A DROP-UP (Adrian, 2026-09-11).
-                The mirror of what "Log weight" now does with photos, and
-                deliberately symmetric: each sheet leads with the thing it is
-                named after and folds the other away. Still logged for the date
-                in the title, so it still links to these photos — which is why
-                the label stops saying "today" the moment that date is not. */}
-            <DropUp
-              label={
-                drawnOn === todayKey ? "Log today’s weight" : "Log weight for this date"
-              }
-              open={weightOpen}
-              onOpenChange={setWeightOpen}
-            >
-            <div className="block">
-              <PadInput
-                value={weight}
-                label={`Weight in ${unit}`}
-                unit={unit}
-                active={weightPad}
-                onOpen={() => setWeightPad(true)}
-                inputRef={weightRef}
-                className="h-12 w-full text-sm"
-                suffix={<span className="shrink-0 font-sans text-sm text-text-muted">{unit}</span>}
-              />
-              <span className="mt-1 block text-xs text-text-subtle">
-                Saved as your weight for this date.
-              </span>
-            </div>
-            <NumberPad
-              active={weightPad ? 0 : null}
-              fields={[
-                {
-                  id: "weight",
-                  // The sheet's title (the date) sits under the pad, so a
-                  // back-dated weight names its day here.
-                  label:
-                    drawnOn === todayKey
-                      ? "Today’s weight"
-                      : `Weight for ${formatDateKeyNumeric(drawnOn)}`,
-                  unit,
-                  value: weight,
-                  onChange: (v) => {
-                    setWeight(v);
-                    if (error) setError(null);
+              <NumberPad
+                active={weightPad ? 0 : null}
+                fields={[
+                  {
+                    id: "weight",
+                    // The sheet's title (the date) sits under the pad, so a
+                    // back-dated weight names its day here.
+                    label:
+                      drawnOn === todayKey
+                        ? "Today’s weight"
+                        : `Weight for ${formatDateKeyNumeric(drawnOn)}`,
+                    unit,
+                    value: weight,
+                    onChange: (v) => {
+                      setWeight(v);
+                      if (error) setError(null);
+                    },
+                    sanitize: sanitizeWeightInput,
                   },
-                  sanitize: sanitizeWeightInput,
-                },
-              ]}
-              onActiveChange={() => {}}
-              onClose={() => setWeightPad(false)}
-              anchorRef={weightRef}
-              returnFocusRef={weightRef}
-              label="Weight"
-            />
-            </DropUp>
+                ]}
+                onActiveChange={() => {}}
+                onClose={() => setWeightPad(false)}
+                anchorRef={weightRef}
+                returnFocusRef={weightRef}
+                label="Weight"
+              />
+              </DropUp>
 
-            {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
-            <div className="h-2" />
+              {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
+              <div className="h-2" />
+            </div>
           </SheetDateSteps>
 
           {/* Action bar. ONE control (Adrian, 2026-09-11): Cancel was removed,
@@ -486,7 +492,10 @@ export function AddProgressPhotoSheet({
               type="button"
               onClick={handleSave}
               disabled={busy || count === 0 || dateStep}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+              className={cn(
+                PRESS.button,
+                "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+              )}
             >
               {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
               {busy ? "Saving…" : count > 1 ? `Save ${count} photos` : "Save"}

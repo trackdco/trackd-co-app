@@ -8,7 +8,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { CARD_EYEBROW, DATA_MONO, SHEET_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW, DATA_MONO, PRESS, SHEET_TITLE } from "@/lib/ui-presets"
 import { Container } from "@/components/containers"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { containerNoun, remainingLabel } from "@/lib/containers/labels"
@@ -139,8 +139,13 @@ export function StockActionsSheet({
             `pb-2` the last control in this sheet sat under the iPhone home
             indicator and was clipped by the screen edge, which is exactly where
             "Discard this vial" was (Adrian, on a real phone). Every element in
-            here now clears the safe area. */}
-        <div className="space-y-3 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+            here now clears the safe area.
+
+            The sections rise in as the sheet lands (feel pass §4). */}
+        <div
+          data-sheet-body
+          className="space-y-3 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        >
           <p className={CARD_EYEBROW}>Stock</p>
           <div className="divide-y divide-border-default rounded-2xl bg-bg-surface-raised">
             <Row label="Refill" hint={`A new ${noun} replaces this one`} onClick={onRefill} />
@@ -202,7 +207,7 @@ function Row({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full flex-col items-start px-4 py-3 text-left transition active:scale-[0.99]"
+      className={cn(PRESS.button, "flex w-full flex-col items-start px-4 py-3 text-left")}
     >
       <span className="text-sm text-foreground">{label}</span>
       <span className="text-xs text-text-muted">{hint}</span>

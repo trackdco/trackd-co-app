@@ -3,7 +3,8 @@
 import { useMemo, useState, useSyncExternalStore } from "react"
 import { NewItemCard } from "@/components/protocol/NewItemCard"
 
-import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets"
+import { CARD_EYEBROW, DATA_MONO, PRESS } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 import { Container } from "@/components/containers"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { StackEditSheet } from "@/components/protocol/StackEditSheet"
@@ -233,7 +234,7 @@ function StackCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-2xl bg-bg-surface p-5 text-left transition active:scale-[0.98]"
+      className={cn(PRESS.card, "w-full rounded-2xl bg-bg-surface p-5 text-left")}
     >
       <div className="flex items-center justify-between gap-3">
         <p className={CARD_EYEBROW}>{stack.name}</p>

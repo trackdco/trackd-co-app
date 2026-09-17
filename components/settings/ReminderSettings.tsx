@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { CircleNotch } from "@/components/icons";
 
-import { CARD_EYEBROW } from "@/lib/ui-presets";
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
+import { ThumbGroup } from "@/components/feel/SlidingThumb";
 import {
   saveReminderPrefs,
   saveTimezone,
@@ -234,7 +235,16 @@ function ChoiceRow({
       <span className="text-xs uppercase tracking-[0.18em] text-text-muted">
         {label}
       </span>
-      <div role="radiogroup" aria-label={label} className="mt-2 flex gap-2">
+      {/* The white is a sliding thumb (feel pass §6), so no pill carries a
+          fill of its own: the others are outlined, because a fill would hide
+          the thumb as it passes beneath them. */}
+      <ThumbGroup
+        selection={value}
+        thumbClassName="rounded-full bg-accent-primary"
+        role="radiogroup"
+        aria-label={label}
+        className="mt-2 flex gap-2"
+      >
         {options.map((o) => {
           const on = o.value === value;
           return (
@@ -245,17 +255,18 @@ function ChoiceRow({
               aria-checked={on}
               onClick={() => onChange(o.value)}
               className={cn(
-                "flex-1 rounded-full px-3 py-2 font-mono text-xs tabular-nums transition-opacity active:scale-[0.98]",
+                PRESS.pill,
+                "flex-1 rounded-full border px-3 py-2 font-mono text-xs tabular-nums transition-colors duration-300",
                 on
-                  ? "bg-accent-primary text-bg-base"
-                  : "bg-bg-input text-text-muted hover:text-foreground",
+                  ? "border-transparent text-bg-base"
+                  : "border-border-default text-text-muted hover:text-foreground",
               )}
             >
               {o.label}
             </button>
           );
         })}
-      </div>
+      </ThumbGroup>
       {hint ? <p className="mt-2 text-xs text-text-subtle">{hint}</p> : null}
     </div>
   );

@@ -7,7 +7,7 @@ import { CaretDown, CaretLeft } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { DatePickerPanel } from "@/components/calendar/DatePickerPanel";
 import { formatDateKeyNumeric } from "@/lib/calendar/calendar";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets";
 
 /** Both steps sit in one box, one on top of the other. Absolute, so the one on
  *  its way out stops holding the box open behind it. */
@@ -132,7 +132,10 @@ export function SheetDateSteps({
             onClick={() => onStepChange(true)}
             aria-expanded={step}
             aria-label={`Change the date — currently ${formatDateKeyNumeric(value)}`}
-            className="flex min-h-11 items-center gap-2 rounded-xl px-3 outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-accent-amber/50 active:scale-[0.98]"
+            className={cn(
+              PRESS.field,
+              "flex min-h-11 items-center gap-2 rounded-xl px-3 outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-accent-amber/50",
+            )}
           >
             <span
               ref={dateValueRef}

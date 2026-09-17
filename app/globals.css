@@ -2681,11 +2681,15 @@ body[data-inline-edit="true"] .shortcuts-layer {
    320ms, starting at 140ms and 40ms apart, so they arrive as the sheet lands.
    Set `--rise-i` per section.
 
+   The fill is `backwards`, not `both`: a finished rise must hand the section
+   back its own opacity, or a disabled or pressed button inside it can no
+   longer dim.
+
    In a flex-column scroll body every section also needs `shrink-0`: a card
    with `overflow: hidden` otherwise gets squashed to half its height.
    --------------------------------------------------------------------------- */
 .animate-sheet-rise {
-  animation: sheet-rise var(--motion-slow) var(--motion-ease) both;
+  animation: sheet-rise var(--motion-slow) var(--motion-ease) backwards;
   animation-delay: calc(140ms + var(--rise-i, 0) * 40ms);
 }
 @keyframes sheet-rise {
@@ -2701,7 +2705,7 @@ body[data-inline-edit="true"] .shortcuts-layer {
 
 /* Late data fades into space that was already reserved for it. */
 .animate-late-in {
-  animation: shortcut-fade var(--motion-base) ease-out both;
+  animation: shortcut-fade var(--motion-base) ease-out backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2893,5 +2897,34 @@ body[data-inline-edit="true"] .shortcuts-layer {
   }
   .chart-tracer {
     display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   EVERY OTHER SHEET: LAND, THEN RISE (§4, the sweep). A sheet marks the box
+   that holds its sections with `data-sheet-body`, and each direct child rises
+   in order: 10px over 320ms from 140ms, 40ms apart. The header lands with the
+   sheet and does not rise.
+
+   Layered (components), so a child's own animation class (a shake, a
+   confirm's fade) still wins. A child that mounts later rises when it does,
+   which is the "late content arrives in place" rule.
+   --------------------------------------------------------------------------- */
+@layer components {
+  [data-sheet-body] > * {
+    animation: sheet-rise var(--motion-slow) var(--motion-ease) backwards;
+    animation-delay: calc(140ms + var(--rise-i, 0) * 40ms);
+  }
+  [data-sheet-body] > :nth-child(2) { --rise-i: 1; }
+  [data-sheet-body] > :nth-child(3) { --rise-i: 2; }
+  [data-sheet-body] > :nth-child(4) { --rise-i: 3; }
+  [data-sheet-body] > :nth-child(5) { --rise-i: 4; }
+  [data-sheet-body] > :nth-child(6) { --rise-i: 5; }
+  [data-sheet-body] > :nth-child(7) { --rise-i: 6; }
+  [data-sheet-body] > :nth-child(n + 8) { --rise-i: 7; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-sheet-body] > * {
+    animation: none;
   }
 }

@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 
 import { Plus } from "@/components/icons"
 import { cn } from "@/lib/utils"
+import { PRESS } from "@/lib/ui-presets"
 
 /**
  * The "New stack" / "New cycle" affordance: the same card shape as the ones
@@ -53,10 +54,12 @@ export function NewItemCard({
       onClick={onClick}
       disabled={disabled}
       className={cn(
+        // The press system skips a disabled control on its own.
+        PRESS.card,
         "hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default py-5 transition",
         disabled
           ? "text-text-subtle"
-          : "text-text-muted active:scale-[0.98] hover:text-foreground"
+          : "text-text-muted hover:text-foreground"
       )}
     >
       <span className="flex flex-col items-center gap-3 px-6">

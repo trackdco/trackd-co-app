@@ -72,7 +72,8 @@ export function StackDetailSheet({
           </div>
         </SheetHeader>
 
-        <div className="space-y-5 px-4 pb-2">
+        {/* The sections rise in as the sheet lands (feel pass §4). */}
+        <div data-sheet-body className="space-y-5 px-4 pb-2">
           {/* The row of matching containers — what the stack colour is for. */}
           <div className="flex items-end gap-2">
             {members.map((m) => (

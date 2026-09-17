@@ -31,6 +31,7 @@ import {
   CARD_EYEBROW,
   DATA_MONO,
   METRIC_VALUE,
+  PRESS,
   UNIT_SUFFIX,
 } from "@/lib/ui-presets"
 import { formatPhotoDateShort } from "@/lib/progress/photos"
@@ -216,7 +217,10 @@ export function BlocksScreen({
           <button
             type="button"
             onClick={() => guard(() => setCreating(true))}
-            className="hairline flex w-full flex-col items-center gap-1.5 rounded-2xl border-border-default px-6 py-8 text-center text-text-muted transition hover:text-foreground active:scale-[0.98]"
+            className={cn(
+              PRESS.card,
+              "hairline flex w-full flex-col items-center gap-1.5 rounded-2xl border-border-default px-6 py-8 text-center text-text-muted transition hover:text-foreground",
+            )}
           >
             <span className="flex items-center gap-2 text-sm font-medium">
               <Plus className="h-4 w-4" aria-hidden />
@@ -234,7 +238,10 @@ export function BlocksScreen({
           <button
             type="button"
             onClick={() => guard(() => setCreating(true))}
-            className="hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default px-6 py-4 text-sm font-medium text-text-muted transition hover:text-foreground active:scale-[0.98]"
+            className={cn(
+              PRESS.card,
+              "hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default px-6 py-4 text-sm font-medium text-text-muted transition hover:text-foreground",
+            )}
           >
             <Plus className="h-4 w-4" aria-hidden />
             New block
@@ -296,7 +303,7 @@ function LiveBlockCard({
   return (
     <Link
       href={`/blocks?block=${block.id}`}
-      className="block rounded-2xl bg-bg-surface p-5 transition-transform duration-150 ease-out active:scale-[0.99] motion-reduce:transition-none"
+      className={cn(PRESS.card, "block rounded-2xl bg-bg-surface p-5")}
     >
       <div className="flex items-center gap-3">
         <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Running now</span>

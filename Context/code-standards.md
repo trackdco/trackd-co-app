@@ -36,6 +36,16 @@
 - Tailwind CSS v4. Use the CSS-variable design tokens from `ui-context.md` —
   **no hardcoded hex values** outside `app/globals.css`.
 - Follow the border-radius and spacing scale defined in `ui-context.md`.
+- **Number fields use the Trackd pad** (feel pass, 2026-09-17). A numeric field
+  is a `PadInput` that opens `NumberPad` (`components/feel/`), never an
+  `<input inputMode="decimal">` or `type="number"`; several fields in one sheet
+  share a `usePadSession`. Keep the field's existing sanitiser and pass it as
+  `sanitize`, so the pad refuses what the form would strip. If a form needs the
+  value posted, mirror it in a hidden input. Text, date and time fields keep the
+  system controls. See `ui-context.md` → "a number field opens the Trackd pad".
+- **Press feedback is a `PRESS` preset, never `active:scale-*`**; a single-select
+  pill row is a `ThumbGroup`; a sheet's section list carries `data-sheet-body`.
+  See `ui-context.md` → Motion & Interaction.
 - **Health data is categorical and neutral — never evaluative (architecture
   invariant).** Never apply `--state-error` / `--state-success` /
   `--state-warning`, `--accent-green`, or any red/green/amber colour to a

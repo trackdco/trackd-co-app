@@ -10,7 +10,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { Plus } from "@/components/icons"
@@ -181,7 +181,8 @@ function StackForm({
   }
 
   return (
-    <div className="space-y-5 px-4 pb-2">
+    // The sections rise in as the sheet lands (feel pass §4).
+    <div data-sheet-body className="space-y-5 px-4 pb-2">
       <label className="space-y-1 block">
         <span className={LABEL}>Name</span>
         <Input
@@ -205,7 +206,8 @@ function StackForm({
               onClick={() => setColour(c)}
               style={{ background: paletteColourVar(c) }}
               className={cn(
-                "h-9 w-9 rounded-full transition active:scale-[0.94]",
+                PRESS.tick,
+                "h-9 w-9 rounded-full transition",
                 colour === c &&
                   "ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-surface"
               )}
@@ -229,7 +231,7 @@ function StackForm({
                   key={c.id}
                   type="button"
                   onClick={() => toggle(c.id)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:scale-[0.99]"
+                  className={cn(PRESS.button, "flex w-full items-center gap-3 px-4 py-3 text-left")}
                 >
                   <span
                     className={cn(
@@ -314,7 +316,7 @@ function StackForm({
         <button
           type="button"
           onClick={onClose}
-          className="h-11 flex-1 rounded-xl border border-border-default text-sm text-text-muted transition active:scale-[0.98]"
+          className={cn(PRESS.button, "h-11 flex-1 rounded-xl border border-border-default text-sm text-text-muted")}
         >
           Cancel
         </button>
@@ -322,7 +324,7 @@ function StackForm({
           type="button"
           onClick={save}
           disabled={!valid}
-          className="h-11 flex-1 rounded-xl bg-accent-primary text-sm font-medium text-bg-base transition active:scale-[0.98] disabled:opacity-40"
+          className={cn(PRESS.button, "h-11 flex-1 rounded-xl bg-accent-primary text-sm font-medium text-bg-base disabled:opacity-40")}
         >
           Save
         </button>

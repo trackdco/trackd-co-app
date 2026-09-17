@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { CircleNotch, NotePencil } from "@/components/icons"
 
 import { Textarea } from "@/components/ui/textarea"
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 import { saveReflectionAction } from "@/app/(app)/blocks/actions"
 import type { Block } from "@/lib/blocks/block"
 
@@ -112,7 +113,10 @@ export function ReflectionEditor({ block }: { block: Block }) {
           type="button"
           onClick={save}
           disabled={busy}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-2.5 min-h-11 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
+          className={cn(
+            PRESS.button,
+            "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-2.5 min-h-11 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+          )}
         >
           {busy && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}
           {busy ? "Saving…" : "Save note"}

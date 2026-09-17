@@ -3,7 +3,8 @@
 import { useMemo, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
-import { SHEET_TITLE } from "@/lib/ui-presets"
+import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import {
   Sheet,
   SheetContent,
@@ -197,10 +198,17 @@ export function InjectionSitesSheet({
             below.
           </SheetDescription>
 
-          <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 pb-10 pt-4">
-            {/* Route toggle */}
+          {/* The sections rise in as the sheet lands (feel pass §4). The keyed
+              route crossfade below keeps its own fade, which overrides the rise. */}
+          <div
+            data-sheet-body
+            className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 pb-10 pt-4"
+          >
+            {/* Route toggle, on the shared sliding thumb (feel pass §6). */}
             <div className="flex justify-center">
-              <div
+              <ThumbGroup
+                selection={route}
+                thumbClassName="rounded-full bg-bg-surface-raised"
                 className="inline-flex rounded-full border border-border-default bg-bg-input p-0.5 text-sm"
                 role="group"
                 aria-label="Route"
@@ -215,16 +223,15 @@ export function InjectionSitesSheet({
                     }}
                     aria-pressed={route === r.key}
                     className={cn(
-                      "rounded-full px-5 py-1.5 font-medium transition-colors duration-200 ease-out",
-                      route === r.key
-                        ? "bg-bg-surface-raised text-foreground"
-                        : "text-text-muted",
+                      PRESS.pill,
+                      "rounded-full px-5 py-1.5 font-medium transition-colors duration-300 ease-out",
+                      route === r.key ? "text-foreground" : "text-text-muted",
                     )}
                   >
                     {r.label}
                   </button>
                 ))}
-              </div>
+              </ThumbGroup>
             </div>
 
             {/* Body + recency; fades in when you switch IM ↔ Sub-Q. */}
