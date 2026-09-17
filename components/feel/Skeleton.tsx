@@ -126,18 +126,20 @@ export function SkeletonGroup({
  * absolutely positioned over the content, so the two never stack and nothing
  * shifts. One rise per arrival: the skeleton never moves.
  *
+ * FLAT: the content is rendered with no wrapper, because a screen's desktop
+ * grid places its cards as direct children. The parent must be `relative`.
  * Content that is ready on the first render shows at once, with no skeleton.
  */
 export function SkeletonSwap({
   ready,
   skeleton,
-  className,
+  skeletonClassName,
   children,
 }: {
   ready: boolean
   skeleton: ReactNode
-  /** Applied to both the content box and the leaving skeleton (e.g. `space-y-5`). */
-  className?: string
+  /** On the box that holds the skeleton (and its leaving copy). */
+  skeletonClassName?: string
   children: ReactNode
 }) {
   const [leaving, setLeaving] = useState(false)
@@ -152,14 +154,41 @@ export function SkeletonSwap({
     return () => window.clearTimeout(t)
   }, [leaving])
 
+  if (!ready) {
+    return (
+      <div data-area="full" className={skeletonClassName}>
+        {skeleton}
+      </div>
+    )
+  }
   return (
-    <div className="relative">
-      <div className={className}>{ready ? children : skeleton}</div>
-      {leaving ? (
-        <div aria-hidden className={cn("sk-leaving", className)}>
-          {skeleton}
-        </div>
-      ) : null}
+    <>
+      {leaving ? <LeavingSkeleton className={skeletonClassName}>{skeleton}</LeavingSkeleton> : null}
+      {children}
+    </>
+  )
+}
+
+/**
+ * The skeleton on its way out, laid exactly over the first real card: that
+ * card starts where the skeleton did. `offsetTop` ignores the card's rise, so
+ * the skeleton stays still while the content moves up through it.
+ */
+function LeavingSkeleton({ className, children }: { className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useIsoLayoutEffect(() => {
+    const el = ref.current
+    const anchor = el?.nextElementSibling as HTMLElement | null
+    if (!el || !anchor) return
+    el.style.top = `${anchor.offsetTop}px`
+    el.style.left = `${anchor.offsetLeft}px`
+    el.style.width = `${anchor.offsetWidth}px`
+    el.style.right = "auto"
+    indexBlocks(el)
+  }, [])
+  return (
+    <div ref={ref} aria-hidden className={cn("sk-leaving", className)}>
+      {children}
     </div>
   )
 }

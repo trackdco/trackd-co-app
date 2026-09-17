@@ -2573,9 +2573,21 @@ body[data-inline-edit="true"] .shortcuts-layer {
   pointer-events: none;
   animation: sk-out var(--motion-base) ease-out forwards;
 }
+/* The copy on its way out is already showing: it must not fade in again. */
+.sk-leaving .sk-wrap {
+  animation: none;
+}
 
 /* Home's week strip while the log is unknown: the dates and day names wave
    with the page, and the status dots wait and fade in with the data. */
+/* A week day presses its pill, not the whole cell. */
+.week-day[data-pressed] {
+  background-color: transparent;
+}
+.week-day[data-pressed] .week-pill {
+  background-color: var(--bg-surface-raised);
+}
+
 [data-week-loading="true"] .week-figure {
   animation: sk-wave 1.9s ease-in-out infinite;
 }
@@ -2659,6 +2671,95 @@ body[data-inline-edit="true"] .shortcuts-layer {
 @media (prefers-reduced-motion: reduce) {
   .animate-sheet-rise,
   .animate-late-in {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE NUMBER PAD (§3). `components/feel/NumberPad.tsx`. One panel over the
+   whole phone: 320ms in, 240ms out, both on the house ease. The form behind it
+   never moves.
+   --------------------------------------------------------------------------- */
+.number-pad {
+  transform: translateY(105%);
+  visibility: hidden;
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    visibility 0s linear var(--motion-base);
+}
+.number-pad[data-open="true"] {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--motion-slow) var(--motion-ease);
+}
+
+/* The field being edited, and the pad's own readout, carry a caret. */
+.pad-caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 3px;
+  vertical-align: -0.08em;
+  background-color: var(--text-primary);
+  animation: pad-caret-blink 1.05s steps(1) infinite;
+}
+.pad-caret-dark {
+  background-color: var(--bg-base);
+}
+@keyframes pad-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* A refused key shakes (a second decimal point, a seventh digit). */
+.animate-key-shake {
+  animation: key-shake 280ms ease-in-out;
+}
+@keyframes key-shake {
+  20%,
+  60% {
+    translate: -3px 0;
+  }
+  40%,
+  80% {
+    translate: 3px 0;
+  }
+}
+
+/* The Calculator's compact pad: 42px keys, 34px on a short phone, where the
+   chip labels go too so the draw figure and syringe stay in view. */
+.pad-keys-compact {
+  grid-auto-rows: 42px;
+}
+@media (max-height: 650px) {
+  .pad-keys-compact {
+    grid-auto-rows: 34px;
+  }
+  .number-pad-compact .pad-chip-label {
+    display: none;
+  }
+  .number-pad-compact {
+    padding-top: 10px;
+  }
+  .number-pad-compact .pad-compact-gap {
+    margin-top: 6px;
+  }
+  .number-pad-compact .pad-compact-row {
+    height: 44px;
+  }
+  .number-pad-compact .pad-compact-hide {
+    width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .number-pad,
+  .number-pad[data-open="true"] {
+    transition: none;
+  }
+  .pad-caret,
+  .animate-key-shake {
     animation: none;
   }
 }

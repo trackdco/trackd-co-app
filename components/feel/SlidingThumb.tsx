@@ -57,6 +57,8 @@ export function useSlidingThumb(
   containerRef: RefObject<HTMLElement | null>,
   thumbRef: RefObject<HTMLElement | null>,
   selection: unknown,
+  /** What marks the selected item, when `aria-pressed` would match a wrapper. */
+  activeSelector: string = ACTIVE,
 ) {
   const placed = useRef(false)
 
@@ -65,7 +67,7 @@ export function useSlidingThumb(
     const thumb = thumbRef.current
     if (!container || !thumb) return
 
-    const find = () => container.querySelector<HTMLElement>(ACTIVE)
+    const find = () => container.querySelector<HTMLElement>(activeSelector)
     const place = (animate: boolean) => {
       const item = find()
       if (!item || item.offsetWidth === 0) {
@@ -93,9 +95,18 @@ export function useSlidingThumb(
 
     if (typeof ResizeObserver === "undefined") return
     let item = find()
-    const ro = new ResizeObserver((entries) => {
-      // The group itself resized: snap. Only the pill grew: glide.
-      const groupResized = entries.some((e) => e.target === container)
+    // A ResizeObserver reports every target once as soon as it is observed, so
+    // "the group was reported" is not "the group resized": compare sizes, or
+    // that first report snaps the thumb mid-glide.
+    let groupW = container.offsetWidth
+    let groupH = container.offsetHeight
+    const ro = new ResizeObserver(() => {
+      const w = container.offsetWidth
+      const h = container.offsetHeight
+      // The group itself resized: snap. Only the pill changed size: glide.
+      const groupResized = w !== groupW || h !== groupH
+      groupW = w
+      groupH = h
       place(!groupResized)
     })
     ro.observe(container)
@@ -119,7 +130,7 @@ export function useSlidingThumb(
       ro.disconnect()
       mo.disconnect()
     }
-  }, [containerRef, thumbRef, selection])
+  }, [containerRef, thumbRef, selection, activeSelector])
 }
 
 type ThumbGroupProps = ComponentPropsWithoutRef<"div"> & {

@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react"
 
+import { PillThumb, useSlidingThumb } from "@/components/feel/SlidingThumb"
+import { PRESS } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 import type { DateKey, DayStatus } from "@/lib/home/mockHomeData"
 
@@ -26,6 +28,11 @@ interface WeekStripProps {
   onSelect: (key: DateKey) => void
   /** Commit a week change (absolute offset) after the slide animation lands. */
   onWeekChange: (offset: number) => void
+  /**
+   * The log is not known yet (feel pass §1): the dates and day names wave with
+   * the page's skeleton, and the status dots wait, then fade in with the data.
+   */
+  loading?: boolean
 }
 
 // Sun-first initials, indexed by Date.getDay(); the row itself runs Mon → Sun.
@@ -77,7 +84,7 @@ function StatusDot({ status }: { status: DayStatus }) {
     <span
       aria-hidden
       className={cn(
-        "h-1.5 w-1.5 rounded-full",
+        "week-dot h-1.5 w-1.5 rounded-full",
         status === "logged" && "bg-text-primary",
         status === "partial" && "bg-text-muted",
         status === "missed" && "border border-border-strong",
@@ -116,8 +123,15 @@ export function WeekStrip({
   hasDoseOn,
   onSelect,
   onWeekChange,
+  loading = false,
 }: WeekStripProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
+  // The selected day rides a sliding surface in the centre week (feel pass §6),
+  // the same thumb every pill menu now has. The neighbours paint their own,
+  // static, so a swipe shows the selection travelling with its week.
+  const centreRef = useRef<HTMLDivElement>(null)
+  const thumbRef = useRef<HTMLSpanElement>(null)
+  useSlidingThumb(centreRef, thumbRef, `${selectedKey}|${weekOffset}`, '[data-thumb-on="true"]')
   const startRef = useRef<{ x: number; y: number } | null>(null)
   const widthRef = useRef(0)
   const dragXRef = useRef(0)
@@ -215,7 +229,7 @@ export function WeekStrip({
     : `translateX(calc(-100% + ${dragX}px))`
 
   return (
-    <div>
+    <div data-week-loading={loading ? "true" : undefined}>
       <div
         ref={viewportRef}
         onPointerDown={handleDown}
@@ -239,7 +253,13 @@ export function WeekStrip({
             const isCentre = i === 1
             return (
               <div key={i} className="w-full shrink-0" aria-hidden={!isCentre}>
-                <div className="grid grid-cols-7">
+                <div
+                  ref={isCentre ? centreRef : undefined}
+                  className={cn("grid grid-cols-7", isCentre && "thumb-group relative isolate")}
+                >
+                  {isCentre ? (
+                    <PillThumb thumbRef={thumbRef} className="rounded-xl bg-bg-input" />
+                  ) : null}
                   {daysForOffset(off).map(({ key, date }) => {
                     const selected = key === selectedKey
                     const isToday = key === todayKey
@@ -255,7 +275,10 @@ export function WeekStrip({
                         onClick={() => onSelect(key)}
                         aria-pressed={selected}
                         aria-label={`${date.toDateString()}, ${STATUS_LABEL[status]}`}
-                        className="flex flex-col items-center outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50"
+                        className={cn(
+                          PRESS.day,
+                          "week-day flex flex-col items-center rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-accent-amber/50",
+                        )}
                       >
                         {/* Number over a three-letter day name, with the selected
                             cell sitting on a soft raised block (Adrian's call,
@@ -266,14 +289,16 @@ export function WeekStrip({
                             scheduled sits a step dimmer, so the week shows its own
                             shape before you read a single number. */}
                         <span
+                          data-thumb-on={isCentre && selected ? "true" : undefined}
                           className={cn(
-                            "flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 transition-colors",
-                            selected && "bg-bg-input"
+                            "week-pill flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 transition-colors",
+                            // The centre week's selection is the thumb.
+                            selected && !isCentre && "bg-bg-input"
                           )}
                         >
                           <span
                             className={cn(
-                              "font-mono text-sm transition-colors",
+                              "week-figure font-mono text-sm transition-colors",
                               selected
                                 ? "font-medium text-foreground"
                                 : nothingScheduled
@@ -286,7 +311,7 @@ export function WeekStrip({
                           </span>
                           <span
                             className={cn(
-                              "text-[10px] uppercase tracking-wide transition-colors",
+                              "week-figure text-[10px] uppercase tracking-wide transition-colors",
                               selected
                                 ? "text-foreground"
                                 : nothingScheduled

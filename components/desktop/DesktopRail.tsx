@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 
 import { NotePencil, Scales, Plus, ClipboardText } from "@/components/icons"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
-import { AddWeightSheet } from "@/components/home/AddWeightSheet"
+import { LogWeightPad } from "@/components/weight/LogWeightPad"
 import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
@@ -99,12 +99,15 @@ export function DesktopRail({
   userId,
   unit,
   bodySex,
+  lastWeightKg = null,
   previewStack,
   previewLogs,
 }: {
   userId: string
   unit: WeightUnit
   bodySex: BodySex
+  /** The latest weigh-in (kg); Log weight opens the pad on it. */
+  lastWeightKg?: number | null
   /** Dev-preview only: render the rail without a signed-in read. Same
    *  convention as `ProtocolScreen` / `ProgressScreen`. */
   previewStack?: StackCompound[]
@@ -445,11 +448,11 @@ export function DesktopRail({
         userId={userId}
         bodySex={bodySex}
       />
-      <AddWeightSheet
+      <LogWeightPad
         open={weightOpen}
         onOpenChange={setWeightOpen}
         unit={unit}
-        userId={userId}
+        lastKg={lastWeightKg}
       />
       <AddToStackMenu open={addOpen} onOpenChange={setAddOpen} userId={userId} />
     </aside>

@@ -68,6 +68,17 @@ export default async function AppLayout({
   const unit = unitForPreference(profile?.units_preference);
   const bodySex = bodySexFor(profile?.sex);
 
+  // The latest weigh-in: Log weight opens the number pad on it, selected, so
+  // the first key replaces it (feel pass §3). One indexed row; a failure only
+  // means the pad opens empty.
+  const { data: lastWeight } = await supabase
+    .from("weight_logs")
+    .select("weight")
+    .order("logged_for", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const lastWeightKg = lastWeight?.weight != null ? Number(lastWeight.weight) : null;
+
   /**
    * ⚠️ NO PRICE FETCH HERE ANY MORE (D28).
    *
@@ -130,10 +141,20 @@ export default async function AppLayout({
 
       {/* The rail: today's actionable state, and the column every bottom sheet
           docks into on desktop (`data-desktop="rail"`). Desktop only. */}
-      <DesktopRail userId={user.id} unit={unit} bodySex={bodySex} />
+      <DesktopRail
+        userId={user.id}
+        unit={unit}
+        bodySex={bodySex}
+        lastWeightKg={lastWeightKg}
+      />
 
       <BottomNav />
-      <QuickActionsFab userId={user.id} unit={unit} bodySex={bodySex} />
+      <QuickActionsFab
+        userId={user.id}
+        unit={unit}
+        bodySex={bodySex}
+        lastWeightKg={lastWeightKg}
+      />
       {/* Keyboard shortcuts. Listener-only, renders nothing, and every handler
           returns early unless the desktop query matches. */}
       <DesktopKeyboard />

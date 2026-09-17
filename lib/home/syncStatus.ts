@@ -28,6 +28,18 @@ function notifySyncFailed(): void {
   window.dispatchEvent(new CustomEvent(SYNC_FAILED_EVENT))
 }
 
+/**
+ * The first cloud hydration of a session failed (feel pass §1). Home stops
+ * showing its skeleton and falls back to what the device has; this raises the
+ * same "still syncing" notice a failed write does, under the same rules: once a
+ * minute at most, and never while offline, where a failure is expected and the
+ * reconnect re-sync is already queued.
+ */
+export function notifyHydrationFailed(): void {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return
+  notifySyncFailed()
+}
+
 export function subscribeSyncFailed(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {}
   window.addEventListener(SYNC_FAILED_EVENT, callback)

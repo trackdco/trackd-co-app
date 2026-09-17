@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
-import { HomeScreen } from "@/components/home/HomeScreen";
+import { PreviewHome } from "./PreviewHome";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import type { StackCompound } from "@/lib/home/stack";
 import type { Stack } from "@/lib/home/stacks";
@@ -15,8 +15,16 @@ import type { DayLogs } from "@/lib/home/doseLog";
  * nav) so the sticky week strip behaves exactly as it does in the real app.
  * Returns 404 in production so it never ships.
  */
-export default function PreviewHomePage() {
+export default async function PreviewHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ loading?: string }>;
+}) {
   if (process.env.NODE_ENV === "production") notFound();
+  // `?loading=1500` holds the loading skeleton that long, then lands the log,
+  // so the feel pass's skeleton and crossfade can be reviewed (wave 3 §1).
+  const { loading } = await searchParams;
+  const loadingMs = loading ? Number(loading) : null;
 
   const todayKey = toDateKey(new Date());
 
@@ -160,7 +168,8 @@ export default function PreviewHomePage() {
       </header>
 
       <main className="flex-1">
-        <HomeScreen
+        <PreviewHome
+          loadingMs={loadingMs}
           previewStack={sampleCompounds}
           previewStacks={sampleStacks}
           previewLogs={sampleLogs}
@@ -173,7 +182,7 @@ export default function PreviewHomePage() {
       </main>
 
       <BottomNav />
-      <QuickActionsFab userId="preview-local" unit="kg" bodySex="male" />
+      <QuickActionsFab userId="preview-local" unit="kg" bodySex="male" lastWeightKg={84.6} />
     </div>
   );
 }

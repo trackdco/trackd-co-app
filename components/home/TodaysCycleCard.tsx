@@ -3,7 +3,7 @@
 import { CaretDown, Check, DotsThree, Minus, Pause, Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import {
   CATEGORY_DISPLAY_ORDER,
@@ -87,11 +87,11 @@ function PausedRow({
 
   return (
     <li>
-      <div className="flex items-center gap-3 py-2 opacity-50 transition-opacity hover:opacity-80">
+      <div className={cn(PRESS.row, "-mx-2 flex items-center gap-3 rounded-xl px-2 py-2 opacity-50 transition-opacity hover:opacity-80")}>
         <button
           type="button"
           onClick={onOpen}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          className={cn(PRESS.rowPart, "flex min-w-0 flex-1 items-center gap-3 text-left")}
         >
           {/* A pause glyph where the tick would be — it names the state rather
               than leaving an empty ring that reads as an unticked dose. Sized
@@ -124,7 +124,7 @@ function PausedRow({
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             aria-label={`${open ? "Hide" : "Show"} the compounds in ${entry.label}`}
-            className="-mr-1 shrink-0 rounded-full p-1 text-text-subtle transition-colors hover:text-foreground"
+            className={cn(PRESS.rowPart, "-mr-1 shrink-0 rounded-full p-1 text-text-subtle transition-colors hover:text-foreground")}
           >
             <CaretDown
               className={cn(
@@ -326,7 +326,7 @@ function DrawSlot({
       <button
         type="button"
         onClick={onAddStock}
-        className="shrink-0 text-xs text-text-subtle underline decoration-dotted underline-offset-2 transition-colors hover:text-text-muted"
+        className={cn(PRESS.text, "shrink-0 text-xs text-text-subtle underline decoration-dotted underline-offset-2 transition-colors hover:text-text-muted")}
       >
         add stock
       </button>
@@ -387,7 +387,8 @@ function DoseTick({
       // smaller tick read as a lesser control — as well as being a smaller tap
       // target for the same action.
       className={cn(
-        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
+        PRESS.tick,
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
         skipped
           ? // A skipped dose is RESOLVED but not taken, so it gets neither the
             // filled tick (which would claim it was) nor the empty ring (which
@@ -437,12 +438,12 @@ function MultiDoseRow({
 
   return (
     <li className={cn("py-2 transition-opacity duration-200", done && "opacity-60")}>
-      <div className="flex items-center gap-3">
+      <div className={cn(PRESS.row, "-mx-2 flex items-center gap-3 rounded-xl px-2")}>
         <div className="min-w-0 flex-1">
           <button
             type="button"
             onClick={() => onOpenDetail(dose)}
-            className="block w-full min-w-0 text-left"
+            className={cn(PRESS.rowPart, "block w-full min-w-0 text-left")}
           >
             <span className="block truncate text-sm font-medium text-foreground">
               {dose.name}
@@ -456,7 +457,7 @@ function MultiDoseRow({
           type="button"
           onClick={() => onOpenDetail(dose)}
           aria-label={`Edit ${dose.name}`}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary"
+          className={cn(PRESS.rowPart, "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary")}
         >
           <DotsThree className="h-5 w-5" aria-hidden />
         </button>
@@ -481,7 +482,8 @@ function MultiDoseRow({
               className={cn(
                 // gap-3 + py-2: a compound row's own rhythm, so a sub-row sits
                 // on the same grid as every other tickable line on the screen.
-                "flex items-center gap-3 py-2 transition-opacity duration-200",
+                PRESS.row,
+                "-mx-2 flex items-center gap-3 rounded-xl px-2 py-2 transition-opacity duration-200",
                 log && "opacity-60"
               )}
             >
@@ -499,7 +501,7 @@ function MultiDoseRow({
                 <button
                   type="button"
                   onClick={() => onOpenDetail(dose)}
-                  className="min-w-0 shrink truncate text-left font-mono text-xs tabular-nums text-text-muted"
+                  className={cn(PRESS.rowPart, "min-w-0 shrink truncate text-left font-mono text-xs tabular-nums text-text-muted")}
                 >
                   {log?.status === "skipped"
                     ? "Skipped"
@@ -553,7 +555,7 @@ function DoseRow({
   // through to the normal row, which is already dimmed.
   if (dose.paused && dose.slots.every((s) => s.log == null)) {
     return (
-      <li className="flex items-center gap-3 py-2 opacity-40">
+      <li className={cn(PRESS.row, "-mx-2 flex items-center gap-3 rounded-xl px-2 py-2 opacity-40")}>
         {/* The glyph is a BUTTON, in the tick's place — tapping it opens the
             sheet, which on a paused compound is the resume form (Adrian,
             2026-08-07). It was inert, so the one control where you would reach
@@ -562,14 +564,14 @@ function DoseRow({
           type="button"
           onClick={() => onOpenDetail(dose)}
           aria-label={`Resume ${dose.name}`}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-muted transition-colors hover:border-text-primary hover:text-foreground active:scale-90"
+          className={cn(PRESS.tick, "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-muted transition-colors hover:border-text-primary hover:text-foreground")}
         >
           <Pause className="h-3 w-3" weight="fill" aria-hidden />
         </button>
         <button
           type="button"
           onClick={() => onOpenDetail(dose)}
-          className="min-w-0 flex-1 text-left"
+          className={cn(PRESS.rowPart, "min-w-0 flex-1 text-left")}
         >
           <span className="block truncate text-sm font-medium text-foreground line-through decoration-text-muted/60">
             {dose.name}
@@ -611,7 +613,8 @@ function DoseRow({
   return (
     <li
       className={cn(
-        "flex items-center gap-3 py-2 transition-opacity duration-200",
+        PRESS.row,
+                "-mx-2 flex items-center gap-3 rounded-xl px-2 py-2 transition-opacity duration-200",
         // A logged row reads as done — the whole row dims (A3); the filled tick
         // stays the one bright mark.
         log && "opacity-60"
@@ -626,7 +629,8 @@ function DoseRow({
         onClick={() => (log ? onUnlog(dose, 0) : onLog(dose, 0))}
         aria-label={log ? `Untick ${dose.name}` : `Log ${dose.name}`}
         className={cn(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
+          PRESS.tick,
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
           log?.status === "skipped"
             ? "border-border-strong text-text-muted"
             : log
@@ -655,7 +659,7 @@ function DoseRow({
         <button
           type="button"
           onClick={() => onOpenDetail(dose)}
-          className="block w-full min-w-0 text-left"
+          className={cn(PRESS.rowPart, "block w-full min-w-0 text-left")}
         >
           <span className="block truncate text-sm font-medium text-foreground">
             {dose.name}
@@ -665,7 +669,7 @@ function DoseRow({
           <button
             type="button"
             onClick={() => onOpenDetail(dose)}
-            className="min-w-0 shrink truncate text-left font-mono text-xs tabular-nums text-text-muted"
+            className={cn(PRESS.rowPart, "min-w-0 shrink truncate text-left font-mono text-xs tabular-nums text-text-muted")}
           >
             {/* Once logged, show the amount, unit and time you ACTUALLY logged —
                 not the current plan — so an edited or historical dose reads back
@@ -699,7 +703,7 @@ function DoseRow({
         type="button"
         onClick={() => onOpenDetail(dose)}
         aria-label={`Edit ${dose.name}`}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary"
+        className={cn(PRESS.rowPart, "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary")}
       >
         <DotsThree className="h-5 w-5" aria-hidden />
       </button>
@@ -1077,7 +1081,8 @@ function StackDoseRow({
           2026-07-31). The filled tick stays the one bright mark. */}
       <div
         className={cn(
-          "flex items-center gap-3 px-1 py-2 transition-opacity duration-200",
+          PRESS.row,
+          "-mx-1 flex items-center gap-3 rounded-xl px-2 py-2 transition-opacity duration-200",
           complete && "opacity-60"
         )}
       >
@@ -1107,7 +1112,7 @@ function StackDoseRow({
             aria-label={`Untick the ${unlogTargets.length} logged ${
               unlogTargets.length === 1 ? "dose" : "doses"
             } in ${stack.name}`}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base transition-all duration-200 ease-out active:scale-90"
+            className={cn(PRESS.tick, "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base transition-all duration-200 ease-out")}
           >
             <Check className="h-3.5 w-3.5" aria-hidden />
           </button>
@@ -1131,7 +1136,8 @@ function StackDoseRow({
                 : `Log all of ${stack.name}`
             }
             className={cn(
-              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out active:scale-90",
+              PRESS.tick,
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
               // Partway through reads as partway through: the ring goes white
               // (the settled accent) without filling, rather than jumping
               // straight to done. NOT the stack's own colour — `colour` is in
@@ -1151,7 +1157,7 @@ function StackDoseRow({
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           tabIndex={-1}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          className={cn(PRESS.rowPart, "flex min-w-0 flex-1 items-center gap-3 text-left")}
         >
           <span className="flex items-end gap-1">
             {members.map((m) => (
@@ -1184,7 +1190,7 @@ function StackDoseRow({
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-label={`${open ? "Hide" : "Show"} the compounds in ${stack.name}`}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-text-primary active:scale-90"
+          className={cn(PRESS.rowPart, "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-text-primary")}
         >
           <CaretDown
             aria-hidden

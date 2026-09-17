@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useRef, useState, type ComponentType } from "react"
 import { Warning } from "@/components/icons"
 
 /**
@@ -42,13 +42,23 @@ export function useAmberNotice(durationMs = 3200) {
   return { notice, show, dismiss }
 }
 
-/** Presentational — renders the current notice (or nothing). Pure. */
+/**
+ * Presentational — renders the current notice (or nothing). Pure.
+ *
+ * `icon` defaults to the `Warning` glyph, which means "a problem". A
+ * CONFIRMATION ("Weight logged: 85.2 kg") passes `icon={null}`: the same
+ * drop-down, blur and amber outline, with no glyph, announced politely rather
+ * than as an alert (feel pass §9). Adrian rejected a tick there, so there is no
+ * success glyph to reach for.
+ */
 export function AmberNotice({
   notice,
   onDismiss,
+  icon: Icon = Warning,
 }: {
   notice: Notice | null
   onDismiss?: () => void
+  icon?: ComponentType<{ className?: string; "aria-hidden"?: boolean }> | null
 }) {
   if (!notice) return null
   return (
@@ -60,13 +70,12 @@ export function AmberNotice({
         key={notice.id}
         type="button"
         onClick={onDismiss}
-        role="alert"
+        role={Icon ? "alert" : "status"}
         className="animate-notice-in pointer-events-auto flex max-w-md items-center gap-2.5 rounded-2xl border border-accent-amber/40 bg-bg-surface-raised/95 px-4 py-3 text-left text-sm text-foreground shadow-lg backdrop-blur"
       >
-        <Warning
-          className="h-4 w-4 shrink-0 text-accent-amber"
-          aria-hidden
-        />
+        {Icon ? (
+          <Icon className="h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
+        ) : null}
         <span className="min-w-0">{notice.text}</span>
       </button>
     </div>

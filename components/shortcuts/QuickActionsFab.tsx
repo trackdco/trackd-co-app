@@ -7,7 +7,7 @@ import { Plus } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { PRESS } from "@/lib/ui-presets"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
-import { AddWeightSheet } from "@/components/home/AddWeightSheet"
+import { LogWeightPad } from "@/components/weight/LogWeightPad"
 import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
 import {
   QUICK_ACTIONS,
@@ -25,6 +25,8 @@ interface QuickActionsFabProps {
   unit: WeightUnit
   /** Forwarded to the quick log-dose flow's body map (which figure to draw). */
   bodySex: BodySex
+  /** The latest weigh-in (kg), which Log weight opens on, selected. */
+  lastWeightKg?: number | null
 }
 
 /** Keep in step with `--motion-fast` — the JS unmount must outlast the CSS exit. */
@@ -72,7 +74,12 @@ const prefersReducedMotion = () =>
  * Rendered once by the (app) shell, so it appears on exactly the screens that
  * show the bottom nav.
  */
-export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps) {
+export function QuickActionsFab({
+  userId,
+  unit,
+  bodySex,
+  lastWeightKg = null,
+}: QuickActionsFabProps) {
   const router = useRouter()
   const { canWrite, guard } = useWriteAccess()
   const fabRef = useRef<HTMLButtonElement>(null)
@@ -338,12 +345,12 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
       {/* "Add a compound" → the existing, unchanged Add-to-Stack flow. */}
       <AddToStackMenu open={addOpen} onOpenChange={setAddOpen} userId={userId} />
 
-      {/* "Weight" → quick log of today's bodyweight + optional progress photos. */}
-      <AddWeightSheet
+      {/* "Weight" → the number pad, on the last weight (feel pass §3). */}
+      <LogWeightPad
         open={weightOpen}
         onOpenChange={setWeightOpen}
         unit={unit}
-        userId={userId}
+        lastKg={lastWeightKg}
       />
 
     </>
