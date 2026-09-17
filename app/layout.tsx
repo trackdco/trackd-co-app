@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { IconProvider } from "@/components/providers/icon-provider";
 import { AppleSplashLinks } from "@/components/pwa/apple-splash-links";
+import { PressFeedback } from "@/components/feel/PressFeedback";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -101,6 +102,9 @@ export default async function RootLayout({
 
         {/* Phosphor stroke weight is set once here for every icon in the app. */}
         <IconProvider>{children}</IconProvider>
+        {/* The press system's one listener (feel pass §2). Renders nothing; a
+            screen opts in per element with a `press-*` class. */}
+        <PressFeedback />
       </body>
     </html>
   );

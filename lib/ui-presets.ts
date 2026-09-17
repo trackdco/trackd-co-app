@@ -142,12 +142,15 @@ export const STOCK_PILL_OFF =
  *
  * `--accent-primary` on `--bg-base` text, not a colour of its own — see
  * `ui-context.md`.
+ *
+ * Its press is the shared system's `button` variant (feel pass §2). It carried
+ * `active:scale-[0.99]`, which SNAPPED: only opacity was transitioned, and iOS
+ * applies `:active` too late for a quick tap to show it at all.
  */
 export const PRIMARY_BUTTON =
-  "flex items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 py-3 " +
+  "press-button flex items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 py-3 " +
   "text-sm font-medium text-bg-base transition-opacity hover:opacity-90 " +
-  "active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 " +
-  "motion-reduce:active:scale-100"
+  "disabled:pointer-events-none disabled:opacity-50"
 
 /**
  * IN-PLACE EDITING — the committed-state action bar (Adrian, 2026-09-03).
@@ -239,3 +242,49 @@ export const DROPUP_TRIGGER =
  */
 export const DROPUP_COUNT =
   "shrink-0 font-mono text-[9px] tracking-[0.08em] transition-colors"
+
+/* ------------------------------------------------------------ press (§2) --- */
+
+/**
+ * THE PRESS SYSTEM (feel pass, wave 3 §2). Add one of these to anything you can
+ * tap and `components/feel/PressFeedback.tsx` gives it a visible press: held at
+ * least 110ms, so a quick tap still lands; dropped at once on a scroll.
+ *
+ * - `card` / `button`: scale 0.97, opacity 0.85 (waits 45ms)
+ * - `row`: scale 0.97 on a raised surface (waits 45ms). Parts of a row that
+ *   should press the WHOLE row carry `PRESS.rowPart`; its tick keeps its own.
+ * - `text` (Cancel, Track): opacity 0.45
+ * - `icon`: scale 0.9 on a raised round backdrop
+ * - `tick`: scale 0.86
+ * - `tab`: scale 0.92, opacity 0.7
+ * - `fab`: scale 0.92
+ * - `day` (week strip): scale 0.92 on a raised surface (waits 45ms)
+ * - `field`: scale 0.98
+ * - `pill`: scale 0.94, opacity 0.8
+ * - `key` (number pad): scale 0.95 on `--bg-input`
+ *
+ * Reduced motion keeps the dim and the surface and drops the scale. Never add
+ * an `active:scale-*` beside one of these: `:active` is the thing this
+ * replaces.
+ */
+export const PRESS = {
+  card: "press-card",
+  button: "press-button",
+  row: "press-row",
+  rowPart: "press-row-part",
+  text: "press-text",
+  icon: "press-icon",
+  tick: "press-tick",
+  tab: "press-tab",
+  fab: "press-fab",
+  day: "press-day",
+  field: "press-field",
+  pill: "press-pill",
+  key: "press-key",
+} as const
+
+/**
+ * A section of a bottom sheet rising in as the sheet lands (feel pass §4).
+ * Set `--rise-i` (0, 1, 2 …) inline for the 40ms stagger.
+ */
+export const SHEET_RISE = "animate-sheet-rise shrink-0"

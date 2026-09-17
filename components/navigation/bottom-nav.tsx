@@ -13,6 +13,7 @@ import {
 } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { PRESS } from "@/lib/ui-presets"
 
 type Tab = {
   href: string
@@ -45,6 +46,7 @@ function NavTab({ href, label, icon: Icon, active }: Tab & { active: boolean }) 
       aria-current={active ? "page" : undefined}
       // Gray → white fade on selection — the tab bar stays monochrome (per ui-context).
       className={cn(
+        PRESS.tab,
         "flex flex-col items-center justify-center gap-1 py-1 transition-colors duration-300 ease-out",
         active ? "text-foreground" : "text-text-subtle"
       )}

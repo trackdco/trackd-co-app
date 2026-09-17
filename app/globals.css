@@ -206,6 +206,18 @@
   --motion-base: 240ms; /* the default — cross-fades, colour/state changes */
   --motion-slow: 320ms; /* staggered entrances (.animate-shortcut-in) */
   --motion-ease: cubic-bezier(0.16, 1, 0.3, 1); /* the house ease-out */
+  /* The press system (feel pass §2): in fast, out on the release scale. */
+  --motion-press-in: 70ms;
+  --motion-press-out: 180ms;
+
+  /* Loading skeletons (feel pass §1). The block is the raised surface; the
+     ghost graph's line sits a step lighter so the curve reads as a curve. */
+  --skeleton: var(--bg-surface-raised);
+  --skeleton-line: color-mix(in srgb, var(--border-default) 60%, var(--border-strong));
+
+  /* The number pad's scrim: lighter than a sheet's, because the form behind it
+     is still the thing being filled in (feel pass §3). */
+  --pad-scrim: rgba(0, 0, 0, 0.42);
 
   /* ---- shadcn/ui semantic aliases → mapped onto the Trackd palette ---- */
   --background: var(--bg-base);
@@ -2393,6 +2405,260 @@ body[data-inline-edit="true"] .shortcuts-layer {
 @media (prefers-reduced-motion: reduce) {
   .animate-date-pop,
   .animate-date-value {
+    animation: none;
+  }
+}
+
+/* ===========================================================================
+   FEEL PASS (wave 3) — press, sliding thumbs, skeletons, sheet contents.
+   Adrian approved every section through six prototype rounds (2026-09-17).
+   The brief is `Context/Feature Specs/wave 3/feel-pass.md`; ui-context.md →
+   Motion & Interaction carries the rules.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   PRESS (§2). `components/feel/PressFeedback.tsx` puts `data-pressed` on a
+   `press-<variant>` element while it is touched, then `data-press-release` for
+   the way back. Press-in is 70ms and release 180ms, both on the house ease.
+
+   UNLAYERED on purpose: these must beat the Tailwind utilities on the same
+   element (a pill's `transition-colors`, a key's `bg-*`). The transition list
+   is only overridden during the press window, and it carries colour and border
+   at 300ms so a pill that changes colour on the same tap still fades.
+
+   `scale`, not `transform`: the individual property composes with any
+   transform the element already has (a sliding track, a sheet) instead of
+   replacing it.
+   --------------------------------------------------------------------------- */
+:is(
+    .press-card,
+    .press-button,
+    .press-row,
+    .press-text,
+    .press-icon,
+    .press-tick,
+    .press-tab,
+    .press-fab,
+    .press-day,
+    .press-field,
+    .press-pill,
+    .press-key
+  )[data-pressed] {
+  transition-property: scale, opacity, background-color, color, border-color;
+  transition-duration:
+    var(--motion-press-in), var(--motion-press-in), var(--motion-press-in), 300ms, 300ms;
+  transition-timing-function:
+    var(--motion-ease), var(--motion-ease), var(--motion-ease), ease-out, ease-out;
+}
+
+[data-press-release] {
+  transition-property: scale, opacity, background-color, color, border-color;
+  transition-duration:
+    var(--motion-press-out), var(--motion-press-out), var(--motion-press-out), 300ms, 300ms;
+  transition-timing-function:
+    var(--motion-ease), var(--motion-ease), var(--motion-ease), ease-out, ease-out;
+}
+
+.press-card[data-pressed],
+.press-button[data-pressed] {
+  scale: 0.97;
+  opacity: 0.85;
+}
+.press-row[data-pressed] {
+  scale: 0.97;
+  background-color: var(--bg-surface-raised);
+}
+.press-text[data-pressed] {
+  opacity: 0.45;
+}
+.press-icon[data-pressed] {
+  scale: 0.9;
+  background-color: var(--bg-surface-raised);
+}
+.press-tick[data-pressed] {
+  scale: 0.86;
+}
+.press-tab[data-pressed] {
+  scale: 0.92;
+  opacity: 0.7;
+}
+.press-fab[data-pressed] {
+  scale: 0.92;
+}
+.press-day[data-pressed] {
+  scale: 0.92;
+  background-color: var(--bg-surface-raised);
+}
+.press-field[data-pressed] {
+  scale: 0.98;
+}
+.press-pill[data-pressed] {
+  scale: 0.94;
+  opacity: 0.8;
+}
+.press-key[data-pressed] {
+  scale: 0.95;
+  background-color: var(--bg-input);
+}
+
+/* Under reduced motion the press keeps its dim and its surface, and loses the
+   scale. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="press-"][data-pressed] {
+    scale: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   SLIDING THUMB (§6). `components/feel/SlidingThumb.tsx` measures the selected
+   pill and moves this surface to it. The thumb IS the selection: a selected
+   pill in a thumb group carries no background of its own.
+
+   Layered (components), so a pill's own positioning utility still wins.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .pill-thumb {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    z-index: 0;
+    pointer-events: none;
+    transition:
+      left 300ms ease-out,
+      top 300ms ease-out,
+      width 300ms ease-out,
+      height 300ms ease-out,
+      opacity 200ms ease-out;
+  }
+  .thumb-group > :not(.pill-thumb) {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill-thumb {
+    transition: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   SKELETONS (§1). The "wave": opacity 0.5 → 1 → 0.5 over 1.9s, each block
+   delayed by its row (`--i`, one row per 70px, 110ms apart), so the breath
+   travels down the page. The ONE sanctioned loop outside /onboarding, and only
+   while something is loading.
+
+   The group fades in over 320ms without moving. When the data lands the group
+   fades out over 240ms where it stood (`.sk-leaving`, absolutely positioned
+   over the content) while the content rises through it.
+   --------------------------------------------------------------------------- */
+.sk {
+  background-color: var(--skeleton);
+  animation: sk-wave 1.9s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 110ms);
+}
+.sk:has(> svg) {
+  background-color: transparent;
+}
+.sk-wrap {
+  animation: sk-in var(--motion-slow) ease-out both;
+}
+.sk-leaving {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  pointer-events: none;
+  animation: sk-out var(--motion-base) ease-out forwards;
+}
+
+/* Home's week strip while the log is unknown: the dates and day names wave
+   with the page, and the status dots wait and fade in with the data. */
+[data-week-loading="true"] .week-figure {
+  animation: sk-wave 1.9s ease-in-out infinite;
+}
+.week-dot {
+  transition: opacity 300ms ease-out;
+}
+[data-week-loading="true"] .week-dot {
+  opacity: 0;
+}
+
+@keyframes sk-wave {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  45% {
+    opacity: 1;
+  }
+}
+@keyframes sk-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sk-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk,
+  .sk-wrap,
+  [data-week-loading="true"] .week-figure {
+    animation: none;
+  }
+  .sk {
+    opacity: 0.75;
+  }
+  /* It animates TO invisible, so without motion it must not show at all. */
+  .sk-leaving {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   SHEETS: LAND, THEN RISE (§4). The sheet itself keeps the house timing (320ms
+   in, 240ms out, `components/ui/sheet.tsx`). Its sections fade up 10px over
+   320ms, starting at 140ms and 40ms apart, so they arrive as the sheet lands.
+   Set `--rise-i` per section.
+
+   In a flex-column scroll body every section also needs `shrink-0`: a card
+   with `overflow: hidden` otherwise gets squashed to half its height.
+   --------------------------------------------------------------------------- */
+.animate-sheet-rise {
+  animation: sheet-rise var(--motion-slow) var(--motion-ease) both;
+  animation-delay: calc(140ms + var(--rise-i, 0) * 40ms);
+}
+@keyframes sheet-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Late data fades into space that was already reserved for it. */
+.animate-late-in {
+  animation: shortcut-fade var(--motion-base) ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-rise,
+  .animate-late-in {
     animation: none;
   }
 }

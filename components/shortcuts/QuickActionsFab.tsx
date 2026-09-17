@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { PRESS } from "@/lib/ui-presets"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddWeightSheet } from "@/components/home/AddWeightSheet"
 import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
@@ -310,7 +311,10 @@ export function QuickActionsFab({ userId, unit, bodySex }: QuickActionsFabProps)
           aria-expanded={open}
           aria-haspopup="dialog"
           aria-label={open ? "Close quick actions" : "Open quick actions"}
-          className="pointer-events-auto absolute right-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg transition-transform active:scale-95"
+          className={cn(
+            PRESS.fab,
+            "pointer-events-auto absolute right-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg",
+          )}
           style={{ bottom: FAB_BOTTOM }}
         >
           <Plus
@@ -362,7 +366,10 @@ function ActionTile({
       ref={ref}
       type="button"
       onClick={onPress}
-      className="flex min-h-11 flex-col items-center justify-start gap-2 rounded-2xl p-1 text-center transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input active:bg-bg-input"
+      className={cn(
+        PRESS.card,
+        "flex min-h-11 flex-col items-center justify-start gap-2 rounded-2xl p-1 text-center transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input",
+      )}
     >
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-bg-input text-foreground">
         <Icon className="h-5 w-5" aria-hidden />
