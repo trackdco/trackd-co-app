@@ -644,6 +644,12 @@ keep the system controls.
   tucks under the title bar, which shows while pinned), and while the pad is
   open the misuse warning folds into one amber line beside the figure, so the
   results card stays above the pad on an SE.
+- **The pad is the APP's rule, not the public site's.** The landing page's free
+  calculator and its features widget share `CalculatorInputs`, and they pass
+  change handlers instead of the pad's props, which renders plain inputs with
+  the system keyboard: someone who has never seen Trackd should get the
+  keyboard their phone gives them. Open for Adrian: whether the public
+  calculator should use the pad too.
 - **"Amount left" is not on the add-compound pad's chain** (Adrian, 18 Sep).
   The chips there are what the container HOLDS, and Next ends on the last
   amount. Someone who knows a vial is part used taps the field, which opens a
