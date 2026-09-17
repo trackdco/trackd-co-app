@@ -94,13 +94,12 @@ Live and deliberately incomplete: the reviews section is HIDDEN on production
 
 - [ ] **⚠️ ADRIAN: the offloaded files in `trackd-co-app`.** Finder, right-click
       the GitHub folder, "Keep Downloaded". It is not only `node_modules`
-      (28,129 files): `.git` has offloaded files too, including the reflog
-      `.git/logs/refs/remotes/origin/main`. This merge moved `origin/main`,
-      so **a `git fetch` in any checkout of this repo now hangs** at 0% CPU
-      until that file downloads (`brctl download` did not shift it). A fetch
-      started at 14:03 on 2026-09-17 was still stuck and holding
-      `.git/refs/remotes/origin/main.lock`; if that lock is still there with no
-      `git fetch` running, it is stale and safe to delete.
+      (28,129 files): `.git` has offloaded files too (64 reflogs and two pack
+      files on 2026-09-17). A git command that needs one sits at 0% CPU until
+      iCloud gets round to it: the fetch after this merge had to append to the
+      offloaded `origin/main` reflog and waited ~10 minutes, holding
+      `refs/remotes/origin/main.lock`, before it finished on its own.
+      `find .git -flags +dataless` shows what is still in the cloud.
 - [ ] **⚠️ ADRIAN ASKED TO BE REMINDED: the copy pass over the whole page**, and
       his own founders' letter. The hero lines are his to settle.
 - [ ] **Real testimonials** (with permission) to replace the four invented ones

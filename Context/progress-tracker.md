@@ -47,9 +47,11 @@ are in the footer; no "Trackd.co"; no sideways scroll; `/start` opens on Kyle
 waving and "Let's go" reaches "What's your name?"; `/terms`, `/privacy`,
 `/medical-disclaimer` and `/consumer-health-data` all load signed out.
 
-**⚠️ Found on the way out: `git fetch` hangs on this repo now.** The reflog
-`.git/logs/refs/remotes/origin/main` is an iCloud placeholder, and a fetch that
-moves `origin/main` has to append to it. See `next-tasks.md`.
+**⚠️ Found on the way out: `.git` is partly in iCloud too.** The fetch after
+the merge had to append to an offloaded reflog and stalled for ~10 minutes
+before iCloud delivered it; 64 reflogs and two pack files are still offloaded.
+The docs commit was made from a clone under `/private/tmp` instead. See
+`next-tasks.md`.
 
 **Still Adrian's:** listed in `next-tasks.md` (the copy pass, real
 testimonials, the comparison rows, the privacy answer, the calculator modal
