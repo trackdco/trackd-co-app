@@ -16,7 +16,7 @@ import {
 } from "@stripe/react-stripe-js";
 
 import { CircleNotch } from "@/components/icons";
-import { startTrial } from "@/app/onboarding/billing-actions";
+import { startTrial } from "@/app/start/billing-actions";
 import type { PlanId } from "@/lib/onboarding/pricing";
 import type { IntentKind } from "@/lib/billing/stripe";
 
@@ -449,7 +449,7 @@ function PaymentForm({
           // The CARD screen, not the paywall. Payment moved to its own step,
           // and coming back to the price list someone has just paid on is
           // precisely what the spec forbids.
-          return_url: `${window.location.origin}/onboarding?step=start`,
+          return_url: `${window.location.origin}/start?step=start`,
         },
         // Keep the user on THIS page wherever the bank allows it. The spec's
         // rule is that they never leave for a stripe.com domain, and most 3DS

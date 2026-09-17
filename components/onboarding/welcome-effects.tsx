@@ -13,7 +13,7 @@ import { Mascot } from "./mascot";
  * The greeting is the payoff for the three questions before it — it is the
  * first moment the flow uses something the user gave it — so it is worth more
  * than a fade. One of these ships and the rest are deleted with the harness at
- * `/onboarding/welcome-effects`.
+ * `/start/welcome-effects`.
  *
  * Every one is ONE-SHOT. `ui-context.md` bans ambient motion, and a greeting
  * still moving after you have read it is exactly that. Every one also collapses

@@ -127,6 +127,75 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["@phosphor-icons/react"],
   },
 
+  /**
+   * THE QUIZ MOVED FROM `/onboarding` TO `/start` (spec 3-02, step 2), and this
+   * is what keeps every address that ever pointed at it working.
+   *
+   * The move is a pure rename: `app/onboarding/` became `app/start/` with its
+   * contents unchanged. But the OLD address is not ours to retire. It is sitting
+   * in shared links, in bookmarks, in the `return_url` of Stripe intents that
+   * were created before this deploy and will redirect back AFTER it, and in the
+   * `?next=` of auth round-trips already in flight. All of those have to land on
+   * the quiz, on the right step.
+   *
+   * ## Why `redirects()` here and not the proxy or a route file
+   *
+   * `redirecting.md` gives three mechanisms. This is the one for "the URL
+   * structure changed and the new location is known ahead of time":
+   *
+   *   - **`redirects()` (this)** — matched before the filesystem and BEFORE the
+   *     proxy, so it costs no render and no Supabase session refresh. `permanent:
+   *     true` is a 308, which unlike a 301 PRESERVES THE REQUEST METHOD, and
+   *     query values are carried to the destination automatically: *"When a
+   *     redirect is applied, any query values provided in the request will be
+   *     passed through to the redirect destination."* That is the `?step=` the
+   *     whole flow is addressed by, and it is why nothing here has to rebuild a
+   *     query string by hand.
+   *   - **Proxy (`proxy.ts`)** — for redirects decided by a CONDITION (auth,
+   *     session) or for thousands of rules read from a store. This is neither. It
+   *     would also put a static rename inside the file whose one job is
+   *     refreshing the Supabase session, and run it on every matched request.
+   *   - **A route file calling `permanentRedirect()`** — would mean re-creating
+   *     `app/onboarding/` as a stub the moment we finished deleting it, plus a
+   *     catch-all segment, and `permanentRedirect` takes a URL string, so the
+   *     `?step=` would have to be read out of `searchParams` and re-serialised by
+   *     hand. More code, a render per hit, and a new way to get the query wrong.
+   *
+   * ## ⚠️ WHY THREE EXPLICIT SOURCES AND NOT `/onboarding/:path*`
+   *
+   * The wildcard is the obvious spelling and it is WRONG HERE, because
+   * `redirects.md` states that *"Redirects are checked before the filesystem
+   * which includes pages and `/public` files."* `public/onboarding/` is a real
+   * and heavily-used asset directory — Kyle's two renders, the app carousel
+   * screenshots, the progress photos, and the nineteen `install/<flow>/NN.webp`
+   * walkthrough frames. A wildcard would match every one of those, 308 them to
+   * `/start/...` where no file exists, and turn the install walkthrough and the
+   * mascot into broken images. The assets are STATIC FILES that merely share a
+   * prefix with the old route; they are not moving and must not be rewritten.
+   *
+   * So each of the three addresses that ever served HTML under `/onboarding` is
+   * listed by name. That is the complete set — the route tree held `page.tsx`,
+   * `cost/page.tsx` and `welcome-effects/page.tsx` and nothing else. (The
+   * long-deleted `/onboarding/payoff` is deliberately absent: it 404s today and
+   * would 404 at `/start/payoff` too, so a redirect would only launder a 404 into
+   * a slower one.)
+   */
+  async redirects() {
+    return [
+      // The flow itself. Carries `?step=` through untouched, which is what makes
+      // a pre-move Stripe `return_url` and a shared deep link still land right.
+      { source: "/onboarding", destination: "/start", permanent: true },
+      // The two review harnesses. Both 404 in production by their own
+      // `VERCEL_ENV` check; these keep the PREVIEW links in Adrian's notes alive.
+      { source: "/onboarding/cost", destination: "/start/cost", permanent: true },
+      {
+        source: "/onboarding/welcome-effects",
+        destination: "/start/welcome-effects",
+        permanent: true,
+      },
+    ];
+  },
+
   // Cross-origin posture (CORS review, Spec 13 §2.5):
   //  - CORS itself is safe by DEFAULT. The app exposes no JSON API for other
   //    origins — all data flows through Server Components + Server Actions (the

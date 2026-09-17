@@ -9,31 +9,30 @@ import { resolveStepId, stepMeta, type StepId } from "@/lib/onboarding/steps";
 import { onboardingDates } from "@/lib/onboarding/flowEntryDates";
 
 /**
- * ⚠️ THIS CARRIES THE SITE'S PUBLIC IDENTITY NOW, because `/` redirects here.
+ * ⚠️ THE SITE'S PUBLIC IDENTITY HAS MOVED BACK TO `app/page.tsx` (spec 3-02).
  *
- * The `openGraph` block below was on `app/page.tsx` while that route rendered a
- * landing screen of its own. Now that it redirects, a crawler or a link
- * unfurler following trackdco.app lands on THIS metadata — and without the move
- * every shared link would have lost its title card and its description.
+ * This block used to carry it, because `/` did nothing but redirect here and a
+ * crawler or a link unfurler following trackdco.app landed on this metadata.
+ * `/` now renders a real landing page, so it owns the site title, the
+ * description and the openGraph card again — and the note that used to sit here
+ * said exactly that: if `/` ever renders something again, the two have to be
+ * reconciled rather than both claiming to be the site.
  *
- * If `/` ever renders something again, this and that have to be reconciled
- * rather than both claiming to be the site.
+ * What is left is metadata for THIS page and nothing wider. No `openGraph`
+ * block: a share of `/start` should unfurl as the site, which it now does by
+ * inheriting the root. `robots` keeps the quiz out of the index, because the
+ * page a search result should land on is the one that explains the product,
+ * and a half-finished quiz step is not it.
  */
 export const metadata: Metadata = {
-  title: "Trackd Co · Track the whole protocol",
+  title: "Start tracking",
   description:
-    "Everything you're running, in one place you'll actually open. A private, founder-led app built by people who run real protocols.",
-  openGraph: {
-    title: "Trackd Co · Track the whole protocol",
-    description: "Everything you're running, in one place you'll actually open.",
-    type: "website",
-    url: "https://trackdco.app",
-    siteName: "Trackd Co",
-  },
+    "Set up your protocol in a few minutes. Seven days free, and you can cancel before you are charged.",
+  robots: { index: false, follow: true },
 };
 
 /**
- * `/onboarding` — the first-run flow (Spec 3-01, amended by Spec w2b-14).
+ * `/start` — the first-run flow (Spec 3-01, amended by Spec w2b-14).
  *
  * PUBLIC AND ANONYMOUS FOR MOST OF ITS LENGTH, by design. It sits OUTSIDE the
  * `app/(app)/` route group on purpose: that group's layout is the auth +
@@ -124,7 +123,7 @@ export default async function OnboardingPage({
     /**
      * ⚠️ A SIGNED-OUT VISITOR KEEPS THEIR DESTINATION.
      *
-     * This used to send them to a bare `/onboarding`, which is the landing
+     * This used to send them to a bare `/start`, which is the landing
      * page, and Adrian hit it on the route that matters most: Chrome's share
      * sheet hands Safari the exact URL, Safari has its own cookie jar and no
      * session, and the install step turned into "take your protocol out of
@@ -136,9 +135,9 @@ export default async function OnboardingPage({
      * regardless.
      */
     if (!signedIn) {
-      redirect(`/login?next=${encodeURIComponent(`/onboarding?step=${requested}`)}`);
+      redirect(`/login?next=${encodeURIComponent(`/start?step=${requested}`)}`);
     }
-    redirect("/onboarding?step=account");
+    redirect("/start?step=account");
   }
 
   // A gated user has nothing left to do on the account screen, and showing a
@@ -245,8 +244,8 @@ export default async function OnboardingPage({
  * `new URLSearchParams(location.search).get("step")`, which returns the FIRST
  * value. So:
  *
- *     GET /onboarding?step=plans            -> 307 /onboarding
- *     GET /onboarding?step=plans&step=plans -> 200, the price list renders
+ *     GET /start?step=plans            -> 307 /start
+ *     GET /start?step=plans&step=plans -> 200, the price list renders
  *
  * with no cookies at all. One duplicated parameter walked past the whole of
  * §Route protection, and it is the assumption spec w2b-15 mounts a payment

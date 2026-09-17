@@ -105,7 +105,38 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: no code between createServerClient and getClaims.
   // This refreshes the session and writes any new auth cookies via setAll.
-  await supabase.auth.getClaims()
+  const { data } = await supabase.auth.getClaims()
+
+  /**
+   * ⚠️ THE ONE REDIRECT THIS FILE PERFORMS, AND IT DECIDES NO ACCESS (spec 3-02).
+   *
+   * `/` is a PUBLIC MARKETING PAGE now, and it is statically rendered, so it
+   * cannot look at the session itself: a page that reads cookies opts its route
+   * out of static rendering, and being static is exactly what makes the front
+   * door cheap for a stranger arriving from a link. Somebody who is already
+   * signed in should still land in the app rather than on the sales pitch, and
+   * this is the only place that knows both of those things at once.
+   *
+   * It is NOT a guard, and nothing here grants access. `app/(app)/layout.tsx`
+   * still performs the authoritative `getUser()` check, so a stale or forged
+   * cookie that gets someone sent to `/dashboard` from here is turned away
+   * there exactly as it was before. The worst this can do is cost somebody one
+   * hop they did not need.
+   *
+   * ⚠️ A NEW RESPONSE, SO THE COOKIES ARE CARRIED OVER BY HAND. The invariant
+   * at the top of this file is that whatever `setAll` wrote must reach the
+   * browser, or the browser and server sessions desync. If a token refresh
+   * landed on this request, its new cookies are on `supabaseResponse`, and
+   * `NextResponse.redirect` is a different object: dropping them would sign the
+   * user out on the way to the page we are sending them to.
+   */
+  if (data?.claims && request.nextUrl.pathname === '/') {
+    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie)
+    })
+    return redirectResponse
+  }
 
   return supabaseResponse
 }

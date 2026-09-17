@@ -17,9 +17,9 @@ import {
   trim,
   type MgUnit,
 } from "@/lib/calculator/recon"
+import { CALCULATOR_DISCLAIMER, misuseCopy } from "@/lib/calculator/copy"
 import {
   DEFAULT_SYRINGE_SIZE,
-  MIN_READABLE_UNITS,
   fillFraction,
   misuseKind,
   syringeSize,
@@ -34,17 +34,6 @@ import {
 import { CalculatorInputs } from "./CalculatorInputs"
 import { FirstRunDisclaimer } from "./FirstRunDisclaimer"
 import { SyringeGraphic } from "./SyringeGraphic"
-
-/**
- * PERMANENT disclaimer. Legal copy: do not reword without asking Adrian first
- * (spec 07, Out of Scope). Shown on every visit, and NOT replaced by the
- * first-run modal.
- */
-const DISCLAIMER =
-  "This is a calculator, not a dosing instruction. It does only arithmetic on " +
-  "the numbers you enter and may be wrong. Re-check every figure and confirm it " +
-  "against your physical product before drawing or injecting anything. Do not " +
-  "rely on this output alone."
 
 /** The app-wide "no value" placeholder (Profile, Weight, the day sheet). */
 const NO_VALUE = "—"
@@ -368,14 +357,16 @@ export function ReconCalculator() {
         </div>
       </section>
 
-      {/* ---- Permanent disclaimer. Legal copy, unchanged. ---- */}
+      {/* ---- Permanent disclaimer. Legal copy, unchanged; it now lives in
+              `lib/calculator/copy.ts` so the public calculator quotes the same
+              words. ---- */}
       <div
         data-area="calc-legal"
         className={cn("animate-home-up", AMBER_PANEL)}
         style={{ animationDelay: "160ms" }}
       >
         <Warning className={AMBER_PANEL_ICON} aria-hidden />
-        <p className={AMBER_PANEL_TEXT}>{DISCLAIMER}</p>
+        <p className={AMBER_PANEL_TEXT}>{CALCULATOR_DISCLAIMER}</p>
       </div>
     </div>
   )
@@ -412,23 +403,4 @@ function Figure({
       </p>
     </div>
   )
-}
-
-/**
- * Both conditions say the same thing: re-check the figures. Neither blocks, and
- * neither judges the dose — they judge whether the number can be drawn off the
- * barrel that is selected.
- */
-function misuseCopy(
-  kind: "under" | "over",
-  units: number | null,
-  sizeLabel: string,
-  sizeId: string,
-): string {
-  if (kind === "under") {
-    return `That is under ${MIN_READABLE_UNITS} units, too little to read off a syringe accurately. Check the figures you entered.`
-  }
-  const drawn = units != null ? `${trim(units, 1)} units` : "That"
-  const larger = sizeId === "1" ? "" : ", or pick a larger syringe"
-  return `${drawn} will not fit a ${sizeLabel} syringe. Check the figures you entered${larger}.`
 }

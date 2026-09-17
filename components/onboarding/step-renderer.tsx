@@ -10,13 +10,13 @@ import { CostScreen } from "./screens/cost";
 import { DemoScreen } from "./screens/demo";
 import { FreeScreen } from "./screens/free";
 import { GreetingScreen } from "./screens/greeting";
-import { HookScreen } from "./screens/hook";
 import {
   BirthdayScreen,
   GenderScreen,
   NameScreen,
 } from "./screens/housekeeping";
 import { InstallScreen } from "./screens/install";
+import { IntroScreen } from "./screens/intro";
 import { LetterScreen } from "./screens/letter";
 import { NotificationsScreen } from "./screens/notifications";
 import { PaywallScreen } from "./screens/paywall";
@@ -29,7 +29,9 @@ import { WelcomeScreen } from "./screens/welcome";
  * it (an exhaustive map cannot be partially filled).
  */
 const SCREENS: Record<StepId, () => React.ReactElement> = {
-  hook: HookScreen,
+  // The `hook` id now renders the introduction (Adrian, 2026-09-17): the
+  // notes-app pitch it used to carry lives on the landing page at `/`.
+  hook: IntroScreen,
   name: NameScreen,
   birthday: BirthdayScreen,
   gender: GenderScreen,

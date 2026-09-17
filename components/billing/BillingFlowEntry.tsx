@@ -5,19 +5,19 @@ import { getSessionContext } from "@/lib/auth";
 import { loginWithDestination } from "@/lib/auth/destination";
 import { loadPricesSafe } from "@/lib/billing/prices";
 import { onboardingDates } from "@/lib/onboarding/flowEntryDates";
-import { trialEligibility } from "@/app/onboarding/billing-actions";
+import { trialEligibility } from "@/app/start/billing-actions";
 import type { StepId } from "@/lib/onboarding/steps";
 
 /**
  * THE BILLING-SIDE ENTRY INTO THE PLAN AND CARD SCREENS.
  *
  * Mounted by `/plans` and `/checkout` — the routes a person with an ACCOUNT
- * reaches from `/billing`, as opposed to `/onboarding?step=`, which is for
+ * reaches from `/billing`, as opposed to `/start?step=`, which is for
  * somebody still signing up.
  *
  * ## ⚠️ IT MOUNTS THE SAME FLOW, DELIBERATELY
  *
- * Everything below is the same server work `app/onboarding/page.tsx` does, from
+ * Everything below is the same server work `app/start/page.tsx` does, from
  * the same functions: the same `trialEligibility`, the same `loadPricesSafe`,
  * the same `onboardingDates`. The ONLY difference handed to the flow is
  * `chrome="billing"`, which drops the progress rail and stops the URL being
@@ -28,9 +28,9 @@ import type { StepId } from "@/lib/onboarding/steps";
  * date function was extracted rather than copied for exactly that reason — see
  * `lib/onboarding/flowEntryDates.ts`.
  *
- * ## ⚠️ SIGNED IN IS REQUIRED HERE, UNLIKE `/onboarding`
+ * ## ⚠️ SIGNED IN IS REQUIRED HERE, UNLIKE `/start`
  *
- * `/onboarding` is reachable by a stranger; that is its job. These routes are
+ * `/start` is reachable by a stranger; that is its job. These routes are
  * not. They are the billing section's own screens, they sit behind the same
  * session every other `(app)` route does, and somebody arriving without one is
  * sent to `/login` rather than dropped into a sign-up flow they did not ask for.

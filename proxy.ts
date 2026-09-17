@@ -22,10 +22,12 @@ export const config = {
      * - favicon.ico (favicon file)
      * - sw.js (the Web Push service worker - a static /public file that needs no
      *   session refresh and must not be served with auth Set-Cookie headers)
-     * - image asset extensions
+     * - image and video asset extensions. The landing hero's video is a
+     *   static file too: a session refresh on it is a Supabase round trip in
+     *   front of a byte-range request, and a Set-Cookie on the response.
      * Always re-verify auth inside Server Functions / a DAL - the proxy is
      * optimistic session refresh only.
      */
-    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|webm|mov)$).*)',
   ],
 }

@@ -78,6 +78,108 @@ trial-conversion risk still open)
 
 ---
 
+## 🟡 3-03 THIRD REVIEW ROUND (2026-09-17) — BUILT AND CHECKED, WAITING ON ADRIAN
+
+Both the second and third rounds are built, rendered and checked (spec 3-03 §9
+lists them). Rendering works again by running the site from a copy in the
+session scratchpad (`/private/tmp`), with packages installed from the npm
+cache in five seconds: off iCloud, nothing stalls.
+
+- [ ] **ADRIAN: the offloaded node_modules** in `trackd-co-app` (28,129 files
+      in the cloud). Finder, right-click the GitHub folder, "Keep Downloaded".
+      Other sessions working in that checkout are still paying for it.
+- [ ] **ADRIAN: review on Vercel** (laptop and phone), then the copy pass.
+
+## 🟡 SPEC 3-03 — THE LANDING PAGE, REBUILT FROM THE SKETCH, IS WAITING ON ADRIAN
+
+Branch `feat/landing-3-02`, **PR #66, still "DO NOT MERGE"**, same preview URL
+(SSO-gated): `https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.vercel.app`.
+Also look at `/reconstitution-calculator` on the preview. State is in
+`progress-tracker.md`; the brief and the decisions are
+`Feature Specs/wave 2 - refinement/3-03-landing-rebuild.md` §8 and §9.
+
+- [ ] **⚠️ ADRIAN ASKED TO BE REMINDED: the copy pass over the whole page**, and
+      his own founders' letter. The four hero lines are laid out with the first
+      above the title, for him to settle.
+- [ ] **Real testimonials** (with permission) to replace the four invented ones
+      in `lib/landing/testimonials.ts`, then set `PLACEHOLDER_TESTIMONIALS` to
+      false and flip its test. Until then production hides the section.
+- [ ] **Confirm each comparison row** in `components/landing/compare.tsx`. A
+      cross under "Other apps" is a claim about competitors.
+- [ ] **The privacy FAQ answer** (`TODO(3-03)` in `app/page.tsx`).
+- [ ] **Rule on the public calculator's missing first-run modal.** The in-app
+      calculator shows one; the public page shows the permanent disclaimer on
+      the page instead.
+- [ ] **Real iPhone and real Android**, including the FAQ vials and the menu.
+- [ ] **CodeRabbit** on the new head (`@coderabbitai review`, and push nothing
+      straight after).
+- [ ] Merge is Adrian's call alone.
+- [ ] **After merge: delete the first onboarding step** (the notes-app hook).
+- [ ] Later, his words: a public compound library page, the same kind of page
+      as the free calculator.
+
+## ⏸ SPEC 3-02 — SUPERSEDED BY 3-03 (kept for its review history)
+
+Branch `feat/landing-3-02`, pushed. **PR #66, titled "DO NOT MERGE."** Adrian's
+instruction 2026-09-16: "no merging to main without my final full approval."
+Preview (SSO-gated, sign in to Vercel first):
+`https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.vercel.app`
+
+Gates all green: tsc 0, eslint 0, 106 files / 2099 tests, `next build` exit 0 with
+`/` prerendered to static HTML.
+
+**⚠️ REVISED 2026-09-16, SECOND PASS, after Adrian read it on a laptop.** His
+verdict on the first build: *"you can just tell that this is AI-generated"*, and
+he intends to draw up a better landing page himself tomorrow. **Treat the current
+page as a staging post, not a finished design.** His reference for the feel is
+Pep AI's site: premium, and no pricing.
+
+What he had removed, and it is his call rather than a shortcut: the **proof
+strip**, the whole **"from the beta"** quotes section, and **pricing entirely**.
+⚠️ The cost, named: charge timing, cancellation terms and read-only-on-lapse went
+with the pricing section, and those were partly there for Apple's review of the
+domain. The trial promise under every button and the FAQ answers survive.
+`lib/brand.ts` keeps the amounts and the live Stripe guard still runs, so pricing
+can come back without re-deriving anything.
+
+What he had changed: hero re-ordered and centred (name, claim, device, sentence,
+button), wordmark centred with Log in hard right, a more realistic iPhone **plus a
+laptop** (he reads the site on one), figures stepped up, founder letter rewritten.
+**Both devices are PLACEHOLDERS** and he is replacing them tomorrow with "a cool
+thing" of his own. Do not polish them.
+
+- [ ] **⚠️ ADRIAN ASKED TO BE REMINDED: go over the landing copy tomorrow.**
+- [ ] **After this merges, delete the first onboarding step** (the "get your
+      protocol off your notes app" hook). The landing page does that job now, so
+      the flow would say it twice. His call, 2026-09-16.
+- [ ] **ADRIAN: read the page and rule on it.** It is a draft in every sense: the
+      mockup the spec pins the copy to never existed, so all the words are mine.
+- [ ] **ADRIAN: "Cancel in one tap."** The spec fixes that line, but cancelling
+      today is Billing → Cancel → confirm, and sometimes a retention offer. Keep
+      the line, soften it, or change the flow.
+- [ ] **Replace the three placeholders.** Proof strip line, three quotes, privacy
+      FAQ answer. All carry `TODO(3-02)` comments. The quotes are the blocking one.
+- [ ] **Real iPhone and real Android.** Measured at 375x548, 402x700 and 1280
+      in WebKit and Chromium, which is not the same thing.
+- [ ] Merge is Adrian's call alone. Preview deployed, PR #66 open and reviewed.
+
+**CodeRabbit reviewed on the second ask (5 findings). Two fixed, three are yours.**
+
+- ✅ **The sticky bar covered the footer.** Measured 39px of overlap at both
+  402x700 and 375x548, across the 18+/not-medical-advice line. Now 0.
+- ✅ **Landing prices could drift from Stripe.** `test/live/brandPrices.live.test.ts`
+  fails loudly if `brand.ts` and the live price objects disagree on amount,
+  currency or interval. Live-only (`npx vitest run --config vitest.live.config.ts`),
+  so the ordinary suite still passes with no keys and no network.
+- ⏸ **The placeholder quotes** (rated Major). Not removed: social proof is one of
+  the eleven sections the spec fixes, the preview is SSO-gated, and the branch
+  cannot merge. Replace them or drop the section, Adrian's call.
+- ⏸ **"Cancel in one tap"** (rated Major, independently of our own note). The spec
+  fixes that copy, so it is not ours to rewrite.
+- ⏭ **`/plans` vs `/checkout` in `flow.tsx:601`.** Real but PRE-EXISTING and
+  outside this spec, which says the quiz moves route and its contents do not
+  change. Worth its own task.
+
 ## 🔴 SPEC 16 — THE COLD REVIEWS CAME BACK. ONE HIGH IS OPEN, AND IT IS ADRIAN'S.
 
 Branch `deletion/steps-1-2`, unpushed. Three independent cold lanes ran;

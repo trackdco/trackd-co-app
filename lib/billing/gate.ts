@@ -195,7 +195,7 @@ export const READ_ONLY_MESSAGE =
  *
  * ## Not a new string. An already-signed one, reused in its own doorway.
  *
- * `app/onboarding/billing-actions.ts:437` refuses the purchase path with this
+ * `app/start/billing-actions.ts:437` refuses the purchase path with this
  * exact sentence when `comp.kind === "unknown"` — which is **the entitlements
  * read failing**, the same state, reached from the checkout side instead of the
  * write side. It is one of D74's six previously-unsigned strings, signed as

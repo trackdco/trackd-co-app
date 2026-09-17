@@ -31,7 +31,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
-const SOURCE = "app/onboarding/billing-actions.ts";
+const SOURCE = "app/start/billing-actions.ts";
 const source = readFileSync(SOURCE, "utf8");
 
 /** The body of a named function, up to the next top-level declaration. */

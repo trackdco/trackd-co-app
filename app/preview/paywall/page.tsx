@@ -29,12 +29,12 @@ export const metadata: Metadata = {
  * the wallets, the appearance, the disclosure and the layout are all real; the
  * commit is not. **A harness that could take a payment would be a hole in the
  * two guards this whole spec is built on.** To test payment end to end, sign in
- * properly and use the real `/onboarding?step=paywall`.
+ * properly and use the real `/start?step=paywall`.
  *
  * ## NOT REACHABLE IN PRODUCTION
  *
  * Gated on `VERCEL_ENV` rather than `NODE_ENV`, matching
- * `app/onboarding/cost/page.tsx`: a Vercel preview deploy IS a production build,
+ * `app/start/cost/page.tsx`: a Vercel preview deploy IS a production build,
  * so a `NODE_ENV` gate would 404 the exact link this exists to be reviewed
  * through. `robots: noindex` on top.
  */

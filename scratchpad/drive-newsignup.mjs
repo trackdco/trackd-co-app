@@ -66,7 +66,7 @@ try {
 
   /* ── 2. "Choose a plan" reaches the PRICE LIST ───────────────────── */
   await dialog.locator("button, a", { hasText: /choose a plan/i }).first().click({ timeout: 10000 });
-  await page.waitForURL(/onboarding/, { timeout: 20000 }).catch(() => {});
+  await page.waitForURL(/\/start/, { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(1500);
   const url = page.url();
   check("2. 'Choose a plan' lands on the PRICE LIST", /step=plans/.test(url), url);
@@ -82,7 +82,7 @@ try {
   check("3. and the number it names is 7", sevenNamed);
 
   /* ── the server's own verdict, so the screen cannot disagree ─────── */
-  const res = await s.fetch("/onboarding?step=plans");
+  const res = await s.fetch("/start?step=plans");
   check("3. CONTROL: the price list renders server-side for this account too", res.status === 200,
     `HTTP ${res.status}`);
 } finally {
