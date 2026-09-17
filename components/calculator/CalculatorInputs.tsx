@@ -2,6 +2,7 @@
 
 import { useId, type RefObject } from "react"
 
+import { padFieldKeyDown } from "@/components/feel/NumberPad"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
@@ -144,14 +145,16 @@ function Field({
           ref={fieldRef}
           type="button"
           onClick={onOpen}
+          onKeyDown={(e) => padFieldKeyDown(e, onOpen, active)}
+          data-pad-field
           aria-label={`${label}, ${value ? `${value}${unitWord ? ` ${unitWord}` : ""}` : "empty"}`}
           aria-describedby={hint ? hintId : undefined}
           className={cn(
             PRESS.field,
-            "flex h-full w-full min-w-0 flex-1 items-center rounded-xl pl-2.5 text-left font-mono text-base tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "flex h-full w-full min-w-0 flex-1 items-center overflow-hidden rounded-xl pl-2.5 pr-1.5 text-left font-mono text-base tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
           )}
         >
-          <span className="min-w-0 truncate">
+          <span className="pad-value min-w-0 whitespace-nowrap">
             {value}
             {active ? <span aria-hidden className="pad-caret" /> : null}
           </span>

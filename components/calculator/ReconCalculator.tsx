@@ -218,27 +218,40 @@ export function ReconCalculator() {
     },
   ]
   const activeField = padIndex === null ? null : FIELD_ORDER[padIndex]
+  const padOpen = padIndex !== null
+  // The field the pad was last on, for focus to go back to once it has closed
+  // (by then `activeField` is already null).
+  const lastFieldRef = useRef<(typeof FIELD_ORDER)[number] | null>(null)
+  const setPadField = (index: number | null) => {
+    if (index !== null) lastFieldRef.current = FIELD_ORDER[index]
+    setPadIndex(index)
+  }
 
   function openPad(field: (typeof FIELD_ORDER)[number]) {
-    const wasOpen = padIndex !== null
-    setPadIndex(FIELD_ORDER.indexOf(field))
-    if (wasOpen) return
+    setPadField(FIELD_ORDER.indexOf(field))
+    if (padOpen) return
     // Bring the Draw section to the top, under the compact title bar, where
     // it pins: the figure and the syringe stay in view with the results
     // card under them while the pad covers the inputs.
     const draw = drawRef.current
     if (!draw) return
     const bar = document.querySelector<HTMLElement>("[data-page-scroll-bar]")
-    const barH = bar ? bar.getBoundingClientRect().height : 0
+    let top = bar ? bar.getBoundingClientRect().height : 0
+    // On a short phone the pinned section tucks its "Draw" heading under the
+    // bar (see `.calc-draw-pinned`), so it scrolls that much further.
+    if (window.matchMedia("(max-height: 650px)").matches) {
+      const h2 = draw.querySelector("h2")
+      if (h2) top -= h2.offsetHeight + parseFloat(getComputedStyle(h2).marginBottom || "0")
+    }
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     window.scrollTo({
-      top: Math.max(0, draw.getBoundingClientRect().top + window.scrollY - barH),
+      top: Math.max(0, draw.getBoundingClientRect().top + window.scrollY - top),
       behavior: reduce ? "auto" : "smooth",
     })
   }
 
   function reset() {
-    setPadIndex(null)
+    setPadField(null)
     setPowder("")
     setPowderUnit("mg")
     setBac("")
@@ -274,7 +287,7 @@ export function ReconCalculator() {
         data-area="calc-draw"
         className={cn(
           "animate-home-up space-y-3 pb-3",
-          padIndex !== null && "calc-draw-pinned",
+          padOpen && "calc-draw-pinned",
         )}
         style={{ animationDelay: "0ms" }}
       >
@@ -290,6 +303,23 @@ export function ReconCalculator() {
               <span className={METRIC_VALUE}>{trim(units, 1)}</span>
               <span className={UNIT_SUFFIX}>units</span>
             </>
+          ) : null}
+          {/* While the pad is open the full warning below is folded away, so
+              the results card stays in view above the pad; this line carries
+              it instead. The full panel (a status region) is what is
+              announced, so this copy is hidden from assistive tech. */}
+          {padOpen && misuse ? (
+            <span
+              aria-hidden
+              className="ml-auto flex min-w-0 items-center gap-1.5 self-center text-xs text-accent-amber"
+            >
+              <Warning className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">
+                {misuse === "under"
+                  ? `Under ${MIN_READABLE_UNITS} units, too little to read`
+                  : `Will not fit a ${size.label} syringe`}
+              </span>
+            </span>
           ) : null}
         </div>
         <div className="-mx-2">
@@ -312,15 +342,21 @@ export function ReconCalculator() {
           behind the keyboard. `role="status"` not `alert`: the text carries the
           live figure and changes on every digit, and an assertive region
           re-announces the whole sentence each time. */}
+      {/* Folded, it takes NO room: `-mt-5` cancels the gap above it and its
+          own gap below stands, so Draw and the figures sit one gap apart
+          rather than two. Open, the gap comes back inside (`calc-warning-gap`).
+          That spare 20px is what keeps the figures above the pad on an SE. */}
       <div
         data-area="calc-warning"
-        className="animate-home-up grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
-        style={{ gridTemplateRows: misuse ? "1fr" : "0fr" }}
+        className="animate-home-up -mt-5 grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+        style={{ gridTemplateRows: misuse && !padOpen ? "1fr" : "0fr" }}
       >
         <div className="overflow-hidden">
-          <div role="status" className={AMBER_PANEL}>
-            <Warning className={AMBER_PANEL_ICON} aria-hidden />
-            <p className={AMBER_PANEL_TEXT}>{warning}</p>
+          <div className="calc-warning-gap">
+            <div role="status" className={AMBER_PANEL}>
+              <Warning className={AMBER_PANEL_ICON} aria-hidden />
+              <p className={AMBER_PANEL_TEXT}>{warning}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -330,7 +366,7 @@ export function ReconCalculator() {
       <section
         data-area="calc-figures"
         className="animate-home-up grid grid-cols-3 divide-x divide-border-default rounded-2xl bg-bg-surface py-3"
-        style={{ animationDelay: "40ms" }}
+        style={{ animationDelay: "55ms" }}
       >
         <Figure
           label="Concentration"
@@ -353,7 +389,7 @@ export function ReconCalculator() {
       </section>
 
       {/* ---- Inputs ---- */}
-      <div data-area="calc-inputs" className="animate-home-up" style={{ animationDelay: "80ms" }}>
+      <div data-area="calc-inputs" className="animate-home-up" style={{ animationDelay: "110ms" }}>
         <CalculatorInputs
           sizeId={sizeId}
           onSizeChange={chooseSize}
@@ -375,11 +411,11 @@ export function ReconCalculator() {
       <NumberPad
         active={padIndex}
         fields={padFields}
-        onActiveChange={setPadIndex}
-        onClose={() => setPadIndex(null)}
+        onActiveChange={setPadField}
+        onClose={() => setPadField(null)}
         variant="compact"
         scrim={false}
-        returnFocusRef={activeField ? fieldRefs[activeField] : undefined}
+        returnFocus={() => (lastFieldRef.current ? fieldRefs[lastFieldRef.current].current : null)}
         label="Calculator inputs"
       />
 
@@ -387,7 +423,7 @@ export function ReconCalculator() {
       <section
         data-area="calc-working"
         className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface"
-        style={{ animationDelay: "120ms" }}
+        style={{ animationDelay: "165ms" }}
       >
         <button
           type="button"
@@ -462,7 +498,7 @@ export function ReconCalculator() {
       <div
         data-area="calc-legal"
         className={cn("animate-home-up", AMBER_PANEL)}
-        style={{ animationDelay: "160ms" }}
+        style={{ animationDelay: "220ms" }}
       >
         <Warning className={AMBER_PANEL_ICON} aria-hidden />
         <p className={AMBER_PANEL_TEXT}>{DISCLAIMER}</p>

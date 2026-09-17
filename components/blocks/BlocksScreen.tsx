@@ -234,7 +234,7 @@ export function BlocksScreen({
       </div>
 
       {live && (
-        <div className="animate-home-up" style={{ animationDelay: "70ms" }}>
+        <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
           <button
             type="button"
             onClick={() => guard(() => setCreating(true))}
@@ -250,7 +250,7 @@ export function BlocksScreen({
       )}
 
       {past.length > 0 && (
-        <div className="animate-home-up space-y-2" style={{ animationDelay: "100ms" }}>
+        <div className="animate-home-up space-y-2" style={{ animationDelay: "110ms" }}>
           <p className={CARD_EYEBROW}>Look back</p>
           {past.map((b) => (
             <PastBlockRow key={b.id} block={b} todayKey={todayKey} />

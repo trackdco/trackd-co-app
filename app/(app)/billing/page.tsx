@@ -6,6 +6,7 @@ import { CancelSubscription } from "@/components/billing/CancelSubscription";
 import { DeclinedCard } from "@/components/billing/DeclinedCard";
 import { CaretRight } from "@/components/icons";
 import { STAYING_NOTICE_SLOT } from "@/components/billing/StayingNotice";
+import { ListBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
 import {
   formatAccessDate,
   isBetaGrace,
@@ -21,8 +22,9 @@ import { loadBillingFacts } from "@/lib/billing/screenFacts";
 import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import { STOPPABLE_NOW } from "@/lib/billing/manage";
 import { formatPrice } from "@/lib/onboarding/pricing";
-import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW, PAGE_TITLE, PRESS } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Billing · Trackd Co" };
 
@@ -78,18 +80,30 @@ export default async function BillingPage() {
     openOffer,
   } = await loadBillingFacts(user.id);
 
+  // The blocks under the title rise in 55ms steps (feel pass §1). The declined
+  // card leads only when it is on screen, so the plan card never waits on a
+  // card that is not there.
+  const pastDue = isPastDue(subscription);
+  const rise = (step: number) => ({
+    animationDelay: `${(pastDue ? step + 1 : step) * 55}ms`,
+  });
+
   return (
     <div
       data-screen="billing"
       data-desktop-layout="column"
-      className="animate-home-up mx-auto w-full max-w-md px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md px-5 pt-4 pb-5"
     >
       {/* NO SUBTITLE. It read "Your plan and when it renews." and Adrian cut it
           (2026-08-12): the Plan card underneath already says the plan and the
           date, so the line was a caption for something that captions itself.
           `/notifications` keeps its subtitle because it introduces a screen full
           of switches whose purpose is not self-evident; this one does not. */}
-      <h1 className={PAGE_TITLE}>Billing</h1>
+      {/* The title fades without moving; only the blocks under it rise. When
+          the route skeleton was just on screen the title was already there. */}
+      <RouteTitle id="billing">
+        <h1 className={PAGE_TITLE}>Billing</h1>
+      </RouteTitle>
 
       {/**
        * WHERE THE "Glad you're staying." CARD LANDS, and why it is a slot.
@@ -110,6 +124,13 @@ export default async function BillingPage() {
           markup long before there is anything to announce. */}
       <div id={STAYING_NOTICE_SLOT} role="status" />
 
+      {/* The route skeleton, fading out over the first block below. After the
+          empty slot, not before it: it lays itself over its next sibling, and
+          the slot has no height. */}
+      <RouteHandoff id="billing">
+        <ListBlocks cards={3} />
+      </RouteHandoff>
+
       {/**
         * ⚠️ ABOVE THE PLAN CARD, AND IT REPLACES NOTHING (§3.9).
         *
@@ -123,31 +144,33 @@ export default async function BillingPage() {
         * in the user's own timezone. Each may independently be null, and the
         * sentence that names a null date does not render. See `DeclinedCard`.
         */}
-      {isPastDue(subscription) ? (
-        <DeclinedCard
-          declinedOn={declinedOn ? formatAccessDate(declinedOn, tz) : null}
-          /**
-           * ⚠️ THE ENTITLEMENT'S OWN VALUE, NOT `action.endsOn`. §3.5 is explicit
-           * that this is "the same value the entitlement holds, not a guess and
-           * not the failure date plus a constant". `action.endsOn` is the EARLIER
-           * of the mirror and the entitlement, which is right for the cancel
-           * dialog and is a different question from "when does access end"; where
-           * no entitlement date exists it falls back to the mirror, and the
-           * mirror's period end on a past-due subscription is the end of a period
-           * nobody paid for.
-           */
-          accessEndsOn={entitlementEnd ? formatAccessDate(entitlementEnd, tz) : null}
-          /**
-           * ⚠️ WHETHER ACCESS IS LIVE, NOT WHETHER A DATE EXISTS. The date above
-           * includes dead rows by design, so it is present for a revoked account
-           * too — which is how this card promised "stays as it is until 17 Sept
-           * 2026" two rows above "Access: Read only".
-           */
-          accessLive={accessLive}
-        />
+      {pastDue ? (
+        <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+          <DeclinedCard
+            declinedOn={declinedOn ? formatAccessDate(declinedOn, tz) : null}
+            /**
+             * ⚠️ THE ENTITLEMENT'S OWN VALUE, NOT `action.endsOn`. §3.5 is explicit
+             * that this is "the same value the entitlement holds, not a guess and
+             * not the failure date plus a constant". `action.endsOn` is the EARLIER
+             * of the mirror and the entitlement, which is right for the cancel
+             * dialog and is a different question from "when does access end"; where
+             * no entitlement date exists it falls back to the mirror, and the
+             * mirror's period end on a past-due subscription is the end of a period
+             * nobody paid for.
+             */
+            accessEndsOn={entitlementEnd ? formatAccessDate(entitlementEnd, tz) : null}
+            /**
+             * ⚠️ WHETHER ACCESS IS LIVE, NOT WHETHER A DATE EXISTS. The date above
+             * includes dead rows by design, so it is present for a revoked account
+             * too — which is how this card promised "stays as it is until 17 Sept
+             * 2026" two rows above "Access: Read only".
+             */
+            accessLive={accessLive}
+          />
+        </div>
       ) : null}
 
-      <section className="mt-6">
+      <section className="animate-home-up mt-6" style={rise(0)}>
         <p className={`mb-3 ${CARD_EYEBROW}`}>Plan</p>
         <div className="overflow-hidden rounded-2xl bg-bg-surface">
           <Row
@@ -345,7 +368,10 @@ export default async function BillingPage() {
                 */}
               <a
                 href="/plans"
-                className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                className={cn(
+                  PRESS.row,
+                  "flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                )}
               >
                 <span className="flex-1 text-sm text-foreground">Set up my plan</span>
                 <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
@@ -381,7 +407,10 @@ export default async function BillingPage() {
                   next row down. The chevron already says it navigates. */}
               <Link
                 href="/billing/manage"
-                className="flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                className={cn(
+                  PRESS.row,
+                  "flex w-full min-h-11 items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                )}
               >
                 <span className="flex-1 text-sm text-foreground">Manage</span>
                 <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
@@ -394,7 +423,7 @@ export default async function BillingPage() {
       {/* The control, quiet and in its own block so it is neither buried nor
           competing with the summary above it. */}
       {action.kind === "cancel" || action.kind === "resume" ? (
-        <section className="mt-3">
+        <section className="animate-home-up mt-3" style={rise(1)}>
           {/**
             * ⚠️ CANCELLED-BUT-STILL-RUNNING IS A CARD THAT HOLDS BOTH HALVES
             * (§3.9), AND THE PARAGRAPH USED TO SIT OUTSIDE IT.
@@ -590,8 +619,13 @@ export default async function BillingPage() {
         * today.
         */}
 
+      {/* The control above, this note and the support line below are mutually
+          exclusive, so they share one step. */}
       {action.kind === "store" ? (
-        <p className="mt-6 px-1 text-sm leading-relaxed text-text-muted">
+        <p
+          className="animate-home-up mt-6 px-1 text-sm leading-relaxed text-text-muted"
+          style={rise(1)}
+        >
           This subscription is managed by{" "}
           {action.store === "apple" ? "the App Store" : "Google Play"}, so it can
           only be changed there.
@@ -618,7 +652,10 @@ export default async function BillingPage() {
       (action.kind === "none" &&
         action.reason === "no-subscription" &&
         hasStripeCustomer) ? (
-        <p className="mt-6 px-1 text-sm leading-relaxed text-text-muted">
+        <p
+          className="animate-home-up mt-6 px-1 text-sm leading-relaxed text-text-muted"
+          style={rise(1)}
+        >
           This one can&apos;t be changed from here. Email{" "}
           <a className="text-foreground" href="mailto:support@trackdco.app">
             support@trackdco.app
@@ -633,7 +670,7 @@ export default async function BillingPage() {
           `min-h-11` gives the height outright rather than leaving it to padding
           arithmetic on a line box, and the negative inline margin keeps the text
           optically where it was. */}
-      <div className="mt-6 text-sm text-text-muted">
+      <div className="animate-home-up mt-6 text-sm text-text-muted" style={rise(2)}>
         <Link
           href="/profile"
           className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"

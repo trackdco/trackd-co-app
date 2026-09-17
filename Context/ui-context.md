@@ -613,15 +613,25 @@ keep the system controls.
   replaced. A key the field's own sanitiser would strip is REFUSED with a shake,
   never silently eaten.
 - **The open field shows it**: a white ring and a blinking caret on the
-  `PadInput`, so you can see which figure the pad is writing to.
+  `PadInput`, so you can see which figure the pad is writing to. The caret
+  takes no width, and a field never shows an ellipsis: a figure with a digit
+  swapped for "…" is a wrong figure.
+- **Focus moves into the pad** once it is on screen (it is announced as a
+  group) and goes back to the field, or to whatever opened it, on close.
 - **A hardware keyboard still works**: digits, "." or ",", Backspace, Enter or
-  Tab for Next, Shift+Tab back, Escape to hide.
+  Tab for Next, Shift+Tab back, Escape to hide. Typing a digit on a focused
+  field opens the pad with that digit, as an input would; a number field
+  counts as typing for the desktop shortcuts.
 - **Compact variant: the Calculator only.** No scrim, three chips across, a
   shorter key grid (34px keys at or under 650px tall) and the unit pills on the
   pad, because the point of that screen is watching the syringe and the result
   change as you type. While it is open, the Draw section pins under the header
   (`.calc-draw-pinned`, sticky), which REVERSES the 2026-07-31 "not pinned"
   call: the pad takes the bottom half, so an unpinned syringe scrolls away.
+  Pinning never changes the section's box (on a short phone the "Draw" heading
+  tucks under the title bar, which shows while pinned), and while the pad is
+  open the misuse warning folds into one amber line beside the figure, so the
+  results card stays above the pad on an SE.
 - **Log weight is the pad alone** (the FAB and the desktop rail): it opens on
   the last weight, selected, and a confirmation drops down on Done. Back-dating
   and the photo live on the Weight screen and the Progress photo sheet.
@@ -1076,9 +1086,10 @@ part of the design, not a fallback.
     your log" shown to someone with a full protocol is a wrong statement.
     Home and Protocol wait on the cloud hydration flag
     (`lib/home/hydrationState.ts`: pending / done / failed); a device that
-    already holds a stack renders it at once, and a failed or offline
-    hydration falls back to what the device has and shows the sync-failed
-    notice instead of skeleton forever (10s patience).
+    already holds a stack renders it at once. A failed, timed-out (10s),
+    fallen-back or offline first pull falls back to what the device has and
+    says so with the sync notice, worded for a read (Adrian, 2026-09-17): "No connection. We're having trouble connecting to your account, so you're seeing what's saved on this phone. We'll keep trying."
+    (A failed WRITE keeps "Saved on your device…".)
   - **Graph cards get a ghost graph** (`SkGraph`): the real curve and taper in
     skeleton tones, not a flat block.
   - **The wave** (`.sk`): opacity 0.5 → 1 → 0.5 over 1.9s, delayed 110ms per

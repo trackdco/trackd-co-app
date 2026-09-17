@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { SkeletonSwap } from "@/components/feel/Skeleton"
 import { HomeSkeleton } from "@/components/home/HomeSkeleton"
-import { useArrivedFromSkeleton } from "@/components/feel/Skeleton"
+import { useArrivedFromSkeleton, useSkeletonOnScreen } from "@/components/feel/Skeleton"
+import { getStripOpen, subscribeStripOpen, writeStripOpen } from "@/lib/home/weekStripOpen"
 import {
   getHydrationState,
   subscribeHydrationState,
@@ -148,47 +149,7 @@ function hhmmNow(): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
 }
 
-/* ------------------------------------------------ week-strip open/closed state */
-/**
- * Whether the week strip is expanded, remembered between sessions and defaulting
- * to OPEN (Spec 02).
- *
- * A `useSyncExternalStore` rather than state synced in an effect: localStorage is
- * an external store, the server has no access to it, and an effect that reads it
- * on mount both trips the set-state-in-effect rule and paints once with the wrong
- * state before correcting itself. The server snapshot is the documented default,
- * so hydration matches whenever the user hasn't changed it.
- */
-const STRIP_OPEN_KEY = "trackd.home.weekStripOpen"
-const STRIP_OPEN_EVENT = "trackd:week-strip-open"
-
-function getStripOpen(): boolean {
-  if (typeof window === "undefined") return true
-  try {
-    return window.localStorage.getItem(STRIP_OPEN_KEY) !== "0"
-  } catch {
-    return true // storage off — the default stands
-  }
-}
-
-function writeStripOpen(open: boolean): void {
-  try {
-    window.localStorage.setItem(STRIP_OPEN_KEY, open ? "1" : "0")
-  } catch {
-    /* storage full / off — the strip still works, it just won't be remembered */
-  }
-  window.dispatchEvent(new CustomEvent(STRIP_OPEN_EVENT))
-}
-
-function subscribeStripOpen(cb: () => void): () => void {
-  if (typeof window === "undefined") return () => {}
-  window.addEventListener(STRIP_OPEN_EVENT, cb)
-  window.addEventListener("storage", cb)
-  return () => {
-    window.removeEventListener(STRIP_OPEN_EVENT, cb)
-    window.removeEventListener("storage", cb)
-  }
-}
+/* The week strip open/closed store lives in `lib/home/weekStripOpen.ts`. */
 
 export function HomeScreen({
   todayKey: serverTodayKey,
@@ -358,6 +319,9 @@ export function HomeScreen({
   // Did the route's own skeleton just hand over? Then the title and strip are
   // already on screen and must not fade in again.
   const fromSkeleton = useArrivedFromSkeleton("dashboard")
+  // The title, strip and skeleton the route's loading shell already drew
+  // (including on a full page load) do not fade in again.
+  const skeletonShown = useSkeletonOnScreen("dashboard")
   const logKnown =
     previewLogKnown ??
     (previewStack !== undefined || stack.length > 0 || hydration !== "pending")
@@ -892,7 +856,7 @@ export function HomeScreen({
       >
         {/* One rise per arrival (feel pass §1): the title and the week strip
             fade in where they stand, and only the content below them rises. */}
-        <div data-area="title" className={cn(!fromSkeleton && "animate-shortcut-fade")}>
+        <div data-area="title" className={cn(!skeletonShown && "animate-shortcut-fade")}>
           <PageScrollTitle
             title="Dashboard"
             eyebrow={dayLabel(selectedKey)}
@@ -938,7 +902,7 @@ export function HomeScreen({
         <div
           className={cn(
             "grid",
-            !fromSkeleton && "animate-shortcut-fade",
+            !skeletonShown && "animate-shortcut-fade",
             // The transition is suppressed until the store's first CLIENT read.
             // `useSyncExternalStore` prevents a hydration MISMATCH, not a wrong
             // first paint: the server snapshot is "open", so a user who collapsed
@@ -983,7 +947,7 @@ export function HomeScreen({
 
         <SkeletonSwap
           ready={logKnown}
-          skeleton={fromSkeleton ? <HomeSkeleton continued /> : <HomeSkeleton />}
+          skeleton={skeletonShown ? <HomeSkeleton continued /> : <HomeSkeleton />}
           leaveOnMount={fromSkeleton}
         >
         <div data-area="log" className="animate-home-up" style={{ animationDelay: "0ms" }}>
@@ -1198,6 +1162,17 @@ export function HomeScreen({
         siteLastUsedDays={siteLastUsedDays}
         bodySex={bodySex}
         catalogue={injectionCatalogue}
+        // What the strip's own draw read already knows (same day, same due set),
+        // so the sheet does not reserve a stock card for a compound with none.
+        stockHint={
+          !logTarget
+            ? undefined
+            : drawResult.sources[logTarget.compound.id]
+              ? "has"
+              : noVialIds.has(logTarget.compound.id)
+                ? "none"
+                : undefined
+        }
         onOpenChange={(open) => {
           if (!open) {
             setLogTarget(null)

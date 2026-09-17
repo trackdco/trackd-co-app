@@ -243,7 +243,9 @@ function ChoiceRow({
         thumbClassName="rounded-full bg-accent-primary"
         role="radiogroup"
         aria-label={label}
-        className="mt-2 flex gap-2"
+        // Server-rendered: until the thumb is placed, the chosen pill carries
+        // the white itself, or its dark label is unreadable on the card.
+        className="mt-2 flex gap-2 [&:not([data-thumb-ready])>[aria-checked=true]]:bg-accent-primary"
       >
         {options.map((o) => {
           const on = o.value === value;

@@ -73,6 +73,7 @@ export function useSlidingThumb(
       if (!item || item.offsetWidth === 0) {
         thumb.style.opacity = "0"
         placed.current = false
+        delete container.dataset.thumbReady
         return
       }
       const b = boxIn(item, container)
@@ -83,6 +84,9 @@ export function useSlidingThumb(
       thumb.style.width = `${b.width}px`
       thumb.style.height = `${b.height}px`
       thumb.style.opacity = "1"
+      // Until this is set (a server render, before hydration) the group can
+      // paint its own selection; see ReminderSettings.
+      container.dataset.thumbReady = "true"
       if (instant) {
         // Read once so the jump commits before the transition comes back.
         void thumb.offsetWidth

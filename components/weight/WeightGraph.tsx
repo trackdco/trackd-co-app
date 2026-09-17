@@ -278,7 +278,7 @@ export function WeightGraph({
                   ? { r: 4, fill: "var(--chart-line)", stroke: "var(--bg-surface)", strokeWidth: 2 }
                   : false
               }
-              isAnimationActive={!draw.first || switched}
+              isAnimationActive={draw.key === null || switched}
               animationDuration={450}
               animationEasing="ease-out"
               className={cn(
@@ -299,7 +299,7 @@ export function WeightGraph({
                   ? { r: 4, fill: "var(--chart-trend)", stroke: "var(--bg-surface)", strokeWidth: 2 }
                   : false
               }
-              isAnimationActive={!draw.first || switched}
+              isAnimationActive={draw.key === null || switched}
               animationDuration={450}
               animationEasing="ease-out"
               className={cn(

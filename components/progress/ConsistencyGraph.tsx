@@ -218,7 +218,7 @@ export function ConsistencyGraph({
                 stroke: "var(--bg-surface)",
                 strokeWidth: 2,
               }}
-              isAnimationActive={!draw.first || switched}
+              isAnimationActive={draw.key === null || switched}
               animationDuration={450}
               animationEasing="ease-out"
             />

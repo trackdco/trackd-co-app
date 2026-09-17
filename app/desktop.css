@@ -327,6 +327,10 @@
   [data-screen="calculator"] [data-calc-grid] > * + * {
     margin-top: 0;
   }
+  /* The grid's `gap` spaces the warning too, so its phone-only inner gap goes. */
+  [data-screen="calculator"] .calc-warning-gap {
+    padding-top: 0;
+  }
 
   [data-screen="calculator"] [data-area="calc-inputs"] {
     order: -1;

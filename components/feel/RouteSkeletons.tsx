@@ -1,8 +1,8 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useState, useSyncExternalStore, type ReactNode } from "react"
 
-import { CalendarDots, CaretDown, User } from "@/components/icons"
+import { ArrowLeft, CalendarDots, CaretDown, User } from "@/components/icons"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { HomeSkeletonBlocks } from "@/components/home/HomeSkeleton"
 import {
@@ -11,9 +11,12 @@ import {
   Sk,
   SkGraph,
   useArrivedFromSkeleton,
+  useSkeletonOnScreen,
 } from "@/components/feel/Skeleton"
 import { cn } from "@/lib/utils"
 import { PAGE_TITLE } from "@/lib/ui-presets"
+import { getStripOpen, subscribeStripOpen } from "@/lib/home/weekStripOpen"
+import { monthTitle } from "@/lib/calendar/calendar"
 
 /**
  * THE TAB SKELETONS (feel pass §1): what each screen's `loading.tsx` draws the
@@ -66,9 +69,9 @@ export function RouteTitle({
   className?: string
   children: ReactNode
 } & Record<`data-${string}`, string>) {
-  const arrived = useArrivedFromSkeleton(id)
+  const onScreen = useSkeletonOnScreen(id)
   return (
-    <div className={cn(!arrived && "animate-shortcut-fade", className)} {...rest}>
+    <div className={cn(!onScreen && "animate-shortcut-fade", className)} {...rest}>
       {children}
     </div>
   )
@@ -98,14 +101,25 @@ export function RouteHandoff({
 
 /* ---------------------------------------------------------------- dashboard */
 
-/** The week strip while nothing about the week is known yet. */
+/**
+ * The week strip while nothing about the week is known yet. Each line keeps the
+ * real cell's line box (a 20px number, a 15px day name, the 6px dot), and a
+ * strip the user has collapsed is drawn collapsed, or every card below jumps
+ * when the screen takes over.
+ */
 function WeekStripBlocks() {
+  const open = useSyncExternalStore(subscribeStripOpen, getStripOpen, () => true)
+  if (!open) return <div />
   return (
     <div className="grid grid-cols-7">
       {Array.from({ length: 7 }, (_, i) => (
         <div key={i} className="flex flex-col items-center gap-1 py-1.5">
-          <Sk w="18px" h={16} />
-          <Sk w="22px" h={10} />
+          <span className="flex h-5 items-center">
+            <Sk w="18px" h={16} />
+          </span>
+          <span className="flex h-[15px] items-center">
+            <Sk w="22px" h={10} />
+          </span>
           <span className="h-1.5 w-1.5" />
         </div>
       ))}
@@ -120,7 +134,11 @@ export function DashboardLoading() {
         {/* The date line waits: the server's date can be a day out from the
             phone's, and a wrong date is worse than a quiet block. */}
         <div className="px-1">
-          <Sk w="150px" h={11} className="my-[3px]" />
+          {/* The eyebrow's 16px line, as a box: a margin here would collapse
+              into the gap below it. */}
+          <div className="flex h-4 items-center">
+            <Sk w="150px" h={10} />
+          </div>
           <div className="mt-1 flex items-center justify-between gap-3">
             <h1 className="font-sans text-4xl font-light tracking-tight text-foreground">
               Dashboard
@@ -370,13 +388,26 @@ export function CalendarBlocks() {
 }
 
 export function CalendarLoading() {
+  // The real header, drawn as the screen draws it (the back link, this month's
+  // title), so it is already in place when the screen takes over.
+  const [now] = useState(() => new Date())
   return (
     <Shell
       screen="calendar"
       title={
-        <div className="space-y-5 px-1">
-          <Sk w="110px" h={14} />
-          <Sk w="190px" h={28} />
+        <div className="relative z-10">
+          <span className="desktop:hidden -ml-1 inline-flex items-center gap-1.5 text-sm text-text-muted">
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Dashboard
+          </span>
+          <div className="mt-5 px-1">
+            <div className="relative">
+              <div className="flex items-center gap-1.5 rounded-xl px-1 py-0.5">
+                <span className={PAGE_TITLE}>{monthTitle(now.getFullYear(), now.getMonth())}</span>
+                <CaretDown className="h-5 w-5 text-text-muted" aria-hidden />
+              </div>
+            </div>
+          </div>
         </div>
       }
       label="Loading the calendar"
@@ -456,15 +487,44 @@ export function BlocksLoading() {
   )
 }
 
-/** Notifications and billing: a heading and a couple of cards. */
-export function SettingsLoading({ screen, title }: { screen: string; title: string }) {
+/**
+ * Notifications and billing: a heading (and the line under it, where the page
+ * has one) and a few cards.
+ *
+ * Not `Shell`, because these two pages are not built like the tabs: they space
+ * their blocks with margins rather than `space-y-5`, the first card sits 24px
+ * under the title, and they take the desktop `column` measure. The skeleton
+ * copies all three, so the handoff lays it exactly where it already was.
+ */
+export function SettingsLoading({
+  screen,
+  title,
+  subtitle,
+}: {
+  screen: string
+  title: string
+  /** The page's line under its title, word for word, when it has one. */
+  subtitle?: string
+}) {
   return (
-    <Shell
-      screen={screen}
-      title={<h1 className={`${PAGE_TITLE} px-1`}>{title}</h1>}
-      label={`Loading ${title.toLowerCase()}`}
+    <div
+      data-screen={screen}
+      data-desktop-layout="column"
+      className="relative mx-auto w-full max-w-md px-5 pt-4 pb-5"
     >
-      <ListBlocks cards={3} />
-    </Shell>
+      <div className="animate-shortcut-fade">
+        <h1 className={PAGE_TITLE}>{title}</h1>
+        {subtitle ? (
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">{subtitle}</p>
+        ) : null}
+      </div>
+      <RouteSkeleton
+        id={screen}
+        label={`Loading ${title.toLowerCase()}`}
+        className="mt-6 space-y-5"
+      >
+        <ListBlocks cards={3} />
+      </RouteSkeleton>
+    </div>
   )
 }

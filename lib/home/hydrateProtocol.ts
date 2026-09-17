@@ -62,9 +62,12 @@ import {
 } from "@/lib/home/stacks"
 
 /** Pull Postgres (canonical) + the jsonb mirror, merge with local, and write the
- *  merged set back into the device-local caches. */
-export async function hydrateFromPostgres(userId: string): Promise<void> {
-  if (!userId || userId === "anon") return
+ *  merged set back into the device-local caches. `ok` is false when the canonical
+ *  pull fell back to empty (a timeout, an error, an open breaker): the merge still
+ *  runs, and never wipes the cache, but the caller must not treat the result as
+ *  the account's real state. */
+export async function hydrateFromPostgres(userId: string): Promise<{ ok: boolean }> {
+  if (!userId || userId === "anon") return { ok: true }
   // Let any in-flight delete / archive commit BEFORE reading. This pull overwrites
   // the local cache, so reading mid-delete brings the compound back — and the
   // merge's flush then re-pushes it, making the resurrection permanent. See
@@ -81,6 +84,7 @@ export async function hydrateFromPostgres(userId: string): Promise<void> {
   const idRemap = mergeAndSave(userId, pg, cloud, versions, pauses)
   hydrateStacks(userId, stacks, idRemap)
   hydrateOneOffs(userId, oneOffs)
+  return { ok: !pg.failed }
 }
 
 /** Fold raw Postgres dose rows into `DayLogs`, keyed by the DEVICE's local day +

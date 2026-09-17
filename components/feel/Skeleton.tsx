@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
 } from "react"
@@ -265,6 +266,30 @@ export function RouteSkeleton({
 export function useArrivedFromSkeleton(id: string): boolean {
   const [arrived] = useState(() => skeletonsShown.has(id))
   return arrived
+}
+
+const noSubscribe = () => () => {}
+
+/**
+ * Is the route's skeleton (its title, its blocks) ALREADY on screen as this
+ * page mounts? For what must not fade in a second time.
+ *
+ * Wider than `useArrivedFromSkeleton`: on a full page load (a reload, a Safari
+ * tab, a cold PWA launch) the loading fallback arrives in the streamed HTML and
+ * is never hydrated, so it registers nothing, and the page's HTML then replaces
+ * a title that is already visible. So this reads true on the server and during
+ * hydration. It is frozen at mount, so hydration finishing does not add a fade
+ * class back. The leaving overlay keeps the strict read: a server render cannot
+ * place it.
+ */
+export function useSkeletonOnScreen(id: string): boolean {
+  const hydrating = useSyncExternalStore(
+    noSubscribe,
+    () => false,
+    () => true,
+  )
+  const [onScreen] = useState(() => hydrating || skeletonsShown.has(id))
+  return onScreen
 }
 
 /**

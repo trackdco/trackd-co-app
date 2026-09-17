@@ -8,6 +8,7 @@ import {
   SkeletonGroup,
   SkeletonSwap,
   useArrivedFromSkeleton,
+  useSkeletonOnScreen,
 } from "@/components/feel/Skeleton"
 import {
   getHydrationState,
@@ -119,6 +120,7 @@ export function ProtocolScreen({
   const known =
     previewCompounds !== undefined || compounds.length > 0 || hydration !== "pending"
   const fromSkeleton = useArrivedFromSkeleton("protocol")
+  const skeletonShown = useSkeletonOnScreen("protocol")
   const logs = previewLogs ?? liveLogs
   const screenToday = toDateKey(new Date())
   // `isRunning`, not just `!archived`. Spec 06 says a compound whose cycle has
@@ -246,7 +248,7 @@ export function ProtocolScreen({
         ready={known}
         leaveOnMount={fromSkeleton}
         skeleton={
-          <SkeletonGroup label="Loading your protocol" className="space-y-5" still={fromSkeleton}>
+          <SkeletonGroup label="Loading your protocol" className="space-y-5" still={skeletonShown}>
             <ProtocolBlocks />
           </SkeletonGroup>
         }

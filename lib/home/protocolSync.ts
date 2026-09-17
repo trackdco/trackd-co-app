@@ -1702,12 +1702,18 @@ function mapVersion(r: Record<string, unknown>) {
  * `StackCompound[]`, plus raw dose-log rows for the client to key by local day.
  * Empty shapes (never throws) when signed out / offline / on error — so a failed
  * pull never wipes the local cache.
+ *
+ * A pull that FELL BACK says so (`failed: true`). Signed out and "genuinely has
+ * nothing" are both empty too, and Home must not tell a user with a full protocol
+ * to "start with a compound" because Supabase was slow (feel pass §1).
  */
 export async function pullProtocolStackAndLogs(): Promise<{
   stack: StackCompound[]
   doseRows: DoseRow[]
+  failed?: boolean
 }> {
   const empty = { stack: [] as StackCompound[], doseRows: [] as DoseRow[] }
+  const fellBack = { ...empty, failed: true }
   // Guarded: a hung Supabase fast-fails to `empty` so hydration never blocks on a
   // degraded dependency; an empty pull never wipes the local cache (the read path).
   return guard(
@@ -1800,7 +1806,7 @@ export async function pullProtocolStackAndLogs(): Promise<{
 
       return { stack, doseRows }
     },
-    { fallback: empty }
+    { fallback: fellBack }
   )
 }
 

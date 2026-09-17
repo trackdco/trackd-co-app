@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, type RefObject } from "react"
 import { useRouter } from "next/navigation"
 
 import { NumberPad } from "@/components/feel/NumberPad"
@@ -26,6 +26,8 @@ import { formatWeight, sanitizeWeightInput, unitToKg, type WeightUnit } from "@/
  *
  * `dateKey` is for a caller logging a PAST day: the pad then names that date in
  * its label, because nothing else on screen says which day is being written.
+ * `returnFocusRef` is where focus goes when the pad closes (the control that
+ * opened it, or the nearest one that survives).
  */
 export function LogWeightPad({
   open,
@@ -33,6 +35,7 @@ export function LogWeightPad({
   unit,
   lastKg,
   dateKey,
+  returnFocusRef,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -41,6 +44,7 @@ export function LogWeightPad({
   lastKg: number | null
   /** A day other than today to log for. */
   dateKey?: string
+  returnFocusRef?: RefObject<HTMLElement | null>
 }) {
   const router = useRouter()
   const [draft, setDraft] = useState("")
@@ -72,15 +76,22 @@ export function LogWeightPad({
     onOpenChange(false)
     // The device's own date, asked now: the server's is UTC and can be a day out.
     const loggedFor = pastDay ?? toDateKey(new Date())
-    const shown = draft
+    // The saved value, formatted: the draft can end in "." ("85.").
+    const shown = formatWeight(kg, unit)
     startTransition(async () => {
-      const res = await logWeight(kg, loggedFor)
-      if (!res.ok) {
-        warn.show(res.error ?? "Couldn't save. Try again.")
-        return
+      // A rejected server action (offline, a deploy the open app has not picked
+      // up) would otherwise reach the error boundary and replace the whole shell.
+      try {
+        const res = await logWeight(kg, loggedFor)
+        if (!res.ok) {
+          warn.show(res.error ?? "Couldn't save. Try again.")
+          return
+        }
+        confirm.show(`Weight logged: ${shown} ${unit}`)
+        router.refresh()
+      } catch {
+        warn.show("Couldn't save. Try again.")
       }
-      confirm.show(`Weight logged: ${shown} ${unit}`)
-      router.refresh()
     })
   }
 
@@ -103,6 +114,7 @@ export function LogWeightPad({
         onDone={save}
         selectOnOpen
         label="Log weight"
+        returnFocusRef={returnFocusRef}
       />
       <AmberNotice notice={confirm.notice} onDismiss={confirm.dismiss} icon={null} />
       <AmberNotice notice={warn.notice} onDismiss={warn.dismiss} />

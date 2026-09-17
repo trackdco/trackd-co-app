@@ -84,9 +84,13 @@ export function DrawFrame({
 
     let raf = 0
     let finished = false
+    let io: IntersectionObserver | null = null
     const finish = () => {
       if (finished) return
       finished = true
+      // A draw finished early (a range switch while it waited) must not start
+      // later when the frame comes into view.
+      io?.disconnect()
       cancelAnimationFrame(raf)
       setMask(clip, "")
       wrap.dataset.draw = "done"
@@ -107,6 +111,7 @@ export function DrawFrame({
     }
 
     const run = () => {
+      if (finished) return
       drawn.add(key)
       const path = clip.querySelector<SVGGeometryElement>(line)
       const box = clip.getBoundingClientRect()
@@ -158,22 +163,23 @@ export function DrawFrame({
     }
 
     // The frame is watched, not the page: the band the tab bar leaves free.
-    const io = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
         for (const en of entries) {
           if (!en.isIntersecting) continue
           const band = en.rootBounds ? en.rootBounds.height : window.innerHeight
           if (en.intersectionRatio < 0.85 && en.intersectionRect.height < band * 0.9) continue
-          io.disconnect()
+          observer.disconnect()
           run()
           return
         }
       },
       { rootMargin: "0px 0px -64px 0px", threshold: Array.from({ length: 21 }, (_, n) => n / 20) },
     )
-    io.observe(wrap)
+    io = observer
+    observer.observe(wrap)
     return () => {
-      io.disconnect()
+      observer.disconnect()
       cancelAnimationFrame(raf)
       // Torn down mid-draw (the series changed): show it finished rather than
       // leave it half-masked.

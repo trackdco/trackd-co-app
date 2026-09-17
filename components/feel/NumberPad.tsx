@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type Ref,
   type RefObject,
@@ -22,6 +23,31 @@ const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : use
 
 /** Keep in step with the panel's exit (`--motion-base`). */
 const EXIT_MS = 260
+
+/**
+ * A key typed on a focused pad FIELD, waiting for the pad it opened. The field
+ * is a button, so a laptop user who tabs to it and types would otherwise get
+ * nothing (or a desktop shortcut). The pad applies the key once it is open.
+ */
+let pendingKey: { key: PadKey; at: number } | null = null
+
+/**
+ * `onKeyDown` for anything that opens the pad: a digit, a decimal point or
+ * Backspace opens it and is applied there, as if the field were an input.
+ */
+export function padFieldKeyDown(
+  e: ReactKeyboardEvent<HTMLElement>,
+  onOpen: () => void,
+  active: boolean,
+) {
+  if (active || e.metaKey || e.ctrlKey || e.altKey) return
+  const key = padKeyFromKeyboard(e.key)
+  if (!key) return
+  e.preventDefault()
+  e.stopPropagation()
+  pendingKey = { key, at: performance.now() }
+  onOpen()
+}
 
 /** One field the pad can edit. The form owns the value; the pad only edits it. */
 export interface PadField {
@@ -114,7 +140,11 @@ export function NumberPad({
   label = "Number pad",
 }: NumberPadProps) {
   const open = active !== null && fields[active] !== undefined
-  const index = open ? (active as number) : 0
+  // While it slides away the pad keeps showing the field it was on, not the
+  // first one.
+  const [lastIndex, setLastIndex] = useState(active ?? 0)
+  if (open && active !== lastIndex) setLastIndex(active as number)
+  const index = open ? (active as number) : lastIndex
 
   // Kept mounted through the exit animation, then dropped.
   const [mounted, setMounted] = useState(open)
@@ -199,6 +229,34 @@ export function NumberPad({
     if (isLast) done()
     else onActiveChange(index + 1)
   }, [isLast, done, onActiveChange, index])
+
+  // A key typed on the field that opened the pad lands on the pad, once it
+  // has rendered open (a tick later, with the field it opened on).
+  const pressRef = useRef(press)
+  useEffect(() => {
+    pressRef.current = press
+  })
+  useEffect(() => {
+    const p = pendingKey
+    if (!open || !p) return
+    if (performance.now() - p.at > 1000) {
+      pendingKey = null
+      return
+    }
+    const t = window.setTimeout(() => {
+      if (pendingKey !== p) return
+      pendingKey = null
+      pressRef.current(p.key)
+    }, 0)
+    return () => window.clearTimeout(t)
+  }, [open])
+
+  // Focus moves INTO the pad once it is on screen, so it is announced as a
+  // group and a screen reader's cursor is on the keys rather than on whatever
+  // opened it (the + menu's tile is gone by then). It goes back on close.
+  useEffect(() => {
+    if (open && shown) panelRef.current?.focus({ preventScroll: true })
+  }, [open, shown])
 
   // The hardware keyboard, while open. Window + capture, and stopped, so the
   // sheet's own Escape and focus trap never see the keys the pad has taken,
@@ -330,8 +388,8 @@ export function NumberPad({
           aria-hidden
           onClick={onClose}
           className={cn(
-            "pointer-events-auto absolute inset-0 bg-[var(--pad-scrim)] transition-opacity duration-[var(--motion-base)] ease-out",
-            shown ? "opacity-100" : "opacity-0",
+            "absolute inset-0 bg-[var(--pad-scrim)] transition-opacity duration-[var(--motion-base)] ease-out",
+            shown ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
           )}
         />
       ) : null}
@@ -339,9 +397,12 @@ export function NumberPad({
         ref={panelRef}
         role="group"
         aria-label={label}
+        tabIndex={-1}
         data-open={shown ? "true" : "false"}
         className={cn(
-          "number-pad pointer-events-auto absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-3xl border-t border-border-default bg-bg-surface px-4 pt-3.5 shadow-[0_-16px_40px_rgba(0,0,0,0.45)]",
+          "number-pad absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-3xl border-t border-border-default bg-bg-surface px-4 pt-3.5 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] outline-none",
+          // Nothing on a pad that is sliding away takes a tap.
+          shown ? "pointer-events-auto" : "pointer-events-none",
           compact && "number-pad-compact",
         )}
         style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
@@ -515,6 +576,7 @@ export function PadInput({
       ref={inputRef}
       type="button"
       onClick={onOpen}
+      onKeyDown={(e) => padFieldKeyDown(e, onOpen, active)}
       disabled={disabled}
       aria-label={`${label}, ${value ? `${value}${unit ? ` ${unit}` : ""}` : "empty"}`}
       // A button cannot carry aria-invalid; the form's error text says it.
@@ -522,7 +584,7 @@ export function PadInput({
       data-pad-active={active ? "true" : undefined}
       className={cn(
         PRESS.field,
-        "pad-input flex min-w-0 items-center gap-2 rounded-xl border border-border-default bg-bg-input px-3 font-mono text-base text-foreground outline-none transition-[border-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+        "pad-input flex min-w-0 items-center gap-2 overflow-hidden rounded-xl border border-border-default bg-bg-input px-3 font-mono text-base text-foreground outline-none transition-[border-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
         align === "right"
           ? "justify-end text-right"
           : align === "center"
@@ -533,7 +595,10 @@ export function PadInput({
         className,
       )}
     >
-      <span className={cn("min-w-0 truncate", align === "left" && "flex-1")}>
+      {/* Never an ellipsis: a figure with a digit swapped for "…" is a wrong
+          figure. The caret takes no width (`.pad-value`), so it sits in the
+          padding instead of pushing the value out. */}
+      <span className={cn("pad-value min-w-0 whitespace-nowrap", align === "left" && "flex-1")}>
         {value}
         {!value && placeholder && !active ? (
           <span className="font-sans text-sm text-text-subtle">{placeholder}</span>

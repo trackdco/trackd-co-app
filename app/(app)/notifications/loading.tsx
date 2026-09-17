@@ -5,5 +5,11 @@ import { SettingsLoading } from "@/components/feel/RouteSkeletons"
  * (feel pass §1).
  */
 export default function Loading() {
-  return <SettingsLoading screen="notifications" title="Notifications" />
+  return (
+    <SettingsLoading
+      screen="notifications"
+      title="Notifications"
+      subtitle="Reminders for your protocol, sent to this device."
+    />
+  )
 }

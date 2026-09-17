@@ -1246,7 +1246,12 @@ svg ::-moz-selection {
 }
 
 /* The Calculator's Draw section while the pad is open: pinned under the
-   compact title bar, on the page's own ground. */
+   compact title bar, on the page's own ground.
+
+   Pinning never changes the section's BOX (no padding, no hidden heading
+   collapsing), or everything under it would jump when the pad opens and again
+   when it closes. On a short phone the "Draw" heading (15px line + 12px gap)
+   tucks under the bar instead of being removed. */
 .calc-draw-pinned {
   position: sticky;
   top: calc(max(0.625rem, env(safe-area-inset-top)) + 2.125rem);
@@ -1254,12 +1259,18 @@ svg ::-moz-selection {
   background-color: var(--bg-base);
   margin-inline: -1.25rem;
   padding-inline: 1.25rem;
-  padding-top: 0.5rem;
   box-shadow: 0 0.5px 0 var(--border-default);
 }
+/* The Calculator warning's own gap, inside its fold (see ReconCalculator). */
+.calc-warning-gap {
+  padding-top: 1.25rem;
+}
 @media (max-height: 650px) {
+  .calc-draw-pinned {
+    top: calc(max(0.625rem, env(safe-area-inset-top)) + 2.125rem - 1.6875rem);
+  }
   .calc-draw-pinned > h2 {
-    display: none;
+    visibility: hidden;
   }
 }
 
@@ -2501,6 +2512,10 @@ body[data-inline-edit="true"] .shortcuts-layer {
   scale: 0.97;
   background-color: var(--bg-surface-raised);
 }
+/* A destructive row (DANGER_ROW) keeps its red tint under the finger. */
+.press-row.danger-row[data-pressed] {
+  background-color: color-mix(in srgb, var(--accent-destructive) 10%, transparent);
+}
 .press-text[data-pressed] {
   opacity: 0.45;
 }
@@ -2590,7 +2605,9 @@ body[data-inline-edit="true"] .shortcuts-layer {
    --------------------------------------------------------------------------- */
 .sk {
   background-color: var(--skeleton);
-  animation: sk-wave 1.9s ease-in-out infinite;
+  /* `backwards`: a block waiting for its row's turn holds the wave's first
+     frame (0.5) instead of showing at full strength and snapping down. */
+  animation: sk-wave 1.9s ease-in-out infinite backwards;
   animation-delay: calc(var(--i, 0) * 110ms);
 }
 .sk:has(> svg) {
@@ -2625,7 +2642,7 @@ body[data-inline-edit="true"] .shortcuts-layer {
 }
 
 [data-week-loading="true"] .week-figure {
-  animation: sk-wave 1.9s ease-in-out infinite;
+  animation: sk-wave 1.9s ease-in-out infinite backwards;
 }
 .week-dot {
   transition: opacity 300ms ease-out;
@@ -2745,6 +2762,11 @@ body[data-inline-edit="true"] .shortcuts-layer {
 }
 .pad-caret-dark {
   background-color: var(--bg-base);
+}
+/* In a field the caret takes no width, so it never pushes a figure out of a
+   narrow box; it sits in the padding after the value. */
+.pad-value .pad-caret {
+  margin-right: -5px;
 }
 @keyframes pad-caret-blink {
   50% {

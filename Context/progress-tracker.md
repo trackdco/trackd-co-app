@@ -60,8 +60,39 @@ artifact's `signoff` … `signoff-r6` collections). Built in the worktree
 - Protocol and Progress's consistency card also wait on hydration, for the same
   reason Home does.
 
-**Verification:** see the review section of this entry, filled in when the
-multi-lens review and the worktree build finish.
+**Verification.**
+- Every phase: `tsc`, eslint and vitest clean (2121 tests at the end), and
+  measured in Chromium and WebKit at 402x700, 390x844, 375x548 and 360x560,
+  with reduced motion, by per-frame recorders (press depth, the wave, the
+  thumbs gliding, the sheet rise from ~250ms and settled by ~560ms, the map's
+  beats, the pad's rules, the tab handoff, the graph draw).
+- **Independent review** (five lenses: runtime core, forms, iOS Safari, layout
+  at the four sizes, brief fidelity; then skeptics trying to refute each
+  finding): 26 findings, 25 confirmed, all 25 fixed and re-measured. The one
+  refuted was the one-off amount's 5-digit ceiling, which is the app's
+  existing dose ceiling. The fixes that matter most:
+  - a guarded pull that fell back, timed out or ran offline was read as "done",
+    so a fresh device could show "Start with a compound" to a user with a full
+    protocol and no notice. It now counts as failed and says so, in wording
+    for a read ("No connection. We're having trouble connecting to your
+    account…", Adrian's wording);
+  - a failed weight save (offline, deploy skew) threw into the error boundary
+    and replaced the shell; it now shows "Couldn't save. Try again.";
+  - revisiting a graph replayed recharts' 450ms draw; it now shows finished;
+  - the pad: focus moves in and back, the closing panel keeps its field, a key
+    typed on a focused field opens it (and no longer fires a desktop shortcut
+    that navigated away), no ellipsis in narrow fields;
+  - the Calculator: pinning no longer shifts the page, the title bar shows
+    while pinned, the warning folds to one line while the pad is open, and the
+    results card stays above the pad on an SE (measured without insets);
+  - the Log dose sheet reserves its stock card at the card's real height and
+    eases it shut, and skips both reservations when Home knows there is no
+    stock;
+  - loading shells: the dashboard strip and eyebrow now match the screen to
+    the pixel (measured), Calendar/Notifications/Billing hand over like the
+    other tabs, and a full page load no longer fades the title in twice;
+  - Profile and billing rows, and danger rows, are on the press system.
+- **Production build** (`next build`, in the worktree): see below.
 
 ## ✅ THE WEIGHT SHEET GETS THE SAME DATE (2026-09-12)
 

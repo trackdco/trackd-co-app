@@ -18,6 +18,12 @@ interface WeightGlanceCardProps {
   unit: WeightUnit
   /** Tap → the full Weight view. Logging happens there (and via the + menu). */
   onOpenDetail: () => void
+  /**
+   * Tap on the EMPTY card, when given: log the first weight straight away (the
+   * Log weight pad) instead of opening a Weight view with nothing in it. A
+   * filled card still opens the view.
+   */
+  onLogFirst?: () => void
 }
 
 type WeightMode = "trend" | "scale"
@@ -64,6 +70,7 @@ export function WeightGlanceCard({
   series,
   unit,
   onOpenDetail,
+  onLogFirst,
   compact = false,
   drawKey = null,
 }: WeightGlanceCardProps & {
@@ -102,7 +109,7 @@ export function WeightGlanceCard({
           // once a reading existed, which is exactly backwards.
           <button
             type="button"
-            onClick={onOpenDetail}
+            onClick={onLogFirst ?? onOpenDetail}
             aria-label="Log your first weight"
             className="mt-3 flex flex-1 flex-col items-start text-left"
           >
@@ -224,8 +231,8 @@ export function WeightGlanceCard({
       {/* Content — tappable into the full Weight view. */}
       <button
         type="button"
-        onClick={onOpenDetail}
-        aria-label="Open the weight view"
+        onClick={empty && onLogFirst ? onLogFirst : onOpenDetail}
+        aria-label={empty && onLogFirst ? "Log your first weight" : "Open the weight view"}
         className="flex w-full items-center gap-4 rounded-b-2xl px-5 pb-5 text-left transition-colors hover:bg-bg-surface-raised/30"
       >
         {empty ? (

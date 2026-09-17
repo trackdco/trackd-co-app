@@ -351,6 +351,8 @@ export function QuickActionsFab({
         onOpenChange={setWeightOpen}
         unit={unit}
         lastKg={lastWeightKg}
+        // The tile that opened it is gone with the menu; the + is what is left.
+        returnFocusRef={fabRef}
       />
 
     </>

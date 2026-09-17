@@ -35,13 +35,16 @@ export function useCloudHydration(userId: string): void {
 
     // THE HYDRATION SIGNAL (feel pass §1). Home renders a skeleton until this
     // settles, so it must ALWAYS settle: done, failed, or out of patience.
-    const patience = window.setTimeout(
-      () => setHydrationState(userId, "failed"),
-      FIRST_PULL_PATIENCE_MS,
-    )
+    // Every way it fails says so: Home is about to show what the device has,
+    // which on a fresh device is nothing, and that must not read as the account.
+    const giveUp = () => {
+      setHydrationState(userId, "failed")
+      notifyHydrationFailed()
+    }
+    const patience = window.setTimeout(giveUp, FIRST_PULL_PATIENCE_MS)
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       // Offline: the pull cannot succeed, so do not make anyone watch it try.
-      setHydrationState(userId, "failed")
+      giveUp()
     }
 
     void (async () => {
@@ -51,14 +54,16 @@ export function useCloudHydration(userId: string): void {
           await migrateDeviceState(userId) // once, marker-guarded
         }
         if (!cancelled) {
-          await hydrateFromPostgres(userId)
-          setHydrationState(userId, "done")
+          // A guarded pull that fell back RESOLVES (`ok: false`); it is a
+          // failure all the same.
+          const { ok } = await hydrateFromPostgres(userId)
+          if (ok) setHydrationState(userId, "done")
+          else if (!cancelled) giveUp()
         }
       } catch {
         // A Server Action REJECTS when the request itself fails (offline, a
         // 5xx, a deploy skew). The cache is untouched; show what the device has.
-        setHydrationState(userId, "failed")
-        notifyHydrationFailed()
+        if (!cancelled) giveUp()
       } finally {
         window.clearTimeout(patience)
       }
@@ -77,15 +82,17 @@ export function useCloudHydration(userId: string): void {
       void (async () => {
         await repushDoseLogs(userId)
         if (!cancelled) {
-          await hydrateFromPostgres(userId)
-          setHydrationState(userId, "done")
+          const { ok } = await hydrateFromPostgres(userId)
+          if (ok) setHydrationState(userId, "done")
         }
       })()
     }
     // A later re-sync that lands also settles a first pull that failed.
     const resync = () =>
       void hydrateFromPostgres(userId).then(
-        () => setHydrationState(userId, "done"),
+        ({ ok }) => {
+          if (ok) setHydrationState(userId, "done")
+        },
         () => {},
       )
     const onFocus = () => resync()

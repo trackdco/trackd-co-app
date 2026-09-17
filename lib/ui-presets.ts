@@ -105,9 +105,13 @@ export const DATA_MONO = "font-mono text-xs tabular-nums text-text-muted"
  *  rather than three copies, because three copies of a destructive treatment is
  *  how one of them quietly stops matching the others. Never use it outside a
  *  bounded destructive section: `--accent-destructive` is scoped to deliberate
- *  destructive actions, not a general accent. */
+ *  destructive actions, not a general accent.
+ *
+ *  Its press is the shared `row` variant (feel pass §2); `danger-row` keeps the
+ *  red pressed tint in place of the row's raised surface. The class names are
+ *  literals because `PRESS` is declared further down this file. */
 export const DANGER_ROW =
-  "flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-accent-destructive outline-none transition-colors hover:bg-accent-destructive/10 active:bg-accent-destructive/10 focus-visible:bg-accent-destructive/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+  "press-row danger-row flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-accent-destructive outline-none transition-colors hover:bg-accent-destructive/10 focus-visible:bg-accent-destructive/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
 
 /* ------------------------------------------------ stock entry (shared) --- */
 

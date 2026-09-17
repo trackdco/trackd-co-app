@@ -4,6 +4,8 @@ import { useState } from "react"
 import { CaretRight, ChatCircleDots } from "@/components/icons"
 
 import { FeedbackSheet } from "@/components/feedback/FeedbackSheet"
+import { PRESS } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 
 /**
  * The permanent "Send feedback" row at the bottom of Profile → App. Styled to
@@ -20,7 +22,10 @@ export function ProfileFeedbackRow({ userId }: { userId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised active:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className={cn(
+          PRESS.row,
+          "flex w-full items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        )}
       >
         <ChatCircleDots className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
         <span className="flex-1 text-sm text-foreground">Send feedback</span>

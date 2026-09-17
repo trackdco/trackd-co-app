@@ -68,6 +68,14 @@ interface LogDoseSheetProps {
    * pass §4); without it the sheet reads it in the same round trip as the rest.
    */
   catalogue?: InjectionSiteRow[]
+  /**
+   * What the caller already knows about this compound's stock on this day:
+   * "has" (a container resolved) or "none" (confirmed none). The sheet reserves
+   * the Draw row and the stock card while its own read is in flight, and skips
+   * that for "none", so a user who does not track stock never watches them
+   * open and shut (feel pass §4). Unknown reserves.
+   */
+  stockHint?: "has" | "none"
   onOpenChange: (open: boolean) => void
   /**
    * Commit the log (fresh or edited).
@@ -134,6 +142,7 @@ export function LogDoseSheet({
   siteLastUsedDays,
   bodySex,
   catalogue,
+  stockHint,
   onOpenChange,
   onTracked,
   onRemove,
@@ -221,6 +230,7 @@ export function LogDoseSheet({
             siteLastUsedDays={siteLastUsedDays}
             bodySex={bodySex}
             catalogueProp={catalogue}
+            stockHint={stockHint}
             onClose={() => onOpenChange(false)}
             onTracked={onTracked}
             onRemove={onRemove}
@@ -272,6 +282,7 @@ function LogDoseBody({
   siteLastUsedDays,
   bodySex,
   catalogueProp,
+  stockHint,
   onClose,
   onTracked,
   onRemove,
@@ -287,6 +298,7 @@ function LogDoseBody({
   siteLastUsedDays: Record<string, number>
   bodySex: BodySex
   catalogueProp?: InjectionSiteRow[]
+  stockHint?: "has" | "none"
   onClose: () => void
   onTracked: (
     compoundId: string,
@@ -659,6 +671,11 @@ function LogDoseBody({
     return null
   })()
 
+  // The stock card's slot: held open while the read is in flight (unless the
+  // caller knows there is no stock), then open only for a card.
+  const stockPending = onToday ? loadingVials : dateVialId === undefined
+  const stockSlotOpen = stockPending ? stockHint !== "none" : vialCard !== null
+
   // Sites to show on the map: this compound's route only — pick any site on it.
   // The day-count for the picked spot is shown in the caption below (never on the
   // muscle itself). Narrowed to the sites that exist on this user's body too (the
@@ -907,8 +924,12 @@ function LogDoseBody({
           {injectable && (
             <div
               className="grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
-              style={{ gridTemplateRows: !drawRead || drawSource ? "1fr" : "0fr" }}
-              aria-hidden={drawRead && !drawSource}
+              style={{
+                gridTemplateRows: (drawRead ? Boolean(drawSource) : stockHint !== "none")
+                  ? "1fr"
+                  : "0fr",
+              }}
+              aria-hidden={drawRead ? !drawSource : stockHint === "none"}
             >
               <div className="overflow-hidden">
                 <LogRowDivider />
@@ -1110,7 +1131,7 @@ function LogDoseBody({
             <p
               key={siteId ?? "last"}
               className={cn(
-                "animate-late-in min-h-[2.9em] pt-2 text-xs",
+                "animate-late-in min-h-10 pt-2 text-xs",
                 siteId != null &&
                   siteLastUsedDays[siteId] !== undefined &&
                   siteLastUsedDays[siteId] < REST_DAYS
@@ -1189,67 +1210,84 @@ function LogDoseBody({
             The rules are unchanged: a BACK-DATED dose links to the vial resolved
             for its own day, TODAY links to the active one, and 2+ active vials
             keep an explicit chooser. Only the presentation moved. */}
-        {/* RESERVED while the read is in flight: the card's own shape with a
-            skeleton figure. It then either fills in place or eases shut. */}
-        {(onToday ? loadingVials : dateVialId === undefined) ? (
-          <div
-            aria-hidden
-            className={cn(SHEET_RISE, "mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised")}
-            style={{ "--rise-i": 5 } as React.CSSProperties}
-          >
-            <LogRow label={`From ${containerWord}`}>
-              <Sk w="88px" h={12} />
-            </LogRow>
-          </div>
-        ) : null}
-        {vialCard && (
-          <div className="animate-late-in mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
-            {/* The LABEL was the one part of this card still hardcoded, so a tub
-                read "From vial · 1 kg left" with the note directly underneath
-                saying "Comes off the tub…" — the same card contradicting itself
-                (cold review, 2026-08-12). */}
-            <LogRow label={`From ${containerWord}`} value={vialCard.value} />
-            {vialCard.note && (
-              <p className="px-4 pb-3 text-xs text-text-subtle">{vialCard.note}</p>
-            )}
-            {vialCard.choices && (
-              <>
-                <LogRowDivider />
-                <div className="flex flex-wrap gap-2 px-4 py-3">
-                  {vialCard.choices.map((c) => (
+        {/* RESERVED while the read is in flight (feel pass §4): the card's
+            usual shape (the figure, its note, the count toggle) in skeleton, so
+            the read lands INTO it. If there turns out to be nothing to show,
+            the slot eases shut rather than vanishing, and when Home already
+            knows this compound has no stock it is never opened at all. */}
+        <div
+          className={cn(SHEET_RISE, "grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none")}
+          style={
+            {
+              "--rise-i": 5,
+              gridTemplateRows: stockSlotOpen ? "1fr" : "0fr",
+            } as React.CSSProperties
+          }
+        >
+          <div className="overflow-hidden" aria-hidden={!vialCard || undefined}>
+            {vialCard ? (
+              <div className="animate-late-in mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
+                {/* The LABEL was the one part of this card still hardcoded, so a tub
+                    read "From vial · 1 kg left" with the note directly underneath
+                    saying "Comes off the tub…" — the same card contradicting itself
+                    (cold review, 2026-08-12). */}
+                <LogRow label={`From ${containerWord}`} value={vialCard.value} />
+                {vialCard.note && (
+                  <p className="px-4 pb-3 text-xs text-text-subtle">{vialCard.note}</p>
+                )}
+                {vialCard.choices && (
+                  <>
+                    <LogRowDivider />
+                    <div className="flex flex-wrap gap-2 px-4 py-3">
+                      {vialCard.choices.map((c) => (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={c.onPick}
+                          aria-pressed={c.active}
+                          className={cn(
+                            PRESS.pill,
+                            "min-h-9 rounded-full border px-3 py-2 font-mono text-xs transition-colors duration-200 ease-out",
+                            c.active
+                              ? "border-transparent bg-accent-primary font-medium text-bg-base"
+                              : "border-border-default bg-bg-input text-text-muted hover:text-text-primary",
+                          )}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {vialCard.toggle && (
+                  <>
+                    <LogRowDivider />
                     <button
-                      key={c.key}
                       type="button"
-                      onClick={c.onPick}
-                      aria-pressed={c.active}
-                      className={cn(
-                        PRESS.pill,
-                        "min-h-9 rounded-full border px-3 py-2 font-mono text-xs transition-colors duration-200 ease-out",
-                        c.active
-                          ? "border-transparent bg-accent-primary font-medium text-bg-base"
-                          : "border-border-default bg-bg-input text-text-muted hover:text-text-primary",
-                      )}
+                      onClick={vialCard.toggle.onPress}
+                      className={cn(PRESS.text, "flex min-h-11 w-full items-center px-4 py-2.5 text-left text-sm text-text-muted")}
                     >
-                      {c.label}
+                      {vialCard.toggle.label}
                     </button>
-                  ))}
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
+                <LogRow label={`From ${containerWord}`}>
+                  <Sk w="88px" h={12} />
+                </LogRow>
+                <div className="px-4 pb-3">
+                  <Sk w="58%" h={10} className="my-[3px]" />
                 </div>
-              </>
-            )}
-            {vialCard.toggle && (
-              <>
                 <LogRowDivider />
-                <button
-                  type="button"
-                  onClick={vialCard.toggle.onPress}
-                  className={cn(PRESS.text, "flex min-h-11 w-full items-center px-4 py-2.5 text-left text-sm text-text-muted")}
-                >
-                  {vialCard.toggle.label}
-                </button>
-              </>
+                <div className="flex min-h-11 items-center px-4 py-2.5">
+                  <Sk w="44%" h={12} />
+                </div>
+              </div>
             )}
           </div>
-        )}
+        </div>
 
         {/* The footer spec 11 says stays — but not the sentence it used to be.
             "Saved to this device for you only" is FALSE of a dose: every one
