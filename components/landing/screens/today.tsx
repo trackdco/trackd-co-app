@@ -42,7 +42,7 @@ export function TodayScreen() {
       <div>
         <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">Friday, 3 October</p>
         <div className="mt-1 flex items-center justify-between">
-          <h3 className={cn(PAGE_TITLE, "text-[2rem]")}>Dashboard</h3>
+          <h3 className={cn(PAGE_TITLE, "text-[32px]")}>Dashboard</h3>
           <span className="flex items-center gap-4 text-text-muted">
             <CaretDown className="h-5 w-5" />
             <CalendarBlank className="h-5 w-5" />

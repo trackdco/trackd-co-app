@@ -72,7 +72,7 @@ const STEPS = [
 export default function ReconstitutionCalculatorPage() {
   return (
     <>
-      <main className="min-h-dvh overflow-x-clip bg-bg-base">
+      <main className="lp-site min-h-dvh overflow-x-clip bg-bg-base">
         <section id="hero" aria-labelledby="calc-title" className="lp-hero">
           {/* The menu's "Reviews" jumps to `/#movement`, which is not on the
               home page while the reviews are hidden, so it goes too. Decided

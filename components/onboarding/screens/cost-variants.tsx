@@ -636,7 +636,13 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
           Trackd row — the one uncovered figure, the whole point of the card —
           was under the button. The air gives way on a short phone and nothing
           else does; on a tall one every figure is the one it was tuned at. See
-          `lib/onboarding/fit.ts`. */}
+          `lib/onboarding/fit.ts`.
+
+          ⚠️ BUT NOT A WHOLE MONITOR (Adrian, 2026-09-17, on a 27-inch
+          screen: "humongous, very long"). From the laptop breakpoint up the
+          card stops at 27rem, the proportions it has on his handset (386 x
+          362) at the column's 408px, and the spare height stays below it. A
+          phone never reaches that width, so nothing changes on one. */}
       <div className="flex flex-1 flex-col" style={{ paddingTop: fit(32, 8) }}>
         <header className="shrink-0 space-y-3.5">
           <h1 className={cn(FLOW_TITLE, "text-balance")}>
@@ -653,7 +659,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
         </header>
 
         <div
-          className="flex flex-1 flex-col rounded-2xl bg-bg-surface px-6"
+          className="flex flex-1 flex-col rounded-2xl bg-bg-surface px-6 lg:max-h-[27rem]"
           style={{ marginTop: fit(32, 16, 12), paddingBlock: fit(24, 12, 12) }}
         >
           <p className={CARD_EYEBROW}>Per year</p>

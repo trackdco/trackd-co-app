@@ -1,5 +1,25 @@
 # Progress Tracker
 
+## ✅ SIZING ON A LARGE MONITOR (2026-09-17)
+
+Adrian, on a 27-inch monitor: the landing page read small, the flow's cost
+card was "humongous, very long", and the free-week video was "way too small".
+Fixed, all from 1024px wide up, so no phone changes:
+
+- **Landing:** the site scales to 112.5% from 1800 x 900 and to 125% from
+  2200 x 1100 (root size). The drawn phones keep their inner layout exactly,
+  checked element by element at 16, 18 and 20px roots.
+- **Cost card:** capped at 27rem, its handset proportions, instead of filling
+  a 1300px window.
+- **Free-week video:** the phone grows with the window (208px at 1440 x 800,
+  276px at 1920 x 950, capped at 320px), and the port pads out 10rem each side
+  so the zoomed opening is not cut. Nothing to scroll from 1280 x 720 to
+  2560 x 1300.
+- A `font-size` written in `.lp-phone-logical` was silently dropped by the CSS
+  minifier; it is a `text-[16px]` class instead.
+- Pre-existing and unchanged: the cost screen at 402 x 700 has 16px of
+  overflow, faded by the port (production has the same).
+
 ## ✅ SPEC 3-03 SHIPPED: THE LANDING PAGE, THE FREE CALCULATOR, THE FLOW'S INTRO (2026-09-17)
 
 **Merged:** PR #66 (renamed "Spec 3-03: landing page rebuild, free calculator,

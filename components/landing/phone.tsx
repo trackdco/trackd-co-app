@@ -84,8 +84,10 @@ export function Phone({
         />
         <div className="lp-phone-screen relative overflow-hidden rounded-[calc(var(--phone-w)*0.145)] bg-bg-base ring-1 ring-inset ring-black/70">
           {/* `inert`: nothing inside a picture is focusable or announced, which is
-              what lets a screen reuse the app's real (interactive) components. */}
-          <div inert className="lp-phone-logical relative overflow-hidden bg-bg-base text-left">
+              what lets a screen reuse the app's real (interactive) components.
+              `text-[16px]`: the app's base size in px, so a large monitor's
+              bigger root size does not reach inside (see `.lp-phone-logical`). */}
+          <div inert className="lp-phone-logical relative overflow-hidden bg-bg-base text-left text-[16px]">
             <StatusBar />
             <AppHeader />
             <div className="relative">{children}</div>

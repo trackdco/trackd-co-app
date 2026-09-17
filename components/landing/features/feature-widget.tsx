@@ -516,9 +516,11 @@ function CalloutMark({ callout, order }: { callout: Callout; order: number }) {
 function Card({ callout, className, style }: { callout: Callout; className: string; style: CSSProperties }) {
   return (
     <span className={cn("lp-co-card lp-float rounded-2xl px-3 py-2 lg:px-3.5 lg:py-2.5", className)} style={style}>
-      <span className="block text-[12px] leading-snug text-foreground lg:text-[13px]">{callout.title}</span>
+      {/* In rem, not px, so the notes grow with the rest of the page on a
+          large monitor (see "A large monitor" in `globals.css`). */}
+      <span className="block text-[0.75rem] leading-snug text-foreground lg:text-[0.8125rem]">{callout.title}</span>
       {callout.line ? (
-        <span className="mt-0.5 hidden text-[12px] leading-snug text-text-secondary lg:block">{callout.line}</span>
+        <span className="mt-0.5 hidden text-[0.75rem] leading-snug text-text-secondary lg:block">{callout.line}</span>
       ) : null}
     </span>
   );
