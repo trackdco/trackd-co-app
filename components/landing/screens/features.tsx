@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import { CaretDown, CaretRight, MagnifyingGlass, Plus } from "@/components/icons";
 import { CalculatorInputs } from "@/components/calculator/CalculatorInputs";
@@ -351,6 +351,9 @@ const WEIGHT_SCALE = [89.6, 89.9, 89.2, 89.4, 88.9, 89.1, 88.5, 88.7, 88.2, 88.4
 const WEIGHT_TREND = [89.7, 89.6, 89.4, 89.3, 89.1, 88.9, 88.8, 88.6, 88.4, 88.2, 88.0, 87.9, 87.7, 87.5, 87.3, 87.2, 87.0, 86.9, 86.8, 86.6];
 
 export function ProgressScreen({ live }: ScreenProps) {
+  // Unique per instance: the phone accordion and the laptop stage can both
+  // render this screen at once, and an SVG id must be unique in the document.
+  const gradientId = `lp-trend-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const W = 310;
   const H = 120;
   const trend = sparkGeometry(WEIGHT_TREND, W, H, 6);
@@ -374,13 +377,13 @@ export function ProgressScreen({ live }: ScreenProps) {
         <p className={cn(DATA_MONO, "mt-0.5")}>-3.1 kg over this range</p>
         <svg viewBox={`0 0 ${W} ${H}`} className="mt-4 w-full overflow-visible">
           <defs>
-            <linearGradient id="lp-progress-trend" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity="0.35" />
               <stop offset="100%" stopColor="var(--chart-trend)" stopOpacity="0" />
             </linearGradient>
           </defs>
           <path d={scale.line} fill="none" strokeWidth="2.5" strokeLinecap="round" className="stroke-chart-line" opacity={0.3} />
-          <path d={trend.area} fill="url(#lp-progress-trend)" className="lp-draw-area" />
+          <path d={trend.area} fill={`url(#${gradientId})`} className="lp-draw-area" />
           <path
             d={trend.line}
             pathLength={1}

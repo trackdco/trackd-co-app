@@ -67,7 +67,7 @@ underneath ("+ title", "o title").
 **Panel 3 (closer, then FAQ).** "WHAT ARE YOU WAITING FOR?" with Kyle the vial
 mascot centred, flexing, drawn large. Feature chips floating around him
 ("o feature" x2, "FEEDBACK", "RECONSTITUTION Calculator"). A highlighted button
-reading "Begin Tracked" (**he has since changed this** - see §3.6). Below that,
+reading "Begin Tracked" (**he has since changed this** - see §3.5). Below that,
 "Still have questions." over a stack of ruled lines (the FAQ), with two small
 vial icons at the bottom corners.
 

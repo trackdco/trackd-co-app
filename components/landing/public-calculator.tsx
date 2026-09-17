@@ -144,7 +144,9 @@ export function PublicCalculator() {
           className="grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
           style={{ gridTemplateRows: misuse ? "1fr" : "0fr" }}
         >
-          <div className="min-h-0 overflow-hidden">
+          {/* `inert` once collapsed: the last warning is kept for the animation,
+              and must not be read out after it stops applying. */}
+          <div className="min-h-0 overflow-hidden" inert={!misuse}>
             <div role="status" className="mt-5 flex items-start gap-3 rounded-2xl bg-accent-amber/15 p-4">
               <Warning className="mt-[3px] h-4 w-4 shrink-0 text-accent-amber" aria-hidden />
               <p className="text-pretty text-sm leading-relaxed text-accent-amber">{warning}</p>
