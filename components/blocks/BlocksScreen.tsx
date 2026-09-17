@@ -6,6 +6,7 @@ import { ArrowLeft, CaretRight, Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
+import { ListBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons"
 import { useDeviceToday } from "@/components/home/useDeviceToday"
 import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
 import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
@@ -193,13 +194,16 @@ export function BlocksScreen({
     <div
       data-screen="blocks"
       data-desktop-layout="wide"
-      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
-      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+      <RouteTitle id="blocks">
         <PageScrollTitle title="Blocks" />
-      </div>
+      </RouteTitle>
+      <RouteHandoff id="blocks">
+        <ListBlocks />
+      </RouteHandoff>
 
-      <div className="animate-home-up" style={{ animationDelay: "40ms" }}>
+      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
         {live ? (
           <LiveBlockCard
             block={live}

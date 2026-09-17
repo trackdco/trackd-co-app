@@ -32,6 +32,7 @@ export function WeightHero({
       unit={unit}
       compact={compact}
       onOpenDetail={() => router.push("/weight")}
+      drawKey={compact ? "progress:weight" : null}
     />
   );
 }

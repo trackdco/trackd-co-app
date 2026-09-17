@@ -5,6 +5,12 @@ import { useSyncExternalStore } from "react";
 import { useDeviceToday } from "@/components/home/useDeviceToday";
 
 import { useMounted } from "@/components/home/useMounted";
+import { Sk, SkGraph } from "@/components/feel/Skeleton";
+import {
+  getHydrationState,
+  subscribeHydrationState,
+  type HydrationState,
+} from "@/lib/home/hydrationState";
 import { ConsistencyGraph } from "@/components/progress/ConsistencyGraph";
 import { computeAdherence, type AdherencePoint } from "@/lib/progress/consistency";
 import { getStackSnapshot, subscribeStack } from "@/lib/home/stack";
@@ -54,5 +60,32 @@ export function ConsistencySection({
   // exactly this; the consistency widget had been left on the server's clock.
   const todayKey = useDeviceToday(serverTodayKey);
   const points = sample ?? (mounted ? computeAdherence(stack, logs, todayKey) : []);
-  return <ConsistencyGraph points={points} compact={compact} />;
+  // An empty device before its first pull would read "no doses": hold a
+  // skeleton until the log is known (feel pass §1).
+  const hydration = useSyncExternalStore<HydrationState>(
+    subscribeHydrationState,
+    () => getHydrationState(userId),
+    () => "pending",
+  );
+  const known = sample !== undefined || (mounted && (stack.length > 0 || hydration !== "pending"));
+  if (!known) {
+    return (
+      <section
+        aria-busy="true"
+        aria-label="Loading consistency"
+        className="animate-shortcut-fade flex flex-col rounded-2xl bg-bg-surface p-5"
+      >
+        <Sk w="60%" h={9} />
+        <Sk w="46%" h={26} className="mt-3" />
+        <SkGraph height={compact ? 64 : 120} seed={3} className="mt-3 flex-1" />
+      </section>
+    );
+  }
+  return (
+    <ConsistencyGraph
+      points={points}
+      compact={compact}
+      drawKey={compact ? "progress:consistency" : null}
+    />
+  );
 }

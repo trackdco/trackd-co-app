@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
+import { DrawFrame, useFirstDraw } from "@/components/feel/FirstDraw";
+import { ThumbGroup } from "@/components/feel/SlidingThumb";
+import { PRESS } from "@/lib/ui-presets";
 import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets";
 import { dateKeyToDate } from "@/lib/home/mockHomeData";
 import { todayKey } from "@/lib/protocol/cycle";
@@ -112,8 +115,11 @@ function ScrubTip({
 export function ConsistencyGraph({
   points,
   compact = false,
+  drawKey = null,
 }: {
   points: AdherencePoint[];
+  /** Names this graph for its first-load draw (feel pass §7). */
+  drawKey?: string | null;
   /**
    * Progress's two-up grid (spec 08 · part two). Everything survives the
    * squeeze: the percentage, the graph and the 30D / 90D / All toggle. The
@@ -125,6 +131,9 @@ export function ConsistencyGraph({
 }) {
   const [rangeId, setRangeId] = useState("30");
   const [chartRef, chartWidth] = useChartWidth();
+  // The first load draws in; recharts' own 450ms line stays for range switches.
+  const draw = useFirstDraw(drawKey);
+  const [switched, setSwitched] = useState(false);
 
   const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[0];
   const windowed =
@@ -167,6 +176,13 @@ export function ConsistencyGraph({
         style={{ touchAction: "pan-y", height: chartHeight }}
       >
         {doseDays > 0 && chartWidth > 0 ? (
+          <DrawFrame
+            draw={draw}
+            line=".recharts-area-curve"
+            color="var(--chart-trend)"
+            interrupt={rangeId}
+            className="h-full"
+          >
           <AreaChart
             key={rangeId}
             width={chartWidth}
@@ -202,11 +218,12 @@ export function ConsistencyGraph({
                 stroke: "var(--bg-surface)",
                 strokeWidth: 2,
               }}
-              isAnimationActive
+              isAnimationActive={!draw.first || switched}
               animationDuration={450}
               animationEasing="ease-out"
             />
           </AreaChart>
+          </DrawFrame>
         ) : (
           <div className="flex h-full items-center justify-center text-center text-sm text-text-muted">
             Log your doses to build your consistency.
@@ -215,14 +232,24 @@ export function ConsistencyGraph({
       </div>
 
       {/* Range selector — match the Weight view. */}
-      <div className="mt-3 grid grid-cols-3 gap-1 rounded-full border border-border-default bg-bg-input p-0.5">
+      <ThumbGroup
+        selection={rangeId}
+        thumbClassName="rounded-full bg-bg-surface-raised"
+        role="group"
+        aria-label="Range"
+        className="mt-3 grid grid-cols-3 gap-1 rounded-full border border-border-default bg-bg-input p-0.5"
+      >
         {RANGES.map((r) => (
           <button
             key={r.id}
             type="button"
-            onClick={() => setRangeId(r.id)}
+            onClick={() => {
+              if (r.id !== rangeId) setSwitched(true);
+              setRangeId(r.id);
+            }}
             aria-pressed={rangeId === r.id}
             className={cn(
+              PRESS.pill,
               "rounded-full py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
               // The pill stays 28px tall because a segmented control blown up to
               // 44 would dominate a widget that is only 228 tall. The TOUCH area
@@ -230,13 +257,13 @@ export function ConsistencyGraph({
               // changes no layout: 28 + 16 = 44. This is the corner where "All"
               // already cost a HIGH once, under the FAB.
               "relative before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']",
-              rangeId === r.id ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
+              rangeId === r.id ? "text-foreground" : "text-text-muted",
             )}
           >
             {r.label}
           </button>
         ))}
-      </div>
+      </ThumbGroup>
 
       {!compact && (
         <p className="mt-3 text-xs text-text-muted">

@@ -16,14 +16,15 @@ function RowSk() {
 }
 
 /**
- * Home while the log is unknown (feel pass §1): shaped like Today's Log, the
- * two status cards, the injection-site glance and the journal card, so nothing
- * moves when the real cards rise in. Never the empty state: "Start your log"
- * shown to someone with a full protocol is a wrong statement, not a placeholder.
+ * Home's cards while the log is unknown (feel pass §1): shaped like Today's
+ * Log, the two status cards, the injection-site glance and the journal card,
+ * so nothing moves when the real cards rise in. Never the empty state: "Start
+ * your log" shown to someone with a full protocol is a wrong statement, not a
+ * placeholder.
  */
-export function HomeSkeleton() {
+export function HomeSkeletonBlocks() {
   return (
-    <SkeletonGroup label="Loading your log" className="space-y-5">
+    <>
       <section className="rounded-2xl bg-bg-surface p-5">
         <Sk w="62%" h={26} />
         <Sk w="72px" h={9} className="mt-4" />
@@ -66,6 +67,19 @@ export function HomeSkeleton() {
         <Sk w="56px" h={9} />
         <Sk h={44} className="mt-3 rounded-xl" />
       </section>
+    </>
+  )
+}
+
+/**
+ * The same, as one announced, waving group. `continued` when the route's own
+ * skeleton was just on screen: it is already visible, so it does not fade in
+ * a second time.
+ */
+export function HomeSkeleton({ continued = false }: { continued?: boolean }) {
+  return (
+    <SkeletonGroup label="Loading your log" className="space-y-5" still={continued}>
+      <HomeSkeletonBlocks />
     </SkeletonGroup>
   )
 }

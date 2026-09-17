@@ -7,6 +7,7 @@ import { Check, Trash } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { CARD_EYEBROW, DATA_MONO, PAGE_TITLE, PRESS } from "@/lib/ui-presets";
 import { NumberPad, PadInput } from "@/components/feel/NumberPad";
+import { RouteHandoff, RouteTitle, WeightBlocks } from "@/components/feel/RouteSkeletons";
 import { formatDateKeyNumeric } from "@/lib/calendar/calendar";
 import { Input } from "@/components/ui/input";
 import {
@@ -218,19 +219,24 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
     <div
       data-screen="weight"
       data-desktop-layout="wide"
-      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
-      <header className="animate-home-up px-1" style={{ animationDelay: "0ms" }}>
-        <h1 className={PAGE_TITLE}>Weight</h1>
-        <p className="mt-0.5 text-sm text-text-muted">
-          Log your bodyweight and watch the trend.
-        </p>
-      </header>
+      <RouteTitle id="weight">
+        <header className="px-1">
+          <h1 className={PAGE_TITLE}>Weight</h1>
+          <p className="mt-0.5 text-sm text-text-muted">
+            Log your bodyweight and watch the trend.
+          </p>
+        </header>
+      </RouteTitle>
+      <RouteHandoff id="weight">
+        <WeightBlocks />
+      </RouteHandoff>
 
       {/* ── Track your weight ─────────────────────────────────────── */}
       <section
         className="animate-home-up relative rounded-2xl bg-bg-surface p-5"
-        style={{ animationDelay: "70ms" }}
+        style={{ animationDelay: "0ms" }}
       >
         <h2 className={CARD_EYEBROW}>Track your weight</h2>
         <div className="mt-4 flex gap-3">
@@ -328,18 +334,19 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
       {/* Shared with the block weight sheet. `spanDays` null: this screen is the
           whole history, so every range stays on offer. */}
       <WeightGraph
+        drawKey="weight:graph"
         entries={viewEntries}
         unit={unit}
         anchorKey={todayKey}
         spanDays={null}
         className="animate-home-up"
-        style={{ animationDelay: "140ms" }}
+        style={{ animationDelay: "55ms" }}
       />
 
       {/* ── Entry log ─────────────────────────────────────────────── */}
       <section
         className="animate-home-up rounded-2xl bg-bg-surface p-5"
-        style={{ animationDelay: "210ms" }}
+        style={{ animationDelay: "110ms" }}
       >
         <h2 className={CARD_EYEBROW}>Entry log</h2>
         {logMonths.length === 0 ? (

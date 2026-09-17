@@ -19,6 +19,7 @@ import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
+import { ProfileBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 
 /**
@@ -66,15 +67,18 @@ export function ProfileScreen({
     <div
       data-screen="profile"
       data-desktop-layout="column"
-      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
       {/* Each block fades + rises in on load, staggered — the same
           `animate-home-up` idiom as Home and Progress (per-section, not a single
           whole-page fade), so every tab page loads in the same way. */}
-      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
+      <RouteTitle id="profile">
         {/* Shared scroll-title preset (large heading → fade-in compact bar). */}
         <PageScrollTitle title="Profile" />
-      </div>
+      </RouteTitle>
+      <RouteHandoff id="profile">
+        <ProfileBlocks />
+      </RouteHandoff>
 
       {/* ── Identity ──────────────────────────────────────────────── */}
       <section

@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { SkeletonSwap } from "@/components/feel/Skeleton"
 import { HomeSkeleton } from "@/components/home/HomeSkeleton"
+import { useArrivedFromSkeleton } from "@/components/feel/Skeleton"
 import {
   getHydrationState,
   subscribeHydrationState,
@@ -354,6 +355,9 @@ export function HomeScreen({
     () => getHydrationState(userId),
     () => "pending",
   )
+  // Did the route's own skeleton just hand over? Then the title and strip are
+  // already on screen and must not fade in again.
+  const fromSkeleton = useArrivedFromSkeleton("dashboard")
   const logKnown =
     previewLogKnown ??
     (previewStack !== undefined || stack.length > 0 || hydration !== "pending")
@@ -888,7 +892,7 @@ export function HomeScreen({
       >
         {/* One rise per arrival (feel pass §1): the title and the week strip
             fade in where they stand, and only the content below them rises. */}
-        <div data-area="title" className="animate-shortcut-fade">
+        <div data-area="title" className={cn(!fromSkeleton && "animate-shortcut-fade")}>
           <PageScrollTitle
             title="Dashboard"
             eyebrow={dayLabel(selectedKey)}
@@ -933,7 +937,8 @@ export function HomeScreen({
             while closed so its day buttons leave the tab order. */}
         <div
           className={cn(
-            "grid animate-shortcut-fade",
+            "grid",
+            !fromSkeleton && "animate-shortcut-fade",
             // The transition is suppressed until the store's first CLIENT read.
             // `useSyncExternalStore` prevents a hydration MISMATCH, not a wrong
             // first paint: the server snapshot is "open", so a user who collapsed
@@ -976,7 +981,11 @@ export function HomeScreen({
             space-y-5 never opens a gap here). */}
         {notificationsBanner}
 
-        <SkeletonSwap ready={logKnown} skeleton={<HomeSkeleton />}>
+        <SkeletonSwap
+          ready={logKnown}
+          skeleton={fromSkeleton ? <HomeSkeleton continued /> : <HomeSkeleton />}
+          leaveOnMount={fromSkeleton}
+        >
         <div data-area="log" className="animate-home-up" style={{ animationDelay: "0ms" }}>
           {stack.length === 0 ? (
             // First run has no Today's Log card to host the greeting, and that

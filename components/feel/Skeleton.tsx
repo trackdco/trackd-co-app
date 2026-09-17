@@ -24,7 +24,7 @@ const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : use
  * Reduced motion holds it still. The CSS is in `globals.css` ("SKELETONS").
  */
 
-/** One skeleton block. `w` is any CSS length; `h` is px. */
+/** One skeleton block. `w` is any CSS length; `h` is px (omit it to size by class). */
 export function Sk({
   w = "100%",
   h,
@@ -33,7 +33,7 @@ export function Sk({
   style,
 }: {
   w?: string
-  h: number
+  h?: number
   round?: boolean
   className?: string
   style?: CSSProperties
@@ -42,7 +42,7 @@ export function Sk({
     <span
       aria-hidden
       className={cn("sk block", round ? "rounded-full" : "rounded-md", className)}
-      style={{ width: w, height: h, ...style }}
+      style={{ width: w, ...(h === undefined ? {} : { height: h }), ...style }}
     />
   )
 }
@@ -102,10 +102,13 @@ function indexBlocks(wrap: HTMLElement) {
 export function SkeletonGroup({
   label,
   className,
+  still = false,
   children,
 }: {
   label: string
   className?: string
+  /** Already on screen (a route's skeleton handed over): no fade in. */
+  still?: boolean
   children: ReactNode
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -113,7 +116,13 @@ export function SkeletonGroup({
     if (ref.current) indexBlocks(ref.current)
   }, [])
   return (
-    <div ref={ref} role="status" aria-busy="true" aria-label={label} className={cn("sk-wrap", className)}>
+    <div
+      ref={ref}
+      role="status"
+      aria-busy="true"
+      aria-label={label}
+      className={cn("sk-wrap", still && "sk-wrap-still", className)}
+    >
       {children}
     </div>
   )
@@ -134,15 +143,21 @@ export function SkeletonSwap({
   ready,
   skeleton,
   skeletonClassName,
+  leaveOnMount = false,
   children,
 }: {
   ready: boolean
   skeleton: ReactNode
   /** On the box that holds the skeleton (and its leaving copy). */
   skeletonClassName?: string
+  /**
+   * Ready at once, but a route skeleton was just on screen: fade it out over
+   * the content rather than cutting to it.
+   */
+  leaveOnMount?: boolean
   children: ReactNode
 }) {
-  const [leaving, setLeaving] = useState(false)
+  const [leaving, setLeaving] = useState(ready && leaveOnMount)
   const [prevReady, setPrevReady] = useState(ready)
   if (ready !== prevReady) {
     setPrevReady(ready)
@@ -195,13 +210,22 @@ function LeavingSkeleton({ className, children }: { className?: string; children
 
 /* ------------------------------------------------ route loading → page handoff */
 
-/** When each route's loading skeleton last left the screen (performance.now()). */
-const routeSkeletonExits = new Map<string, number>()
+/**
+ * Which routes' `loading.tsx` skeletons are on screen right now, and which
+ * have been on screen and may be handing over to their page.
+ *
+ * Next swaps a route's loading fallback for its page in one commit. The page
+ * RENDERS while the fallback is still mounted, so a flag set by the fallback is
+ * readable in the page's first render; the fallback clears it a tick after it
+ * unmounts, so a later visit served from the router cache (no fallback) never
+ * sees a stale one. The count keeps React's dev double-mount from clearing it.
+ */
+const skeletonsMounted = new Map<string, number>()
+const skeletonsShown = new Set<string>()
 
 /**
- * The body of a route's `loading.tsx`. Records the moment it unmounts, which is
- * the moment Next swaps the real page in, so the page can fade the same
- * skeleton out over itself (`SkeletonHandoff`) instead of cutting.
+ * The body of a route's `loading.tsx`. Its group fades in without moving, and
+ * it tells the page it is standing in for (see `useArrivedFromSkeleton`).
  */
 export function RouteSkeleton({
   id,
@@ -214,8 +238,15 @@ export function RouteSkeleton({
   className?: string
   children: ReactNode
 }) {
-  useIsoLayoutEffect(() => () => {
-    routeSkeletonExits.set(id, performance.now())
+  useIsoLayoutEffect(() => {
+    skeletonsMounted.set(id, (skeletonsMounted.get(id) ?? 0) + 1)
+    skeletonsShown.add(id)
+    return () => {
+      skeletonsMounted.set(id, Math.max(0, (skeletonsMounted.get(id) ?? 1) - 1))
+      window.setTimeout(() => {
+        if (!skeletonsMounted.get(id)) skeletonsShown.delete(id)
+      }, 0)
+    }
   }, [id])
   return (
     <SkeletonGroup label={label} className={className}>
@@ -225,39 +256,38 @@ export function RouteSkeleton({
 }
 
 /**
- * Mounted at the top of a route's content box (which must be `relative`).
- * If that route's `loading.tsx` skeleton left in this same commit, it shows the
- * skeleton once more, absolutely positioned, fading out over 240ms while the
- * content rises through it. On a revisit served from the router cache there was
- * no skeleton, so this stays hidden.
+ * Did this page just replace its route's loading skeleton? Read once, on the
+ * first render. When true the page's title is already on screen (the fallback
+ * drew it), so it must not fade in again, and the skeleton should leave over
+ * the content (`RouteSkeletonLeaving`) instead of cutting. A revisit served
+ * from the router cache reads false: the screen simply arrives.
  */
-export function SkeletonHandoff({
-  id,
+export function useArrivedFromSkeleton(id: string): boolean {
+  const [arrived] = useState(() => skeletonsShown.has(id))
+  return arrived
+}
+
+/**
+ * The route skeleton on its way out, over the page's content (feel pass §1).
+ * Place it directly BEFORE the first content block, inside a `relative`
+ * screen; it lays itself over that block and fades out over 240ms while the
+ * content rises through it. Renders nothing unless `show`.
+ */
+export function RouteSkeletonLeaving({
+  show,
   className,
   children,
 }: {
-  id: string
+  show: boolean
   className?: string
   children: ReactNode
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useIsoLayoutEffect(() => {
-    const el = ref.current
-    const at = routeSkeletonExits.get(id)
-    if (!el || at === undefined || performance.now() - at > 80) return
-    el.hidden = false
-    indexBlocks(el)
-    const t = window.setTimeout(() => {
-      el.hidden = true
-    }, 260)
-    return () => {
-      window.clearTimeout(t)
-      el.hidden = true
-    }
-  }, [id])
-  return (
-    <div ref={ref} hidden aria-hidden className={cn("sk-leaving", className)}>
-      {children}
-    </div>
-  )
+  const [visible, setVisible] = useState(show)
+  useEffect(() => {
+    if (!visible) return
+    const t = window.setTimeout(() => setVisible(false), 260)
+    return () => window.clearTimeout(t)
+  }, [visible])
+  if (!visible) return null
+  return <LeavingSkeleton className={className}>{children}</LeavingSkeleton>
 }

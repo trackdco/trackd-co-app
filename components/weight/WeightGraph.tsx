@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
+import { DrawFrame, useFirstDraw } from "@/components/feel/FirstDraw";
+import { ThumbGroup } from "@/components/feel/SlidingThumb";
+import { PRESS } from "@/lib/ui-presets";
 import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets";
 import { dateKeyToDate, type DateKey } from "@/lib/home/mockHomeData";
 import {
@@ -92,7 +95,10 @@ export function WeightGraph({
   spanDays = null,
   className,
   style,
+  drawKey = null,
 }: {
+  /** Names this graph for its first-load draw (feel pass §7); none in a sheet. */
+  drawKey?: string | null;
   /** Oldest → newest, already clipped to the scope if there is one. */
   entries: WeightPoint[];
   unit: WeightUnit;
@@ -156,6 +162,9 @@ export function WeightGraph({
   const max = hasData ? Math.max(...allVals) : 0;
 
   const [chartRef, chartWidth] = useChartWidth();
+  // First load draws in; recharts' own 450ms line stays for range switches.
+  const draw = useFirstDraw(drawKey);
+  const [switched, setSwitched] = useState(false);
 
   return (
     <section className={cn("rounded-2xl bg-bg-surface p-5", className)} style={style}>
@@ -185,7 +194,13 @@ export function WeightGraph({
         </div>
 
         {/* Mode toggle. */}
-        <div className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-xs">
+        <ThumbGroup
+          selection={mode}
+          thumbClassName="rounded-full bg-bg-surface-raised"
+          role="group"
+          aria-label="Weight series"
+          className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-xs"
+        >
           {(["trend", "scale"] as const).map((m) => (
             <button
               key={m}
@@ -193,14 +208,15 @@ export function WeightGraph({
               onClick={() => setMode(m)}
               aria-pressed={mode === m}
               className={cn(
+                PRESS.pill,
                 "rounded-full px-3 py-1 font-medium transition-colors duration-300 ease-out",
-                mode === m ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
+                mode === m ? "text-foreground" : "text-text-muted",
               )}
             >
               {m === "trend" ? "Trend" : "Scale"}
             </button>
           ))}
-        </div>
+        </ThumbGroup>
       </div>
 
       <div
@@ -209,6 +225,13 @@ export function WeightGraph({
         style={{ touchAction: "pan-y", height: CHART_HEIGHT }}
       >
         {hasData && chartWidth > 0 ? (
+          <DrawFrame
+            draw={draw}
+            line=".draw-active .recharts-area-curve"
+            color={mode === "trend" ? "var(--chart-trend)" : "var(--chart-line)"}
+            interrupt={rangeId}
+            className="h-full"
+          >
           <AreaChart
             key={rangeId}
             width={chartWidth}
@@ -255,12 +278,12 @@ export function WeightGraph({
                   ? { r: 4, fill: "var(--chart-line)", stroke: "var(--bg-surface)", strokeWidth: 2 }
                   : false
               }
-              isAnimationActive
+              isAnimationActive={!draw.first || switched}
               animationDuration={450}
               animationEasing="ease-out"
               className={cn(
                 "transition-opacity duration-300 ease-out",
-                mode === "scale" ? "opacity-100" : DIMMED,
+                mode === "scale" ? "draw-active opacity-100" : DIMMED,
               )}
             />
             {/* Smoothed trend — the prominent filled line. */}
@@ -276,15 +299,16 @@ export function WeightGraph({
                   ? { r: 4, fill: "var(--chart-trend)", stroke: "var(--bg-surface)", strokeWidth: 2 }
                   : false
               }
-              isAnimationActive
+              isAnimationActive={!draw.first || switched}
               animationDuration={450}
               animationEasing="ease-out"
               className={cn(
                 "transition-opacity duration-300 ease-out",
-                mode === "trend" ? "opacity-100" : DIMMED,
+                mode === "trend" ? "draw-active opacity-100" : DIMMED,
               )}
             />
           </AreaChart>
+          </DrawFrame>
         ) : (
           <div className="flex h-full items-center justify-center text-center text-sm text-text-muted">
             {entries.length === 0
@@ -304,7 +328,11 @@ export function WeightGraph({
           six week block has no 3M button promising a picture it cannot draw.
           One range means there is no choice to make, so no control is drawn. */}
       {ranges.length > 1 && (
-        <div
+        <ThumbGroup
+          selection={range.id}
+          thumbClassName="rounded-full bg-bg-surface-raised"
+          role="group"
+          aria-label="Range"
           className="mt-4 grid gap-1 rounded-full border border-border-default bg-bg-input p-0.5"
           style={{ gridTemplateColumns: `repeat(${ranges.length}, minmax(0, 1fr))` }}
         >
@@ -312,19 +340,21 @@ export function WeightGraph({
             <button
               key={r.id}
               type="button"
-              onClick={() => setRangeId(r.id)}
+              onClick={() => {
+                if (r.id !== range.id) setSwitched(true);
+                setRangeId(r.id);
+              }}
               aria-pressed={range.id === r.id}
               className={cn(
+                PRESS.pill,
                 "rounded-full py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
-                range.id === r.id
-                  ? "bg-bg-surface-raised text-foreground"
-                  : "text-text-muted",
+                range.id === r.id ? "text-foreground" : "text-text-muted",
               )}
             >
               {r.label}
             </button>
           ))}
-        </div>
+        </ThumbGroup>
       )}
     </section>
   );

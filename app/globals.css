@@ -2599,6 +2599,9 @@ body[data-inline-edit="true"] .shortcuts-layer {
 .sk-wrap {
   animation: sk-in var(--motion-slow) ease-out both;
 }
+.sk-wrap.sk-wrap-still {
+  animation: none;
+}
 .sk-leaving {
   position: absolute;
   inset-inline: 0;
@@ -2829,5 +2832,66 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .body-map-arrive .muscle-region,
   .body-map-arrive .day-chips {
     animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   GRAPHS DRAW IN ON FIRST LOAD (§7). `components/feel/FirstDraw.tsx` sweeps a
+   mask across the line (1470ms, quintic ease-out) with a ring on the tip; the
+   fill waits and fades in over 520ms. Until the graph is in view it is hidden.
+   Range switching is untouched (recharts' own 450ms line).
+   --------------------------------------------------------------------------- */
+.draw-clip {
+  /* A little room past the right edge, so the mask never shaves the end dot. */
+  padding-right: 4px;
+  margin-right: -4px;
+}
+[data-draw="pending"] .draw-clip {
+  -webkit-mask-image: linear-gradient(90deg, black 0, transparent 0);
+  mask-image: linear-gradient(90deg, black 0, transparent 0);
+}
+.draw-frame .recharts-area-area,
+.draw-frame .draw-fill {
+  transition: opacity 520ms ease-out;
+}
+[data-draw="pending"] .recharts-area-area,
+[data-draw="drawing"] .recharts-area-area,
+[data-draw="pending"] .draw-fill,
+[data-draw="drawing"] .draw-fill {
+  opacity: 0;
+  transition: none;
+}
+.chart-tracer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--tc);
+  background-color: var(--bg-surface);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 320ms ease-out;
+  will-change: transform;
+}
+.chart-tracer[data-on="true"] {
+  opacity: 1;
+  transition-duration: 80ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-draw="pending"] .draw-clip {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  [data-draw] .recharts-area-area,
+  [data-draw] .draw-fill {
+    opacity: 1;
+    transition: none;
+  }
+  .chart-tracer {
+    display: none;
   }
 }

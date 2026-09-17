@@ -1,4 +1,5 @@
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
+import { ProgressBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
 import { BlockBanner } from "@/components/progress/BlockBanner";
 import { CloudHydration } from "@/components/home/CloudHydration";
 import { WeightHero } from "@/components/progress/WeightHero";
@@ -93,11 +94,11 @@ export function ProgressScreen({
     <div
       data-screen="progress"
       data-desktop-layout="grid"
-      className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
+      className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
-      <div data-area="title" className="animate-home-up" style={{ animationDelay: "0ms" }}>
+      <RouteTitle id="progress" data-area="title">
         <PageScrollTitle title="Progress" />
-      </div>
+      </RouteTitle>
 
       {/* Fills the device stores this screen READS from (consistency, the
           running list). Renders nothing. */}
@@ -106,7 +107,10 @@ export function ProgressScreen({
       {/* Photos lead the screen (Adrian, 2026-07-31). They are the thing people
           open Progress for, and the block used to push them down the page. */}
       {/* Photos: the card, then what was running on that photo's date. */}
-      <div data-area="photos" className="animate-home-up" style={{ animationDelay: "75ms" }}>
+      <RouteHandoff id="progress">
+        <ProgressBlocks />
+      </RouteHandoff>
+      <div data-area="photos" className="animate-home-up" style={{ animationDelay: "0ms" }}>
         <ProgressPhotoSection
           photos={progressPhotos}
           userId={userId}
@@ -117,7 +121,7 @@ export function ProgressScreen({
         />
       </div>
 
-      <div data-area="block" className="animate-home-up" style={{ animationDelay: "110ms" }}>
+      <div data-area="block" className="animate-home-up" style={{ animationDelay: "55ms" }}>
         <BlockBanner
           todayKey={todayKey}
           userId={userId}
@@ -131,7 +135,7 @@ export function ProgressScreen({
       <div
         data-area="metrics"
         className="animate-home-up grid grid-cols-2 items-stretch gap-3"
-        style={{ animationDelay: "145ms" }}
+        style={{ animationDelay: "110ms" }}
       >
         <WeightHero series={weight} unit={unit} compact />
         <JournalSection
