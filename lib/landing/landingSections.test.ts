@@ -19,4 +19,14 @@ describe("landing menu", () => {
   it("the docked widget watches the hero by the id the page gives it", () => {
     expect(page).toContain('id="hero"');
   });
+
+  it("the calculator page drops the reviews item whenever the home page drops the section", () => {
+    // Its menu links to `/#movement`, which production does not render while
+    // the quotes are placeholders.
+    const calculator = readFileSync(
+      new URL("../../app/reconstitution-calculator/page.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(calculator).toMatch(/<SiteHeader[^>]*hide=\{showTestimonials\(\) \? \[\] : \["movement"\]\}/);
+  });
 });

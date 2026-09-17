@@ -75,7 +75,7 @@ export function CompareTable() {
                   alt=""
                   width={1049}
                   height={200}
-                  className="mx-auto h-2.5 w-auto md:h-4"
+                  className="mx-auto h-2.5 w-auto object-contain md:h-4"
                 />
               </th>
             </tr>

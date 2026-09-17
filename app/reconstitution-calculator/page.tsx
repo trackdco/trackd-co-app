@@ -5,6 +5,7 @@ import { PublicCalculator } from "@/components/landing/public-calculator";
 import { SiteFooter, type LegalLink } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { BUSINESS_NAME, PRODUCT_NAME } from "@/lib/brand";
+import { showTestimonials } from "@/lib/landing/testimonials";
 import { CARD_EYEBROW, LANDING_DISPLAY, LANDING_SUB, LANDING_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +74,10 @@ export default function ReconstitutionCalculatorPage() {
     <>
       <main className="min-h-dvh overflow-x-clip bg-bg-base">
         <section id="hero" aria-labelledby="calc-title" className="lp-hero">
-          <SiteHeader onHome={false} />
+          {/* The menu's "Reviews" jumps to `/#movement`, which is not on the
+              home page while the reviews are hidden, so it goes too. Decided
+              here, on the server: `VERCEL_ENV` never reaches the browser. */}
+          <SiteHeader onHome={false} hide={showTestimonials() ? [] : ["movement"]} />
           <div className="lp-col pb-10 pt-8 text-center md:pb-14 md:pt-12">
             <p className={CARD_EYEBROW}>Free tool · No account needed</p>
             <h1 id="calc-title" className={cn(LANDING_DISPLAY, "mt-4 text-balance")}>
