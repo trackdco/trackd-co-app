@@ -10,12 +10,12 @@ import { useFlow } from "../flow-context";
 import { PhoneVideo } from "../phone-video";
 
 /**
- * The phone's width on this screen: 146px on Adrian's handset, 96px on an
+ * The phone's width on this screen: 160px on Adrian's handset, 112px on an
  * iPhone SE in Safari. The recording's box is 2.21 phone widths tall, so that
- * is 323px and 212px, the height the carousel it replaced took (its ring plus
- * its dots). See `lib/onboarding/fit.ts`.
+ * is 354px and 248px, measured to fit between the headline and the offer line
+ * at 402x700 and 375x548 with nothing to scroll. See `lib/onboarding/fit.ts`.
  */
-const PHONE_WIDTH = fit(146, 96);
+const PHONE_WIDTH = fit(160, 112);
 
 /**
  * The free-trial reveal, between the cost argument and the price list (Adrian,

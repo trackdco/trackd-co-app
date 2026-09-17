@@ -78,21 +78,17 @@ trial-conversion risk still open)
 
 ---
 
-## 🟡 3-03 SECOND REVIEW ROUND (2026-09-17) — BUILT, NOT YET SEEN LOCALLY
+## 🟡 3-03 THIRD REVIEW ROUND (2026-09-17) — BUILT AND CHECKED, WAITING ON ADRIAN
 
-Every item of Adrian's second round is built and pushed (spec 3-03 §9 lists
-them). ⚠️ It was NOT rendered locally: iCloud had offloaded ~28,000 files in
-`trackd-co-app/node_modules` to the cloud, so the dev server, tsc and eslint
-all blocked on reads. Vercel's preview build is the type check for it.
+Both the second and third rounds are built, rendered and checked (spec 3-03 §9
+lists them). Rendering works again by running the site from a copy in the
+session scratchpad (`/private/tmp`), with packages installed from the npm
+cache in five seconds: off iCloud, nothing stalls.
 
-- [ ] **ADRIAN: fix the offloaded node_modules** (Finder, right-click the
-      GitHub folder, "Keep Downloaded"; or let a session run `brctl download`
-      on it). Nothing local works properly until then.
-- [ ] Then render and look: hero at 375x548 / 402x700 / 1280, the intro
-      screen and the free-week video at 375x548 and 402x700, Kyle's cards,
-      the features widget switch on a phone, re-measure the injection-site
-      callouts (the map was enlarged, the targets were not re-measured).
-- [ ] **ADRIAN: review on Vercel**, then the copy pass.
+- [ ] **ADRIAN: the offloaded node_modules** in `trackd-co-app` (28,129 files
+      in the cloud). Finder, right-click the GitHub folder, "Keep Downloaded".
+      Other sessions working in that checkout are still paying for it.
+- [ ] **ADRIAN: review on Vercel** (laptop and phone), then the copy pass.
 
 ## 🟡 SPEC 3-03 — THE LANDING PAGE, REBUILT FROM THE SKETCH, IS WAITING ON ADRIAN
 

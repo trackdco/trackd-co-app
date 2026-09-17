@@ -427,5 +427,20 @@ Working, verified, and worth keeping unless it fights the new design:
   - Features widget on a phone: switching rows no longer moves the page; the
     injection-site map is drawn larger.
   - Animations softened: the row expand, Kyle's flex, the reveals.
+- **Third review round (Adrian, 2026-09-17), applied:**
+  - Button: plain amber, a step lighter, glow turned down, no gradient.
+  - Kyle's stock card runs down ONCE and holds (no loop). On a phone the
+    cards become five small circles round Kyle.
+  - Section transitions: tighter spacing through Compare, the note and the
+    questions, a thin rule between each, a shared faint band, a heading for
+    the note, and a scroll-driven rise-in for headings and panels.
+  - Compare reformatted for phones (fixed narrow mark columns, "Others").
+  - Features on a phone: pills and one phone (his pick of four), swipeable;
+    the docked button steps aside while the widget is on screen.
+  - The flow's first screen is Kyle waving (his pick of four, his render:
+    `public/onboarding/kyle-wave.png`), "Welcome to Trackd.", one line, and
+    the button under the text, not pinned.
+  - The free-week video is larger (160px phone on his handset, 112px on an
+    SE), measured with nothing to scroll.
 - **Removed 3-02 components:** `device`, `laptop`, `today-panel`, `glyphs`,
   `sticky-cta`, `updates-form`.

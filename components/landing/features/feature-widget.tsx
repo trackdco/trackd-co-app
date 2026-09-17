@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 
 import { ArrowRight } from "@/components/icons";
@@ -66,6 +58,8 @@ const LAPTOP_EDGE = 80;
 
 interface Feature {
   id: string;
+  /** The pill label in the phone layout. */
+  short: string;
   name: string;
   line: string;
   Icon: () => ReactNode;
@@ -85,6 +79,7 @@ function features(total: number): Feature[] {
   return [
     {
       id: "stock",
+      short: "Stock",
       name: "Stock",
       line: "Every dose you log comes off the vial, down to the day it runs dry.",
       Icon: StockIcon,
@@ -98,6 +93,7 @@ function features(total: number): Feature[] {
     },
     {
       id: "sites",
+      short: "Sites",
       name: "Injection sites",
       line: "Where every shot went, and which sites have rested.",
       Icon: SitesIcon,
@@ -105,13 +101,14 @@ function features(total: number): Feature[] {
       label:
         "The injection sites map: one site on the abdomen logged today in full amber, and one logged two days ago, lighter.",
       callouts: [
-        { title: "Each injection is logged to its site", x: 54.5, y: 47.4, side: "right", py: 33, ly: 40 },
-        { title: "The shading fades as the site rests", line: "Two days ago, already lighter", x: 45.5, y: 47.4, side: "left", py: 62, ly: 55 },
+        { title: "Each injection is logged to its site", x: 57, y: 46.6, side: "right", py: 30, ly: 38 },
+        { title: "The shading fades as the site rests", line: "Two days ago, already lighter", x: 43.1, y: 46.6, side: "left", py: 64, ly: 56 },
       ],
       Screen: SitesScreen,
     },
     {
       id: "progress",
+      short: "Progress",
       name: "Progress",
       line: "Weight, photos, bloodwork and a journal, beside the protocol that made them.",
       Icon: ProgressIcon,
@@ -125,6 +122,7 @@ function features(total: number): Feature[] {
     },
     {
       id: "blocks",
+      short: "Blocks",
       name: "Training blocks",
       line: "Run a cut or a build as a block, then look back on how it went.",
       Icon: BlocksIcon,
@@ -138,6 +136,7 @@ function features(total: number): Feature[] {
     },
     {
       id: "stacks",
+      short: "Stacks and cycles",
       name: "Stacks and cycles",
       line: "Group what you take together, and run compounds on and off.",
       Icon: StacksIcon,
@@ -151,6 +150,7 @@ function features(total: number): Feature[] {
     },
     {
       id: "library",
+      short: "Library",
       name: "The compound library",
       line: `Over ${Math.floor(total / 100) * 100} compounds to pick from, or add your own.`,
       Icon: LibraryIcon,
@@ -165,6 +165,7 @@ function features(total: number): Feature[] {
     },
     {
       id: "calculator",
+      short: "Calculator",
       name: "The reconstitution calculator",
       line: "Powder and water in. Units on the syringe out.",
       Icon: CalculatorIcon,
@@ -191,161 +192,268 @@ function features(total: number): Feature[] {
 /**
  * THE FEATURES WIDGET (spec 3-03 §3.4). One object, not a stack of cards.
  *
- * Every feature is a row: icon, name, one line. Opening a row shows that
- * screen of the real app on a phone, with notes pointing into it, and plays
- * the screen's one moment.
+ * Two designed layouts, one state (`shown`, the feature on the phone):
  *
- * - **Phone:** an accordion. The phone opens INSIDE the row.
  * - **Laptop:** the list on the left and the phone on the right, in the same
- *   panel. The row opens to the same notes as text; the phone beside it
- *   changes to match. A designed layout, not the phone one stretched.
+ *   panel. Picking a row opens it to its notes as text, and the phone beside
+ *   it changes to match.
+ * - **Phone: pills and one phone** (Adrian, 2026-09-17, chosen over an
+ *   accordion that jumped the page when you switched rows). A row of pills you
+ *   can swipe sideways, the chosen feature's line, and one phone beneath it
+ *   that you can also swipe to move along. Nothing opens or closes, so nothing
+ *   moves under your thumb.
  *
- * The first row starts open so the widget explains itself before anyone
- * touches it.
+ * Changing feature mounts a fresh screen, so its moment plays again. Both
+ * layouts are in the DOM and CSS shows one; the hidden one is inert to
+ * assistive tech by `display: none`.
  */
 export function FeatureWidget({ counts, total }: { counts: Counts; total: number }) {
   const list = features(total);
-  const [open, setOpen] = useState<number | null>(0);
   const [shown, setShown] = useState(0);
-  const [seen, setSeen] = useState<ReadonlySet<number>>(() => new Set([0]));
   const root = useRef<HTMLDivElement>(null);
-  const inView = useInView(root, { threshold: 0.25 });
+  const inView = useInView(root, { threshold: 0.2 });
   const baseId = useId();
-
-  /**
-   * ⚠️ SWITCHING ROWS ON A PHONE DOES NOT MOVE THE PAGE (Adrian, 2026-09-17:
-   * "a bit floppy when I try to click another one").
-   *
-   * Opening row 4 while row 1 was open collapsed ~600px of phone ABOVE the
-   * tapped row while the new one grew below it, so the row under the thumb
-   * slid up the screen as it opened. Now the row being closed shuts INSTANTLY
-   * (`lp-expand-instant`), and before the browser paints, the page is
-   * scrolled by however far the tapped row moved, so it stays exactly where it
-   * was tapped and only the new panel animates, downwards.
-   */
-  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const anchor = useRef<{ i: number; top: number } | null>(null);
-  const [instant, setInstant] = useState<number | null>(null);
-
-  const toggle = (i: number) => {
-    const laptop = window.matchMedia("(min-width: 1024px)").matches;
-    const switching = !laptop && open !== null && open !== i;
-    const row = rowRefs.current[i];
-    anchor.current = switching && row ? { i, top: row.getBoundingClientRect().top } : null;
-    setInstant(switching ? open : null);
-    // On a laptop the phone beside the list always shows something, so the
-    // open row cannot be closed from under it; on a phone it can.
-    setOpen((o) => (o === i && !laptop ? null : i));
-    setShown(i);
-    setSeen((s) => (s.has(i) ? s : new Set(s).add(i)));
-  };
-
-  useLayoutEffect(() => {
-    const a = anchor.current;
-    anchor.current = null;
-    const row = a ? rowRefs.current[a.i] : null;
-    if (!a || !row) return;
-    const moved = row.getBoundingClientRect().top - a.top;
-    if (Math.abs(moved) > 0.5) window.scrollBy({ top: moved, behavior: "auto" });
-  }, [open]);
-
   const current = list[shown];
 
   return (
-    <div
-      ref={root}
-      className="lp-panel overflow-clip rounded-[2rem] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]"
-    >
-      <ul className="divide-hairline divide-border-default p-2 lg:p-3">
-        {list.map((f, i) => {
-          const isOpen = open === i;
-          const panelId = `${baseId}-${f.id}`;
-          return (
-            <li key={f.id}>
-              <h3>
-                <button
-                  ref={(el) => {
-                    rowRefs.current[i] = el;
-                  }}
-                  type="button"
-                  aria-expanded={isOpen}
-                  aria-controls={panelId}
-                  onClick={() => toggle(i)}
-                  className={cn(
-                    "group flex w-full items-center gap-4 rounded-3xl px-3 py-4 text-left transition-colors lg:px-4",
-                    "hover:bg-text-primary/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none",
-                  )}
-                >
-                  <span
+    <div ref={root}>
+      {/* ---- Phone ---- */}
+      <div className="lp-panel overflow-clip rounded-[2rem] pb-8 pt-4 lg:hidden">
+        <PhonePills list={list} shown={shown} onPick={setShown} baseId={baseId} />
+        <div
+          id={`${baseId}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${baseId}-tab-${current.id}`}
+          className="px-5"
+        >
+          <p className="mx-auto mt-5 min-h-[2.75rem] max-w-[20rem] text-center text-sm leading-snug text-text-secondary">
+            {current.line}
+          </p>
+          <SwipeArea
+            onPrev={() => setShown((i) => Math.max(0, i - 1))}
+            onNext={() => setShown((i) => Math.min(list.length - 1, i + 1))}
+          >
+            <div key={current.id} className="lp-stage-in mt-6">
+              <Stage feature={current} counts={counts} active={inView} />
+            </div>
+          </SwipeArea>
+          <div className="mt-6 flex items-center justify-center gap-1.5" aria-hidden>
+            {list.map((f, i) => (
+              <span
+                key={f.id}
+                className={cn(
+                  "block h-1.5 rounded-full transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] motion-reduce:transition-none",
+                  i === shown ? "w-5 bg-foreground" : "w-1.5 bg-border-strong",
+                )}
+              />
+            ))}
+          </div>
+          {current.extra ? <div className="mt-6 text-center">{current.extra}</div> : null}
+        </div>
+      </div>
+
+      {/* ---- Laptop ---- */}
+      <div className="lp-panel hidden overflow-clip rounded-[2rem] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <ul className="divide-hairline divide-border-default p-3">
+          {list.map((f, i) => {
+            const isOpen = shown === i;
+            const panelId = `${baseId}-${f.id}`;
+            return (
+              <li key={f.id}>
+                <h3>
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    aria-controls={panelId}
+                    onClick={() => setShown(i)}
                     className={cn(
-                      "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset transition-colors motion-reduce:transition-none",
-                      isOpen
-                        ? "bg-text-primary/10 text-foreground ring-text-primary/15"
-                        : "bg-text-primary/[0.04] text-text-secondary ring-text-primary/8",
+                      "group flex w-full items-center gap-4 rounded-3xl px-4 py-4 text-left transition-colors",
+                      "hover:bg-text-primary/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none",
                     )}
                   >
-                    <f.Icon />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[1.02rem] tracking-[-0.01em] text-foreground">{f.name}</span>
-                    <span className="mt-0.5 block text-sm leading-snug text-text-secondary">{f.line}</span>
-                  </span>
-                  <span
-                    aria-hidden
-                    className="relative h-3 w-3 shrink-0 text-text-secondary transition-transform duration-300 motion-reduce:transition-none"
-                  >
-                    <span className="absolute left-0 top-1/2 h-px w-3 -translate-y-1/2 bg-current" />
+                    <FeatureIcon Icon={f.Icon} on={isOpen} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[1.02rem] tracking-[-0.01em] text-foreground">{f.name}</span>
+                      <span className="mt-0.5 block text-sm leading-snug text-text-secondary">{f.line}</span>
+                    </span>
                     <span
+                      aria-hidden
                       className={cn(
-                        "absolute left-1/2 top-0 h-3 w-px -translate-x-1/2 bg-current transition-transform duration-300 motion-reduce:transition-none",
-                        isOpen && "scale-y-0",
+                        "h-1.5 w-1.5 shrink-0 rounded-full transition-colors motion-reduce:transition-none",
+                        isOpen ? "bg-foreground" : "bg-border-strong",
                       )}
                     />
-                  </span>
-                </button>
-              </h3>
+                  </button>
+                </h3>
 
-              <div
-                id={panelId}
-                className={cn("lp-expand", instant === i && "lp-expand-instant")}
-                style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
-              >
-                <div className="min-h-0 overflow-hidden" inert={!isOpen}>
-                  {/* Phone: the device opens inside the row. */}
-                  <div className="pb-8 pt-2 lg:hidden">
-                    {seen.has(i) ? (
-                      <Stage feature={f} counts={counts} active={inView && isOpen} />
-                    ) : null}
-                    {f.extra ? <div className="mt-8 text-center">{f.extra}</div> : null}
-                  </div>
-                  {/* Laptop: the same notes, as text, beside the phone. */}
-                  <div className="hidden pb-5 pl-[4.75rem] pr-6 lg:block">
-                    <ul className="space-y-1.5">
-                      {f.callouts.map((c) => (
-                        <li key={c.title} className="flex items-baseline gap-2.5 text-sm text-foreground">
-                          <span aria-hidden className="relative top-[-2px] h-1 w-1 shrink-0 rounded-full bg-text-secondary" />
-                          <span>
-                            {c.title}
-                            {c.line ? <span className="text-text-secondary">. {c.line}.</span> : null}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    {f.extra ? <div className="mt-4">{f.extra}</div> : null}
+                <div id={panelId} className="lp-expand" style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}>
+                  <div className="min-h-0 overflow-hidden" inert={!isOpen}>
+                    <div className="pb-5 pl-[4.75rem] pr-6">
+                      <ul className="space-y-1.5">
+                        {f.callouts.map((c) => (
+                          <li key={c.title} className="flex items-baseline gap-2.5 text-sm text-foreground">
+                            <span aria-hidden className="relative top-[-2px] h-1 w-1 shrink-0 rounded-full bg-text-secondary" />
+                            <span>
+                              {c.title}
+                              {c.line ? <span className="text-text-secondary">. {c.line}.</span> : null}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      {f.extra ? <div className="mt-4">{f.extra}</div> : null}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+              </li>
+            );
+          })}
+        </ul>
 
-      {/* Laptop: the phone for whichever row is open. Keyed, so switching
-          rows mounts a fresh screen and its moment plays again. */}
-      <div className="relative hidden border-l-[0.5px] border-border-default lg:flex lg:items-center lg:justify-center lg:py-14">
-        <StageGlow />
-        <Stage key={current.id} feature={current} counts={counts} active={inView} />
+        {/* The phone for whichever row is open. Keyed, so switching rows mounts
+            a fresh screen and its moment plays again. */}
+        <div className="relative flex items-center justify-center border-l-[0.5px] border-border-default py-14">
+          <StageGlow />
+          <Stage key={current.id} feature={current} counts={counts} active={inView} />
+        </div>
       </div>
+    </div>
+  );
+}
+
+function FeatureIcon({ Icon, on }: { Icon: () => ReactNode; on: boolean }) {
+  return (
+    <span
+      className={cn(
+        "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset transition-colors motion-reduce:transition-none",
+        on
+          ? "bg-text-primary/10 text-foreground ring-text-primary/15"
+          : "bg-text-primary/[0.04] text-text-secondary ring-text-primary/8",
+      )}
+    >
+      <Icon />
+    </span>
+  );
+}
+
+/**
+ * The phone layout's pills: a real tab list. Arrow keys move along it, the
+ * chosen pill is scrolled into the middle of the row (the ROW only, never the
+ * page), and the first render does not scroll at all.
+ */
+function PhonePills({
+  list,
+  shown,
+  onPick,
+  baseId,
+}: {
+  list: Feature[];
+  shown: number;
+  onPick: (i: number) => void;
+  baseId: string;
+}) {
+  const row = useRef<HTMLDivElement>(null);
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const first = useRef(true);
+
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const el = row.current;
+    const tab = tabs.current[shown];
+    if (!el || !tab) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollTo({
+      left: tab.offsetLeft - (el.clientWidth - tab.offsetWidth) / 2,
+      behavior: reduce ? "auto" : "smooth",
+    });
+  }, [shown]);
+
+  const onKey = (e: React.KeyboardEvent) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = Math.max(0, Math.min(list.length - 1, shown + step));
+    onPick(next);
+    tabs.current[next]?.focus();
+  };
+
+  return (
+    <div
+      ref={row}
+      role="tablist"
+      aria-label="Features"
+      onKeyDown={onKey}
+      className="lp-snap flex gap-2 overflow-x-auto px-5 py-1"
+    >
+      {list.map((f, i) => {
+        const on = i === shown;
+        return (
+          <button
+            key={f.id}
+            ref={(el) => {
+              tabs.current[i] = el;
+            }}
+            id={`${baseId}-tab-${f.id}`}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            aria-controls={`${baseId}-panel`}
+            tabIndex={on ? 0 : -1}
+            onClick={() => onPick(i)}
+            className={cn(
+              "flex h-10 shrink-0 items-center gap-2 rounded-full pl-2 pr-4 text-sm transition-colors duration-[var(--motion-base)] motion-reduce:transition-none",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              on
+                ? "bg-text-primary text-bg-base"
+                : "bg-text-primary/[0.05] text-text-secondary ring-1 ring-inset ring-text-primary/8",
+            )}
+          >
+            <span className="flex h-7 w-7 items-center justify-center [&_svg]:h-[18px] [&_svg]:w-[18px]">
+              <f.Icon />
+            </span>
+            {f.short}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A horizontal swipe on the phone moves to the next or previous feature.
+ *  Vertical movement is left to the page. */
+function SwipeArea({
+  children,
+  onPrev,
+  onNext,
+}: {
+  children: ReactNode;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const from = useRef<{ x: number; y: number } | null>(null);
+  return (
+    <div
+      className="touch-pan-y"
+      onPointerDown={(e) => {
+        from.current = { x: e.clientX, y: e.clientY };
+      }}
+      onPointerUp={(e) => {
+        const f = from.current;
+        from.current = null;
+        if (!f) return;
+        const dx = e.clientX - f.x;
+        const dy = e.clientY - f.y;
+        if (Math.abs(dx) < 40 || Math.abs(dx) <= Math.abs(dy)) return;
+        if (dx < 0) onNext();
+        else onPrev();
+      }}
+      onPointerCancel={() => {
+        from.current = null;
+      }}
+    >
+      {children}
     </div>
   );
 }

@@ -175,7 +175,7 @@ export default function LandingPage() {
         {/* ------------------------------------------ Join the movement */}
         {reviews ? (
           <section id="movement" tabIndex={-1} aria-labelledby="movement-title" className="lp-sec outline-none">
-            <div className="lp-col text-center">
+            <div className="lp-enter lp-col text-center">
               <h2 id="movement-title" className={LANDING_TITLE}>
                 Join the <HandUnderline>movement</HandUnderline>
               </h2>
@@ -192,17 +192,18 @@ export default function LandingPage() {
         {/* ---------------------------------------------------- Features */}
         <section
           id="features"
+          data-dock-hide
           tabIndex={-1}
           aria-labelledby="features-title"
           className={cn("lp-sec outline-none", !reviews && "pt-16")}
         >
-          <div className="lp-col text-center">
+          <div className="lp-enter lp-col text-center">
             <p className={CARD_EYEBROW}>Features</p>
             <h2 id="features-title" className={cn(LANDING_TITLE, "mt-4 text-balance")}>
               Seven things your notes app can&apos;t do.
             </h2>
             <p className={cn(LANDING_SUB, "mx-auto mt-5 max-w-[30rem]")}>
-              Open one to see it in the app.
+              Pick one to see it in the app.
             </p>
           </div>
           <div className="lp-wide mt-10 md:mt-14">
@@ -215,7 +216,7 @@ export default function LandingPage() {
             it is on screen, rather than parking over Kyle before his own
             button has arrived. */}
         <section data-cta aria-labelledby="waiting-title" className="lp-sec overflow-x-clip">
-          <div className="lp-col text-center">
+          <div className="lp-enter lp-col text-center">
             <h2 id="waiting-title" className={cn(LANDING_TITLE, "text-balance")}>
               What are you waiting for?
             </h2>
@@ -233,8 +234,13 @@ export default function LandingPage() {
         </section>
 
         {/* ---------------------------------------------------- Compare */}
-        <section id="compare" tabIndex={-1} aria-labelledby="compare-title" className="lp-sec outline-none">
-          <div className="lp-col text-center">
+        {/* Compare, the note and the questions sit closer together than the
+            rest (`lp-sec-tight`), with a thin rule between each, and the note
+            and the questions share one faint band: Adrian found the moves
+            between these three "pretty crap" when each was a panel floating
+            in ~220px of black. See `globals.css` -> "Between sections". */}
+        <section id="compare" tabIndex={-1} aria-labelledby="compare-title" className="lp-sec lp-sec-tight outline-none">
+          <div className="lp-enter lp-col text-center">
             <h2 id="compare-title" className={LANDING_TITLE}>
               Compare us
             </h2>
@@ -242,26 +248,32 @@ export default function LandingPage() {
               What you get here that you will not get elsewhere.
             </p>
           </div>
-          <div className="mx-auto mt-10 w-full max-w-[52rem] px-5 md:mt-14 md:px-8">
+          <div className="lp-enter mx-auto mt-10 w-full max-w-[52rem] px-4 md:mt-14 md:px-8">
             <CompareTable />
           </div>
         </section>
 
+        <SectionRule />
+
+        <div className="lp-band">
         {/* ------------------------------------------- Founders' note */}
         <section
           id="founders"
           tabIndex={-1}
           aria-labelledby="founders-title"
-          className="lp-sec lp-lift outline-none"
+          className="lp-sec lp-sec-tight outline-none"
         >
           <div className="lp-col">
-            <div className="lp-panel rounded-[2rem] px-6 py-10 md:px-12 md:py-14">
+            <div className="lp-enter text-center">
+              <p className={CARD_EYEBROW}>Our story</p>
+              <h2 id="founders-title" className={cn(LANDING_TITLE, "mt-4")}>
+                A note from the founders
+              </h2>
+            </div>
+            <div className="lp-enter lp-panel mt-10 rounded-[2rem] px-6 py-9 md:mt-12 md:px-12 md:py-12">
               {/* TODO(3-03): Adrian is writing a better letter. This is the
                   3-02 one, kept until his lands. */}
-              <p id="founders-title" className={CARD_EYEBROW}>
-                A note from the founders
-              </p>
-              <div className="mt-6 space-y-5 text-[1.08rem] font-light leading-relaxed text-foreground md:text-[1.2rem]">
+              <div className="space-y-5 text-[1.08rem] font-light leading-relaxed text-foreground md:text-[1.2rem]">
                 <p>
                   We are two people who run protocols, and for years we ran them badly: a
                   note on one phone, a spreadsheet neither of us opened, and a calculator
@@ -282,21 +294,24 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <SectionRule />
+
         {/* ---------------------------------------- Still have questions */}
-        <section id="questions" tabIndex={-1} aria-labelledby="questions-title" className="lp-sec outline-none">
+        <section id="questions" tabIndex={-1} aria-labelledby="questions-title" className="lp-sec lp-sec-tight outline-none">
           <div className="lp-col">
-            <h2 id="questions-title" className={cn(LANDING_TITLE, "text-center")}>
+            <h2 id="questions-title" className={cn(LANDING_TITLE, "lp-enter text-center")}>
               Still have questions?
             </h2>
-            <div className="mt-10 md:mt-12">
+            <div className="lp-enter mt-10 md:mt-12">
               <FaqList items={FAQS} />
             </div>
           </div>
         </section>
+        </div>
 
         {/* ----------------------------------------- The closing call */}
         <section data-cta aria-labelledby="close-title" className="lp-sec lp-glow">
-          <div className="lp-col text-center">
+          <div className="lp-enter lp-col text-center">
             <h2 id="close-title" className={cn(LANDING_TITLE, "mx-auto max-w-[34rem] text-balance")}>
               Get your protocol out of the notes app and into something that{" "}
               <em className={FLOW_EMPHASIS}>actually works</em>.
@@ -312,6 +327,15 @@ export default function LandingPage() {
       <SiteFooter legal={LEGAL_LINKS} />
       <Dock />
     </>
+  );
+}
+
+/** A thin centred rule between two sections: the hero's divider, shorter. */
+function SectionRule() {
+  return (
+    <div aria-hidden className="lp-col">
+      <div className="mx-auto h-px w-40 bg-gradient-to-r from-transparent via-border-strong to-transparent md:w-56" />
+    </div>
   );
 }
 

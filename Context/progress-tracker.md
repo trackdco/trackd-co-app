@@ -1,5 +1,25 @@
 # Progress Tracker
 
+## 🟡 3-03, THIRD REVIEW ROUND — BUILT AND CHECKED 2026-09-17
+
+From Adrian's laptop and phone review: plain lighter-amber button with less
+glow; Kyle's stock card runs down once; section transitions reworked (tighter,
+ruled, banded, scroll-driven rise-in, a heading for the founders' note);
+Compare reformatted for phones; features on a phone as pills and one phone;
+Kyle's section on a phone as circles; the flow's first screen is Kyle waving
+with the button under the text; the free-week video larger.
+
+**Checked by rendering**, from a copy of the site in `/private/tmp` with its own
+packages (the iCloud-offloaded node_modules made the worktree unusable):
+laptop and phone full pages; the pills (tap moves nothing, swipe advances, arrow
+keys move focus and selection); Kyle's circles; the intro at 402x700 and
+375x548 with nothing to scroll; the free-week video at 402x700, 390x844,
+375x548 and 360x560 with nothing to scroll and no sideways scroll; the
+injection-site callouts re-measured after the map grew.
+
+**Gates (in that copy):** tsc 0, eslint 0, vitest 109 files / 2115 tests,
+`next build` exit 0 with `/` and `/reconstitution-calculator` static.
+
 ## 🟡 3-03, SECOND REVIEW ROUND — BUILT 2026-09-17, NOT YET RENDERED LOCALLY
 
 Adrian reviewed the preview on his phone and laptop. Built from his notes (the

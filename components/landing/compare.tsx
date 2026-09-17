@@ -41,30 +41,41 @@ export function CompareTable() {
     <div>
       <div className="lp-panel relative overflow-hidden rounded-[2rem]">
         {/* The lit column, drawn behind the table so the cells stay plain. */}
+        {/* On a phone the two mark columns are a fixed 3.5rem each, so the
+            feature names get every pixel that is left (they were wrapping to
+            three lines in a 24% column). */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-[24%] bg-text-primary/[0.045] shadow-[inset_1px_0_0_0_color-mix(in_srgb,var(--text-primary)_8%,transparent)] md:w-[22%]"
+          className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-text-primary/[0.045] shadow-[inset_1px_0_0_0_color-mix(in_srgb,var(--text-primary)_8%,transparent)] md:w-[22%]"
         />
-        <table className="relative w-full border-collapse text-left">
+        <table className="relative w-full table-fixed border-collapse text-left">
+          <colgroup>
+            <col />
+            <col className="w-14 md:w-[22%]" />
+            <col className="w-14 md:w-[22%]" />
+          </colgroup>
           <caption className="sr-only">
             {BUSINESS_NAME} compared with other tracking apps, feature by feature.
           </caption>
           <thead>
             <tr>
-              <th scope="col" className="px-5 pb-4 pt-6 align-bottom md:px-8">
+              <th scope="col" className="px-4 pb-4 pt-5 align-bottom md:px-8 md:pt-6">
                 <span className="text-[10px] uppercase tracking-[0.18em] text-text-secondary">Feature</span>
               </th>
-              <th scope="col" className="w-[24%] px-2 pb-4 pt-6 text-center align-bottom md:w-[22%]">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-text-secondary">Other apps</span>
+              <th scope="col" className="px-1 pb-4 pt-5 text-center align-bottom md:px-2 md:pt-6">
+                <span className="text-[10px] uppercase tracking-[0.12em] text-text-secondary md:tracking-[0.18em]">
+                  <span className="md:hidden">Others</span>
+                  <span className="hidden md:inline">Other apps</span>
+                </span>
               </th>
-              <th scope="col" className="w-[24%] px-2 pb-4 pt-6 text-center align-bottom md:w-[22%]">
+              <th scope="col" className="px-1 pb-4 pt-5 text-center align-bottom md:px-2 md:pt-6">
                 <span className="sr-only">{BUSINESS_NAME}</span>
                 <Image
                   src="/trackd-wordmark.png"
                   alt=""
                   width={1049}
                   height={200}
-                  className="mx-auto h-3.5 w-auto md:h-4"
+                  className="mx-auto h-2.5 w-auto md:h-4"
                 />
               </th>
             </tr>
@@ -80,7 +91,7 @@ export function CompareTable() {
               >
                 <th
                   scope="row"
-                  className="px-5 py-4 text-[0.92rem] font-normal leading-snug text-foreground md:px-8 md:py-5 md:text-base"
+                  className="px-4 py-3.5 text-[0.88rem] font-normal leading-snug text-foreground md:px-8 md:py-5 md:text-base"
                 >
                   {r.feature}
                 </th>
@@ -104,7 +115,7 @@ function Mark({ on }: { on: boolean }) {
   return (
     <span
       className={cn(
-        "mx-auto flex h-7 w-7 items-center justify-center rounded-full",
+        "mx-auto flex h-6 w-6 items-center justify-center rounded-full md:h-7 md:w-7",
         on ? "bg-text-primary text-bg-base" : "text-text-muted ring-1 ring-inset ring-border-strong",
       )}
     >

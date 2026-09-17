@@ -445,6 +445,13 @@ Two things follow, and they are the ones that break silently:
   cannot be half-mixed: adding `min-h-0` under a scrolling page is what made the
   hook's phone go small and the paywall's carousel compress to nothing.
 
+**One exception, by Adrian's call (2026-09-17): the first screen.** The flow
+now opens on Kyle waving (`screens/intro.tsx`, rendered for the `hook` id),
+and its button sits directly under the welcome text rather than pinned: "the
+button should not be glued to the bottom of the screen in this section". Only
+its fine print (18+ and the statutory links) is pinned. Every other screen
+keeps the pinned CTA.
+
 **Give the top the same respect as the bottom.** The footer has carried
 `env(safe-area-inset-bottom)` since day one; the top was missed, and on a
 notched iPhone the progress bar sat level with the clock. If the inset is
@@ -717,8 +724,9 @@ floor WCAG AA sets for body text, so the public site's secondary prose uses
 `--text-muted` out across the app.** The app-wide contrast question is real and
 **OPEN** (raised 2026-09-16); it is not the landing page's to answer.
 
-**The call to action is `.lp-cta`: the app's own button shape, amber, with a
-glow** (Adrian, 2026-09-17, replacing a gradient pill with an outline ring that
+**The call to action is `.lp-cta`: the app's own button shape, plain amber a
+step lighter than the token, with a soft glow** (third round, 2026-09-17:
+"just amber, like a lighter amber", glow turned down; the gradient is gone) (Adrian, 2026-09-17, replacing a gradient pill with an outline ring that
 he found too flashy: "more blocky ... a really small gradient ... more like a
 native button"). 52px, `rounded-2xl`, a deeper amber with a whisper of
 gradient, a faint top highlight, a soft amber glow beneath, and a sheen on hover
@@ -738,6 +746,18 @@ edge. It arrives once the hero has gone and steps aside while any other
 `data-cta` element (a button, or the two sections built round one) is on
 screen, so two of the same button are never in view. `inert` while hidden. On a
 short phone (under 600px tall) it drops the trial line.
+
+**Between sections** (`.lp-sec-tight`, `.lp-band`, `.lp-enter`): Compare, the
+founders' note and the questions sit closer, with a thin centred rule between
+each; the note and the questions share one faint band; and headings and panels
+rise in on a CSS scroll timeline (nothing waits on script). The founders' note
+has a real heading above its card, like every other section.
+
+**Features on a phone are pills and one phone** (Adrian's pick): a swipeable
+tab row, the feature's line, one phone you can also swipe. The laptop keeps the
+list beside the phone. The docked button stays out of the way while the widget
+is on screen (`data-dock-hide`). **Kyle on a phone** has five small circles
+round him instead of cards.
 
 **Amber is still rare: three beats.** The call to action, the drawn underline
 under "movement", and the liquid in the FAQ vials. Testimonial stars are white

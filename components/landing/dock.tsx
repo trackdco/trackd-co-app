@@ -36,7 +36,10 @@ export function Dock({ heroId = "hero" }: { heroId?: string }) {
   useEffect(() => {
     const hero = document.getElementById(heroId);
     if (!hero) return;
-    const ctas = Array.from(document.querySelectorAll<HTMLElement>("[data-cta]")).filter(
+    // `data-dock-hide` marks a region the dock must not sit over even though
+    // it is not a call to action: the features widget, which a phone user is
+    // busy swiping through.
+    const ctas = Array.from(document.querySelectorAll<HTMLElement>("[data-cta], [data-dock-hide]")).filter(
       (el) => !el.closest("[data-dock]"),
     );
 
