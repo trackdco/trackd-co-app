@@ -21,6 +21,7 @@ import { CALCULATOR_DISCLAIMER, misuseCopy } from "@/lib/calculator/copy"
 import {
   DEFAULT_SYRINGE_SIZE,
   fillFraction,
+  MIN_READABLE_UNITS,
   misuseKind,
   syringeSize,
   type SyringeSizeId,

@@ -96,6 +96,8 @@ function Field({
   active,
   onOpen,
   fieldRef,
+  onChange,
+  placeholder,
 }: {
   label: string
   value: string
@@ -107,6 +109,14 @@ function Field({
   /** Open the pad on this field. */
   onOpen: () => void
   fieldRef?: RefObject<HTMLButtonElement | null>
+  /**
+   * PUBLIC PAGES ONLY (the landing page's free calculator and the features
+   * widget): a plain input with the system keyboard, which is what those pages
+   * shipped and what someone who has never seen Trackd expects on a web page.
+   * The pad is the app's rule (feel pass §3), and the app passes no `onChange`.
+   */
+  onChange?: (v: string) => void
+  placeholder?: string
 }) {
   const id = useId()
   const hintId = useId()
@@ -114,6 +124,8 @@ function Field({
   const unitWord = unit ?? staticUnit
   // A long figure shrinks to fit; never clipped, never an ellipsis.
   const fitRef = useFitText<HTMLSpanElement>(value)
+
+  const plain = onChange !== undefined
 
   return (
     <div className="min-w-0">
@@ -137,6 +149,24 @@ function Field({
           nothing summons the system keypad, with the white ring and a caret
           while it is the field being edited. No placeholder figure: an empty
           field is empty. */}
+      {plain ? (
+        <div className="mt-1.5 flex h-11 items-center gap-1 rounded-xl bg-bg-input pr-1 pl-2.5">
+          <input
+            id={id}
+            inputMode="decimal"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            aria-describedby={hint ? hintId : undefined}
+            className="w-full min-w-0 flex-1 bg-transparent font-mono text-base tabular-nums text-foreground outline-none placeholder:text-text-subtle"
+          />
+          {unit && onUnitChange ? (
+            <UnitPill unit={unit} onChange={onUnitChange} label={label} />
+          ) : (
+            <span className="shrink-0 pr-1.5 text-[11px] text-text-muted">{staticUnit}</span>
+          )}
+        </div>
+      ) : (
       <div
         className={cn(
           "mt-1.5 flex h-11 items-center gap-1 rounded-xl border border-transparent bg-bg-input pr-1 transition-[border-color,box-shadow] duration-200",
@@ -170,6 +200,7 @@ function Field({
           </span>
         )}
       </div>
+      )}
       {/* Height reserved on the two-unit fields so a row never jumps as you
           type. The mL field has no second unit, so it reserves nothing. */}
       {unit ? (
@@ -239,9 +270,12 @@ export function CalculatorInputs({
   onDoseUnitChange,
   onReset,
   resettable,
-  activeField,
+  activeField = null,
   onOpenField,
   fieldRefs,
+  onPowderChange,
+  onBacChange,
+  onDoseChange,
 }: {
   sizeId: SyringeSizeId
   onSizeChange: (id: SyringeSizeId) => void
@@ -255,11 +289,19 @@ export function CalculatorInputs({
   onDoseUnitChange: (u: MgUnit) => void
   onReset: () => void
   resettable: boolean
-  /** Which field the pad is on, or null. */
-  activeField: "powder" | "bac" | "dose" | null
-  onOpenField: (field: "powder" | "bac" | "dose") => void
+  /** Which field the pad is on, or null. The app passes this and opens the pad. */
+  activeField?: "powder" | "bac" | "dose" | null
+  onOpenField?: (field: "powder" | "bac" | "dose") => void
   fieldRefs?: Record<"powder" | "bac" | "dose", RefObject<HTMLButtonElement | null>>
+  /**
+   * The public pages pass these INSTEAD of `onOpenField`, and get plain inputs
+   * (see `Field`): the landing page's free calculator and the features widget.
+   */
+  onPowderChange?: (v: string) => void
+  onBacChange?: (v: string) => void
+  onDoseChange?: (v: string) => void
 }) {
+  const open = (field: "powder" | "bac" | "dose") => () => onOpenField?.(field)
   return (
     // Heading above the surface at `px-1`, matching Protocol's `CompoundsRow` /
     // `ScheduleGrid`, so the calculator's sections read like the rest of the app.
@@ -282,15 +324,19 @@ export function CalculatorInputs({
             unit={powderUnit}
             onUnitChange={onPowderUnitChange}
             active={activeField === "powder"}
-            onOpen={() => onOpenField("powder")}
+            onOpen={open("powder")}
             fieldRef={fieldRefs?.powder}
+            onChange={onPowderChange}
+            placeholder={onPowderChange ? "5" : undefined}
           />
           <Field
             label="BAC water"
             value={bac}
             staticUnit="mL"
             active={activeField === "bac"}
-            onOpen={() => onOpenField("bac")}
+            onOpen={open("bac")}
+            onChange={onBacChange}
+            placeholder={onBacChange ? "2" : undefined}
             fieldRef={fieldRefs?.bac}
           />
         </div>
@@ -301,7 +347,9 @@ export function CalculatorInputs({
           unit={doseUnit}
           onUnitChange={onDoseUnitChange}
           active={activeField === "dose"}
-          onOpen={() => onOpenField("dose")}
+          onOpen={open("dose")}
+          onChange={onDoseChange}
+          placeholder={onDoseChange ? "250" : undefined}
           fieldRef={fieldRefs?.dose}
         />
 
