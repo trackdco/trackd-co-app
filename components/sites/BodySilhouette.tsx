@@ -29,7 +29,9 @@ export function BodySilhouette({
     <g aria-hidden="true">
       <g
         transform={routeTransform(route, sex)}
-        style={{ fill: "var(--bg-input)" }}
+        // `--body-base` is set only where the map sits on the raised surface
+        // (the log sheet); everywhere else it is the input tone it always was.
+        style={{ fill: "var(--body-base, var(--bg-input))" }}
         stroke="none"
       >
         {paths.map((d, i) => (

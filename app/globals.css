@@ -215,6 +215,13 @@
   --skeleton: var(--bg-surface-raised);
   --skeleton-line: color-mix(in srgb, var(--border-default) 60%, var(--border-strong));
 
+  /* The injection-site PICK map in the log sheet sits on the raised surface,
+     where the default body (--bg-input) and regions (--muscle-region) are nearly
+     the card's own colour. Scoped by `.body-map-raised`; the rotation view and
+     the glance card keep the defaults (feel pass §5). */
+  --pick-body: #31312e;
+  --pick-region: #46463f;
+
   /* The number pad's scrim: lighter than a sheet's, because the form behind it
      is still the thing being filled in (feel pass §3). */
   --pad-scrim: rgba(0, 0, 0, 0.42);
@@ -2760,6 +2767,41 @@ body[data-inline-edit="true"] .shortcuts-layer {
   }
   .pad-caret,
   .animate-key-shake {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE LOG SHEET'S BODY MAP (§4, §5). On the raised card it takes its own paint,
+   and it arrives in sequence once the sheet has landed: the body (330ms), the
+   sites (from 450ms, 30ms apart, 280ms each), then the day chips (750ms). A
+   Front/Back flip shows the new side's chips at once.
+   --------------------------------------------------------------------------- */
+.body-map-raised {
+  --body-base: var(--pick-body);
+  --muscle-region: var(--pick-region);
+}
+.body-map-arrive {
+  animation: shortcut-fade var(--motion-base) ease-out 330ms both;
+}
+.body-map-arrive .muscle-region {
+  animation: shortcut-fade 280ms ease-out both;
+  animation-delay: calc(450ms + var(--rd, 0) * 30ms);
+}
+.body-map-arrive .day-chips {
+  animation: shortcut-fade var(--motion-base) ease-out 750ms both;
+}
+.body-map-arrive .day-chips-flip {
+  animation-delay: 60ms;
+}
+/* The "Last time" line under the map arrives with the sites. */
+.animate-late-in.body-map-late {
+  animation-delay: 810ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .body-map-arrive,
+  .body-map-arrive .muscle-region,
+  .body-map-arrive .day-chips {
     animation: none;
   }
 }

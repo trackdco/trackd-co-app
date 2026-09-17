@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react"
 import { CaretRight, Check } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS, SHEET_RISE } from "@/lib/ui-presets"
 import { Input } from "@/components/ui/input"
+import { NumberPad, PadInput } from "@/components/feel/NumberPad"
+import { Sk } from "@/components/feel/Skeleton"
 import {
   Sheet,
   SheetContent,
@@ -26,14 +28,14 @@ import {
   type StackCompound,
 } from "@/lib/home/stack"
 import { siteLabel, sitesForSex } from "@/lib/home/siteCatalog"
-import { listStock, type StockItem } from "@/lib/db/inventory"
+import type { StockItem } from "@/lib/db/inventory"
 import { unitFamilyOk } from "@/lib/db/doseUnits"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { containerNoun, containerNounTitle, remainingLabel } from "@/lib/containers/labels"
-import { resolveDrawSources, resolveVialForDate } from "@/lib/home/protocolSync"
+import { readDoseSheet } from "@/lib/home/doseSheetRead"
 import { formatDraw, type DrawSource } from "@/lib/home/draw"
+import { decayWindow } from "@/lib/home/siteRecency"
 import { BodyMap } from "@/components/sites/BodyMap"
-import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites"
 import type {
   BodySex,
   InjectionSiteRoute,
@@ -60,6 +62,12 @@ interface LogDoseSheetProps {
   siteLastUsedDays: Record<string, number>
   /** Which figure the pick map draws (from the user's profile). */
   bodySex: BodySex
+  /**
+   * The injection-site catalogue, when the caller already has it (Home does).
+   * Passed through so the sheet does not fetch it again on every open (feel
+   * pass §4); without it the sheet reads it in the same round trip as the rest.
+   */
+  catalogue?: InjectionSiteRow[]
   onOpenChange: (open: boolean) => void
   /**
    * Commit the log (fresh or edited).
@@ -103,8 +111,8 @@ interface LogDoseSheetProps {
 
 // Release the handle past this fraction of the sheet height → dismiss.
 const DISMISS_THRESHOLD = 0.3
-// How long the green success state lingers before auto-dismissing.
-const SUCCESS_MS = 1200
+// How long the "Tracked" moment lingers before the sheet goes (feel pass §8).
+const SUCCESS_MS = 900
 
 /**
  * The bottom sheet the row "+" (or a logged tick) opens: a pre-filled, editable
@@ -125,6 +133,7 @@ export function LogDoseSheet({
   todayKey,
   siteLastUsedDays,
   bodySex,
+  catalogue,
   onOpenChange,
   onTracked,
   onRemove,
@@ -211,6 +220,7 @@ export function LogDoseSheet({
             todayKey={openedToday}
             siteLastUsedDays={siteLastUsedDays}
             bodySex={bodySex}
+            catalogueProp={catalogue}
             onClose={() => onOpenChange(false)}
             onTracked={onTracked}
             onRemove={onRemove}
@@ -261,6 +271,7 @@ function LogDoseBody({
   todayKey,
   siteLastUsedDays,
   bodySex,
+  catalogueProp,
   onClose,
   onTracked,
   onRemove,
@@ -275,6 +286,7 @@ function LogDoseBody({
   todayKey: string
   siteLastUsedDays: Record<string, number>
   bodySex: BodySex
+  catalogueProp?: InjectionSiteRow[]
   onClose: () => void
   onTracked: (
     compoundId: string,
@@ -340,7 +352,9 @@ function LogDoseBody({
   const slotDose = doseAmountsOf(onDay.schedule, onDay.dose)[slot] ?? onDay.dose
   const slotTime = doseTimesOf(onDay.schedule)[slot] ?? onDay.schedule.timeOfDay
   const [amount, setAmount] = useState(existing?.amount ?? String(slotDose))
-  const [editingAmount, setEditingAmount] = useState(false)
+  // The dose is typed on the Trackd pad (feel pass §3), never the system keypad.
+  const [padOpen, setPadOpen] = useState(false)
+  const doseFieldRef = useRef<HTMLButtonElement>(null)
 
   // `manualTime === null` ⇒ take the day's default; any value ⇒ the user's own,
   // frozen. Editing an existing dose starts frozen at its logged time.
@@ -381,21 +395,8 @@ function LogDoseBody({
   // in use then, not the one in use now. The arithmetic is `formatDraw`,
   // unchanged; nothing here recomputes a concentration.
   const [drawSource, setDrawSource] = useState<DrawSource | null>(null)
-  useEffect(() => {
-    if (!injectable) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const result = await resolveDrawSources([compound.id], logDate)
-        if (!cancelled) setDrawSource(result.sources[compound.id] ?? null)
-      } catch {
-        if (!cancelled) setDrawSource(null)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [injectable, compound.id, logDate])
+  /** The first draw read has landed: until then the Draw row holds its space. */
+  const [drawRead, setDrawRead] = useState(false)
   // Against the amount ACTUALLY in the field, so editing the dose moves the draw
   // with it. `formatDraw` returns null rather than a plausible-but-wrong figure
   // when the units disagree, which is why this can simply be rendered or not.
@@ -422,25 +423,14 @@ function LogDoseBody({
   // compound only logs IM sites, Sub-Q only Sub-Q; there's no cross-route logging
   // (the method is chosen once, when the compound is added). Oral compounds skip it.
   const route: InjectionSiteRoute = compound.method === "subq" ? "subq" : "im"
-  const [catalogue, setCatalogue] = useState<InjectionSiteRow[]>([])
-  const [loadingSites, setLoadingSites] = useState(injectable)
-  useEffect(() => {
-    if (!injectable) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const cat = await listInjectionSiteCatalogue()
-        if (!cancelled) setCatalogue(cat)
-      } catch {
-        if (!cancelled) setCatalogue([])
-      } finally {
-        if (!cancelled) setLoadingSites(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [injectable])
+  // Home already has the catalogue and passes it (feel pass §4). An empty one
+  // is treated as missing, so a failed server read still gets a second chance.
+  const hasCatalogue = Boolean(catalogueProp && catalogueProp.length > 0)
+  const needCatalogue = injectable && !hasCatalogue
+  const [fetchedCatalogue, setFetchedCatalogue] = useState<InjectionSiteRow[]>([])
+  const catalogue = hasCatalogue ? (catalogueProp as InjectionSiteRow[]) : fetchedCatalogue
+  const [loadingSites, setLoadingSites] = useState(needCatalogue)
+  const catalogueAsked = useRef(false)
 
   // Vials of THIS compound the dose can draw from, so its "stock left" decrements.
   // Only family-compatible ones (mg-tracked vial ↔ mg/mcg dose; iu ↔ iu) — the DB
@@ -465,12 +455,54 @@ function LogDoseBody({
   // Starts true — the body re-mounts per compound (keyed), so the initial value
   // applies on each open; the fetch flips it false in `finally`.
   const [loadingVials, setLoadingVials] = useState(true)
+  // BACK-DATED: which vial this compound was actually drawing from on `dateKey`
+  // (see `resolveVialForDate`). `undefined` = still resolving.
+  const [dateVialId, setDateVialId] = useState<string | null | undefined>(undefined)
+
+  /**
+   * ONE READ FOR EVERYTHING THE SHEET ASKS THE SERVER (feel pass §4).
+   *
+   * The draw source, the stock list, the back-dated vial and (only when nobody
+   * passed it in) the site catalogue used to be separate server actions, and
+   * Next runs those one at a time, so each landed late and pushed the sheet.
+   * `readDoseSheet` runs them in parallel on the server; every state update
+   * below happens together, into rows that already hold their space.
+   *
+   * The rules are the ones the separate reads had: a fresh log ON TODAY
+   * defaults to the most recent compatible vial, a BACK-DATED one adopts the
+   * vial resolved for its own day, and neither overrides an edit's saved link.
+   */
   useEffect(() => {
     let cancelled = false
+    let landed = false
+    const wantCatalogue = needCatalogue && !catalogueAsked.current
+    if (wantCatalogue) catalogueAsked.current = true
     void (async () => {
       try {
-        const all = await listStock()
+        const read = await readDoseSheet(compound.id, logDate, {
+          draw: injectable,
+          stock: true,
+          dateVial: !onToday,
+          catalogue: wantCatalogue,
+        })
         if (cancelled) return
+        landed = true
+        if (injectable) {
+          setDrawSource(read.drawSource)
+          setDrawRead(true)
+        }
+        if (read.catalogue) setFetchedCatalogue(read.catalogue)
+        if (!onToday) {
+          const v = read.dateVialId ?? null
+          setDateVialId(v)
+          // Only adopt it as the pick for a FRESH log, and only while the user
+          // hasn't decided — never clobber an edit's saved link or an explicit
+          // "Not tracked".
+          if (v && existing == null) {
+            setInventoryItemId((cur) => (cur === undefined ? v : cur))
+          }
+        }
+        const all = read.stock ?? []
         // The SAME unit-family rule the server links by (`unitFamilyOk` /
         // `unit_family_compatible`, `supabase/protocol/016`). This listed only
         // the mg and iu families, so a TUB (`g`) and a strengthless bottle
@@ -487,45 +519,28 @@ function LogDoseBody({
           setInventoryItemId(mine[0].id)
         }
       } catch {
-        if (!cancelled) setVials([])
-      } finally {
-        if (!cancelled) setLoadingVials(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [compound.id, compound.unit, existing, onToday])
-
-  // BACK-DATED: which vial this compound was actually drawing from on `dateKey`.
-  // `listStock` above can't answer that — it only knows what's active NOW, and the
-  // vial in use on a past day is often archived by now — so the server resolves it
-  // by the same rule the write path uses. Drives BOTH the section's visibility (no
-  // vial back then ⇒ nothing links ⇒ show nothing, rather than claim a vial that
-  // doesn't exist) and the committed link, so an edit round-trips the real id
-  // instead of re-guessing. `undefined` = still resolving.
-  const [dateVialId, setDateVialId] = useState<string | null | undefined>(undefined)
-  useEffect(() => {
-    if (onToday) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const v = await resolveVialForDate(compound.id, logDate)
+        // A Server Action rejects when the request itself fails (offline). The
+        // rows settle to "nothing known" rather than holding a skeleton forever.
         if (cancelled) return
-        setDateVialId(v?.id ?? null)
-        // Only adopt it as the pick for a FRESH log, and only while the user hasn't
-        // decided — never clobber an edit's saved link or an explicit "Not tracked".
-        if (v && existing == null) {
-          setInventoryItemId((cur) => (cur === undefined ? v.id : cur))
+        if (injectable) {
+          setDrawSource(null)
+          setDrawRead(true)
         }
-      } catch {
-        if (!cancelled) setDateVialId(null)
+        setVials([])
+        if (!onToday) setDateVialId(null)
+      } finally {
+        if (!cancelled) {
+          setLoadingVials(false)
+          if (wantCatalogue) setLoadingSites(false)
+        }
       }
     })()
     return () => {
       cancelled = true
+      // Asked but never answered (the day changed mid-read): ask again next time.
+      if (wantCatalogue && !landed) catalogueAsked.current = false
     }
-  }, [onToday, compound.id, logDate, existing])
+  }, [injectable, compound.id, compound.unit, existing, logDate, onToday, needCatalogue])
 
   const [tracked, setTracked] = useState(false)
 
@@ -654,6 +669,30 @@ function LogDoseBody({
     bodySex,
   )
 
+  /**
+   * The picker's history (feel pass §5): days since each site ON THIS ROUTE was
+   * last used, the most recent of them, and the line under the map.
+   */
+  const siteWindow = decayWindow(route)
+  // The line under the map waits for the map's own arrival the first time.
+  const [mapSettled, setMapSettled] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMapSettled(true), 1100)
+    return () => clearTimeout(t)
+  }, [])
+  const routeSiteIds = new Set(sitesToShow.map((s) => s.id))
+  const routeHistory: Record<string, number> = {}
+  let lastSite: { id: string; days: number } | null = null
+  for (const [id, days] of Object.entries(siteLastUsedDays)) {
+    if (!routeSiteIds.has(id)) continue
+    routeHistory[id] = days
+    if (lastSite === null || days < lastSite.days) lastSite = { id, days }
+  }
+  const siteName = (id: string) =>
+    catalogue.find((s) => s.id === id)?.label ?? siteLabel(id)
+  const agoWords = (d: number) =>
+    d === 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`
+
   function buildLog(): DoseLog {
     // Keep the chosen site only if it's a real site on THIS compound's route —
     // editing an older/cross-route dose could otherwise round-trip a siteId that
@@ -766,7 +805,7 @@ function LogDoseBody({
         <button
           type="button"
           onClick={onClose}
-          className="-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary"
+          className={cn(PRESS.text, "-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary")}
         >
           Cancel
         </button>
@@ -783,7 +822,7 @@ function LogDoseBody({
             onTracked(compound.id, buildLog(), logDate, dateKey, slot)
             setTracked(true)
           }}
-          className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:opacity-40"
+          className={cn(PRESS.text, "-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:opacity-40")}
         >
           {editing ? "Update" : "Track"}
         </button>
@@ -799,6 +838,7 @@ function LogDoseBody({
             reuse it, do not rebuild it), so the two screens cannot drift. The
             detail line carries the scheduled time, which is the more useful
             second fact here than the unit alone. */}
+        <div className={SHEET_RISE} style={{ "--rise-i": 0 } as React.CSSProperties}>
         <CompoundHeader
           name={compound.name}
           category={compound.category}
@@ -816,35 +856,30 @@ function LogDoseBody({
               : undefined
           }
         />
+        </div>
 
         {/* ── Card one: the dose ─────────────────────────────────────
             Rows, matching the add form exactly: label left, control right, one
             height and one divider. */}
-        <div className="mt-5 overflow-hidden rounded-2xl bg-bg-surface-raised">
+        <div
+          className={cn(SHEET_RISE, "mt-5 overflow-hidden rounded-2xl bg-bg-surface-raised")}
+          style={{ "--rise-i": 1 } as React.CSSProperties}
+        >
           <LogRow label="Dose">
             <div className="flex items-center justify-end gap-2">
-              {editingAmount ? (
-                <Input
-                  // A1: the keypad-bound field only mounts (and focuses) once the
-                  // value is tapped — so opening the sheet never raises the keypad.
-                  autoFocus
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => setAmount(sanitizeDoseInput(e.target.value))}
-                  onBlur={() => setEditingAmount(false)}
-                  aria-label={`Amount in ${loggedUnit}`}
-                  className="h-11 w-24 rounded-lg border-border-default bg-bg-input text-right font-mono text-base dark:bg-bg-input"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setEditingAmount(true)}
-                  aria-label={`Amount ${amount} ${loggedUnit}. Tap to edit.`}
-                  className="h-11 w-24 rounded-lg border border-border-default bg-bg-input px-3 text-right font-mono text-base text-foreground"
-                >
-                  {amount || "0"}
-                </button>
-              )}
+              {/* The Trackd pad (feel pass §3): tapping the dose opens the pad
+                  over the sheet, which never grows or shrinks for it. An empty
+                  dose is empty, never a placeholder figure. */}
+              <PadInput
+                value={amount}
+                label={`Amount in ${loggedUnit}`}
+                unit={loggedUnit}
+                active={padOpen}
+                onOpen={() => setPadOpen(true)}
+                inputRef={doseFieldRef}
+                align="right"
+                className="h-11 w-24 rounded-lg"
+              />
               <span className="w-10 shrink-0 text-right font-mono text-sm text-text-muted">
                 {/* The unit the AMOUNT is in. It read the compound's current
                     unit beside a historic dose, so a mcg-era dose was labelled
@@ -865,24 +900,38 @@ function LogDoseBody({
               vial read landed and vanish again the moment the dose field was
               cleared, resizing the card by 53px each way — so anyone replacing a
               dose by select-all-delete watched the sheet jump twice. */}
-          {injectable && drawSource && (
-            <>
-              <LogRowDivider />
-              <LogRow label="Draw">
-                <span className="font-mono text-sm text-accent-amber">
-                  {draw == null ? (
-                    <span className="text-text-subtle">—</span>
-                  ) : draw.kind === "count" ? (
-                    draw.label
-                  ) : (
-                    <>
-                      {draw.units}u{" "}
-                      <span className="text-text-muted">({draw.ml} mL)</span>
-                    </>
-                  )}
-                </span>
-              </LogRow>
-            </>
+          {/* RESERVED (feel pass §4). The row holds its space from the first
+              frame with a skeleton value, so the vial read lands INTO it
+              instead of growing the sheet by 53px. If no vial resolves, the row
+              eases shut rather than vanishing. */}
+          {injectable && (
+            <div
+              className="grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+              style={{ gridTemplateRows: !drawRead || drawSource ? "1fr" : "0fr" }}
+              aria-hidden={drawRead && !drawSource}
+            >
+              <div className="overflow-hidden">
+                <LogRowDivider />
+                <LogRow label="Draw">
+                  {!drawRead ? (
+                    <Sk w="64px" h={12} />
+                  ) : drawSource ? (
+                    <span key="draw" className="animate-late-in font-mono text-sm text-accent-amber">
+                      {draw == null ? (
+                        <span className="text-text-subtle">—</span>
+                      ) : draw.kind === "count" ? (
+                        draw.label
+                      ) : (
+                        <>
+                          {draw.units}u{" "}
+                          <span className="text-text-muted">({draw.ml} mL)</span>
+                        </>
+                      )}
+                    </span>
+                  ) : null}
+                </LogRow>
+              </div>
+            </div>
           )}
 
           {/* Date — EDITABLE (Adrian, 2026-07-30). It still DEFAULTS to the day
@@ -974,7 +1023,10 @@ function LogDoseBody({
             still ticking, and that is not something the row label implies. The
             other two states said what the field already showed and are gone. */}
         {liveTracking && (
-          <p className="mt-1.5 px-1 text-xs text-text-subtle">
+          <p
+            className={cn(SHEET_RISE, "mt-1.5 px-1 text-xs text-text-subtle")}
+            style={{ "--rise-i": 2 } as React.CSSProperties}
+          >
             Live now, <span className="font-mono text-accent-amber">{toHHMMSS(now)}</span>.
             Tap the time to set it yourself.
           </p>
@@ -990,7 +1042,10 @@ function LogDoseBody({
             The map itself is untouched: the same `BodyMap` in `pick` mode with
             the same props it has always had. Injectables only. */}
         {injectable && (
-          <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised px-4 py-3">
+          <div
+            className={cn(SHEET_RISE, "mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised px-4 py-3")}
+            style={{ "--rise-i": 3 } as React.CSSProperties}
+          >
             <div className="flex items-baseline justify-between">
               <p className={CARD_EYEBROW}>Site</p>
               <p className="font-mono text-sm text-text-muted">
@@ -1009,7 +1064,11 @@ function LogDoseBody({
 
             <div className="pt-2">
               {loadingSites ? (
-                <p className="text-xs text-text-subtle">Loading sites…</p>
+                // The map's own footprint, held while the catalogue loads.
+                <div aria-hidden className="flex flex-col items-center">
+                  <Sk w="132px" h={34} round className="mb-4" />
+                  <Sk w="46%" h={260} className="mb-2 rounded-[40px]" />
+                </div>
               ) : sitesToShow.length === 0 ? (
                 <p className="rounded-xl border border-border-default bg-bg-input px-3 py-3 text-xs text-text-muted">
                   Couldn&apos;t load the body map. You can still log the dose.
@@ -1020,6 +1079,15 @@ function LogDoseBody({
                   mode="pick"
                   sex={bodySex}
                   activeIds={siteId ? [siteId] : []}
+                  // Feel pass §5: history one shade down from the picked amber,
+                  // day counts in the margins, and the whole map arriving once
+                  // the sheet has landed. The rotation view is untouched.
+                  history={routeHistory}
+                  historyWindow={siteWindow}
+                  dayChips
+                  freshestId={lastSite?.id ?? null}
+                  arrive
+                  tone="raised"
                   // Inline, so a tap SELECTS and nothing dismisses. Re-tapping
                   // the chosen site clears it, which is the only way back to "no
                   // site" now that there is no sheet to close without choosing.
@@ -1035,20 +1103,34 @@ function LogDoseBody({
                 tap it was already sliding off screen). Inline, it simply stays
                 on screen under the map that produced it. It is the app's one
                 categorical rotation signal. */}
-            {siteId != null && siteLastUsedDays[siteId] !== undefined && (
-              <p
-                className={cn(
-                  "pt-2 text-xs",
+            {/* ONE RESERVED TWO-LINE SLOT (feel pass §5). Before a pick it says
+                where the last dose on this route went; once a site is picked it
+                carries the observation instead. It never changes the card's
+                height either way. */}
+            <p
+              key={siteId ?? "last"}
+              className={cn(
+                "animate-late-in min-h-[2.9em] pt-2 text-xs",
+                siteId != null &&
+                  siteLastUsedDays[siteId] !== undefined &&
                   siteLastUsedDays[siteId] < REST_DAYS
-                    ? "text-accent-amber"
-                    : "text-text-subtle",
-                )}
-              >
-                {siteLastUsedDays[siteId] < REST_DAYS
-                  ? `You last used this spot ${siteLastUsedDays[siteId]}d ago. Just an observation, your choice.`
-                  : `Last used here ${siteLastUsedDays[siteId]}d ago.`}
-              </p>
-            )}
+                  ? "text-accent-amber"
+                  : siteId != null
+                    ? "text-text-subtle"
+                    : "text-text-muted",
+                !mapSettled && siteId == null && "body-map-late",
+              )}
+            >
+              {siteId != null
+                ? siteLastUsedDays[siteId] === undefined
+                  ? null
+                  : siteLastUsedDays[siteId] < REST_DAYS
+                    ? `You last used this spot ${siteLastUsedDays[siteId]}d ago. Just an observation, your choice.`
+                    : `Last used here ${siteLastUsedDays[siteId]}d ago.`
+                : lastSite
+                  ? `Last time: ${siteName(lastSite.id)}, ${agoWords(lastSite.days)}.`
+                  : null}
+            </p>
           </div>
         )}
 
@@ -1062,23 +1144,20 @@ function LogDoseBody({
             gating the primary action on a Supabase round-trip would be the worse bug.
             Tracking early still links the SAME vial via the server fallback, which
             runs the same rule; the opt-out is then one tap away on re-open. */}
-        {onToday
-          ? loadingVials &&
-            vials.length === 0 && (
-              <p className="mt-5 px-1 text-xs text-text-subtle">Checking your stock…</p>
-            )
-          : dateVialId === undefined && (
-              <p className="mt-5 px-1 text-xs text-text-subtle">
-                Checking which {containerWord} you were using…
-              </p>
-            )}
+        {/* The stock card below holds its own place while the read is in
+            flight (feel pass §4), so there is no "Checking…" line to come and
+            go. The link itself is still set server-side regardless, and Track
+            is never blocked on the read. */}
 
         {/* ── Card three: the note ────────────────────────────────────
             Optional and last, as spec 11 asks. A textarea rather than a row
             that opens something: a note is a sentence, and putting a sentence
             behind a second tap is how a field goes unused. It grows with what
             is typed and starts at one line, so it costs nothing when empty. */}
-        <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
+        <div
+          className={cn(SHEET_RISE, "mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised")}
+          style={{ "--rise-i": 4 } as React.CSSProperties}
+        >
           <label className="block px-4 py-3">
             <span className="text-sm text-text-muted">Note</span>
             <textarea
@@ -1110,8 +1189,21 @@ function LogDoseBody({
             The rules are unchanged: a BACK-DATED dose links to the vial resolved
             for its own day, TODAY links to the active one, and 2+ active vials
             keep an explicit chooser. Only the presentation moved. */}
+        {/* RESERVED while the read is in flight: the card's own shape with a
+            skeleton figure. It then either fills in place or eases shut. */}
+        {(onToday ? loadingVials : dateVialId === undefined) ? (
+          <div
+            aria-hidden
+            className={cn(SHEET_RISE, "mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised")}
+            style={{ "--rise-i": 5 } as React.CSSProperties}
+          >
+            <LogRow label={`From ${containerWord}`}>
+              <Sk w="88px" h={12} />
+            </LogRow>
+          </div>
+        ) : null}
         {vialCard && (
-          <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
+          <div className="animate-late-in mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
             {/* The LABEL was the one part of this card still hardcoded, so a tub
                 read "From vial · 1 kg left" with the note directly underneath
                 saying "Comes off the tub…" — the same card contradicting itself
@@ -1131,7 +1223,8 @@ function LogDoseBody({
                       onClick={c.onPick}
                       aria-pressed={c.active}
                       className={cn(
-                        "min-h-9 rounded-full border px-3 py-2 font-mono text-xs transition-colors duration-200 ease-out active:scale-[0.98]",
+                        PRESS.pill,
+                        "min-h-9 rounded-full border px-3 py-2 font-mono text-xs transition-colors duration-200 ease-out",
                         c.active
                           ? "border-transparent bg-accent-primary font-medium text-bg-base"
                           : "border-border-default bg-bg-input text-text-muted hover:text-text-primary",
@@ -1149,7 +1242,7 @@ function LogDoseBody({
                 <button
                   type="button"
                   onClick={vialCard.toggle.onPress}
-                  className="flex min-h-11 w-full items-center px-4 py-2.5 text-left text-sm text-text-muted transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none"
+                  className={cn(PRESS.text, "flex min-h-11 w-full items-center px-4 py-2.5 text-left text-sm text-text-muted")}
                 >
                   {vialCard.toggle.label}
                 </button>
@@ -1165,7 +1258,10 @@ function LogDoseBody({
             rather than a small imprecision. What IS true is that the row is
             yours alone: RLS scopes every read to the signed-in user. Flagged for
             Adrian; the same sentence is on two other screens. */}
-        <p className="mt-5 px-1 text-xs leading-relaxed text-text-subtle">
+        <p
+          className={cn(SHEET_RISE, "mt-5 px-1 text-xs leading-relaxed text-text-subtle")}
+          style={{ "--rise-i": 6 } as React.CSSProperties}
+        >
           Saved to your account. Only you can see it.
         </p>
 
@@ -1180,32 +1276,55 @@ function LogDoseBody({
               onRemove(compound.id, dateKey, slot)
               onClose()
             }}
-            className="mt-4 block w-full text-center text-sm text-state-error transition-opacity hover:opacity-80"
+            className={cn(PRESS.text, SHEET_RISE, "mt-4 block w-full text-center text-sm text-state-error transition-opacity hover:opacity-80")}
+            style={{ "--rise-i": 7 } as React.CSSProperties}
           >
             Remove dose
           </button>
         )}
       </div>
 
-      {/* Full-bleed success state — UI feedback only (sanctioned green). The log
-          is already committed; tapping just dismisses (it can't undo anything). */}
+      <NumberPad
+        active={padOpen ? 0 : null}
+        fields={[
+          {
+            id: "dose",
+            label: "Dose",
+            unit: loggedUnit,
+            value: amount,
+            onChange: setAmount,
+            sanitize: sanitizeDoseInput,
+          },
+        ]}
+        onActiveChange={() => {}}
+        onClose={() => setPadOpen(false)}
+        anchorRef={doseFieldRef}
+        returnFocusRef={doseFieldRef}
+        label="Dose"
+      />
+
+      {/* THE TRACKED MOMENT, "MONO" (feel pass §8, approved). The same beat the
+          green full-bleed state had, in the app's own colours: the raised
+          surface, one ring pulse, the white disc with a dark tick. The log is
+          already committed; tapping only dismisses, and so does 900ms. The
+          Home row's own tick pops once the sheet has gone. */}
       {tracked && (
         <button
           type="button"
           onClick={onClose}
-          aria-label="Dose tracked"
-          className="animate-shortcut-fade absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-t-3xl bg-accent-green text-bg-base"
+          aria-label={editing ? "Dose updated" : "Dose tracked"}
+          className="animate-shortcut-fade absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-t-3xl bg-bg-surface-raised text-foreground"
         >
           <span className="relative flex h-16 w-16 items-center justify-center">
             <span
               aria-hidden
-              className="animate-home-tick-ring absolute inset-0 rounded-full border-2 border-bg-base/40"
+              className="animate-home-tick-ring absolute inset-0 rounded-full border-2 border-text-primary/35"
             />
-            <span className="animate-home-tick-pop flex h-16 w-16 items-center justify-center rounded-full bg-bg-base/15">
+            <span className="animate-home-tick-pop flex h-16 w-16 items-center justify-center rounded-full bg-accent-primary text-bg-base">
               <Check className="h-9 w-9" aria-hidden />
             </span>
           </span>
-          <span className="animate-shortcut-fade text-base font-medium">
+          <span className="text-base font-medium">
             {editing ? "Updated" : "Tracked"}
           </span>
         </button>

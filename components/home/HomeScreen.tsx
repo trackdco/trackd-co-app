@@ -833,6 +833,8 @@ export function HomeScreen({
      */
     if (!guard(() => {})) return
     commitDoseOn(userId, compoundId, log, landsOn, openedOn, slot)
+    // The row's tick pops once the sheet has gone (feel pass §8).
+    trackedRef.current = { id: compoundId, slot, day: landsOn }
     // Follow the dose to its new day — but only AFTER the sheet has closed. The
     // sheet freezes the day it opened on for exactly this reason: moving the
     // selection while it is open used to remount it, wiping the success tick and
@@ -842,6 +844,24 @@ export function HomeScreen({
 
   /** A day the committed dose moved to, applied once the sheet is out of the way. */
   const [pendingDay, setPendingDay] = useState<DateKey | null>(null)
+
+  /**
+   * THE ROW'S TICK POPS AFTER THE SHEET CLOSES (feel pass §8): the app's own
+   * tick-pop and ring, on the dose that was just tracked. Recorded at commit,
+   * played on close, cleared once the ring has finished.
+   */
+  const trackedRef = useRef<{ id: string; slot: number; day: string } | null>(null)
+  const [popKey, setPopKey] = useState<string | null>(null)
+  const popTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(popTimer.current), [])
+  function playTrackedPop() {
+    const t = trackedRef.current
+    trackedRef.current = null
+    if (!t) return
+    setPopKey(`${t.id}|${t.slot}|${t.day}|${performance.now()}`)
+    window.clearTimeout(popTimer.current)
+    popTimer.current = window.setTimeout(() => setPopKey(null), 700)
+  }
 
   /**
    * Undo a logged dose — on the day the SHEET was showing, which the sheet
@@ -995,6 +1015,7 @@ export function HomeScreen({
               // Grouping is dated, so the card has to know WHICH day it is
               // drawing — a stack made today never reaches back over history.
               dayKey={selectedKey}
+              popKey={popKey}
               paused={[...pausedStackEntries, ...pausedEntries]}
               // The ROW is the stack: the sheet opens headed with the stack's
               // name and already on the whole-stack list.
@@ -1167,9 +1188,11 @@ export function HomeScreen({
         todayKey={todayKey}
         siteLastUsedDays={siteLastUsedDays}
         bodySex={bodySex}
+        catalogue={injectionCatalogue}
         onOpenChange={(open) => {
           if (!open) {
             setLogTarget(null)
+            playTrackedPop()
             // The sheet is gone, so following a moved dose to its new day can no
             // longer remount it out from under the user.
             if (pendingDay) {

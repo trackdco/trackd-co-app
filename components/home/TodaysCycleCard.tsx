@@ -228,6 +228,11 @@ interface TodaysCycleCardProps {
    *  a stack only groups days from the day it was created, and only the members
    *  that were in it then (Spec 05 · dating). Without it the card drew today's
    *  grouping over every day in the user's history. */
+  /**
+   * `id|slot|day|nonce` of a dose just tracked from the Log sheet: that row's
+   * tick pops (feel pass §8). Null the rest of the time.
+   */
+  popKey?: string | null
   dayKey: DateKey
   /** The user's stacks (Spec 05). Members render inside their stack row and are
    *  NOT repeated in their category sections. Absent/empty ⇒ the card is exactly
@@ -370,7 +375,10 @@ function DoseTick({
   skipped,
   label,
   onClick,
+  pop = null,
 }: {
+  /** A nonce while this dose's tracked pop is playing (feel pass §8). */
+  pop?: string | null
   logged: boolean
   /** Deliberately not taken. A filled tick would claim the opposite. */
   skipped?: boolean
@@ -388,7 +396,8 @@ function DoseTick({
       // target for the same action.
       className={cn(
         PRESS.tick,
-        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
+        "relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
+        pop && "animate-home-tick-pop",
         skipped
           ? // A skipped dose is RESOLVED but not taken, so it gets neither the
             // filled tick (which would claim it was) nor the empty ring (which
@@ -404,7 +413,18 @@ function DoseTick({
       ) : (
         <Check className="h-3.5 w-3.5" aria-hidden />
       )}
+      {pop ? <TickRing key={pop} /> : null}
     </button>
+  )
+}
+
+/** The single ring pulse around a tick that has just been tracked. */
+function TickRing() {
+  return (
+    <span
+      aria-hidden
+      className="animate-home-tick-ring pointer-events-none absolute -inset-px rounded-full border-[1.5px] border-accent-primary"
+    />
   )
 }
 
@@ -424,6 +444,7 @@ function MultiDoseRow({
   drawSource,
   showAddStock,
   onAddStock,
+  popFor,
 }: {
   dose: DueDose
   onLog: (dose: StackCompound, slot: number) => void
@@ -432,6 +453,7 @@ function MultiDoseRow({
   drawSource: DrawSource | undefined
   showAddStock: boolean
   onAddStock: (dose: StackCompound) => void
+  popFor?: (id: string, slot: number) => string | null
 }) {
   const taken = dose.slots.filter((s) => s.log != null).length
   const done = taken >= dose.slots.length
@@ -496,6 +518,7 @@ function MultiDoseRow({
                     : `Log ${dose.name}, dose ${s.slot + 1}`
                 }
                 onClick={() => (log ? onUnlog(dose, s.slot) : onLog(dose, s.slot))}
+                pop={log && log.status !== "skipped" ? (popFor?.(dose.id, s.slot) ?? null) : null}
               />
               <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
                 <button
@@ -535,6 +558,7 @@ function DoseRow({
   drawSource,
   showAddStock,
   onAddStock,
+  popFor,
 }: {
   dose: DueDose
   onLog: (dose: StackCompound, slot: number) => void
@@ -543,6 +567,7 @@ function DoseRow({
   drawSource: DrawSource | undefined
   showAddStock: boolean
   onAddStock: (dose: StackCompound) => void
+  popFor?: (id: string, slot: number) => string | null
 }) {
   // PAUSED (a stack member only — see `DueDose.paused`). Blacked out and
   // untickable: nothing is due, so a tick would be a control for an action that
@@ -594,10 +619,12 @@ function DoseRow({
         drawSource={drawSource}
         showAddStock={showAddStock}
         onAddStock={onAddStock}
+        popFor={popFor}
       />
     )
   }
   const log = dose.log
+  const pop = log && log.status !== "skipped" ? (popFor?.(dose.id, 0) ?? null) : null
   const amount = shownAmount(dose, log)
   // The unit the shown amount is IN: for a logged dose that's the unit it was
   // recorded in, not whatever the compound's unit happens to be now — otherwise
@@ -630,7 +657,8 @@ function DoseRow({
         aria-label={log ? `Untick ${dose.name}` : `Log ${dose.name}`}
         className={cn(
           PRESS.tick,
-        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
+        "relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
+          pop && "animate-home-tick-pop",
           log?.status === "skipped"
             ? "border-border-strong text-text-muted"
             : log
@@ -643,6 +671,7 @@ function DoseRow({
         ) : (
           <Check className="h-3.5 w-3.5" aria-hidden />
         )}
+        {pop ? <TickRing key={pop} /> : null}
       </button>
 
       {/* Title first, specs below — the name stays fully readable (never squeezed by
@@ -736,11 +765,18 @@ export function TodaysCycleCard({
   noVialIds,
   onAddStock,
   dayKey,
+  popKey = null,
   stacks,
   onLogStack,
   onUnlogStack,
   greeting,
 }: TodaysCycleCardProps) {
+  /** Is this slot the dose that was just tracked, on the day being shown? */
+  const popFor = (id: string, slot: number): string | null => {
+    if (!popKey) return null
+    const [pid, pslot, pday] = popKey.split("|")
+    return pid === id && Number(pslot) === slot && pday === dayKey ? popKey : null
+  }
   // ONE partition: a member appears in its stack row and therefore cannot also
   // appear in a category section. Two independent filters could drift; a
   // partition cannot.
@@ -786,6 +822,7 @@ export function TodaysCycleCard({
               drawSources={drawSources}
               noVialIds={noVialIds}
               onAddStock={onAddStock}
+              popFor={popFor}
             />
           ))}
 
@@ -825,6 +862,7 @@ export function TodaysCycleCard({
                       drawSource={drawSources[dose.id]}
                       showAddStock={noVialIds.has(dose.id)}
                       onAddStock={onAddStock}
+                      popFor={popFor}
                     />
                   ))}
                 </ul>
@@ -944,6 +982,7 @@ export function TodaysCycleCard({
  */
 function StackDoseRow({
   stack,
+  popFor,
   members,
   onLog,
   onUnlog,
@@ -955,6 +994,7 @@ function StackDoseRow({
   onAddStock,
 }: {
   stack: Stack
+  popFor?: (id: string, slot: number) => string | null
   members: DueDose[]
   onLog: (dose: StackCompound, slot: number) => void
   onUnlog: (dose: StackCompound, slot: number) => void
@@ -1225,6 +1265,7 @@ function StackDoseRow({
                 drawSource={drawSources[dose.id]}
                 showAddStock={noVialIds.has(dose.id)}
                 onAddStock={onAddStock}
+                popFor={popFor}
               />
             ))}
           </ul>
