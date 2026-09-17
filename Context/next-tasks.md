@@ -7,7 +7,8 @@ State and measurements are in `progress-tracker.md`; the rule is in
 
 ### 1. Look at it on the SE itself
 The simulated sizes and a live check of production are the evidence so far; the
-SE in Safari is the real test. Walk trackdco.app/onboarding on it.
+SE in Safari is the real test. Walk trackdco.app/start on it (the flow moved
+there from `/onboarding` on 2026-09-17).
 
 ### 2. When you touch a flow screen after this
 Measure it at 375x548 as well as 402x700. An overflow there is fixed with a
@@ -78,45 +79,53 @@ trial-conversion risk still open)
 
 ---
 
-## 🟡 3-03 THIRD REVIEW ROUND (2026-09-17) — BUILT AND CHECKED, WAITING ON ADRIAN
+## ✅ SPEC 3-03 — THE LANDING PAGE IS LIVE (merged 2026-09-17, `d755a7b`)
 
-Both the second and third rounds are built, rendered and checked (spec 3-03 §9
-lists them). Rendering works again by running the site from a copy in the
-session scratchpad (`/private/tmp`), with packages installed from the npm
-cache in five seconds: off iCloud, nothing stalls.
-
-- [ ] **ADRIAN: the offloaded node_modules** in `trackd-co-app` (28,129 files
-      in the cloud). Finder, right-click the GitHub folder, "Keep Downloaded".
-      Other sessions working in that checkout are still paying for it.
-- [ ] **ADRIAN: review on Vercel** (laptop and phone), then the copy pass.
-
-## 🟡 SPEC 3-03 — THE LANDING PAGE, REBUILT FROM THE SKETCH, IS WAITING ON ADRIAN
-
-Branch `feat/landing-3-02`, **PR #66, still "DO NOT MERGE"**, same preview URL
-(SSO-gated): `https://trackd-co-app-git-feat-landing-3-02-trackd-co-s-projects.vercel.app`.
-Also look at `/reconstitution-calculator` on the preview. State is in
-`progress-tracker.md`; the brief and the decisions are
+PR #66 merged after a cold review (two small fixes, `a7a0e27`) with every gate
+green and the Vercel preview passing; production was checked the same
+afternoon. State is in `progress-tracker.md`; the brief and every decision are
 `Feature Specs/wave 2 - refinement/3-03-landing-rebuild.md` §8 and §9.
+`/onboarding` is now `/start` (old links 308 with their `?step=`).
 
+Live and deliberately incomplete: the reviews section is HIDDEN on production
+(placeholder quotes), and so is its menu item on both public pages.
+
+**Adrian still owes, in rough order:**
+
+- [ ] **⚠️ ADRIAN: the offloaded files in `trackd-co-app`.** Finder, right-click
+      the GitHub folder, "Keep Downloaded". It is not only `node_modules`
+      (28,129 files): `.git` has offloaded files too, including the reflog
+      `.git/logs/refs/remotes/origin/main`. This merge moved `origin/main`,
+      so **a `git fetch` in any checkout of this repo now hangs** at 0% CPU
+      until that file downloads (`brctl download` did not shift it). A fetch
+      started at 14:03 on 2026-09-17 was still stuck and holding
+      `.git/refs/remotes/origin/main.lock`; if that lock is still there with no
+      `git fetch` running, it is stale and safe to delete.
 - [ ] **⚠️ ADRIAN ASKED TO BE REMINDED: the copy pass over the whole page**, and
-      his own founders' letter. The four hero lines are laid out with the first
-      above the title, for him to settle.
+      his own founders' letter. The hero lines are his to settle.
 - [ ] **Real testimonials** (with permission) to replace the four invented ones
       in `lib/landing/testimonials.ts`, then set `PLACEHOLDER_TESTIMONIALS` to
       false and flip its test. Until then production hides the section.
 - [ ] **Confirm each comparison row** in `components/landing/compare.tsx`. A
-      cross under "Other apps" is a claim about competitors.
-- [ ] **The privacy FAQ answer** (`TODO(3-03)` in `app/page.tsx`).
+      cross under "Other apps" is a claim about competitors, and it is live.
+- [ ] **The privacy FAQ answer** (`TODO(3-03)` in `app/page.tsx`), also live.
 - [ ] **Rule on the public calculator's missing first-run modal.** The in-app
       calculator shows one; the public page shows the permanent disclaimer on
       the page instead.
-- [ ] **Real iPhone and real Android**, including the FAQ vials and the menu.
-- [ ] **CodeRabbit** on the new head (`@coderabbitai review`, and push nothing
-      straight after).
-- [ ] Merge is Adrian's call alone.
-- [ ] **After merge: delete the first onboarding step** (the notes-app hook).
+- [ ] **Real devices:** an iPhone in Safari (the free-week video is the HEVC
+      file there, and headless WebKit could only prove the still fallback), an
+      iPhone SE, and an Android. Include the FAQ vials and the menu.
+- [ ] Optional: **CodeRabbit** never reviewed this (it skips the repo).
 - [ ] Later, his words: a public compound library page, the same kind of page
       as the free calculator.
+
+**Small things the cold review left alone** (copy, or not worth a change on
+their own): the public calculator's "no value" placeholder is the app's em
+dash; the intro screen says "Sign in" where the site says "Log in"; the hero
+phone's and the video's labels spell "Trackd" instead of reading
+`PRODUCT_NAME`; the review arrows read the dot index before a smooth scroll
+lands, so two very fast clicks advance one card; the report-only CSP logs an
+`upgrade-insecure-requests` notice in Chromium.
 
 ## ⏸ SPEC 3-02 — SUPERSEDED BY 3-03 (kept for its review history)
 

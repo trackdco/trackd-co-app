@@ -1,6 +1,61 @@
 # Progress Tracker
 
-## 🟡 3-03, THIRD REVIEW ROUND — BUILT AND CHECKED 2026-09-17
+## ✅ SPEC 3-03 SHIPPED: THE LANDING PAGE, THE FREE CALCULATOR, THE FLOW'S INTRO (2026-09-17)
+
+**Merged:** PR #66 (renamed "Spec 3-03: landing page rebuild, free calculator,
+onboarding intro") into `main` as `d755a7b`, on Adrian's advance approval,
+after a cold review. Production (trackdco.app) deployed and checked.
+
+**The cold review** (one pass over the whole diff, rendered, not only read):
+
+- Rendered `/` at 375x548, 402x700 and 1280x800 full page, the calculator at
+  375 and 1280, the flow's intro and name screens at 375x548 and 402x700, and
+  the free-week screen at both, with and without reduced motion. No sideways
+  scroll anywhere, no overflow in the flow's scroll port, no running animation
+  under reduced motion, no hydration errors.
+- Behaviour: the menu opens onto its first item, Escape closes it and returns
+  focus, an outside click closes it on a laptop, and a section jump moves focus
+  to the section. The dock is `inert` over the hero and live after it. The
+  feature pills move selection and focus with the arrow keys without moving
+  the page. The FAQ opens from the keyboard. The review arrows reach the last
+  card and disable. The calculator gives 5 mg/mL, 0.2 mL, 20 units for 10 mg,
+  2 mL, 1000 mcg.
+- Video: Chromium gets the VP9 file, muted as an attribute, not looping; it
+  ends, holds its last frame and settles its mask; reduced motion shows the
+  still. Headless WebKit chose the HEVC path and fell back to the still (it
+  could not autoplay or decode it), so real Safari is still unproven.
+- Routing: `/onboarding?step=name` 308s to `/start?step=name`, the assets under
+  `/onboarding/` are not redirected, the videos are outside the proxy and
+  answer range requests.
+
+**Fixed (`a7a0e27`):** the calculator page's menu still offered "Reviews" on
+production, a jump to a section production does not render (it now takes the
+same server-side `showTestimonials()` decision as the home page, pinned by
+`landingSections.test.ts`); and the comparison table's wordmark was squeezed
+about 8% on phones (`object-contain`).
+
+**Gates** (in a copy under `/private/tmp`, off iCloud): tsc 0, eslint 0, vitest
+109 files / 2116 tests, `next build` exit 0 with `/` and
+`/reconstitution-calculator` static (○). Vercel preview passed on `a7a0e27`;
+production deploy passed on `d755a7b`.
+
+**Production, checked live at 402x700 and 1280x800:** `/` and the calculator
+are served from the prerender cache; the reviews section and its menu item are
+absent on both pages, as intended; the four legal links (the Consumer Health
+Data Privacy Policy by its full name) and "Trackd Co Pty Ltd, ACN 698 405 462"
+are in the footer; no "Trackd.co"; no sideways scroll; `/start` opens on Kyle
+waving and "Let's go" reaches "What's your name?"; `/terms`, `/privacy`,
+`/medical-disclaimer` and `/consumer-health-data` all load signed out.
+
+**⚠️ Found on the way out: `git fetch` hangs on this repo now.** The reflog
+`.git/logs/refs/remotes/origin/main` is an iCloud placeholder, and a fetch that
+moves `origin/main` has to append to it. See `next-tasks.md`.
+
+**Still Adrian's:** listed in `next-tasks.md` (the copy pass, real
+testimonials, the comparison rows, the privacy answer, the calculator modal
+ruling, "Keep Downloaded", real devices).
+
+## ✅ 3-03, THIRD REVIEW ROUND — BUILT AND CHECKED 2026-09-17 (merged)
 
 From Adrian's laptop and phone review: plain lighter-amber button with less
 glow; Kyle's stock card runs down once; section transitions reworked (tighter,
@@ -20,7 +75,7 @@ injection-site callouts re-measured after the map grew.
 **Gates (in that copy):** tsc 0, eslint 0, vitest 109 files / 2115 tests,
 `next build` exit 0 with `/` and `/reconstitution-calculator` static.
 
-## 🟡 3-03, SECOND REVIEW ROUND — BUILT 2026-09-17, NOT YET RENDERED LOCALLY
+## ✅ 3-03, SECOND REVIEW ROUND — BUILT 2026-09-17 (rendered in the third round; merged)
 
 Adrian reviewed the preview on his phone and laptop. Built from his notes (the
 full list is spec 3-03 §9): the drawn hero phone back with real compound names;
@@ -38,7 +93,7 @@ read of one blocks until iCloud downloads it, so the dev server never compiled
 `/`, and tsc and eslint sat at 0% CPU in `read()`. It is also what made
 Adrian's laptop feel slow. Vercel's preview build type-checks the push.
 
-## 🟡 THE LANDING PAGE, REBUILT FROM ADRIAN'S SKETCH (Spec 3-03) — BUILT 2026-09-17, PR #66, UNMERGED
+## ✅ THE LANDING PAGE, REBUILT FROM ADRIAN'S SKETCH (Spec 3-03) — BUILT 2026-09-17, MERGED THE SAME DAY (see the top of this file)
 
 Same branch (`feat/landing-3-02`), same PR (#66, still "DO NOT MERGE"), same
 preview URL. Adrian's verdict on 3-02 was *"you can just tell that this is

@@ -1,7 +1,7 @@
 # Spec 3-03: the landing page, rebuilt from Adrian's sketch
 
-**Status:** briefed 2026-09-17; **built 2026-09-17** on `feat/landing-3-02`
-(PR #66, unmerged, awaiting Adrian). Decisions taken during the build are in
+**Status:** briefed 2026-09-17; **built 2026-09-17** on `feat/landing-3-02`;
+**merged to `main` and live 2026-09-17** (PR #66, `d755a7b`, after a cold review). Decisions taken during the build are in
 §9; what he still owes is §8. This SUPERSEDES the page built under
 spec 3-02 on branch `feat/landing-3-02` (PR #66, unmerged). Adrian's verdict on
 that build: *"you can just tell that this is AI-generated."* He then sketched the
