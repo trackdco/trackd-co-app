@@ -10,12 +10,17 @@ import { useFlow } from "../flow-context";
 import { PhoneVideo } from "../phone-video";
 
 /**
- * The phone's width on this screen: 160px on Adrian's handset, 112px on an
+ * The phone's width on this screen: 172px on Adrian's handset, 118px on an
  * iPhone SE in Safari. The recording's box is 2.21 phone widths tall, so that
- * is 354px and 248px, measured to fit between the headline and the offer line
- * at 402x700 and 375x548 with nothing to scroll. See `lib/onboarding/fit.ts`.
+ * is 380px and 261px, measured to fit between the headline and the offer line
+ * at 402x700 and 375x548 with nothing to scroll. It sits at the TOP of its
+ * space, close under the subtitle (Adrian, 2026-09-17: "a slight amount of
+ * negative space between the subtitle and the phone ... increase the size
+ * slightly and move it up"). On a phone taller than his, the spare height is
+ * split one part above to two below, so it does not all pool under the phone.
+ * See `lib/onboarding/fit.ts`.
  */
-const PHONE_WIDTH = fit(160, 112);
+const PHONE_WIDTH = fit(172, 118);
 
 /**
  * The free-trial reveal, between the cost argument and the price list (Adrian,
@@ -53,17 +58,14 @@ export function FreeScreen() {
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col px-5 pt-2">
         <ScrollPort>
-          {/* `gap-10`, up from `gap-4`: the carousel came down twice and the
-              headline needs to stop crowding it (Adrian, 2026-08-27: "give more
-              space between the carousel and the subtitle as well").
-
-              On an iPhone SE the top padding goes and this gap closes to 32px,
-              and no further: the front phone spills out of the top of the
-              ring (see `RING_HEIGHT` in `app-carousel.tsx`), and at 16px it
-              covered the subtitle. See `lib/onboarding/fit.ts`. */}
+          {/* A small gap: the video's phone sits close under the subtitle
+              (Adrian, 2026-09-17). The 40px this used to be was for the
+              carousel, whose front phone spilled out of the top of its ring;
+              the video's phone stays inside its own box, and the box carries
+              ~11px of transparent space above the phone already. */}
           <div
             className="flex w-full flex-1 flex-col justify-start"
-            style={{ gap: fit(40, 32), paddingTop: fit(12, 0) }}
+            style={{ gap: fit(14, 10), paddingTop: fit(12, 0) }}
           >
             {/* ONE line of type, not three (Adrian, 2026-08-05: "too much
                 text"). The eyebrow and the giant $0 both went: the eyebrow said
@@ -106,11 +108,13 @@ export function FreeScreen() {
                 carousel is `shrink-0` and fixed-height by construction, so it
                 cannot be squeezed to nothing on a short handset the way a
                 photo sized by aspect ratio could. */}
-            <div className="flex min-h-0 flex-1 items-center justify-center">
+            <div className="flex min-h-0 flex-1 flex-col items-center">
+              <span aria-hidden className="flex-[1_0_0]" />
               <PhoneVideo
                 phoneWidth={PHONE_WIDTH}
                 label="A recording of the Trackd app on an iPhone: the dashboard, a dose being logged, the injection site map and a new stack being built."
               />
+              <span aria-hidden className="flex-[2_0_0]" />
             </div>
           </div>
         </ScrollPort>

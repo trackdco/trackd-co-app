@@ -440,7 +440,11 @@ Working, verified, and worth keeping unless it fights the new design:
   - The flow's first screen is Kyle waving (his pick of four, his render:
     `public/onboarding/kyle-wave.png`), "Welcome to Trackd.", one line, and
     the button under the text, not pinned.
-  - The free-week video is larger (160px phone on his handset, 112px on an
-    SE), measured with nothing to scroll.
+  - The free-week video is larger and sits close under the subtitle (172px
+    phone on his handset, 118px on an SE; spare height on taller phones split
+    1:2 above and below), measured with nothing to scroll at 402x700,
+    390x844, 375x548 and 360x560.
+  - **Copy stays as it is for now** (Adrian, 2026-09-17). His copy pass comes
+    later; a review must not rewrite it.
 - **Removed 3-02 components:** `device`, `laptop`, `today-panel`, `glyphs`,
   `sticky-cta`, `updates-form`.
