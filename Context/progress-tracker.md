@@ -121,8 +121,9 @@ merge; it went to `main` through PR #68, which deploys. The rules it created are
     it now follows the bar's height.
   - The empty Weight card gave focus back to nothing on iOS; the card now hands
     itself over.
-  - Docs: ui-context (the pad, loading), and "Will not fit a 0.3 mL syringe" is
-    marked as not yet approved.
+  - Docs: ui-context (the pad, loading). The one-line warning is Adrian's own
+    wording as of 18 Sep: "This is too little to read." and "It will not fit in
+    this syringe."
   - Adrian, on the preview (18 Sep): adding a compound no longer walks the pad
     into "Amount left". It has its own pad, opened by tapping the field.
   - Merging `main` in (the landing page, the large-monitor sizing) was clean in

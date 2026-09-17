@@ -21,7 +21,6 @@ import { CALCULATOR_DISCLAIMER, misuseCopy } from "@/lib/calculator/copy"
 import {
   DEFAULT_SYRINGE_SIZE,
   fillFraction,
-  MIN_READABLE_UNITS,
   misuseKind,
   syringeSize,
   type SyringeSizeId,
@@ -304,10 +303,12 @@ export function ReconCalculator() {
               className="ml-auto flex min-w-0 items-center gap-1.5 self-center text-xs text-accent-amber"
             >
               <Warning className="h-3.5 w-3.5 shrink-0" />
+              {/* Adrian's words (18 Sep). No figure and no syringe size in
+                  them: both are on screen beside this line. */}
               <span className="truncate">
                 {misuse === "under"
-                  ? `Under ${MIN_READABLE_UNITS} units, too little to read`
-                  : `Will not fit a ${size.label} syringe`}
+                  ? "This is too little to read."
+                  : "It will not fit in this syringe."}
               </span>
             </span>
           ) : null}

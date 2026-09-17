@@ -642,7 +642,10 @@ keep the system controls.
   call: the pad takes the bottom half, so an unpinned syringe scrolls away.
   Pinning never changes the section's box (on a short phone the "Draw" heading
   tucks under the title bar, which shows while pinned), and while the pad is
-  open the misuse warning folds into one amber line beside the figure, so the
+  open the misuse warning folds into one amber line beside the figure ("This is
+  too little to read." / "It will not fit in this syringe.", Adrian, 18 Sep:
+  the figure and the syringe size are on screen, so the line does not repeat
+  them), so the
   results card stays above the pad on an SE.
 - **The pad is the APP's rule, not the public site's.** The landing page's free
   calculator and its features widget share `CalculatorInputs`, and they pass

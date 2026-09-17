@@ -33,10 +33,10 @@ The review fixes needed lines the brief did not write:
 - The sync notice when the FIRST READ fails (offline, slow, down), Adrian's
   wording: "No connection. We're having trouble connecting to your account, so you're seeing what's saved on this phone. We'll keep trying." The write-failure wording ("Saved on your device…") was
   false for a read.
-- The Calculator's one-line warning while its pad is open: "Under 2 units, too
-  little to read" (approved) and "Will not fit a 0.3 mL syringe" (**not yet
-  approved: Adrian to confirm or reword**). The full
-  warning shows again when the pad closes.
+- The Calculator's one-line warning while its pad is open, Adrian's words
+  (18 Sep, final): "This is too little to read." and "It will not fit in this
+  syringe." Neither repeats a figure or a syringe size, because both are on
+  screen beside the line. The full warning shows again when the pad closes.
 
 ### 2. Shipping — DONE (18 Sep)
 Adrian saw it on the Vercel preview and said to merge. `polish/feel` went to
