@@ -5406,3 +5406,66 @@ files: a compound earns a Postgres row unless it was deleted and never dosed.
 - Founder accounts: Angus `admin@trackdco.app`, Adrian `adrianschimizzi1@gmail.com`.
 - `main` deploys straight to Vercel prod. UI/docs changes only need `next build` +
   `tsc` + `lint`; schema changes go through `supabase/` migrations or the SQL Editor.
+
+## The landing page copy pass (2026-09-18)
+
+Adrian reviewed all ~110 strings on the live landing page and rewrote most of
+them. The review itself was done in a published artifact, one field per string,
+which recorded 73 edits, 5 cuts and 9 notes; the edits were read back out of it
+and applied. The page was already merged and live at trackdco.app before this,
+so the pass changes copy on a live page rather than shipping a new one.
+
+### The three rulings the copy now follows
+
+- **Sentence case, and the house style holds for page copy**: no em dashes, no
+  emoji, no exclamation marks. **The four reviews are the exception** and print
+  exactly as their authors wrote them. `testimonials.test.ts` moved with that
+  ruling: it still bans the em dash, because that is the mark nobody types on a
+  phone and so the one that gives away a quote the house wrote.
+- **"Trackd" is the app, "Trackd Co" is the company.** His edits had written
+  Trackd Co into the meta title, the reviews and the letter; those resolve to
+  `PRODUCT_NAME`, and `BUSINESS_NAME` is left only where the entity is the
+  subject, which is the footer and the letter's signature.
+- **The founders' note became a letter**, so the section heading and the menu
+  item both say letter, and the salutation is its own line.
+
+### Four code changes his notes asked for
+
+- **The laptop feature rows stop expanding.** The callouts appeared both as a
+  bulleted list under the open row and drawn on the phone beside it, saying
+  everything twice; he wants them only on the diagram. With the calculator link
+  cut in the same pass there was nothing left inside a row to expand into, so
+  the rows became the tab list they always were: `role="tablist"`, arrow keys,
+  the phone as the panel.
+- **The cycle calendar runs 7 on, 7 off** rather than 5 on, 2 off.
+- **The stacks callout points at the compounds**, not the tick that logs them.
+  Placed by eye first and measured after, against `data-mark="stack-list"`: the
+  list spans 31.1 to 44.5 percent of the stage, so the dot sits at 37.8, a row
+  above where the estimate had put it.
+- **The FAQ is eight questions.** The calculator one he had cut is back, and
+  his calories one joins it.
+
+### ⚠️ The reviews are still gated, and that is deliberate
+
+`PLACEHOLDER_TESTIMONIALS` stays `true`. Ananth R., Jasmine M. and Cam W. are
+real people who told Adrian he could write a testimonial on their behalf, which
+is not the same as the words being their honest opinion; each has to approve
+their own line. Michael H. is invented and Adrian is finding someone to stand
+behind it. Production renders no reviews section at all and the header drops
+its "Reviews" item with it, so nothing on the live site is ever shown as a
+placeholder. "Cam W." is a display name: the real person is happy to be quoted,
+but the name they gave collided with a founder's.
+
+### Open, and Adrian's to close
+
+- **The seven comparison rows are claims about other apps** and none is
+  confirmed yet. Row 5 ("peptides, juice and supplements all in one") is the
+  broadest. The last row is deliberately an opinion rather than a checkable
+  claim, chosen over "locks your history when you stop paying" for that reason.
+- **Two FAQ answers claim more than the ones they replaced**: that we never
+  sell data, and that deleting an account removes all of it. Both are marked
+  with a TODO where they sit.
+- **The progress callout is the page's only outcome claim.** "See how your body
+  changes as you run different compounds" ties a body change to compounds,
+  where everything else describes the record and not the result. Adrian raised
+  it himself and then ruled to keep it.

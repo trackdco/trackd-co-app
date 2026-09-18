@@ -1,5 +1,40 @@
 # Next Tasks
 
+## 🟡 THE LANDING COPY PASS — ON `copy/landing-pass`, MERGED TO LOCAL MAIN, NOT PUSHED (2026-09-18)
+
+State and the three rulings are in `progress-tracker.md`. The branch lives in
+the worktree `../trackd-copy-wt`. Local `main` is two commits ahead of
+`origin/main`; pushing is what puts the new copy on the live page.
+
+### 1. Get the three reviews approved (Adrian)
+Send each of Ananth R., Jasmine M. and Cam W. their own line and keep the reply.
+The words have to be their honest opinion, not ours, so each has to be free to
+change it or say no. Cam W. also needs to be asked whether that display name is
+fine, since it is not the name they gave. Michael H. is invented and needs a
+real person before the section can render. When all four are settled, set
+`PLACEHOLDER_TESTIMONIALS` to false and flip the expectation in
+`testimonials.test.ts` in the same change.
+
+Jasmine's line is the one to look at hardest: it names three features in the
+order the brief names them, and "I wanted to do them safely... helped me figure
+out how much to draw" puts a safety and dosing claim in a customer's mouth on a
+page that says elsewhere we never give medical advice.
+
+### 2. Confirm the seven comparison rows (Adrian)
+Each is a claim that other apps lack the feature. Row 5 is the broadest. Nothing
+names a competitor and none of it says anything about health.
+
+### 3. Confirm the two widened FAQ claims (Adrian)
+That we never sell data, against the Privacy Policy; and that deleting an
+account removes all of it, against what the delete action actually clears. Both
+are marked with a TODO where they sit.
+
+### 4. Push, and look at the live page
+`main` deploys straight to Vercel prod. Afterwards: the laptop feature rows no
+longer expand, so check the list still reads as something you pick from; and the
+stacks callout card overlaps the right edge of the phone, which it did before
+too, but its new vertical position sits it over the 7:30 AM times.
+
 ## 🟡 THE FEEL PASS — BUILT ON `polish/feel`, WAITING ON ADRIAN (2026-09-17)
 
 State, commits and decisions are in `progress-tracker.md`. The branch lives in
