@@ -5648,3 +5648,28 @@ git if a real verification step and a real rating ever exist.
 carousel against at a point when Adrian described it as invented rather than as
 anyone's real opinion, and he later asked to keep it. If it is not standing on a
 real conversation the way the other three are, it is the card to pull.
+
+## ⚠️ The second underline was never painting, and a bounding box said it was
+
+Adrian said three times that "actually works" had no second stroke, and he was
+right every time. The stroke was drawn by putting a `transform` on both the
+brush path and the path inside its reveal mask. The brush moved; the MASK
+CONTENT did not, so the mask kept revealing the band where the first stroke
+lives and clipped the second away entirely.
+
+The reason it survived two rounds of checking is the nasty part: the element is
+in the DOM and `getBoundingClientRect()` returns a sensible box in the right
+place, so measuring "are the two strokes separated" returned a confident yes
+while nothing was painted. A bounding box is not paint. It was settled by giving
+the path `fill: red` (nothing appeared) and then removing its mask (the red
+stroke appeared exactly where it belonged).
+
+The offset is baked into the path coordinates now, generated once as
+x' = 34 + 0.74x, y' = 17 + 0.72y over BRUSH_1 and TRACE_1. No transform
+attribute is involved anywhere. To move the stroke, regenerate both paths
+together with the same mapping.
+
+"double" is also the DEFAULT variant now, and both headings use it. The original
+"tail" is kept but unused: on "Join the movement" at 390px its return pass was
+64px against the first stroke's 152px and sat inside it vertically, so it read
+as one line with a thick end.

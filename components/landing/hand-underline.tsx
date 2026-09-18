@@ -35,29 +35,46 @@ const TRACE_2 =
  */
 /**
  * The second stroke of the "double" variant: the SAME ink as the first, laid
- * shorter and lower rather than the tail-only return pass. Shifted rather than
- * redrawn, so there is one set of path data to keep true to the hand.
- * translate(34 17) insets it at both ends and drops it clear of the first;
- * scale(0.74 0.72) shortens it and thins the brush to match the shorter run.
+ * shorter and lower. The offset is BAKED INTO THE COORDINATES here rather than
+ * applied as an SVG transform, and that is not a style preference.
  *
- * ⚠️ THE GAP IS THE WHOLE POINT, AND IT IS MEASURED IN PIXELS, NOT UNITS. The
- * box is only about 11px tall on a phone, so a unit here is under half a pixel:
- * the first attempt sat 7 units down and the two strokes landed 2px apart,
- * which Adrian read on an iPhone as there being no second underline at all.
- * There was one; it was touching the first. 17 units puts roughly 7px between
- * them at phone size, which is the point they read as two. Anything that closes
- * this gap again undoes the feature, so measure it in a browser at 390px wide
- * rather than trusting the numbers to look right in the source.
+ * ⚠️ A `transform` ON MASK CONTENT IS NOT RELIABLE. The first attempt drew this
+ * stroke by putting transform="translate(34 17) scale(0.74 0.72)" on both the
+ * brush and the path inside its reveal mask. The brush moved; the mask content
+ * did not, so the mask went on revealing the band where the FIRST stroke lives
+ * and clipped the second away completely. The result is the cruel one: the
+ * element is in the DOM, getBoundingClientRect returns a sensible box in the
+ * right place, and nothing is painted. Adrian said three times that there was
+ * no second underline and he was right every time; a bounding box is not paint.
+ * Proven by giving the path fill:red (invisible) and then removing its mask
+ * (the red stroke appeared exactly where it should).
+ *
+ * So: generated once as x' = 34 + 0.74x, y' = 17 + 0.72y over BRUSH_1 and
+ * TRACE_1, and pasted. To move it, regenerate both together with the same
+ * mapping. Never reach for a transform attribute here.
  */
-const DOUBLE_SHIFT = "translate(34 17) scale(0.74 0.72)";
+const BRUSH_1B =
+  "M37.7 29.7 L42.1 30.1 L46.5 30.3 L50.9 30.5 L55.4 30.7 L59.8 30.8 L64.3 30.9 L68.6 31.0 L73.1 31.1 L77.5 31.2 L82.0 31.2 L86.4 31.3 L90.8 31.3 L95.2 31.3 L99.6 31.3 L104.1 31.3 L108.5 31.2 L113.0 31.2 L117.4 31.1 L121.8 31.0 L126.2 30.9 L130.6 30.8 L135.1 30.6 L139.5 30.5 L144.0 30.2 L148.4 30.1 L152.8 29.9 L157.2 29.7 L161.6 29.5 L166.1 29.2 L170.5 29.0 L175.0 28.7 L179.3 28.4 L183.8 28.1 L188.2 27.8 L192.7 27.5 L197.1 27.2 L201.5 26.9 L205.9 26.6 L210.3 26.2 L214.7 25.9 L219.1 25.6 L223.6 25.2 L228.0 24.8 L232.4 24.4 L236.8 24.1 L241.3 23.8 L245.6 23.6 L250.1 23.3 L250.1 22.7 L245.6 22.9 L241.2 23.1 L236.8 23.3 L232.3 23.5 L228.0 23.6 L223.5 23.7 L219.1 23.8 L214.6 24.0 L210.2 24.2 L205.8 24.3 L201.3 24.6 L196.9 24.8 L192.5 24.9 L188.1 25.1 L183.6 25.4 L179.2 25.5 L174.7 25.7 L170.4 25.9 L165.9 26.1 L161.5 26.3 L157.1 26.4 L152.7 26.6 L148.3 26.7 L143.8 26.9 L139.4 27.1 L135.0 27.2 L130.6 27.3 L126.1 27.4 L121.7 27.5 L117.3 27.7 L112.9 27.7 L108.4 27.8 L104.1 27.9 L99.6 27.9 L95.2 28.0 L90.8 28.1 L86.4 28.2 L82.0 28.2 L77.5 28.2 L73.1 28.3 L68.7 28.3 L64.3 28.4 L59.8 28.4 L55.4 28.4 L51.0 28.5 L46.6 28.7 L42.1 28.7 L37.7 29.1Z";
+const TRACE_1B =
+  "M37.7 29.4 L55.4 29.6 L73.1 29.7 L90.8 29.7 L108.5 29.5 L126.2 29.2 L143.9 28.6 L161.6 27.9 L179.3 26.9 L196.9 26.0 L214.7 24.9 L232.4 23.9 L250.1 23.0";
 
 export function HandUnderline({
   children,
-  variant = "tail",
+  variant = "double",
 }: {
   children: ReactNode;
-  /** "tail" is one pass with a lighter return under its end. "double" is two
-   *  full strokes, the second shorter and set lower (Adrian, 2026-09-18). */
+  /**
+   * "double" is two full strokes, the second shorter and set lower, and is the
+   * DEFAULT because it is the only one that reads as two on a phone.
+   *
+   * ⚠️ "tail" is the original: one pass with a lighter return under its end
+   * only. Nothing uses it. It is kept because it is the ink as it was first
+   * drawn, but be clear about what it looks like before reaching for it: on
+   * "Join the movement" at 390px the return pass was 64px against the first
+   * stroke's 152px and sat INSIDE it vertically, so it read as one line with a
+   * thick end. Adrian looked at that on an iPhone and said there was no
+   * underline there at all (2026-09-19).
+   */
   variant?: "tail" | "double";
 }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -67,7 +84,6 @@ export function HandUnderline({
   const m1 = `${id}-ink-1`;
   const m2 = `${id}-ink-2`;
   const double = variant === "double";
-  const shift = double ? DOUBLE_SHIFT : undefined;
 
   return (
     <span ref={ref} className="relative inline-block whitespace-nowrap">
@@ -93,10 +109,9 @@ export function HandUnderline({
               strokeLinejoin="round"
             />
           </mask>
-          <mask id={m2} maskUnits="userSpaceOnUse" x="-10" y="-10" width="320" height="44">
+          <mask id={m2} maskUnits="userSpaceOnUse" x="-10" y="-10" width="320" height="60">
             <path
-              d={double ? TRACE_1 : TRACE_2}
-              transform={shift}
+              d={double ? TRACE_1B : TRACE_2}
               pathLength={1}
               className="lp-ink-stroke lp-ink-stroke-2"
               fill="none"
@@ -109,8 +124,7 @@ export function HandUnderline({
         </defs>
         <path d={BRUSH_1} mask={`url(#${m1})`} className="fill-accent-amber" />
         <path
-          d={double ? BRUSH_1 : BRUSH_2}
-          transform={shift}
+          d={double ? BRUSH_1B : BRUSH_2}
           mask={`url(#${m2})`}
           className="fill-accent-amber"
           opacity={double ? 0.85 : 0.75}
