@@ -77,17 +77,25 @@ function features(total: number): Feature[] {
       id: "stock",
       short: "Stock",
       name: "Stock",
-      line: "Every dose you log comes straight off the vial, down to the day it runs out.",
+      line: "Every dose you log comes straight off the vial, tub or pack, down to the day it runs out.",
       Icon: StockIcon,
       tab: "protocol",
       label: "The Protocol screen: four compounds, injectable and oral, with what is left in each and the day each runs dry.",
       callouts: [
-        // Right, left, right down the screen (Adrian, 2026-09-18), measured
-        // against the four-across shelf: the four containers sit at 16.4, 38.8,
-        // 61.2 and 83.6 percent, their run-dry lines at 38.9.
-        { title: "Empties with every dose", x: 16.4, y: 28.2, side: "right", py: 12, ly: 16 },
-        { title: "Knows how long until it runs dry", x: 38.8, y: 38.9, side: "left", py: 52, ly: 38 },
-        { title: "Not just injectables", x: 61.2, y: 28.2, side: "right", py: 62, ly: 46 },
+        // Right, left, right down the screen (Adrian, 2026-09-18), re-measured
+        // against the THREE-across shelf: containers at 20.2, 50 and 79.8
+        // percent, run-dry lines at 43.5. The third dot is pulled left to 72 on
+        // purpose: a laptop card starts at 80 percent, so a dot on the tub’s
+        // centre would sit underneath its own note.
+        //
+        // ⚠️ ONE NOTE ABOVE THE SHELF, TWO BELOW IT. Three wide cards fill the
+        // phone, so a note card level with them covers a card body, and what it
+        // covered was the dose count and the percentage Adrian had just asked to
+        // have back. Above and below, the only thing under a card is the
+        // schedule strip, which is scene setting.
+        { title: "Empties with every dose", x: 20.2, y: 29.2, side: "right", py: 12, ly: 14 },
+        { title: "Knows how long until it runs dry", x: 50, y: 43.5, side: "left", py: 62, ly: 60 },
+        { title: "Not just injectables", x: 72, y: 29.2, side: "right", py: 72, ly: 60 },
       ],
       Screen: StockScreen,
     },

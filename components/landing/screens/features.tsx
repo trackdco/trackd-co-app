@@ -91,15 +91,22 @@ export function StockScreen({ live }: ScreenProps) {
       <Title>Protocol</Title>
       <section className="space-y-3">
         <h5 className={cn(CARD_EYEBROW, "px-1")}>Compounds</h5>
-        {/* ⚠️ ONE ROW OF FOUR, AND THE SCHEDULE STRIP STAYS BELOW IT.
-            This was briefly a 2x2 grid so a supplement could sit on the shelf
-            at full size, and that ate the whole screen: Adrian could see the
-            compounds and nothing else of the Protocol page. Four narrower
-            cards fit across instead, which keeps every container visible AND
-            leaves the schedule underneath, so the screen still reads as a page
-            rather than as a shelf. The cards carry less because they are
-            narrower; what came off is repeated by the callouts anyway. */}
-        <div className="grid grid-cols-4 gap-2">
+        {/* ⚠️ THREE CARDS, AND THE SCHEDULE STRIP STAYS BELOW THEM.
+            The history here is worth knowing before changing it again. It was
+            three full-size cards with only two and a bit visible; then a 2x2
+            grid so a supplement could sit on the shelf at full size, which ate
+            the entire screen and left Adrian seeing compounds and nothing else
+            of the Protocol page; then four narrow cards, which fitted but had
+            to drop the dose count and the percentage to do it. Three across is
+            the setting where every card is fully visible AND still carries its
+            numbers AND leaves room for the schedule underneath.
+
+            The three are one per category, matching the comparison row that
+            says peptides, anabolics and supplements in one place: an oil vial,
+            a peptide vial and a supplement tub. The tub is what the third
+            callout points at. Oxandrolone's tablets came off the shelf to make
+            the room. */}
+        <div className="grid grid-cols-3 gap-2">
           <StockCard
             mark="stock-1"
             name="Test E"
@@ -107,7 +114,9 @@ export function StockScreen({ live }: ScreenProps) {
             type="preconcentrated"
             fill={live ? 0.8 : 0.85}
             left={<Swap live={live} from="8.5 mL" to="8.0 mL" />}
+            doses={<Swap live={live} from="17 doses" to="16 doses" />}
             runsDry="4 Nov"
+            pct={live ? 80 : 85}
           />
           <StockCard
             mark="stock-2"
@@ -116,26 +125,21 @@ export function StockScreen({ live }: ScreenProps) {
             type="reconstituted"
             fill={0.3}
             left="0.6 mL"
-            runsDry="3 days"
+            doses="3 doses"
+            runsDry="in 3 days"
             soon
+            pct={30}
           />
           <StockCard
             mark="stock-3"
-            name="Oxandrolone"
-            category="oral"
-            type="oral_solid"
-            fill={0.55}
-            left="44 tabs"
-            runsDry="25 Oct"
-          />
-          <StockCard
-            mark="stock-4"
             name="Creatine"
             category="supplement"
             type="oral_solid"
             fill={0.65}
             left="260 g"
+            doses="52 doses"
             runsDry="9 Nov"
+            pct={65}
           />
         </div>
       </section>
@@ -203,8 +207,10 @@ function StockCard({
   type,
   fill,
   left,
+  doses,
   runsDry,
   soon = false,
+  pct,
   mark,
 }: {
   mark: string;
@@ -213,33 +219,50 @@ function StockCard({
   type: string;
   fill: number;
   left: ReactNode;
+  doses: ReactNode;
   runsDry: string;
   soon?: boolean;
+  pct: number;
 }) {
   return (
-    <div className="flex h-[150px] w-full flex-col items-center gap-1.5 rounded-2xl bg-bg-surface p-2">
+    <div className="flex h-[212px] w-full flex-col items-center gap-1.5 rounded-2xl bg-bg-surface p-2.5">
       <span data-mark={`${mark}-vial`} className="flex">
         <AnimatedContainer
           name={name}
           category={category}
           inventoryType={type}
           fill={fill}
-          size={46}
+          size={58}
           durationMs={700}
         />
       </span>
       <span className="flex h-7 w-full items-center justify-center">
         <span className="line-clamp-2 text-center text-[11px] leading-tight text-foreground">{name}</span>
       </span>
-      <span className={cn(DATA_MONO, "w-full text-center text-[10px]")}>{left}</span>
-      <span
-        data-mark={`${mark}-dry`}
-        className={cn(
-          "w-full text-center font-mono text-[10px] tabular-nums",
-          soon ? "text-accent-amber" : "text-text-muted",
-        )}
-      >
-        {runsDry}
+      <span className="flex w-full flex-col items-center gap-0.5">
+        <span className={cn(DATA_MONO, "w-full text-center text-[10px]")}>{left}</span>
+        <span className={cn(DATA_MONO, "w-full text-center text-[10px]")}>{doses}</span>
+        <span className="mt-0.5 flex w-full flex-col items-center leading-tight">
+          <span className="text-[9px] lowercase text-text-subtle">runs dry</span>
+          <span
+            data-mark={`${mark}-dry`}
+            className={cn(
+              "font-mono text-[10px] tabular-nums",
+              soon ? "text-accent-amber" : "text-text-muted",
+            )}
+          >
+            {runsDry}
+          </span>
+        </span>
+        <span className="mt-1 flex w-full items-center gap-1.5">
+          <span className="h-1 flex-1 overflow-hidden rounded-full bg-bg-surface-raised">
+            <span
+              className="block h-full rounded-full bg-accent-primary transition-[width] delay-300 duration-700 ease-out motion-reduce:transition-none"
+              style={{ width: `${pct}%` }}
+            />
+          </span>
+          <span className="shrink-0 font-mono text-[9px] tabular-nums text-text-subtle">{pct}%</span>
+        </span>
       </span>
     </div>
   );

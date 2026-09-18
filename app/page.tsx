@@ -194,7 +194,7 @@ export default function LandingPage() {
           <section id="movement" tabIndex={-1} aria-labelledby="movement-title" className="lp-sec outline-none">
             <div className="lp-enter lp-col text-center">
               <h2 id="movement-title" className={LANDING_TITLE}>
-                Join the <HandUnderline>movement</HandUnderline>
+                Join the <HandUnderline variant="single">movement</HandUnderline>
               </h2>
               <p className={cn(LANDING_SUB, "mx-auto mt-5 max-w-[30rem] text-pretty")}>
                 Become one of the many people who use {PRODUCT_NAME} to stay on top of their protocol.
@@ -302,8 +302,8 @@ export default function LandingPage() {
                 <p>To potential {PRODUCT_NAME} customer,</p>
                 <p>
                   We want to thank you, first of all, for (hopefully) choosing to use our
-                  app. We take this very seriously and won&apos;t stop until this app is
-                  the one every serious person runs their protocol on.
+                  app. We don&apos;t take that lightly, and we won&apos;t stop until this app
+                  is the one every serious person runs their protocol on.
                 </p>
                 <p>
                   Since we both run compounds, we know what it&apos;s like to use a notes
