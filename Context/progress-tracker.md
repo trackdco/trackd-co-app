@@ -5516,3 +5516,28 @@ different compounds". The unanswered-questions rule would have replaced it, but
 Adrian had already ruled on that exact line in the first pass after being shown
 the risk. A default is for something undecided, not for reversing a decision
 while he is not there.
+
+## The reviews went live (2026-09-18)
+
+`PLACEHOLDER_TESTIMONIALS` is false and the section renders on trackdco.app.
+Three cards: Ananth P., Jasmine K. and Cam D. Every surname initial is changed
+from the real one, Adrian's instruction, so a card cannot be tied back to a real
+account. The three are real people who told him he could write a testimonial on
+their behalf; that risk is his and he has taken it knowingly.
+
+Three things did not go live with them, and the reasoning differs:
+
+- **The invented fourth card is deleted, not shipped.** Nobody said it. Its
+  draft is kept in a comment in `lib/landing/testimonials.ts` so the empty slot
+  is not forgotten, with an instruction that whoever fills it writes their own
+  words rather than restoring the draft.
+- **The verified tick is gone.** Its `aria-label` read "Verified" aloud and no
+  verification step exists behind it.
+- **The five stars are gone.** No reviewer gave a rating, so five filled stars
+  invented a number.
+
+The distinction that decided all three: the QUOTES are a judgement call Adrian
+is entitled to make, because real people really did authorise him. A tick that
+says someone checked, and a score nobody gave, are not judgement calls.
+`testimonials.test.ts` now pins the flag to false and says what flipping it back
+would mean.
