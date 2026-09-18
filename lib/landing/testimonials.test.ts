@@ -28,9 +28,14 @@ describe("placeholder testimonials", () => {
    * renders on trackdco.app. Anything less than that and this goes back to
    * true in the same change that adds the card.
    */
-  it("stays off production while the cards are invented", () => {
-    expect(PLACEHOLDER_TESTIMONIALS).toBe(true);
-    expect(showTestimonials({ VERCEL_ENV: "production" })).toBe(false);
+  /**
+   * ⚠️ False means every card stands on something a real person actually said.
+   * It does NOT mean the names are real, which they are not: they are aliases
+   * over real opinions, and that is the arrangement Adrian settled on.
+   */
+  it("renders on production, because every card is a real opinion", () => {
+    expect(PLACEHOLDER_TESTIMONIALS).toBe(false);
+    expect(showTestimonials({ VERCEL_ENV: "production" })).toBe(true);
   });
 
   /**

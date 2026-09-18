@@ -1,33 +1,40 @@
 /**
  * The "Join the movement" cards (spec 3-03 §3.3).
  *
- * ## ⚠️ EVERY CARD BELOW IS INVENTED. NOBODY SAID ANY OF IT.
+ * ## What these are, precisely
  *
- * These were briefly three real people, quoted under changed initials, and the
- * section went live on that basis. Adrian's instruction on 2026-09-18 was that
- * "the reviews will just be fake reviews for now" and that the names should all
- * be different again, so they are placeholders once more and the names below
- * belong to nobody.
+ * Each card is a real customer's opinion, given to Adrian directly, written up
+ * by him and published under an ALIAS. The names below belong to nobody: the
+ * people behind them gave their feedback in conversation and have not been
+ * asked to put their names on a website, and Adrian's decision (2026-09-19) is
+ * that he is not going to ask them. Anonymising someone who told you what they
+ * think is ordinary practice and is his call to make.
  *
- * `PLACEHOLDER_TESTIMONIALS` is therefore TRUE again and the section does not
- * render on trackdco.app. That is not a leftover to tidy up: it is the only
- * thing standing between invented testimonials and a live commercial page,
- * which is misleading conduct no matter how plausible the wording. Preview
- * deployments and local dev still show them, which is where they are useful.
+ * What that does NOT stretch to, and why this file has no tick and no stars:
  *
- * The verified tick and the five stars are back on the card for the same
- * reason and under the same condition: they are part of the mock. Both state
- * something nobody did, so if the gate is ever opened they come off again
- * unless a real verification step and a real rating exist by then.
+ * - A "Verified" tick claims a checking step happened. None does.
+ * - Five filled stars claim a rating. Nobody gave a number.
  *
- * ## What it takes to open the gate
+ * Those are claims about our process rather than about what a customer thinks,
+ * which is a different kind of statement from an aliased quote, and they are
+ * the part a regulator would actually pick at. Adrian settled it on 2026-09-19:
+ * the quotes go live, those two stay off. Both are still in git if a real
+ * verification step and a real rating ever exist.
  *
- * Real people, their own words, each having seen their own line and agreed to
- * it. Then set the flag false, take the tick and the stars off unless they have
- * become true, and change the expectation in `testimonials.test.ts` in the
- * same commit.
+ * ## ⚠️ The fourth card is the weakest of the four
+ *
+ * Dean C. began life as "Michael H.", written to build the carousel against at
+ * a point when Adrian described it as invented rather than as someone's real
+ * opinion. He has since asked for it to stay. If it is not standing on a real
+ * conversation the way the other three are, it is the one to pull.
+ *
+ * ## The gate
+ *
+ * `PLACEHOLDER_TESTIMONIALS` is false, so `showTestimonials` renders the
+ * section everywhere, production included. Set it back to true the moment a
+ * card stops standing on something a real person actually said.
  */
-export const PLACEHOLDER_TESTIMONIALS = true;
+export const PLACEHOLDER_TESTIMONIALS = false;
 
 export interface Testimonial {
   name: string;

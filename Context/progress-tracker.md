@@ -5629,3 +5629,22 @@ Both widened FAQ claims are confirmed true by Adrian, so their TODOs are gone.
 The medical row left the compare table for good: his ruling is that the table
 compares FEATURES, and a disclaimer scored against other apps reads as a boast.
 The position is still stated in the first FAQ answer and in the footer.
+
+## The reviews are live, without the tick or the stars (2026-09-19)
+
+Adrian's position, and it is a fair one: each card is a real customer's opinion
+given to him directly, written up by him, published under an alias. He is not
+going to ask those people to put their names on a website. Anonymising someone
+who told you what they think is ordinary practice and his call to make, and
+filing it under "fabricated" was too broad.
+
+What did not go live with them, and he agreed: the "Verified" tick and the five
+stars. Those are claims about our PROCESS rather than about what a customer
+thinks. A tick whose aria-label reads "Verified" asserts a checking step that
+does not exist, and five filled stars assert a score nobody gave. Both are in
+git if a real verification step and a real rating ever exist.
+
+⚠️ Dean C. is the weak one. It began as "Michael H.", written to build the
+carousel against at a point when Adrian described it as invented rather than as
+anyone's real opinion, and he later asked to keep it. If it is not standing on a
+real conversation the way the other three are, it is the card to pull.

@@ -86,25 +86,19 @@ export function Testimonials() {
             aria-label={`${i + 1} of ${TESTIMONIALS.length}`}
             className="lp-panel flex w-[var(--lp-card)] shrink-0 snap-center flex-col rounded-3xl p-6"
           >
-            {/* ⚠️ THE TICK AND THE STARS ARE PART OF THE PLACEHOLDER, NOT OF A
-                LIVE PAGE. They came off when these cards were briefly real and
-                went live, because "Verified" and five filled stars each state
-                something nobody had actually done. Adrian asked for them back
-                (2026-09-18) in the same breath as "the reviews will just be
-                fake reviews for now", and that is the condition they are safe
-                under: this whole section is gated off production while the
-                cards are invented. If the gate is ever opened, these two come
-                off again unless a real verification step and a real rating
-                exist by then. See `lib/landing/testimonials.ts`. */}
+            {/* ⚠️ NO VERIFIED TICK AND NO STAR RATING. NOT AN OMISSION.
+                An alias over a real customer's opinion is anonymity, which is
+                ordinary and is Adrian's call to make. A tick whose aria-label
+                reads "Verified" claims a checking step that does not exist, and
+                five filled stars claim a score nobody gave: those are claims
+                about our process rather than about what a customer thinks, and
+                they are what a regulator would actually pick at. Adrian settled
+                it on 2026-09-19: the quotes go live, these two stay off. Bring
+                them back only if a real verification step and a real rating
+                ever exist. Both are in git. */}
             <figcaption className="flex items-center gap-3">
               <Avatar initials={t.initials} index={i} />
-              <span className="min-w-0">
-                <span className="flex items-center gap-1.5 text-[0.95rem] text-foreground">
-                  {t.name}
-                  <VerifiedTick />
-                </span>
-                <Stars />
-              </span>
+              <span className="min-w-0 text-[0.95rem] text-foreground">{t.name}</span>
             </figcaption>
             <blockquote className="mt-5 text-[1.02rem] font-light leading-relaxed text-foreground">
               {t.quote}
@@ -180,40 +174,6 @@ const AVATAR_TONES = [
   ["var(--palette-moss)", "var(--palette-teal)"],
   ["var(--palette-plum)", "var(--palette-indigo)"],
 ] as const;
-
-function VerifiedTick() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" role="img" aria-label="Verified">
-      <path
-        d="M12 1.8l2.4 1.9 3-.3 1.1 2.8 2.8 1.1-.3 3 1.9 2.4-1.9 2.4.3 3-2.8 1.1-1.1 2.8-3-.3L12 22.2l-2.4-1.9-3 .3-1.1-2.8-2.8-1.1.3-3L1.1 12 3 9.6l-.3-3 2.8-1.1 1.1-2.8 3 .3z"
-        className="fill-chart-line"
-      />
-      <path
-        d="M7.6 12.3l3 3 5.8-6"
-        fill="none"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="stroke-bg-base"
-      />
-    </svg>
-  );
-}
-
-function Stars() {
-  return (
-    <span role="img" aria-label="Five stars" className="mt-1 flex gap-0.5">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <svg key={i} width="12" height="12" viewBox="0 0 24 24" aria-hidden>
-          <path
-            d="M12 2.6l2.8 6 6.5.7-4.9 4.4 1.4 6.4L12 16.8l-5.8 3.3 1.4-6.4-4.9-4.4 6.5-.7z"
-            className="fill-foreground"
-          />
-        </svg>
-      ))}
-    </span>
-  );
-}
 
 function Avatar({ initials, index }: { initials: string; index: number }) {
   const [a, b] = AVATAR_TONES[index % AVATAR_TONES.length];
