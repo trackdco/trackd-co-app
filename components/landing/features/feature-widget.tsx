@@ -146,7 +146,7 @@ function features(total: number): Feature[] {
         // Points at the compounds inside the stack (`data-mark="stack-list"`),
         // not the tick that logs them (Adrian, 2026-09-18): the line is about
         // the grouping now, so it has to indicate the group.
-        { title: "Organise your protocol into grouped stacks", x: 30, y: 41.5, side: "right", py: 26, ly: 41.5 },
+        { title: "Organise your protocol into grouped stacks", x: 30, y: 37.8, side: "right", py: 19, ly: 37.8 },
         { title: "On days and off days at a glance", x: 30, y: 78, side: "left", py: 91, ly: 75 },
       ],
       Screen: StacksScreen,

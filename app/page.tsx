@@ -176,7 +176,7 @@ export default function LandingPage() {
                 Take your protocol out of your notes app and into something actually built for it.
               </p>
               <p className="mt-2 text-sm text-text-secondary lg:text-[0.95rem]">
-                Built by people who run real protocols.
+                Built by people who actually run protocols.
               </p>
               <PrimaryCta withLogin align="start" className="mt-10 hidden lg:flex" />
             </div>
