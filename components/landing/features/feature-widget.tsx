@@ -117,7 +117,7 @@ function features(total: number): Feature[] {
         // keep it (2026-09-18). It is the only outcome claim on the page: it
         // ties a body change to running compounds, where everything else is
         // careful to describe the record and not the result.
-        { title: "See your physique change over time", line: "See how your body changes as you run different compounds", x: 27.4, y: 73.2, side: "right", py: 86, ly: 73 },
+        { title: "See your physique change over time", line: "Every photo sits with what you were running at the time", x: 27.4, y: 73.2, side: "right", py: 86, ly: 73 },
       ],
       Screen: ProgressScreen,
     },
@@ -130,8 +130,10 @@ function features(total: number): Feature[] {
       tab: "progress",
       label: "One training block opened: week 7 of a 16 week cut, with its weight trend, progress photos and bloodwork, and past blocks listed underneath.",
       callouts: [
-        { title: "One prep, all of it in one place", x: 45, y: 40, side: "right", py: 20, ly: 38 },
-        { title: "Every block you've run, kept", x: 30, y: 77.1, side: "left", py: 90, ly: 74 },
+        // Measured against the rebuilt screen: the compounds card spans 24.5
+        // to 40.8 percent of the stage, the look-back row 72.7 to 79.4.
+        { title: "One prep, all of it in one place", x: 45, y: 32.6, side: "right", py: 18, ly: 31 },
+        { title: "Every block you've run, kept", x: 30, y: 76.1, side: "right", py: 90, ly: 73 },
       ],
       Screen: BlocksScreen,
     },
@@ -177,7 +179,7 @@ function features(total: number): Feature[] {
       label: "The Calculator screen: 20 units drawn on a half millilitre syringe, with the concentration and volume beside it.",
       callouts: [
         { title: "Tells you how many units to draw", x: 40, y: 34, side: "right", py: 21, ly: 34 },
-        { title: "Concentration, dose and units, all worked out", x: 6.8, y: 45.5, side: "left", py: 56, ly: 45.5 },
+        { title: "Shows the maths, not just the answer", x: 6.8, y: 45.5, side: "left", py: 56, ly: 45.5 },
       ],
       Screen: CalculatorScreen,
     },

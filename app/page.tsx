@@ -352,7 +352,7 @@ export default function LandingPage() {
           <div className="lp-enter lp-col text-center">
             <h2 id="close-title" className={cn(LANDING_TITLE, "mx-auto max-w-[34rem] text-balance")}>
               Get your protocol out of the notes app and into something that{" "}
-              <HandUnderline>
+              <HandUnderline variant="double">
                 <em className={FLOW_EMPHASIS}>actually works</em>
               </HandUnderline>
               .

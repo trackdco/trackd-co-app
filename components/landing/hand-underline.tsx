@@ -33,13 +33,32 @@ const TRACE_2 =
  * Amber, and one of the page's three amber beats (with the call to action and
  * the FAQ vials). Under reduced motion it is simply there.
  */
-export function HandUnderline({ children }: { children: ReactNode }) {
+/**
+ * The second stroke of the "double" variant: the SAME ink as the first, laid
+ * shorter and lower rather than the tail-only return pass. Shifted rather than
+ * redrawn, so there is one set of path data to keep true to the hand.
+ * translate(26 7) insets it at both ends and drops it clear of the first;
+ * scale(0.82 0.9) shortens it and thins the brush to match the shorter run.
+ */
+const DOUBLE_SHIFT = "translate(26 7) scale(0.82 0.9)";
+
+export function HandUnderline({
+  children,
+  variant = "tail",
+}: {
+  children: ReactNode;
+  /** "tail" is one pass with a lighter return under its end. "double" is two
+   *  full strokes, the second shorter and set lower (Adrian, 2026-09-18). */
+  variant?: "tail" | "double";
+}) {
   const ref = useRef<HTMLSpanElement>(null);
   const drawn = useInView(ref, { threshold: 0.9 });
   // Stripped to characters a `url(#…)` reference can never trip on.
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const m1 = `${id}-ink-1`;
   const m2 = `${id}-ink-2`;
+  const double = variant === "double";
+  const shift = double ? DOUBLE_SHIFT : undefined;
 
   return (
     <span ref={ref} className="relative inline-block whitespace-nowrap">
@@ -67,19 +86,26 @@ export function HandUnderline({ children }: { children: ReactNode }) {
           </mask>
           <mask id={m2} maskUnits="userSpaceOnUse" x="-10" y="-10" width="320" height="44">
             <path
-              d={TRACE_2}
+              d={double ? TRACE_1 : TRACE_2}
+              transform={shift}
               pathLength={1}
               className="lp-ink-stroke lp-ink-stroke-2"
               fill="none"
               stroke="white"
-              strokeWidth={8}
+              strokeWidth={double ? 10 : 8}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </mask>
         </defs>
         <path d={BRUSH_1} mask={`url(#${m1})`} className="fill-accent-amber" />
-        <path d={BRUSH_2} mask={`url(#${m2})`} className="fill-accent-amber" opacity={0.75} />
+        <path
+          d={double ? BRUSH_1 : BRUSH_2}
+          transform={shift}
+          mask={`url(#${m2})`}
+          className="fill-accent-amber"
+          opacity={double ? 0.6 : 0.75}
+        />
       </svg>
     </span>
   );

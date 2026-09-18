@@ -424,26 +424,36 @@ export function ProgressScreen({ live }: ScreenProps) {
 /** The seven weeks of the block on screen, week 1 to week 7. */
 const BLOCK_WEIGHT = [88.7, 88.3, 88.0, 87.6, 87.2, 86.9, 86.6];
 
+/** What was run across those weeks. The point of the screen. */
+const BLOCK_COMPOUNDS = [
+  { name: "Testosterone Enanthate", category: "anabolic", inventoryType: "preconcentrated", dose: "250 mg · 3x wk" },
+  { name: "BPC-157", category: "peptide", inventoryType: "reconstituted", dose: "250 mcg · daily" },
+  { name: "Oxandrolone", category: "oral", inventoryType: "oral_solid", dose: "40 mg · daily" },
+];
+
 /**
- * ONE BLOCK, ALREADY OPENED (Adrian, 2026-09-18).
+ * ONE BLOCK, ALREADY OPENED, LEADING WITH WHAT WAS RUN (Adrian, 2026-09-18).
  *
- * This used to be the Blocks LIST: a "Running now" summary, a New block
- * button, and two past blocks underneath. Adrian's verdict was that the
- * feature "didn't look as valuable to me" from that screen, and he is right
- * about why: a list of blocks shows that blocks exist, not what one is FOR.
- * What a block is for is that a prep's weight, photos and bloods sit together
- * under the weeks they happened in, and only the opened block shows that.
+ * Two rewrites got here. First this was the Blocks LIST, which showed that
+ * blocks exist rather than what one is for. Then it became an opened block
+ * showing a weight trend, photos and bloods, and Adrian's verdict on that was
+ * that it "looks like the Progress feature again" — correctly, because those
+ * are the three things Progress draws two rows up this same list.
+ *
+ * So the compounds come FIRST and the outcome second. That order is the whole
+ * feature: this is the only screen on the page where the protocol and the
+ * result are in one frame, and it is the one thing a notes app genuinely
+ * cannot do. Bloodwork came out to pay for the room, and it is the panel
+ * Progress already shows.
  *
  * ⚠️ NOTHING HERE IS TAPPABLE, and the back caret is not a control. Every
- * screen in this widget is a drawing of the app, so "already clicked in" is
- * simply the state it is drawn in; the caret is there to say this is a screen
- * you got to from somewhere, which is what makes the look-back strip beneath
- * read as the rest of them rather than as a menu.
+ * screen in this widget is a drawing of the app, so "already opened" is simply
+ * the state it is drawn in.
  */
 export function BlocksScreen({ live }: ScreenProps) {
   const gradientId = `lp-block-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const W = 310;
-  const H = 74;
+  const H = 46;
   const trend = sparkGeometry(BLOCK_WEIGHT, W, H, 6);
   return (
     <div className="space-y-3 px-5 pt-4" data-live={live ? "" : undefined}>
@@ -458,17 +468,37 @@ export function BlocksScreen({ live }: ScreenProps) {
         </div>
       </div>
 
-      {/* The point of the screen: one prep's numbers, under its own weeks. */}
-      <section data-mark="block-data" className="rounded-2xl bg-bg-surface p-5">
+      <section data-mark="block-ran" className="rounded-2xl bg-bg-surface p-4">
+        <p className={CARD_EYEBROW}>Running this block</p>
+        <ul className="mt-2 space-y-1.5">
+          {BLOCK_COMPOUNDS.map((c) => (
+            <li key={c.name} className="flex items-center gap-2.5">
+              <Container
+                name={c.name}
+                category={c.category}
+                inventoryType={c.inventoryType}
+                fill={0.62}
+                size={22}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm leading-tight text-foreground">{c.name}</span>
+                <span className={cn(DATA_MONO, "mt-0.5 block")}>{c.dose}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section data-mark="block-result" className="rounded-2xl bg-bg-surface p-4">
         <div className="flex items-baseline justify-between gap-3">
-          <p className={CARD_EYEBROW}>Weight</p>
+          <p className={CARD_EYEBROW}>Result so far</p>
           <span className={DATA_MONO}>2.1 kg down</span>
         </div>
-        <p className="mt-2 flex items-baseline gap-2">
+        <p className="mt-1.5 flex items-baseline gap-2">
           <span className={METRIC_VALUE}>86.6</span>
           <span className={UNIT_SUFFIX}>kg</span>
         </p>
-        <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full overflow-visible">
+        <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full overflow-visible">
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity="0.35" />
@@ -485,50 +515,24 @@ export function BlocksScreen({ live }: ScreenProps) {
             className="lp-draw-line stroke-chart-trend"
           />
         </svg>
-        <div className="mt-1 flex justify-between">
-          <span className="font-mono text-[10px] text-text-subtle">Week 1</span>
-          <span className="font-mono text-[10px] text-text-subtle">Week 7</span>
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          {["Week 1", "Week 7"].map((d) => (
+            <div key={d} className="flex flex-col items-center rounded-xl bg-bg-surface-raised px-1 pb-1 pt-1.5">
+              <svg viewBox="22 1 56 98" className="h-10 w-auto">
+                <BodySilhouette aspect="anterior" />
+              </svg>
+              <span className="mt-0.5 font-mono text-[10px] text-text-muted">{d}</span>
+            </div>
+          ))}
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-3">
-        <section className="rounded-2xl bg-bg-surface p-4">
-          <p className={CARD_EYEBROW}>Photos</p>
-          <div className="mt-2.5 grid grid-cols-2 gap-1.5">
-            {["Wk 1", "Wk 7"].map((d) => (
-              <div key={d} className="flex flex-col items-center rounded-xl bg-bg-surface-raised px-1 pb-1 pt-1.5">
-                <svg viewBox="22 1 56 98" className="h-12 w-auto">
-                  <BodySilhouette aspect="anterior" />
-                </svg>
-                <span className="mt-0.5 font-mono text-[10px] text-text-muted">{d}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="rounded-2xl bg-bg-surface p-4">
-          <p className={CARD_EYEBROW}>Bloods</p>
-          <p className="mt-2.5 text-sm text-foreground">Panel</p>
-          <p className={cn(DATA_MONO, "mt-0.5")}>12 Sep</p>
-          <p className="mt-2 text-sm text-foreground">Panel</p>
-          <p className={cn(DATA_MONO, "mt-0.5")}>4 Aug</p>
-        </section>
-      </div>
-
-      {/* The rest of them, so the history is visible without leaving. */}
-      <div data-mark="lookback" className="space-y-1.5 pb-1">
-        <p className={CARD_EYEBROW}>Look back</p>
-        {[
-          { name: "Off-season", line: "25 weeks · 4.8 kg up" },
-          { name: "First cut", line: "16 weeks · 6.2 kg down" },
-        ].map((b) => (
-          <div key={b.name} className="flex items-center gap-3 rounded-2xl bg-bg-surface px-4 py-2.5">
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm text-foreground">{b.name}</span>
-              <span className={cn(DATA_MONO, "mt-0.5 block")}>{b.line}</span>
-            </span>
-            <CaretRight className="h-4 w-4 text-text-subtle" />
-          </div>
-        ))}
+      <div data-mark="lookback" className="flex items-center gap-3 rounded-2xl bg-bg-surface px-4 py-2.5">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm text-foreground">2 earlier blocks</span>
+          <span className={cn(DATA_MONO, "mt-0.5 block truncate")}>Off-season · First cut</span>
+        </span>
+        <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" />
       </div>
     </div>
   );

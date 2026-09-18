@@ -5541,3 +5541,38 @@ is entitled to make, because real people really did authorise him. A tick that
 says someone checked, and a score nobody gave, are not judgement calls.
 `testimonials.test.ts` now pins the flag to false and says what flipping it back
 would mean.
+
+## Blocks, round three, and the last three picks (2026-09-18)
+
+Adrian went back and answered the six that had defaulted, changing three of
+them, and answered two new questions about the blocks feature.
+
+### Why blocks kept failing, in his words and mine
+
+His verdict on the opened block was that it "looks like the Progress feature
+again", which was exactly right: it drew a weight trend, progress photos and
+bloodwork, and those are the three things the Progress feature draws two rows
+up the same list. Two of the seven features were showing the same picture.
+
+So the screen now leads with **what was run** — the compounds for those weeks,
+with doses — and the outcome comes second. That order IS the feature: this is
+the only screen on the page where the protocol and the result sit in one frame,
+and it is the thing a notes app genuinely cannot do. Bloodwork came out to pay
+for the room, and Progress already shows it.
+
+⚠️ The dose sits UNDER each compound name rather than beside it. A right-hand
+dose column lands exactly where the laptop callout card sits, and the card was
+covering the numbers that are the point of the row. Stacked, the right of the
+card is empty and the note has somewhere to go. Both notes moved to the right
+for the same reason: on the look-back row the only thing a right-hand card
+covers is the caret.
+
+### The three he changed on the second pass
+
+- The calculator note is "Shows the maths, not just the answer".
+- The progress sub-line is "Every photo sits with what you were running at the
+  time". This is the line deliberately NOT defaulted last round, because he had
+  ruled on it earlier; asked directly, he changed it.
+- The closing underline is **two full strokes**, not the tail-only return pass.
+  `HandUnderline` takes `variant="double"`, which lays the SAME ink a second
+  time under a transform rather than carrying a second set of path data.
