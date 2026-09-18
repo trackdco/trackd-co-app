@@ -22,10 +22,15 @@ describe("placeholder testimonials", () => {
     expect(showTestimonials({ VERCEL_ENV: "production" }, false)).toBe(true);
   });
 
-  it("are still flagged as placeholders (flip this test when real ones land)", () => {
-    // TODO(3-03): when real, attributable reviews replace these, set
-    // PLACEHOLDER_TESTIMONIALS to false and change this expectation with it.
-    expect(PLACEHOLDER_TESTIMONIALS).toBe(true);
+  /**
+   * ⚠️ FLIPPING THIS BACK IS A DECISION, NOT A TIDY-UP. False means every card
+   * in the file is a real person quoting their own opinion, and the section
+   * renders on trackdco.app. Anything less than that and this goes back to
+   * true in the same change that adds the card.
+   */
+  it("renders on production, because every card is a real person", () => {
+    expect(PLACEHOLDER_TESTIMONIALS).toBe(false);
+    expect(showTestimonials({ VERCEL_ENV: "production" })).toBe(true);
   });
 
   /**

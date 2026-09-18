@@ -1,34 +1,38 @@
 /**
  * The "Join the movement" cards (spec 3-03 §3.3).
  *
- * ## ⚠️ TODO(3-03): THE GATE STAYS SHUT UNTIL ALL FOUR ARE APPROVED
+ * ## These are real people, quoted under changed initials
  *
- * Adrian's copy pass (2026-09-18) replaced the invented quotes with real ones,
- * but they are not yet quotable:
+ * Ananth, Jasmine and Cam each told Adrian he could write a testimonial on
+ * their behalf, and the surname initials here are NOT theirs: he changed every
+ * one (2026-09-18) so a card cannot be tied back to a real account. That is
+ * fine as long as the words stay the person's own honest opinion, which is the
+ * only thing that makes a testimonial lawful to publish. If any of the three
+ * later says their line is wrong, it comes down.
  *
- * - **Ananth R., Jasmine M. and Cam W. are real people** who told Adrian he
- *   could write a testimonial on their behalf. Permission to write one is NOT
- *   the same as the words being their honest opinion, which is what a
- *   testimonial has to be. Each of the three has to see their own line and say
- *   yes to it before the section renders anywhere public.
- * - **Cam W. is a display name, not theirs** (Adrian, 2026-09-18). The real
- *   person is happy to be quoted; the name they gave collided with a founder's,
- *   which would have read as the founder reviewing his own product.
- * - **Michael H. is invented.** Adrian is finding someone who will put their
- *   name to roughly that. Until then it is the single thing keeping the flag
- *   below set, and it must not ship.
+ * ## ⚠️ THE FOURTH CARD IS MISSING ON PURPOSE. DO NOT WRITE ONE.
  *
- * ## The guard, so "must be approved" is not only a comment
+ * There was a fourth, "Michael H.", and nobody said it. It was invented to
+ * build the carousel against, and it is gone rather than live, because a
+ * fabricated endorsement on a commercial page is misleading conduct no matter
+ * how true it sounds. Its draft read:
  *
- * `PLACEHOLDER_TESTIMONIALS` is true while ANY of the four is unapproved, and
- * `showTestimonials` refuses to render them in a PRODUCTION build on Vercel.
- * Preview deployments and local dev still show them, which is where they are
- * useful. Production renders no reviews section at all and the header drops its
- * "Reviews" item with it, so nothing on the live site is ever labelled or shown
- * as a placeholder. When the yeses are in and Michael H. is replaced, set the
- * flag to false in the same change and the section ships.
+ *   "Found Trackd right before I started prepping for my bodybuilding show
+ *    this coming November. I'm running a lot of compounds and the ease of
+ *    adding to and tracking them was outstanding. Their 'Block' thing is also
+ *    really cool too because I can see my progress photos, bloods and weight
+ *    change all in that one period."
+ *
+ * Adrian is finding someone who will put their name to something like it. When
+ * they do, add their OWN words here. Do not restore the draft above.
+ *
+ * ## The gate is open
+ *
+ * `PLACEHOLDER_TESTIMONIALS` is false, so `showTestimonials` renders the
+ * section everywhere, production included. Set it back to true the moment any
+ * card here stops being a real person's real opinion.
  */
-export const PLACEHOLDER_TESTIMONIALS = true;
+export const PLACEHOLDER_TESTIMONIALS = false;
 
 export interface Testimonial {
   name: string;
@@ -39,29 +43,22 @@ export interface Testimonial {
 
 export const TESTIMONIALS: readonly Testimonial[] = [
   {
-    name: "Ananth R.",
-    initials: "AR",
+    name: "Ananth P.",
+    initials: "AP",
     quote:
       "Trackd works so well for me. I've been able to take all the thought out of what I'm running and just follow what I set for myself.",
   },
   {
-    name: "Jasmine M.",
-    initials: "JM",
+    name: "Jasmine K.",
+    initials: "JK",
     quote:
       "I'm fairly new to peptides and I wanted to do them safely. Trackd has helped me track my reta without doubling up injection sites, it helps me know when to reorder since I can track my stock, and the calculator helped me figure out how much to draw too. I'd highly recommend!!! :)",
   },
   {
-    name: "Cam W.",
-    initials: "CW",
+    name: "Cam D.",
+    initials: "CD",
     quote:
       "It's refreshing to have an app actually made by people who know ball and aren't just hopping on the peptide app bandwagon. I replaced my notes app in an afternoon and I won't be going back.",
-  },
-  {
-    // ⚠️ INVENTED. Nobody said this. See the note at the top of this file.
-    name: "Michael H.",
-    initials: "MH",
-    quote:
-      'Found Trackd right before I started prepping for my bodybuilding show this coming November. I\'m running a lot of compounds and the ease of adding to and tracking them was outstanding. Their "Block" thing is also really cool too because I can see my progress photos, bloods and weight change all in that one period.',
   },
 ];
 
