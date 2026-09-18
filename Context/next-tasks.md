@@ -1,5 +1,35 @@
 # Next Tasks
 
+## 🟡 LANDING COPY ROUND TWO — MERGED AND LIVE (2026-09-18)
+
+State and the decisions are in `progress-tracker.md`. Six of Adrian's nineteen
+picks took the recommended option because he had to leave; all six are listed
+below so he can overrule any of them.
+
+### 1. The six that defaulted (Adrian to confirm or overrule)
+- Letter, paragraph one: "...won't stop until this is the best app in the world
+  at this one thing, and your protocol never goes back in a notes app."
+- Blocks notes: "One prep, all of it in one place" and "Every block you've run, kept".
+- Calculator note: "Concentration, dose and units, all worked out".
+- Closing line: the existing hand underline, which is already a double stroke.
+- Blocks screen: the opened block WITH the past-blocks strip beneath.
+- Progress sub-line: deliberately NOT defaulted. See `progress-tracker.md`.
+
+### 2. The stock feature line still says "vial"
+"Every dose you log comes straight off the vial, down to the day it runs out."
+sits above a screen that now shows tablets and a tub, and beside a note reading
+"Not just injectables". His copy, so it was left alone, but the two disagree.
+
+### 3. The three review approvals, still outstanding
+Unchanged from round one, and still what keeps `PLACEHOLDER_TESTIMONIALS` true.
+
+### 4. The seven comparison rows, still unconfirmed
+All seven were reworded again this round. Row 5 is now "Peptides, anabolics and
+supplements in one place".
+
+### 5. The two widened FAQ claims, still unconfirmed
+Never selling data, and deleting all of it. Both carry a TODO where they sit.
+
 ## 🟡 THE LANDING COPY PASS — ON `copy/landing-pass`, MERGED TO LOCAL MAIN, NOT PUSHED (2026-09-18)
 
 State and the three rulings are in `progress-tracker.md`. The branch lives in

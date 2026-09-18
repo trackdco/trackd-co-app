@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 
 export interface Faq {
   q: string;
-  a: string;
+  /** One paragraph, or several. */
+  a: string | readonly string[];
 }
 
 /**
@@ -56,13 +57,15 @@ function FaqItem({ item }: { item: Faq }) {
       </h3>
       <div id={id} className="lp-expand" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
         <div className="min-h-0 overflow-hidden" inert={!open}>
-          <p
+          <div
             className={cn(
-              "max-w-[36rem] pb-5 pl-[3.25rem] pr-5 text-sm leading-relaxed text-text-secondary md:pb-6 md:pl-[3.75rem] md:text-[0.95rem]",
+              "max-w-[36rem] space-y-3 pb-5 pl-[3.25rem] pr-5 text-sm leading-relaxed text-text-secondary md:pb-6 md:pl-[3.75rem] md:text-[0.95rem]",
             )}
           >
-            {item.a}
-          </p>
+            {(typeof item.a === "string" ? [item.a] : item.a).map((para) => (
+              <p key={para}>{para}</p>
+            ))}
+          </div>
         </div>
       </div>
     </li>

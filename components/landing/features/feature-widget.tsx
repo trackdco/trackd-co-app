@@ -80,10 +80,11 @@ function features(total: number): Feature[] {
       line: "Every dose you log comes straight off the vial, down to the day it runs out.",
       Icon: StockIcon,
       tab: "protocol",
-      label: "The Protocol screen: three compounds with what is left in each and the day each runs dry.",
+      label: "The Protocol screen: four compounds, injectable and oral, with what is left in each and the day each runs dry.",
       callouts: [
-        { title: "Goes down as you log", x: 23.3, y: 31, side: "right", py: 19, ly: 31 },
-        { title: "Knows how long until it runs dry", x: 60.2, y: 48.7, side: "left", py: 56, ly: 48.7 },
+        { title: "Empties with every dose", x: 27.4, y: 31.1, side: "right", py: 19, ly: 31 },
+        { title: "Knows how long until it runs dry", x: 72.6, y: 48.7, side: "left", py: 56, ly: 48.7 },
+        { title: "Not just injectables", x: 27.4, y: 62.1, side: "left", py: 88, ly: 62 },
       ],
       Screen: StockScreen,
     },
@@ -116,7 +117,7 @@ function features(total: number): Feature[] {
         // keep it (2026-09-18). It is the only outcome claim on the page: it
         // ties a body change to running compounds, where everything else is
         // careful to describe the record and not the result.
-        { title: "Compare your before and afters", line: "See how your body changes as you run different compounds", x: 27.4, y: 73.2, side: "right", py: 86, ly: 73 },
+        { title: "See your physique change over time", line: "See how your body changes as you run different compounds", x: 27.4, y: 73.2, side: "right", py: 86, ly: 73 },
       ],
       Screen: ProgressScreen,
     },
@@ -127,10 +128,10 @@ function features(total: number): Feature[] {
       line: "Organise your cutting, bulking and recomp blocks and look back on how they went.",
       Icon: BlocksIcon,
       tab: "progress",
-      label: "The Blocks screen: week 7 of a 16 week cut, with past blocks listed underneath.",
+      label: "One training block opened: week 7 of a 16 week cut, with its weight trend, progress photos and bloodwork, and past blocks listed underneath.",
       callouts: [
-        { title: "How you're progressing towards your goal in the block", x: 45.4, y: 38.3, side: "right", py: 27, ly: 38.3 },
-        { title: "Every block you've run in the past, there for you to look back on", x: 30, y: 66.5, side: "left", py: 86, ly: 70 },
+        { title: "One prep, all of it in one place", x: 45, y: 40, side: "right", py: 20, ly: 38 },
+        { title: "Every block you've run, kept", x: 30, y: 77.1, side: "left", py: 90, ly: 74 },
       ],
       Screen: BlocksScreen,
     },
@@ -176,7 +177,7 @@ function features(total: number): Feature[] {
       label: "The Calculator screen: 20 units drawn on a half millilitre syringe, with the concentration and volume beside it.",
       callouts: [
         { title: "Tells you how many units to draw", x: 40, y: 34, side: "right", py: 21, ly: 34 },
-        { title: "Every figure shown", x: 6.8, y: 45.5, side: "left", py: 56, ly: 45.5 },
+        { title: "Concentration, dose and units, all worked out", x: 6.8, y: 45.5, side: "left", py: 56, ly: 45.5 },
       ],
       Screen: CalculatorScreen,
     },

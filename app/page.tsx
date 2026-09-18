@@ -12,7 +12,7 @@ import { TodayScreen } from "@/components/landing/screens/today";
 import { SiteFooter, type LegalLink } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { Testimonials } from "@/components/landing/testimonials";
-import { BUSINESS_NAME, PRODUCT_NAME } from "@/lib/brand";
+import { BUSINESS_NAME, PRODUCT_NAME, SUPPORT_EMAIL } from "@/lib/brand";
 import type { CompoundCategory } from "@/lib/compound-categories";
 import { COMPOUNDS } from "@/lib/compounds-catalogue";
 import { showTestimonials } from "@/lib/landing/testimonials";
@@ -63,7 +63,7 @@ import { cn } from "@/lib/utils";
  *   printed exactly as their authors wrote them, punctuation included.
  * - **"Trackd" is the app, "Trackd Co" is the company.** Prose says
  *   `PRODUCT_NAME`; `BUSINESS_NAME` appears only where the legal entity is
- *   genuinely the subject, which is the footer and the letter's signature.
+ *   genuinely the subject, which is the footer and the link preview's site name.
  * - **The founders' note became a letter**, so the heading and the menu item
  *   both say letter now.
  *
@@ -94,35 +94,34 @@ export const metadata: Metadata = {
 
 const FAQS: readonly Faq[] = [
   {
-    q: "Is this a clinical app, or do you give medical advice?",
-    a: `No. ${PRODUCT_NAME} is strictly a tracking tool for people above the age of 18. It records what you yourself choose to run and shows your progress back to you. We do not diagnose, prescribe, or replace a doctor.`,
+    q: "Will this app tell me what to take?",
+    a: [
+      `No. ${PRODUCT_NAME} is strictly a tracking tool for people above the age of 18.`,
+      "It records what you yourself choose to run and displays your progress back to you. We do not diagnose, prescribe, or replace a doctor.",
+    ],
   },
   {
-    // TODO(3-03): Adrian wrote this in the copy pass and it now makes a claim
-    // the old placeholder did not ("we never sell your data"). Check it against
-    // the Privacy Policy before this ships.
+    // TODO(3-03): this makes a claim the old placeholder did not ("we never
+    // sell your data"). Check it against the Privacy Policy before it ships.
     q: "Who can see my data?",
-    a: "Only you. Everything you log is tied directly to your account. We never sell your data, and you are able to delete all of it from the app if you wish.",
+    a: "Only you can see your data. Everything you log is tied directly to your account. We never sell your data, and you are able to delete all of it from the app if you wish.",
   },
   {
-    q: "How does your free trial work?",
-    a: "When you sign up for the free trial, you'll receive 7 days of our pro plan for free. We remind you on day 5, and your plan will start on day 7 unless you cancel before then.",
+    q: "How does my free trial work?",
+    a: "When you sign up for the free trial, you'll receive 7 days of our Pro plan for free. Nothing is charged until day 7, and we remind you on day 5 so it never sneaks up on you.",
   },
   {
-    q: "What if I stop paying?",
+    q: "What happens if I stop paying?",
     a: "If you choose to cancel your subscription or your payment method fails, your account becomes read only. Every dose, photo and reading stays where it is and nothing is deleted. Start a plan again and you can get back into it straight away.",
   },
   {
-    q: "Do I need to download an app?",
-    a: "No. It runs in your browser, and adds to your home screen so it opens like any other app. It works on a laptop too.",
+    // ⚠️ The question asks HOW, so the answer cannot open with "No" any more.
+    q: "How do I download the app?",
+    a: `${PRODUCT_NAME} is a progressive web app, so you add it from your browser rather than a store. Once you're signed in, tap share, then Add to Home Screen, and it opens like any other app. It works on a laptop too.`,
   },
   {
-    q: "Is the reconstitution calculator really free?",
-    a: "Yes. It is on this site, it needs no account, and it does the same arithmetic as the one inside the app.",
-  },
-  {
-    q: "Can I track my calories?",
-    a: "Not currently. However, we're open to adding new features and are always working to make the app better for the people we're helping.",
+    q: "Are there any other features (e.g. calorie tracking)?",
+    a: `Not yet. ${PRODUCT_NAME} does one job properly rather than five badly. We are always working to make it better for our users though, so if there is something you want to see, email us at ${SUPPORT_EMAIL} and tell us.`,
   },
   {
     // TODO(3-03): "all of your data" is broader than the old answer's "account
@@ -236,20 +235,28 @@ export default function LandingPage() {
             it is on screen, rather than parking over Kyle before his own
             button has arrived. */}
         <section data-cta aria-labelledby="waiting-title" className="lp-sec overflow-x-clip">
+          {/* Title, then the line, THEN Kyle, then the button (Adrian,
+              2026-09-18). The line used to sit under Kyle, which put two
+              paragraphs of reading between him and the thing to press. */}
           <div className="lp-enter lp-col text-center">
             <h2 id="waiting-title" className={cn(LANDING_TITLE, "text-balance")}>
               Don&apos;t take our word for it...
             </h2>
+            {/* ⚠️ `{" "}` IS LOAD-BEARING. Written as "{PRODUCT_NAME} today." with
+                the sentence wrapping to the next source line, the compiler drops
+                the leading space of the text that follows and the page renders
+                "Trackdtoday" (Adrian spotted it live, 2026-09-18). */}
+            <p className={cn(LANDING_SUB, "mx-auto mt-5 max-w-[30rem] text-pretty")}>
+              Experience how easy it is to run your protocol with {PRODUCT_NAME}{" "}
+              today. We&apos;ll even give you 7 days free because we know you won&apos;t
+              look back.
+            </p>
           </div>
-          <div className="lp-wide mt-6 md:mt-8">
+          <div className="lp-wide mt-10 md:mt-12">
             <KyleCloser />
           </div>
-          <div className="lp-col mt-6 text-center md:mt-8">
-            <p className={cn(LANDING_SUB, "mx-auto max-w-[30rem] text-pretty")}>
-              Experience how easy it is to run your protocol with {PRODUCT_NAME} today.
-              We&apos;ll even give you 7 days free because we know you won&apos;t look back.
-            </p>
-            <PrimaryCta label="Let's get started" className="mt-8" />
+          <div className="lp-col mt-8 text-center md:mt-10">
+            <PrimaryCta label="Let's get started" />
           </div>
         </section>
 
@@ -294,24 +301,27 @@ export default function LandingPage() {
                   the 3-02 one wholesale, so it is a letter now rather than a note:
                   the salutation is its own line and the section heading follows. */}
               <div className="space-y-5 text-[1.08rem] font-light leading-relaxed text-foreground md:text-[1.2rem]">
-                <p>To the potential {PRODUCT_NAME} customer,</p>
+                <p>To potential {PRODUCT_NAME} customer,</p>
                 <p>
                   We want to thank you, first of all, for (hopefully) choosing to use our
-                  app. We take this very seriously and won&apos;t stop until we build you the
-                  most useful, simple and innovative app to track your protocol.
+                  app. We take this very seriously and won&apos;t stop until this is the
+                  best app in the world at this one thing, and your protocol never goes
+                  back in a notes app.
                 </p>
                 <p>
-                  Because we both run compounds, we know what it is like to use a notes
-                  app, or to waste your money on the other vibe coded peptide apps. Which
-                  is the exact reason we built {PRODUCT_NAME}.
+                  Since we both run compounds, we know what it&apos;s like to use a notes
+                  app, or to waste your money on other vibe coded apps that only let you
+                  track peptides. Which is the exact reason we built {PRODUCT_NAME}.
                 </p>
                 <p>
-                  So if you do choose to run your protocol with us, a huge thank you. And
+                  So if you do choose to run your protocol with us, a huge thank you! And
                   get excited, because it&apos;s only going to get better from here...
                 </p>
               </div>
-              <p className="mt-8 text-sm text-text-secondary">
-                Angus and Adrian, founders of {BUSINESS_NAME}
+              <p className="mt-8 text-sm leading-relaxed text-text-secondary">
+                Sincerely,
+                <br />
+                Angus and Adrian
               </p>
             </div>
           </div>
@@ -324,10 +334,10 @@ export default function LandingPage() {
           <div className="lp-col">
             <div className="lp-enter text-center">
               <h2 id="questions-title" className={LANDING_TITLE}>
-                Still have questions? All good.
+                Still have questions?
               </h2>
               <p className={cn(LANDING_SUB, "mx-auto mt-5 max-w-[30rem]")}>
-                Here are some of our commonly asked questions.
+                Below are some of our frequently asked questions.
               </p>
             </div>
             <div className="lp-enter mt-10 md:mt-12">
@@ -342,7 +352,10 @@ export default function LandingPage() {
           <div className="lp-enter lp-col text-center">
             <h2 id="close-title" className={cn(LANDING_TITLE, "mx-auto max-w-[34rem] text-balance")}>
               Get your protocol out of the notes app and into something that{" "}
-              <em className={FLOW_EMPHASIS}>actually works</em>.
+              <HandUnderline>
+                <em className={FLOW_EMPHASIS}>actually works</em>
+              </HandUnderline>
+              .
             </h2>
             <div className="mt-10 flex flex-col items-center gap-4">
               <StartButton className="w-full max-w-[20rem]" />

@@ -22,21 +22,24 @@ import { cn } from "@/lib/utils";
  * A cross under "Other apps" says other apps lack the feature. Some apps in
  * this space do have some of these, and a comparative claim on a live page has
  * to be true. Adrian rewrote all seven in the 2026-09-18 copy pass and STILL
- * has to confirm each one: row 5 in particular ("peptides, juice and
- * supplements all in one") is the broadest of them. Nothing here names a
- * competitor, and none of it says anything about health.
+ * has to confirm each one: row 5 ("peptides, anabolics and supplements in one
+ * place") is the broadest of them. Nothing here names a competitor, and none of
+ * it says anything about health.
+ *
+ * "Anabolics" is deliberate (Adrian, 2026-09-18): "juice" is slang on a page
+ * Apple reads, and "steroids" reads worse than the thing it names.
  *
  * The last row is deliberately an opinion rather than a checkable claim
  * (Adrian, 2026-09-18, chosen over "locks your history when you stop paying",
  * which would have been a factual assertion about other apps).
  */
 const ROWS: { feature: string; others: boolean; trackd: boolean }[] = [
-  { feature: "Injection site rotation map that fades as sites are rested", others: false, trackd: true },
+  { feature: "Injection sites that fade as they rest", others: false, trackd: true },
   { feature: "Active stock that counts down", others: false, trackd: true },
-  { feature: "Recon calculator that draws on your own syringe", others: false, trackd: true },
-  { feature: 'Grouping all data into specific "blocks" that you can look back on', others: false, trackd: true },
-  { feature: "The ability to track peptides, juice and supplements all in one", others: false, trackd: true },
-  { feature: "Never gives you sketchy medical advice", others: false, trackd: true },
+  { feature: "Reconstitution maths done for you", others: false, trackd: true },
+  { feature: "Training blocks that keep a whole prep in one place", others: false, trackd: true },
+  { feature: "Peptides, anabolics and supplements in one place", others: false, trackd: true },
+  { feature: "Built to track, not to advise", others: false, trackd: true },
   { feature: "Vibe coded in a weekend", others: true, trackd: false },
 ];
 

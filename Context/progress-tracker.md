@@ -5469,3 +5469,50 @@ but the name they gave collided with a founder's.
   changes as you run different compounds" ties a body change to compounds,
   where everything else describes the record and not the result. Adrian raised
   it himself and then ruled to keep it.
+
+## The second landing copy pass (2026-09-18, same day)
+
+Adrian reviewed the live page again and dictated a second round. Nineteen of
+the changes needed a decision, so they went out as a multiple-choice artifact
+he worked through on his phone; he answered thirteen and left before the last
+six, having set the rule up front that anything unanswered takes the
+recommended option.
+
+### What changed beyond wording
+
+- **The Kyle section reads title, line, Kyle, button.** The line used to sit
+  under Kyle, which put two paragraphs of reading between him and the button.
+- **The laptop feature rows are a tab list** (from the first pass) and the
+  **blocks screen is now one block already opened**: its weight trend, photos
+  and bloods for those weeks, with the past blocks beneath. The old screen was
+  the blocks LIST, which showed that blocks exist rather than what one is for.
+  Nothing in these previews is tappable; "already opened" is just the state the
+  screen is drawn in.
+- **The stock shelf is a 2x2 grid and its schedule strip is gone.** Adrian
+  asked for a supplement on the shelf so it is obvious the app counts more than
+  injectables. As a fourth card in the old single row it sat entirely outside
+  the phone and its note collided with the note beside it. Four cards in a grid
+  show all four containers at full size: an oil vial, a peptide vial, a tablet
+  bottle and a tub. The schedule strip paid for the height, and the Stacks
+  feature two rows down already draws a real cycle calendar.
+- **The FAQ is seven questions**, the calculator one deleted, and an answer may
+  now be several paragraphs (`Faq.a` takes a string or an array).
+- **The closing line carries the hand underline.** It is the only place it
+  appears on production, because the reviews section it was built for does not
+  render while the quotes are unapproved.
+
+### ⚠️ The compiler eats a space after an expression at end of line
+
+`with {PRODUCT_NAME} today.` wrapping to the next source line rendered as
+"Trackdtoday" on the live site. Adrian caught it; the RSC payload confirmed the
+text child arrives as `"today. We'll…"` with the leading space already gone.
+Written as `{PRODUCT_NAME}{" "}` it is correct. Every other expression splice on
+the page was checked against the rendered HTML and this was the only one.
+
+### Left as it was, on purpose
+
+The progress sub-line still reads "See how your body changes as you run
+different compounds". The unanswered-questions rule would have replaced it, but
+Adrian had already ruled on that exact line in the first pass after being shown
+the risk. A default is for something undecided, not for reversing a decision
+while he is not there.

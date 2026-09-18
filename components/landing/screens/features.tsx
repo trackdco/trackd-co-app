@@ -2,7 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 
-import { CaretDown, CaretRight, MagnifyingGlass, Plus } from "@/components/icons";
+import { CaretDown, CaretLeft, CaretRight, MagnifyingGlass, Plus } from "@/components/icons";
 import { CalculatorInputs } from "@/components/calculator/CalculatorInputs";
 import { SyringeGraphic } from "@/components/calculator/SyringeGraphic";
 import { CategoryIcon } from "@/components/compounds/CategoryIcon";
@@ -91,7 +91,16 @@ export function StockScreen({ live }: ScreenProps) {
       <Title>Protocol</Title>
       <section className="space-y-3">
         <h5 className={cn(CARD_EYEBROW, "px-1")}>Compounds</h5>
-        <div className="flex gap-3">
+        {/* ⚠️ A 2x2 GRID, AND THE SCHEDULE STRIP BELOW IT IS GONE (2026-09-18).
+            Adrian asked for a supplement on the shelf so it is obvious this
+            counts more than injectables. As a fourth card in the old single
+            row it sat entirely outside the phone, and its note collided with
+            the note beside it. Four cards in a grid show all four containers
+            at full size instead: an oil vial, a peptide vial, a tablet bottle
+            and a tub. That needs the height the schedule strip was using, and
+            the strip was the weaker half of the screen anyway: the Stacks
+            feature draws a real cycle calendar two rows down this same list. */}
+        <div className="grid grid-cols-2 gap-3">
           <StockCard
             mark="stock-1"
             name="Testosterone Enanthate"
@@ -126,60 +135,17 @@ export function StockScreen({ live }: ScreenProps) {
             runsDry="25 Oct"
             pct={55}
           />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h5 className={cn(CARD_EYEBROW, "px-1")}>Schedule</h5>
-        <div className="rounded-2xl bg-bg-surface p-5">
-          <div className="flex items-center gap-3">
-            <span className="w-[38%] shrink-0" />
-            <div className="grid flex-1 grid-cols-7 gap-1 text-center">
-              {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-                <span
-                  key={i}
-                  className={cn(
-                    "text-[10px] font-medium uppercase tracking-wide",
-                    i === 4 ? "text-foreground" : "text-text-muted",
-                  )}
-                >
-                  {d}
-                </span>
-              ))}
-            </div>
-          </div>
-          {[
-            { cat: "anabolic", label: "Anabolics", name: "Testosterone Enanthate", days: [1, 0, 0, 1, 0, 0, 1] },
-            { cat: "peptide", label: "Peptides", name: "BPC-157", days: [1, 1, 1, 1, 1, 0, 0] },
-          ].map((g) => (
-            <div key={g.cat} className="mt-3">
-              <span className="flex items-center gap-1.5 px-0.5 pb-1">
-                <CategoryIcon category={g.cat} className="h-3.5 w-3.5" />
-                <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-foreground">
-                  {g.label}
-                </span>
-              </span>
-              <div className="flex items-center gap-3 py-1.5">
-                <span className="w-[38%] shrink-0 truncate text-xs text-text-muted">{g.name}</span>
-                <div className="grid flex-1 grid-cols-7 gap-1">
-                  {g.days.map((on, i) => (
-                    <span key={i} className="flex h-5 items-center justify-center">
-                      <span
-                        className={cn(
-                          "rounded-full",
-                          !on
-                            ? "h-1 w-1 bg-border-strong"
-                            : i < 4
-                              ? "h-2.5 w-2.5 bg-foreground"
-                              : "h-2.5 w-2.5 border border-text-muted",
-                        )}
-                      />
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
+          <StockCard
+            mark="stock-4"
+            name="Creatine"
+            category="supplement"
+            type="oral_solid"
+            fill={0.65}
+            left="260 g left"
+            doses="52 doses"
+            runsDry="9 Nov"
+            pct={65}
+          />
         </div>
       </section>
     </div>
@@ -210,7 +176,7 @@ function StockCard({
   pct: number;
 }) {
   return (
-    <div className="flex h-[252px] w-[136px] shrink-0 flex-col items-center gap-2 rounded-2xl bg-bg-surface p-4">
+    <div className="flex h-[252px] w-full flex-col items-center gap-2 rounded-2xl bg-bg-surface p-4">
       <span data-mark={`${mark}-vial`} className="flex">
         <AnimatedContainer
           name={name}
@@ -455,50 +421,107 @@ export function ProgressScreen({ live }: ScreenProps) {
 
 /* ---------------------------------------------------------- Training blocks */
 
-export function BlocksScreen({ live }: ScreenProps) {
-  return (
-    <div className="space-y-5 px-5 pt-4" data-live={live ? "" : undefined}>
-      <div>
-        <Title>Blocks</Title>
-        <p className="mt-1 text-sm text-text-muted">A cut, a build, or a reset. Then look back on it.</p>
-      </div>
+/** The seven weeks of the block on screen, week 1 to week 7. */
+const BLOCK_WEIGHT = [88.7, 88.3, 88.0, 87.6, 87.2, 86.9, 86.6];
 
-      <section className="rounded-2xl bg-bg-surface p-5">
-        <div className="flex items-center gap-3">
-          <span className={cn(CARD_EYEBROW, "min-w-0 flex-1")}>Running now</span>
-          <CaretRight className="h-4 w-4 text-text-subtle" />
+/**
+ * ONE BLOCK, ALREADY OPENED (Adrian, 2026-09-18).
+ *
+ * This used to be the Blocks LIST: a "Running now" summary, a New block
+ * button, and two past blocks underneath. Adrian's verdict was that the
+ * feature "didn't look as valuable to me" from that screen, and he is right
+ * about why: a list of blocks shows that blocks exist, not what one is FOR.
+ * What a block is for is that a prep's weight, photos and bloods sit together
+ * under the weeks they happened in, and only the opened block shows that.
+ *
+ * ⚠️ NOTHING HERE IS TAPPABLE, and the back caret is not a control. Every
+ * screen in this widget is a drawing of the app, so "already clicked in" is
+ * simply the state it is drawn in; the caret is there to say this is a screen
+ * you got to from somewhere, which is what makes the look-back strip beneath
+ * read as the rest of them rather than as a menu.
+ */
+export function BlocksScreen({ live }: ScreenProps) {
+  const gradientId = `lp-block-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const W = 310;
+  const H = 74;
+  const trend = sparkGeometry(BLOCK_WEIGHT, W, H, 6);
+  return (
+    <div className="space-y-3 px-5 pt-4" data-live={live ? "" : undefined}>
+      <div>
+        <div className="flex items-center gap-1.5">
+          <CaretLeft className="h-4 w-4 shrink-0 text-text-subtle" />
+          <Title>Summer cut</Title>
         </div>
-        <p className="mt-1.5 flex items-baseline gap-2">
-          <span className={METRIC_VALUE}>7</span>
-          <span className={UNIT_SUFFIX}>of 16 weeks</span>
-        </p>
-        <p className="mt-0.5 text-sm text-foreground">Summer cut</p>
-        <div data-mark="block-bar" className="mt-3 h-1 w-full overflow-hidden rounded-full bg-bg-input">
+        <p className={cn(DATA_MONO, "mt-1")}>Week 7 of 16 · ends 5 Dec</p>
+        <div data-mark="block-bar" className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-bg-input">
           <div className="lp-bar h-full rounded-full bg-accent-primary" style={{ "--to": 0.44 } as React.CSSProperties} />
         </div>
-        <div className="mt-3 flex items-baseline justify-between gap-3">
-          <span className={DATA_MONO}>Weight</span>
-          <span className={DATA_MONO}>2.1 kg down since week 1</span>
-        </div>
-        <div className="mt-2 flex items-baseline justify-between gap-3">
-          <span className={DATA_MONO}>Photos</span>
-          <span className={DATA_MONO}>4 taken</span>
-        </div>
-        <p className="mt-2 text-xs text-text-muted">63 days left, ends 5 Dec</p>
-      </section>
-
-      <div className="flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-medium text-text-muted hairline border-border-default">
-        <Plus className="h-4 w-4" />
-        New block
       </div>
 
-      <div data-mark="lookback" className="space-y-2">
+      {/* The point of the screen: one prep's numbers, under its own weeks. */}
+      <section data-mark="block-data" className="rounded-2xl bg-bg-surface p-5">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className={CARD_EYEBROW}>Weight</p>
+          <span className={DATA_MONO}>2.1 kg down</span>
+        </div>
+        <p className="mt-2 flex items-baseline gap-2">
+          <span className={METRIC_VALUE}>86.6</span>
+          <span className={UNIT_SUFFIX}>kg</span>
+        </p>
+        <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full overflow-visible">
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="var(--chart-trend)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d={trend.area} fill={`url(#${gradientId})`} className="lp-draw-area" />
+          <path
+            d={trend.line}
+            pathLength={1}
+            fill="none"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            className="lp-draw-line stroke-chart-trend"
+          />
+        </svg>
+        <div className="mt-1 flex justify-between">
+          <span className="font-mono text-[10px] text-text-subtle">Week 1</span>
+          <span className="font-mono text-[10px] text-text-subtle">Week 7</span>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-2 gap-3">
+        <section className="rounded-2xl bg-bg-surface p-4">
+          <p className={CARD_EYEBROW}>Photos</p>
+          <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+            {["Wk 1", "Wk 7"].map((d) => (
+              <div key={d} className="flex flex-col items-center rounded-xl bg-bg-surface-raised px-1 pb-1 pt-1.5">
+                <svg viewBox="22 1 56 98" className="h-12 w-auto">
+                  <BodySilhouette aspect="anterior" />
+                </svg>
+                <span className="mt-0.5 font-mono text-[10px] text-text-muted">{d}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="rounded-2xl bg-bg-surface p-4">
+          <p className={CARD_EYEBROW}>Bloods</p>
+          <p className="mt-2.5 text-sm text-foreground">Panel</p>
+          <p className={cn(DATA_MONO, "mt-0.5")}>12 Sep</p>
+          <p className="mt-2 text-sm text-foreground">Panel</p>
+          <p className={cn(DATA_MONO, "mt-0.5")}>4 Aug</p>
+        </section>
+      </div>
+
+      {/* The rest of them, so the history is visible without leaving. */}
+      <div data-mark="lookback" className="space-y-1.5 pb-1">
         <p className={CARD_EYEBROW}>Look back</p>
         {[
-          { name: "Off-season", line: "25 weeks · 21 Nov 2025 to 14 May 2026" },
-          { name: "First cut", line: "16 weeks · 14 Jul 2025 to 3 Nov 2025" },
+          { name: "Off-season", line: "25 weeks · 4.8 kg up" },
+          { name: "First cut", line: "16 weeks · 6.2 kg down" },
         ].map((b) => (
-          <div key={b.name} className="flex items-center gap-3 rounded-2xl bg-bg-surface px-5 py-4">
+          <div key={b.name} className="flex items-center gap-3 rounded-2xl bg-bg-surface px-4 py-2.5">
             <span className="min-w-0 flex-1">
               <span className="block text-sm text-foreground">{b.name}</span>
               <span className={cn(DATA_MONO, "mt-0.5 block")}>{b.line}</span>
