@@ -82,9 +82,12 @@ function features(total: number): Feature[] {
       tab: "protocol",
       label: "The Protocol screen: four compounds, injectable and oral, with what is left in each and the day each runs dry.",
       callouts: [
-        { title: "Empties with every dose", x: 27.4, y: 31.1, side: "right", py: 19, ly: 31 },
-        { title: "Knows how long until it runs dry", x: 72.6, y: 48.7, side: "left", py: 56, ly: 48.7 },
-        { title: "Not just injectables", x: 27.4, y: 62.1, side: "left", py: 88, ly: 62 },
+        // Right, left, right down the screen (Adrian, 2026-09-18), measured
+        // against the four-across shelf: the four containers sit at 16.4, 38.8,
+        // 61.2 and 83.6 percent, their run-dry lines at 38.9.
+        { title: "Empties with every dose", x: 16.4, y: 28.2, side: "right", py: 12, ly: 16 },
+        { title: "Knows how long until it runs dry", x: 38.8, y: 38.9, side: "left", py: 52, ly: 38 },
+        { title: "Not just injectables", x: 61.2, y: 28.2, side: "right", py: 62, ly: 46 },
       ],
       Screen: StockScreen,
     },

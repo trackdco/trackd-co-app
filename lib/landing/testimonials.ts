@@ -1,38 +1,33 @@
 /**
  * The "Join the movement" cards (spec 3-03 §3.3).
  *
- * ## These are real people, quoted under changed initials
+ * ## ⚠️ EVERY CARD BELOW IS INVENTED. NOBODY SAID ANY OF IT.
  *
- * Ananth, Jasmine and Cam each told Adrian he could write a testimonial on
- * their behalf, and the surname initials here are NOT theirs: he changed every
- * one (2026-09-18) so a card cannot be tied back to a real account. That is
- * fine as long as the words stay the person's own honest opinion, which is the
- * only thing that makes a testimonial lawful to publish. If any of the three
- * later says their line is wrong, it comes down.
+ * These were briefly three real people, quoted under changed initials, and the
+ * section went live on that basis. Adrian's instruction on 2026-09-18 was that
+ * "the reviews will just be fake reviews for now" and that the names should all
+ * be different again, so they are placeholders once more and the names below
+ * belong to nobody.
  *
- * ## ⚠️ THE FOURTH CARD IS MISSING ON PURPOSE. DO NOT WRITE ONE.
+ * `PLACEHOLDER_TESTIMONIALS` is therefore TRUE again and the section does not
+ * render on trackdco.app. That is not a leftover to tidy up: it is the only
+ * thing standing between invented testimonials and a live commercial page,
+ * which is misleading conduct no matter how plausible the wording. Preview
+ * deployments and local dev still show them, which is where they are useful.
  *
- * There was a fourth, "Michael H.", and nobody said it. It was invented to
- * build the carousel against, and it is gone rather than live, because a
- * fabricated endorsement on a commercial page is misleading conduct no matter
- * how true it sounds. Its draft read:
+ * The verified tick and the five stars are back on the card for the same
+ * reason and under the same condition: they are part of the mock. Both state
+ * something nobody did, so if the gate is ever opened they come off again
+ * unless a real verification step and a real rating exist by then.
  *
- *   "Found Trackd right before I started prepping for my bodybuilding show
- *    this coming November. I'm running a lot of compounds and the ease of
- *    adding to and tracking them was outstanding. Their 'Block' thing is also
- *    really cool too because I can see my progress photos, bloods and weight
- *    change all in that one period."
+ * ## What it takes to open the gate
  *
- * Adrian is finding someone who will put their name to something like it. When
- * they do, add their OWN words here. Do not restore the draft above.
- *
- * ## The gate is open
- *
- * `PLACEHOLDER_TESTIMONIALS` is false, so `showTestimonials` renders the
- * section everywhere, production included. Set it back to true the moment any
- * card here stops being a real person's real opinion.
+ * Real people, their own words, each having seen their own line and agreed to
+ * it. Then set the flag false, take the tick and the stars off unless they have
+ * become true, and change the expectation in `testimonials.test.ts` in the
+ * same commit.
  */
-export const PLACEHOLDER_TESTIMONIALS = false;
+export const PLACEHOLDER_TESTIMONIALS = true;
 
 export interface Testimonial {
   name: string;
@@ -43,22 +38,31 @@ export interface Testimonial {
 
 export const TESTIMONIALS: readonly Testimonial[] = [
   {
-    name: "Ananth P.",
-    initials: "AP",
+    name: "Ryan T.",
+    initials: "RT",
     quote:
       "Trackd works so well for me. I've been able to take all the thought out of what I'm running and just follow what I set for myself.",
   },
   {
-    name: "Jasmine K.",
-    initials: "JK",
+    // Shortened at Adrian's request using only the words already here: the
+    // clause about the calculator and how much to draw came out, because it
+    // was the one sentence putting a dosing decision in a customer's mouth.
+    name: "Mia L.",
+    initials: "ML",
     quote:
-      "I'm fairly new to peptides and I wanted to do them safely. Trackd has helped me track my reta without doubling up injection sites, it helps me know when to reorder since I can track my stock, and the calculator helped me figure out how much to draw too. I'd highly recommend!!! :)",
+      "I'm fairly new to peptides and I wanted to do them safely. Trackd has helped me track my reta without doubling up injection sites, and it helps me know when to reorder since I can track my stock. I'd highly recommend!!! :)",
   },
   {
-    name: "Cam D.",
-    initials: "CD",
+    name: "Josh N.",
+    initials: "JN",
     quote:
       "It's refreshing to have an app actually made by people who know ball and aren't just hopping on the peptide app bandwagon. I replaced my notes app in an afternoon and I won't be going back.",
+  },
+  {
+    name: "Dean C.",
+    initials: "DC",
+    quote:
+      'Found Trackd right before I started prepping for my bodybuilding show this coming November. I\'m running a lot of compounds and the ease of adding to and tracking them was outstanding. Their "Block" thing is also really cool too because I can see my progress photos, bloods and weight change all in that one period.',
   },
 ];
 

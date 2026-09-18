@@ -101,18 +101,19 @@ const FAQS: readonly Faq[] = [
     ],
   },
   {
-    // TODO(3-03): this makes a claim the old placeholder did not ("we never
-    // sell your data"). Check it against the Privacy Policy before it ships.
     q: "Who can see my data?",
     a: "Only you can see your data. Everything you log is tied directly to your account. We never sell your data, and you are able to delete all of it from the app if you wish.",
   },
   {
     q: "How does my free trial work?",
-    a: "When you sign up for the free trial, you'll receive 7 days of our Pro plan for free. Nothing is charged until day 7, and we remind you on day 5 so it never sneaks up on you.",
+    a: "When you sign up for the free trial, you'll receive 7 days of our Pro plan for free. Nothing is charged until day 7, and we remind you before it ends so it never sneaks up on you.",
   },
   {
     q: "What happens if I stop paying?",
-    a: "If you choose to cancel your subscription or your payment method fails, your account becomes read only. Every dose, photo and reading stays where it is and nothing is deleted. Start a plan again and you can get back into it straight away.",
+    a: [
+      "If you choose to cancel your subscription or your payment method fails, your account becomes read only.",
+      "Every dose, photo and reading stays where it is and nothing is deleted. Start a plan again and you can get back into it straight away.",
+    ],
   },
   {
     // ⚠️ The question asks HOW, so the answer cannot open with "No" any more.
@@ -121,12 +122,9 @@ const FAQS: readonly Faq[] = [
   },
   {
     q: "Are there any other features (e.g. calorie tracking)?",
-    a: `Not yet. ${PRODUCT_NAME} does one job properly rather than five badly. We are always working to make it better for our users though, so if there is something you want to see, email us at ${SUPPORT_EMAIL} and tell us.`,
+    a: `Not yet. ${PRODUCT_NAME} does one job properly rather than five badly. We are always working to make it better for our users though, so if there is something you want to see, email us at ${SUPPORT_EMAIL}. We read every one.`,
   },
   {
-    // TODO(3-03): "all of your data" is broader than the old answer's "account
-    // and your uploaded files". Confirm the delete action really clears
-    // everything before this ships.
     q: "Can I delete my account?",
     a: "Yes, you delete your account from your profile. Your subscription gets cancelled and all of your data is removed right away.",
   },
@@ -305,13 +303,12 @@ export default function LandingPage() {
                 <p>
                   We want to thank you, first of all, for (hopefully) choosing to use our
                   app. We take this very seriously and won&apos;t stop until this is the
-                  best app in the world at this one thing, and your protocol never goes
-                  back in a notes app.
+                  one every serious person runs their protocol on.
                 </p>
                 <p>
                   Since we both run compounds, we know what it&apos;s like to use a notes
-                  app, or to waste your money on other vibe coded apps that only let you
-                  track peptides. Which is the exact reason we built {PRODUCT_NAME}.
+                  app, or to waste your money on other vibe coded apps that only ever get
+                  half of it right. Which is the exact reason we built {PRODUCT_NAME}.
                 </p>
                 <p>
                   So if you do choose to run your protocol with us, a huge thank you! And

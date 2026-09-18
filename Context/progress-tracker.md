@@ -5576,3 +5576,56 @@ covers is the caret.
 - The closing underline is **two full strokes**, not the tail-only return pass.
   `HandUnderline` takes `variant="double"`, which lays the SAME ink a second
   time under a transform rather than carrying a second set of path data.
+
+## Round four (2026-09-18)
+
+### ⚠️ The reviews went back behind the gate, and why
+
+Adrian asked for a fourth card, new names on all of them, and the verified tick
+and five stars back — and said, in the same message, "the reviews will just be
+fake reviews for now". That sentence is what decides it. The section went live
+on the basis that three cards were real people who had authorised the wording;
+once all four are invented again, `PLACEHOLDER_TESTIMONIALS` has to be true,
+because fabricated testimonials on a live commercial page are misleading
+conduct. Everything he asked for is BUILT: four cards, new names, the fourth
+card's draft restored, Mia's shortened, the tick and the stars back. It all
+renders on preview and in dev. It does not render on trackdco.app.
+
+The tick and the stars are safe under exactly that condition and no other. If
+the gate is ever opened they come off again, unless a real verification step and
+a real rating exist by then.
+
+Mia's quote was shortened using only the words already in it. The clause that
+came out was the calculator one, because it was the sentence putting a dosing
+decision in a customer's mouth on a page that says elsewhere we never advise.
+
+### The screens
+
+- **Blocks is back to the version before the compounds rewrite.** Adrian looked
+  at both and preferred the earlier one: "it actually did look better
+  beforehand". The Progress overlap he complained about is therefore a known,
+  accepted cost. Moving the compounds up is a road already travelled; do not
+  take it again without asking.
+- **Stock is one row of four smaller cards, with the schedule strip back.** The
+  2x2 grid had eaten the whole screen, so the Protocol page read as a shelf and
+  nothing else. Four narrower cards keep every container visible AND leave the
+  schedule underneath. The notes run right, left, right down the screen.
+- **The compare table fits a phone.** Mark columns went from 56px to 44px and
+  both column headings had to shrink with them: at the old size "OTHERS" and the
+  wordmark each overflowed their own 44px column and collided.
+
+### ⚠️ The underline gap is measured in pixels, not units
+
+The double underline's second stroke was landing 2px below the first on a
+phone, and Adrian read that as there being no second underline. There was one;
+it was touching. The box is only ~11px tall at that size, so a viewBox unit is
+under half a pixel: 7 units looked generous in the source and was invisible on
+the device. It is 17 units now, about 7px. Measure this in a browser at 390px
+wide rather than trusting the numbers to look right in the file.
+
+### Settled
+
+Both widened FAQ claims are confirmed true by Adrian, so their TODOs are gone.
+The medical row left the compare table for good: his ruling is that the table
+compares FEATURES, and a disclaimer scored against other apps reads as a boast.
+The position is still stated in the first FAQ answer and in the footer.

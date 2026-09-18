@@ -91,26 +91,23 @@ export function StockScreen({ live }: ScreenProps) {
       <Title>Protocol</Title>
       <section className="space-y-3">
         <h5 className={cn(CARD_EYEBROW, "px-1")}>Compounds</h5>
-        {/* ⚠️ A 2x2 GRID, AND THE SCHEDULE STRIP BELOW IT IS GONE (2026-09-18).
-            Adrian asked for a supplement on the shelf so it is obvious this
-            counts more than injectables. As a fourth card in the old single
-            row it sat entirely outside the phone, and its note collided with
-            the note beside it. Four cards in a grid show all four containers
-            at full size instead: an oil vial, a peptide vial, a tablet bottle
-            and a tub. That needs the height the schedule strip was using, and
-            the strip was the weaker half of the screen anyway: the Stacks
-            feature draws a real cycle calendar two rows down this same list. */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* ⚠️ ONE ROW OF FOUR, AND THE SCHEDULE STRIP STAYS BELOW IT.
+            This was briefly a 2x2 grid so a supplement could sit on the shelf
+            at full size, and that ate the whole screen: Adrian could see the
+            compounds and nothing else of the Protocol page. Four narrower
+            cards fit across instead, which keeps every container visible AND
+            leaves the schedule underneath, so the screen still reads as a page
+            rather than as a shelf. The cards carry less because they are
+            narrower; what came off is repeated by the callouts anyway. */}
+        <div className="grid grid-cols-4 gap-2">
           <StockCard
             mark="stock-1"
-            name="Testosterone Enanthate"
+            name="Test E"
             category="anabolic"
             type="preconcentrated"
             fill={live ? 0.8 : 0.85}
-            left={<Swap live={live} from="8.5 mL left" to="8.0 mL left" />}
-            doses={<Swap live={live} from="17 doses" to="16 doses" />}
+            left={<Swap live={live} from="8.5 mL" to="8.0 mL" />}
             runsDry="4 Nov"
-            pct={live ? 80 : 85}
           />
           <StockCard
             mark="stock-2"
@@ -118,11 +115,9 @@ export function StockScreen({ live }: ScreenProps) {
             category="peptide"
             type="reconstituted"
             fill={0.3}
-            left="0.6 mL left"
-            doses="3 doses"
-            runsDry="in 3 days"
+            left="0.6 mL"
+            runsDry="3 days"
             soon
-            pct={30}
           />
           <StockCard
             mark="stock-3"
@@ -130,10 +125,8 @@ export function StockScreen({ live }: ScreenProps) {
             category="oral"
             type="oral_solid"
             fill={0.55}
-            left="44 tablets"
-            doses="22 doses"
+            left="44 tabs"
             runsDry="25 Oct"
-            pct={55}
           />
           <StockCard
             mark="stock-4"
@@ -141,11 +134,63 @@ export function StockScreen({ live }: ScreenProps) {
             category="supplement"
             type="oral_solid"
             fill={0.65}
-            left="260 g left"
-            doses="52 doses"
+            left="260 g"
             runsDry="9 Nov"
-            pct={65}
           />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h5 className={cn(CARD_EYEBROW, "px-1")}>Schedule</h5>
+        <div className="rounded-2xl bg-bg-surface p-5">
+          <div className="flex items-center gap-3">
+            <span className="w-[38%] shrink-0" />
+            <div className="grid flex-1 grid-cols-7 gap-1 text-center">
+              {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "text-[10px] font-medium uppercase tracking-wide",
+                    i === 4 ? "text-foreground" : "text-text-muted",
+                  )}
+                >
+                  {d}
+                </span>
+              ))}
+            </div>
+          </div>
+          {[
+            { cat: "anabolic", label: "Anabolics", name: "Testosterone Enanthate", days: [1, 0, 0, 1, 0, 0, 1] },
+            { cat: "peptide", label: "Peptides", name: "BPC-157", days: [1, 1, 1, 1, 1, 0, 0] },
+          ].map((g) => (
+            <div key={g.cat} className="mt-3">
+              <span className="flex items-center gap-1.5 px-0.5 pb-1">
+                <CategoryIcon category={g.cat} className="h-3.5 w-3.5" />
+                <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-foreground">
+                  {g.label}
+                </span>
+              </span>
+              <div className="flex items-center gap-3 py-1.5">
+                <span className="w-[38%] shrink-0 truncate text-xs text-text-muted">{g.name}</span>
+                <div className="grid flex-1 grid-cols-7 gap-1">
+                  {g.days.map((on, i) => (
+                    <span key={i} className="flex h-5 items-center justify-center">
+                      <span
+                        className={cn(
+                          "rounded-full",
+                          !on
+                            ? "h-1 w-1 bg-border-strong"
+                            : i < 4
+                              ? "h-2.5 w-2.5 bg-foreground"
+                              : "h-2.5 w-2.5 border border-text-muted",
+                        )}
+                      />
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
     </div>
@@ -158,10 +203,8 @@ function StockCard({
   type,
   fill,
   left,
-  doses,
   runsDry,
   soon = false,
-  pct,
   mark,
 }: {
   mark: string;
@@ -170,50 +213,33 @@ function StockCard({
   type: string;
   fill: number;
   left: ReactNode;
-  doses: ReactNode;
   runsDry: string;
   soon?: boolean;
-  pct: number;
 }) {
   return (
-    <div className="flex h-[252px] w-full flex-col items-center gap-2 rounded-2xl bg-bg-surface p-4">
+    <div className="flex h-[150px] w-full flex-col items-center gap-1.5 rounded-2xl bg-bg-surface p-2">
       <span data-mark={`${mark}-vial`} className="flex">
         <AnimatedContainer
           name={name}
           category={category}
           inventoryType={type}
           fill={fill}
-          size={80}
+          size={46}
           durationMs={700}
         />
       </span>
-      <span className="flex h-9 w-full items-center justify-center">
-        <span className="line-clamp-2 text-center text-sm leading-tight text-foreground">{name}</span>
+      <span className="flex h-7 w-full items-center justify-center">
+        <span className="line-clamp-2 text-center text-[11px] leading-tight text-foreground">{name}</span>
       </span>
-      <span className="flex w-full flex-col items-center gap-1">
-        <span className={cn(DATA_MONO, "w-full text-center")}>{left}</span>
-        <span className={cn(DATA_MONO, "w-full text-center")}>{doses}</span>
-        <span className="mt-0.5 flex w-full flex-col items-center leading-tight">
-          <span className="text-[10px] lowercase text-text-subtle">runs dry</span>
-          <span
-            data-mark={`${mark}-dry`}
-            className={cn(
-              "font-mono text-[11px] tabular-nums",
-              soon ? "text-accent-amber" : "text-text-muted",
-            )}
-          >
-            {runsDry}
-          </span>
-        </span>
-        <span className="mt-1 flex w-full items-center gap-2">
-          <span className="h-1 flex-1 overflow-hidden rounded-full bg-bg-surface-raised">
-            <span
-              className="block h-full rounded-full bg-accent-primary transition-[width] delay-300 duration-700 ease-out motion-reduce:transition-none"
-              style={{ width: `${pct}%` }}
-            />
-          </span>
-          <span className="shrink-0 font-mono text-[10px] tabular-nums text-text-subtle">{pct}%</span>
-        </span>
+      <span className={cn(DATA_MONO, "w-full text-center text-[10px]")}>{left}</span>
+      <span
+        data-mark={`${mark}-dry`}
+        className={cn(
+          "w-full text-center font-mono text-[10px] tabular-nums",
+          soon ? "text-accent-amber" : "text-text-muted",
+        )}
+      >
+        {runsDry}
       </span>
     </div>
   );
@@ -424,36 +450,33 @@ export function ProgressScreen({ live }: ScreenProps) {
 /** The seven weeks of the block on screen, week 1 to week 7. */
 const BLOCK_WEIGHT = [88.7, 88.3, 88.0, 87.6, 87.2, 86.9, 86.6];
 
-/** What was run across those weeks. The point of the screen. */
-const BLOCK_COMPOUNDS = [
-  { name: "Testosterone Enanthate", category: "anabolic", inventoryType: "preconcentrated", dose: "250 mg · 3x wk" },
-  { name: "BPC-157", category: "peptide", inventoryType: "reconstituted", dose: "250 mcg · daily" },
-  { name: "Oxandrolone", category: "oral", inventoryType: "oral_solid", dose: "40 mg · daily" },
-];
-
 /**
- * ONE BLOCK, ALREADY OPENED, LEADING WITH WHAT WAS RUN (Adrian, 2026-09-18).
+ * ONE BLOCK, ALREADY OPENED (Adrian, 2026-09-18).
  *
- * Two rewrites got here. First this was the Blocks LIST, which showed that
- * blocks exist rather than what one is for. Then it became an opened block
- * showing a weight trend, photos and bloods, and Adrian's verdict on that was
- * that it "looks like the Progress feature again" — correctly, because those
- * are the three things Progress draws two rows up this same list.
+ * ⚠️ RESTORED. A later rewrite led with the compounds run across the block,
+ * because Adrian's complaint had been that this screen "looks like the
+ * Progress feature again" and that is a fair reading of it. He looked at both
+ * and preferred this one: "it actually did look better beforehand". So the
+ * Progress overlap is a known, accepted cost, and moving the compounds up here
+ * is a road already travelled. Do not take it again without asking him.
  *
- * So the compounds come FIRST and the outcome second. That order is the whole
- * feature: this is the only screen on the page where the protocol and the
- * result are in one frame, and it is the one thing a notes app genuinely
- * cannot do. Bloodwork came out to pay for the room, and it is the panel
- * Progress already shows.
+ * This used to be the Blocks LIST: a "Running now" summary, a New block
+ * button, and two past blocks underneath. Adrian's verdict was that the
+ * feature "didn't look as valuable to me" from that screen, and he is right
+ * about why: a list of blocks shows that blocks exist, not what one is FOR.
+ * What a block is for is that a prep's weight, photos and bloods sit together
+ * under the weeks they happened in, and only the opened block shows that.
  *
  * ⚠️ NOTHING HERE IS TAPPABLE, and the back caret is not a control. Every
- * screen in this widget is a drawing of the app, so "already opened" is simply
- * the state it is drawn in.
+ * screen in this widget is a drawing of the app, so "already clicked in" is
+ * simply the state it is drawn in; the caret is there to say this is a screen
+ * you got to from somewhere, which is what makes the look-back strip beneath
+ * read as the rest of them rather than as a menu.
  */
 export function BlocksScreen({ live }: ScreenProps) {
   const gradientId = `lp-block-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const W = 310;
-  const H = 46;
+  const H = 74;
   const trend = sparkGeometry(BLOCK_WEIGHT, W, H, 6);
   return (
     <div className="space-y-3 px-5 pt-4" data-live={live ? "" : undefined}>
@@ -468,37 +491,17 @@ export function BlocksScreen({ live }: ScreenProps) {
         </div>
       </div>
 
-      <section data-mark="block-ran" className="rounded-2xl bg-bg-surface p-4">
-        <p className={CARD_EYEBROW}>Running this block</p>
-        <ul className="mt-2 space-y-1.5">
-          {BLOCK_COMPOUNDS.map((c) => (
-            <li key={c.name} className="flex items-center gap-2.5">
-              <Container
-                name={c.name}
-                category={c.category}
-                inventoryType={c.inventoryType}
-                fill={0.62}
-                size={22}
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm leading-tight text-foreground">{c.name}</span>
-                <span className={cn(DATA_MONO, "mt-0.5 block")}>{c.dose}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section data-mark="block-result" className="rounded-2xl bg-bg-surface p-4">
+      {/* The point of the screen: one prep's numbers, under its own weeks. */}
+      <section data-mark="block-data" className="rounded-2xl bg-bg-surface p-5">
         <div className="flex items-baseline justify-between gap-3">
-          <p className={CARD_EYEBROW}>Result so far</p>
+          <p className={CARD_EYEBROW}>Weight</p>
           <span className={DATA_MONO}>2.1 kg down</span>
         </div>
-        <p className="mt-1.5 flex items-baseline gap-2">
+        <p className="mt-2 flex items-baseline gap-2">
           <span className={METRIC_VALUE}>86.6</span>
           <span className={UNIT_SUFFIX}>kg</span>
         </p>
-        <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full overflow-visible">
+        <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full overflow-visible">
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--chart-trend)" stopOpacity="0.35" />
@@ -515,24 +518,50 @@ export function BlocksScreen({ live }: ScreenProps) {
             className="lp-draw-line stroke-chart-trend"
           />
         </svg>
-        <div className="mt-2.5 grid grid-cols-2 gap-2">
-          {["Week 1", "Week 7"].map((d) => (
-            <div key={d} className="flex flex-col items-center rounded-xl bg-bg-surface-raised px-1 pb-1 pt-1.5">
-              <svg viewBox="22 1 56 98" className="h-10 w-auto">
-                <BodySilhouette aspect="anterior" />
-              </svg>
-              <span className="mt-0.5 font-mono text-[10px] text-text-muted">{d}</span>
-            </div>
-          ))}
+        <div className="mt-1 flex justify-between">
+          <span className="font-mono text-[10px] text-text-subtle">Week 1</span>
+          <span className="font-mono text-[10px] text-text-subtle">Week 7</span>
         </div>
       </section>
 
-      <div data-mark="lookback" className="flex items-center gap-3 rounded-2xl bg-bg-surface px-4 py-2.5">
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm text-foreground">2 earlier blocks</span>
-          <span className={cn(DATA_MONO, "mt-0.5 block truncate")}>Off-season · First cut</span>
-        </span>
-        <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" />
+      <div className="grid grid-cols-2 gap-3">
+        <section className="rounded-2xl bg-bg-surface p-4">
+          <p className={CARD_EYEBROW}>Photos</p>
+          <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+            {["Wk 1", "Wk 7"].map((d) => (
+              <div key={d} className="flex flex-col items-center rounded-xl bg-bg-surface-raised px-1 pb-1 pt-1.5">
+                <svg viewBox="22 1 56 98" className="h-12 w-auto">
+                  <BodySilhouette aspect="anterior" />
+                </svg>
+                <span className="mt-0.5 font-mono text-[10px] text-text-muted">{d}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="rounded-2xl bg-bg-surface p-4">
+          <p className={CARD_EYEBROW}>Bloods</p>
+          <p className="mt-2.5 text-sm text-foreground">Panel</p>
+          <p className={cn(DATA_MONO, "mt-0.5")}>12 Sep</p>
+          <p className="mt-2 text-sm text-foreground">Panel</p>
+          <p className={cn(DATA_MONO, "mt-0.5")}>4 Aug</p>
+        </section>
+      </div>
+
+      {/* The rest of them, so the history is visible without leaving. */}
+      <div data-mark="lookback" className="space-y-1.5 pb-1">
+        <p className={CARD_EYEBROW}>Look back</p>
+        {[
+          { name: "Off-season", line: "25 weeks · 4.8 kg up" },
+          { name: "First cut", line: "16 weeks · 6.2 kg down" },
+        ].map((b) => (
+          <div key={b.name} className="flex items-center gap-3 rounded-2xl bg-bg-surface px-4 py-2.5">
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-foreground">{b.name}</span>
+              <span className={cn(DATA_MONO, "mt-0.5 block")}>{b.line}</span>
+            </span>
+            <CaretRight className="h-4 w-4 text-text-subtle" />
+          </div>
+        ))}
       </div>
     </div>
   );

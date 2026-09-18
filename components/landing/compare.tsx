@@ -29,17 +29,24 @@ import { cn } from "@/lib/utils";
  * "Anabolics" is deliberate (Adrian, 2026-09-18): "juice" is slang on a page
  * Apple reads, and "steroids" reads worse than the thing it names.
  *
+ * ⚠️ NO MEDICAL ROW HERE ANY MORE, and that is a decision rather than an
+ * oversight. "Never gives you sketchy medical advice" and then "Built to track,
+ * not to advise" both sat in row 6, and Adrian's ruling is that this table
+ * compares FEATURES: a disclaimer scored against other apps reads as a feature
+ * you are boasting about. The position is still stated twice on the page, in
+ * the first FAQ answer and in the footer.
+ *
  * The last row is deliberately an opinion rather than a checkable claim
  * (Adrian, 2026-09-18, chosen over "locks your history when you stop paying",
  * which would have been a factual assertion about other apps).
  */
 const ROWS: { feature: string; others: boolean; trackd: boolean }[] = [
-  { feature: "Injection sites that fade as they rest", others: false, trackd: true },
-  { feature: "Active stock that counts down", others: false, trackd: true },
-  { feature: "Reconstitution maths done for you", others: false, trackd: true },
+  { feature: "Built-in injection site rotation that fades as sites rest", others: false, trackd: true },
+  { feature: "Active stock that changes with every dose you log", others: false, trackd: true },
+  { feature: "Built-in reconstitution calculator that shows more than the units", others: false, trackd: true },
   { feature: "Training blocks that keep a whole prep in one place", others: false, trackd: true },
   { feature: "Peptides, anabolics and supplements in one place", others: false, trackd: true },
-  { feature: "Built to track, not to advise", others: false, trackd: true },
+  { feature: "Works on your laptop as well as your phone", others: false, trackd: true },
   { feature: "Vibe coded in a weekend", others: true, trackd: false },
 ];
 
@@ -54,24 +61,24 @@ export function CompareTable() {
             three lines in a 24% column). */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-text-primary/[0.045] shadow-[inset_1px_0_0_0_color-mix(in_srgb,var(--text-primary)_8%,transparent)] md:w-[22%]"
+          className="pointer-events-none absolute inset-y-0 right-0 w-11 bg-text-primary/[0.045] shadow-[inset_1px_0_0_0_color-mix(in_srgb,var(--text-primary)_8%,transparent)] md:w-[22%]"
         />
         <table className="relative w-full table-fixed border-collapse text-left">
           <colgroup>
             <col />
-            <col className="w-14 md:w-[22%]" />
-            <col className="w-14 md:w-[22%]" />
+            <col className="w-11 md:w-[22%]" />
+            <col className="w-11 md:w-[22%]" />
           </colgroup>
           <caption className="sr-only">
             {BUSINESS_NAME} compared with other tracking apps, feature by feature.
           </caption>
           <thead>
             <tr>
-              <th scope="col" className="px-4 pb-4 pt-5 align-bottom md:px-8 md:pt-6">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-text-secondary">Feature</span>
+              <th scope="col" className="pb-4 pl-3 pr-1 pt-5 align-bottom md:px-8 md:pt-6">
+                <span className="text-[9px] uppercase tracking-[0.12em] text-text-secondary md:text-[10px] md:tracking-[0.18em]">Feature</span>
               </th>
               <th scope="col" className="px-1 pb-4 pt-5 text-center align-bottom md:px-2 md:pt-6">
-                <span className="text-[10px] uppercase tracking-[0.12em] text-text-secondary md:tracking-[0.18em]">
+                <span className="text-[9px] uppercase tracking-normal text-text-secondary md:text-[10px] md:tracking-[0.18em]">
                   <span className="md:hidden">Others</span>
                   <span className="hidden md:inline">Other apps</span>
                 </span>
@@ -83,7 +90,7 @@ export function CompareTable() {
                   alt=""
                   width={1049}
                   height={200}
-                  className="mx-auto h-2.5 w-auto object-contain md:h-4"
+                  className="mx-auto h-2 w-auto max-w-full object-contain md:h-4"
                 />
               </th>
             </tr>
@@ -99,14 +106,14 @@ export function CompareTable() {
               >
                 <th
                   scope="row"
-                  className="px-4 py-3.5 text-[0.88rem] font-normal leading-snug text-foreground md:px-8 md:py-5 md:text-base"
+                  className="py-3 pl-3 pr-1 text-[0.82rem] font-normal leading-snug text-foreground md:px-8 md:py-5 md:text-base"
                 >
                   {r.feature}
                 </th>
-                <td className="px-2 text-center">
+                <td className="px-0.5 text-center md:px-2">
                   <Mark on={r.others} />
                 </td>
-                <td className="px-2 text-center">
+                <td className="px-0.5 text-center md:px-2">
                   <Mark on={r.trackd} />
                 </td>
               </tr>
@@ -123,7 +130,7 @@ function Mark({ on }: { on: boolean }) {
   return (
     <span
       className={cn(
-        "mx-auto flex h-6 w-6 items-center justify-center rounded-full md:h-7 md:w-7",
+        "mx-auto flex h-5 w-5 items-center justify-center rounded-full md:h-7 md:w-7",
         on ? "bg-text-primary text-bg-base" : "text-text-muted ring-1 ring-inset ring-border-strong",
       )}
     >

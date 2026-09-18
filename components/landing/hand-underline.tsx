@@ -37,10 +37,19 @@ const TRACE_2 =
  * The second stroke of the "double" variant: the SAME ink as the first, laid
  * shorter and lower rather than the tail-only return pass. Shifted rather than
  * redrawn, so there is one set of path data to keep true to the hand.
- * translate(26 7) insets it at both ends and drops it clear of the first;
- * scale(0.82 0.9) shortens it and thins the brush to match the shorter run.
+ * translate(34 17) insets it at both ends and drops it clear of the first;
+ * scale(0.74 0.72) shortens it and thins the brush to match the shorter run.
+ *
+ * ⚠️ THE GAP IS THE WHOLE POINT, AND IT IS MEASURED IN PIXELS, NOT UNITS. The
+ * box is only about 11px tall on a phone, so a unit here is under half a pixel:
+ * the first attempt sat 7 units down and the two strokes landed 2px apart,
+ * which Adrian read on an iPhone as there being no second underline at all.
+ * There was one; it was touching the first. 17 units puts roughly 7px between
+ * them at phone size, which is the point they read as two. Anything that closes
+ * this gap again undoes the feature, so measure it in a browser at 390px wide
+ * rather than trusting the numbers to look right in the source.
  */
-const DOUBLE_SHIFT = "translate(26 7) scale(0.82 0.9)";
+const DOUBLE_SHIFT = "translate(34 17) scale(0.74 0.72)";
 
 export function HandUnderline({
   children,
@@ -104,7 +113,7 @@ export function HandUnderline({
           transform={shift}
           mask={`url(#${m2})`}
           className="fill-accent-amber"
-          opacity={double ? 0.6 : 0.75}
+          opacity={double ? 0.85 : 0.75}
         />
       </svg>
     </span>

@@ -28,9 +28,9 @@ describe("placeholder testimonials", () => {
    * renders on trackdco.app. Anything less than that and this goes back to
    * true in the same change that adds the card.
    */
-  it("renders on production, because every card is a real person", () => {
-    expect(PLACEHOLDER_TESTIMONIALS).toBe(false);
-    expect(showTestimonials({ VERCEL_ENV: "production" })).toBe(true);
+  it("stays off production while the cards are invented", () => {
+    expect(PLACEHOLDER_TESTIMONIALS).toBe(true);
+    expect(showTestimonials({ VERCEL_ENV: "production" })).toBe(false);
   });
 
   /**
