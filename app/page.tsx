@@ -122,7 +122,7 @@ const FAQS: readonly Faq[] = [
   },
   {
     q: "Are there any other features (e.g. calorie tracking)?",
-    a: `Not yet. ${PRODUCT_NAME} does one job properly rather than five badly. We are always working to make it better for our users though, so if there is something you want to see, email us at ${SUPPORT_EMAIL}. We read every one.`,
+    a: `Not yet. ${PRODUCT_NAME} does one job properly rather than five badly. We are always working to make it better for our users though, so if there is something you want to see, email us at ${SUPPORT_EMAIL} (we read every email).`,
   },
   {
     q: "Can I delete my account?",
@@ -302,8 +302,8 @@ export default function LandingPage() {
                 <p>To potential {PRODUCT_NAME} customer,</p>
                 <p>
                   We want to thank you, first of all, for (hopefully) choosing to use our
-                  app. We take this very seriously and won&apos;t stop until this is the
-                  one every serious person runs their protocol on.
+                  app. We take this very seriously and won&apos;t stop until this app is
+                  the one every serious person runs their protocol on.
                 </p>
                 <p>
                   Since we both run compounds, we know what it&apos;s like to use a notes
