@@ -1,5 +1,43 @@
 # Next Tasks
 
+## 🟢 LANDING PAGE — LIVE AND CURRENT (2026-09-19)
+
+Four rounds of Adrian's copy review are on trackdco.app. The reviews section is
+live as four aliased real opinions, without a verified tick or a star rating.
+Decisions and reasoning are in `progress-tracker.md`.
+
+### 1. Dean C. is the one review that may not stand up (Adrian)
+It began as "Michael H.", written to build the carousel against at a point when
+Adrian described it as invented rather than as anyone's real opinion. The other
+three are aliases over feedback real customers gave him. If this one is not
+standing on a real conversation the same way, it is the card to pull, and it is
+live right now.
+
+### 2. The seven comparison rows are still unconfirmed (Adrian)
+Every row asserts that other apps lack the feature. They were reworded twice and
+never checked. "Works on your laptop as well as your phone" and "Built-in
+reconstitution calculator that shows more than the units" are the two to test
+against a real competitor first.
+
+### 3. The stock feature line still says "vial"
+"Every dose you log comes straight off the vial, down to the day it runs out"
+sits above a shelf showing tablets and a tub, beside a note reading "Not just
+injectables". Adrian said to leave it for now. It is the one place the words and
+the picture disagree.
+
+### 4. Things changed without being asked for, worth a look
+- The stock cards lost their dose count and their percentage when they were
+  narrowed to fit four across. The callouts still carry the equivalent.
+- The laptop feature rows no longer expand; they are a tab list now. Adrian has
+  only ever reviewed this page on an iPhone.
+- The review cards are equal height, set by the longest quote, so the shortest
+  card carries a lot of empty space on a phone.
+
+### 5. "seriously" and "serious" in the same sentence
+The letter reads "We take this very seriously and won't stop until this app is
+the one every serious person runs their protocol on." Flagged, and he changed
+something else in that sentence, so it stands.
+
 ## 🟡 LANDING COPY ROUND TWO — MERGED AND LIVE (2026-09-18)
 
 State and the decisions are in `progress-tracker.md`. Six of Adrian's nineteen
