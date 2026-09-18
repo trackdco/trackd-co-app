@@ -1,24 +1,32 @@
 /**
  * The "Join the movement" cards (spec 3-03 §3.3).
  *
- * ## ⚠️ TODO(3-03): EVERY QUOTE BELOW IS A PLACEHOLDER
+ * ## ⚠️ TODO(3-03): THE GATE STAYS SHUT UNTIL ALL FOUR ARE APPROVED
  *
- * Nobody said these. They exist so the carousel can be built and looked at,
- * and they must be replaced with real, attributable reviews (with the
- * reviewer's permission) before this page reaches trackdco.app. A fabricated
- * testimonial on a live page is misleading conduct, and review flagged exactly
- * this on the last build.
+ * Adrian's copy pass (2026-09-18) replaced the invented quotes with real ones,
+ * but they are not yet quotable:
  *
- * The names are deliberately first-name-and-initial rather than handles, so a
- * placeholder cannot collide with a real person's account.
+ * - **Ananth R., Jasmine M. and Cam W. are real people** who told Adrian he
+ *   could write a testimonial on their behalf. Permission to write one is NOT
+ *   the same as the words being their honest opinion, which is what a
+ *   testimonial has to be. Each of the three has to see their own line and say
+ *   yes to it before the section renders anywhere public.
+ * - **Cam W. is a display name, not theirs** (Adrian, 2026-09-18). The real
+ *   person is happy to be quoted; the name they gave collided with a founder's,
+ *   which would have read as the founder reviewing his own product.
+ * - **Michael H. is invented.** Adrian is finding someone who will put their
+ *   name to roughly that. Until then it is the single thing keeping the flag
+ *   below set, and it must not ship.
  *
- * ## The guard, so "must be replaced" is not only a comment
+ * ## The guard, so "must be approved" is not only a comment
  *
- * `PLACEHOLDER_TESTIMONIALS` is true while these are invented, and
- * `showTestimonials` refuses to render invented ones in a PRODUCTION build on
- * Vercel. Preview deployments and local dev still show them, which is where
- * they are useful. When real quotes land, set the flag to false in the same
- * change and the section ships.
+ * `PLACEHOLDER_TESTIMONIALS` is true while ANY of the four is unapproved, and
+ * `showTestimonials` refuses to render them in a PRODUCTION build on Vercel.
+ * Preview deployments and local dev still show them, which is where they are
+ * useful. Production renders no reviews section at all and the header drops its
+ * "Reviews" item with it, so nothing on the live site is ever labelled or shown
+ * as a placeholder. When the yeses are in and Michael H. is replaced, set the
+ * flag to false in the same change and the section ships.
  */
 export const PLACEHOLDER_TESTIMONIALS = true;
 
@@ -31,28 +39,29 @@ export interface Testimonial {
 
 export const TESTIMONIALS: readonly Testimonial[] = [
   {
-    name: "Jordan K.",
-    initials: "JK",
+    name: "Ananth R.",
+    initials: "AR",
     quote:
-      "I ran my protocol out of a notes app for two years. This replaced it in an afternoon, and I actually open it.",
+      "Trackd works so well for me. I've been able to take all the thought out of what I'm running and just follow what I set for myself.",
   },
   {
-    name: "Sam R.",
-    initials: "SR",
+    name: "Jasmine M.",
+    initials: "JM",
     quote:
-      "The injection site map is the thing I did not know I needed. I can see what has rested without thinking about it.",
+      "I'm fairly new to peptides and I wanted to do them safely. Trackd has helped me track my reta without doubling up injection sites, it helps me know when to reorder since I can track my stock, and the calculator helped me figure out how much to draw too. I'd highly recommend!!! :)",
   },
   {
-    name: "Priya D.",
-    initials: "PD",
+    name: "Cam W.",
+    initials: "CW",
     quote:
-      "Knowing how much is left in the vial, and the day it runs out, took a weekly worry off my plate.",
+      "It's refreshing to have an app actually made by people who know ball and aren't just hopping on the peptide app bandwagon. I replaced my notes app in an afternoon and I won't be going back.",
   },
   {
-    name: "Luke T.",
-    initials: "LT",
+    // ⚠️ INVENTED. Nobody said this. See the note at the top of this file.
+    name: "Michael H.",
+    initials: "MH",
     quote:
-      "Clean, quick, and it never tries to tell me what to take. It just keeps the record straight.",
+      'Found Trackd right before I started prepping for my bodybuilding show this coming November. I\'m running a lot of compounds and the ease of adding to and tracking them was outstanding. Their "Block" thing is also really cool too because I can see my progress photos, bloods and weight change all in that one period.',
   },
 ];
 

@@ -62,14 +62,17 @@ export function SiteFooter({ legal }: { legal: readonly LegalLink[] }) {
             </a>
           </p>
           <p className="mt-2 max-w-[20rem] text-xs leading-relaxed text-text-secondary">
-            For adults 18 and over. {PRODUCT_NAME} is a tracking tool and does not give medical advice.
+            For people 18 and over. {PRODUCT_NAME} is a tracking tool and strictly does not give
+            medical advice.
           </p>
         </div>
 
         {/* Centre: the social icons, pinned to the bottom of the band. Last
             on a phone. */}
         <div className="order-last flex flex-col items-center justify-end md:order-none md:border-x-[0.5px] md:border-border-default md:px-8">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-text-secondary">Our socials</p>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-text-secondary">
+            Check out our socials
+          </p>
           <div className="mt-3 flex items-center gap-3">
             <Social href={SOCIAL_LINKS.tiktok} label={`${BUSINESS_NAME} on TikTok`}>
               <TiktokLogo className="h-5 w-5" />

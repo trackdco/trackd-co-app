@@ -21,18 +21,23 @@ import { cn } from "@/lib/utils";
  *
  * A cross under "Other apps" says other apps lack the feature. Some apps in
  * this space do have some of these, and a comparative claim on a live page has
- * to be true. The rows were chosen to be the ones Trackd is most distinctive
- * on, but Adrian should confirm each before this ships. Nothing here names a
+ * to be true. Adrian rewrote all seven in the 2026-09-18 copy pass and STILL
+ * has to confirm each one: row 5 in particular ("peptides, juice and
+ * supplements all in one") is the broadest of them. Nothing here names a
  * competitor, and none of it says anything about health.
+ *
+ * The last row is deliberately an opinion rather than a checkable claim
+ * (Adrian, 2026-09-18, chosen over "locks your history when you stop paying",
+ * which would have been a factual assertion about other apps).
  */
 const ROWS: { feature: string; others: boolean; trackd: boolean }[] = [
-  { feature: "Injection site map that fades as sites rest", others: false, trackd: true },
-  { feature: "Stock that counts down with every dose", others: false, trackd: true },
-  { feature: "Calculator drawn on your own syringe", others: false, trackd: true },
-  { feature: "Training blocks you can look back on", others: false, trackd: true },
-  { feature: "Works on your laptop as well as your phone", others: false, trackd: true },
-  { feature: "Never tells you what to take", others: false, trackd: true },
-  { feature: "AI slop", others: true, trackd: false },
+  { feature: "Injection site rotation map that fades as sites are rested", others: false, trackd: true },
+  { feature: "Active stock that counts down", others: false, trackd: true },
+  { feature: "Recon calculator that draws on your own syringe", others: false, trackd: true },
+  { feature: 'Grouping all data into specific "blocks" that you can look back on', others: false, trackd: true },
+  { feature: "The ability to track peptides, juice and supplements all in one", others: false, trackd: true },
+  { feature: "Never gives you sketchy medical advice", others: false, trackd: true },
+  { feature: "Vibe coded in a weekend", others: true, trackd: false },
 ];
 
 export function CompareTable() {

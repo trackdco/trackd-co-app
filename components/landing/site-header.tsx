@@ -20,9 +20,9 @@ export const CALCULATOR_HREF = "/reconstitution-calculator";
 export const MENU_SECTIONS = [
   { id: "features", label: "Features" },
   { id: "movement", label: "Reviews" },
-  { id: "compare", label: "Compare" },
-  { id: "founders", label: "Our story" },
-  { id: "questions", label: "Questions" },
+  { id: "compare", label: "Us vs them" },
+  { id: "founders", label: "A letter from the founders" },
+  { id: "questions", label: "Q&A" },
 ] as const;
 
 /**

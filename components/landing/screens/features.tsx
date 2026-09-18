@@ -514,8 +514,10 @@ export function BlocksScreen({ live }: ScreenProps) {
 /* --------------------------------------------------------- Stacks and cycles */
 
 export function StacksScreen({ live }: ScreenProps) {
-  // Cycle days for the month strip: 5 on, 2 off, starting on a Monday.
-  const days = Array.from({ length: 28 }, (_, i) => ({ n: i + 1, on: i % 7 < 5 }));
+  // Cycle days for the month strip: 7 on, 7 off, starting on a Monday (Adrian,
+  // 2026-09-18). A fortnight-long cycle is the one people actually run, and it
+  // reads as a cycle on the calendar rather than as a working week.
+  const days = Array.from({ length: 28 }, (_, i) => ({ n: i + 1, on: i % 14 < 7 }));
   return (
     <div className="space-y-5 px-5 pt-4">
       <Title>Protocol</Title>
@@ -568,7 +570,7 @@ export function StacksScreen({ live }: ScreenProps) {
         <div className="rounded-2xl bg-bg-surface p-5">
           <div className="flex items-baseline justify-between">
             <span className="text-base text-foreground">Ipamorelin</span>
-            <span className={DATA_MONO}>5 on · 2 off</span>
+            <span className={DATA_MONO}>7 on · 7 off</span>
           </div>
           <div data-mark="cycle" className="mt-3 grid grid-cols-7 gap-1.5 text-center">
             {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (

@@ -17,7 +17,6 @@ import type { CompoundCategory } from "@/lib/compound-categories";
 import { COMPOUNDS } from "@/lib/compounds-catalogue";
 import { showTestimonials } from "@/lib/landing/testimonials";
 import {
-  CARD_EYEBROW,
   FLOW_EMPHASIS,
   LANDING_DISPLAY,
   LANDING_SUB,
@@ -54,26 +53,39 @@ import { cn } from "@/lib/utils";
  * going dynamic and every visitor paying for a render. A signed-in visitor
  * never arrives: `proxy.ts` sends them to `/dashboard` first.
  *
+ * ## Adrian's copy pass, 2026-09-18
+ *
+ * He reviewed every string on the page and rewrote most of them. Three rulings
+ * from that pass govern the copy here and are not to be undone quietly:
+ *
+ * - **Sentence case, and the house style holds** for page copy: no em dashes,
+ *   no emoji, no exclamation marks. The four reviews are the one exception,
+ *   printed exactly as their authors wrote them, punctuation included.
+ * - **"Trackd" is the app, "Trackd Co" is the company.** Prose says
+ *   `PRODUCT_NAME`; `BUSINESS_NAME` appears only where the legal entity is
+ *   genuinely the subject, which is the footer and the letter's signature.
+ * - **The founders' note became a letter**, so the heading and the menu item
+ *   both say letter now.
+ *
  * ## ⚠️ TODO(3-03) BEFORE THIS SHIPS
  *
- * - The testimonials are invented (`lib/landing/testimonials.ts`). They are
- *   switched off on the production deployment by `showTestimonials`, so the
- *   worst case is a missing section, never a fake review.
+ * - The reviews are gated off production and must stay gated: three are real
+ *   people who have not yet approved the words written on their behalf, and the
+ *   fourth is invented. See `lib/landing/testimonials.ts`.
  * - The comparison rows are claims about other apps; Adrian confirms each.
- * - The privacy answer below is a placeholder.
- * - Adrian is doing a copy pass over the whole page, and rewriting the
- *   founders' note.
+ * - Two FAQ answers make claims wider than the ones they replaced (never
+ *   selling data, and deleting all of it). Both are marked below.
  */
 export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: `${PRODUCT_NAME} · Track the whole protocol`,
   description:
-    "Every compound, dose and injection site in one place. Built by people who run real protocols.",
+    "Every compound, dose and site in one place. Built by people who run real protocols.",
   alternates: { canonical: "https://trackdco.app" },
   openGraph: {
     title: `${PRODUCT_NAME} · Track the whole protocol`,
-    description: "Every compound, dose and injection site in one place.",
+    description: "Your whole protocol in one place.",
     type: "website",
     url: "https://trackdco.app",
     siteName: BUSINESS_NAME,
@@ -82,22 +94,23 @@ export const metadata: Metadata = {
 
 const FAQS: readonly Faq[] = [
   {
-    q: "Is this medical advice?",
-    a: `No. ${PRODUCT_NAME} is a tracking tool for adults. It records what you run and shows it back to you. It does not diagnose, prescribe, or replace a doctor.`,
+    q: "Is this a clinical app, or do you give medical advice?",
+    a: `No. ${PRODUCT_NAME} is strictly a tracking tool for people above the age of 18. It records what you yourself choose to run and shows your progress back to you. We do not diagnose, prescribe, or replace a doctor.`,
   },
   {
-    // TODO(3-03): the privacy answer is a placeholder. Confirm the exact wording
-    // against the Privacy Policy before this ships.
+    // TODO(3-03): Adrian wrote this in the copy pass and it now makes a claim
+    // the old placeholder did not ("we never sell your data"). Check it against
+    // the Privacy Policy before this ships.
     q: "Who can see my data?",
-    a: "Only you. Your protocol is tied to your account, it is never sold, and you can delete all of it from the app.",
+    a: "Only you. Everything you log is tied directly to your account. We never sell your data, and you are able to delete all of it from the app if you wish.",
   },
   {
-    q: "How does the free trial work?",
-    a: "Seven days, with every feature. We remind you on day 5, and your plan starts on day 7 unless you cancel before then.",
+    q: "How does your free trial work?",
+    a: "When you sign up for the free trial, you'll receive 7 days of our pro plan for free. We remind you on day 5, and your plan will start on day 7 unless you cancel before then.",
   },
   {
     q: "What if I stop paying?",
-    a: "Your account goes read only. Every dose, photo and reading stays where it is and nothing is deleted. Start a plan again and you can add to it straight away.",
+    a: "If you choose to cancel your subscription or your payment method fails, your account becomes read only. Every dose, photo and reading stays where it is and nothing is deleted. Start a plan again and you can get back into it straight away.",
   },
   {
     q: "Do I need to download an app?",
@@ -108,14 +121,21 @@ const FAQS: readonly Faq[] = [
     a: "Yes. It is on this site, it needs no account, and it does the same arithmetic as the one inside the app.",
   },
   {
+    q: "Can I track my calories?",
+    a: "Not currently. However, we're open to adding new features and are always working to make the app better for the people we're helping.",
+  },
+  {
+    // TODO(3-03): "all of your data" is broader than the old answer's "account
+    // and your uploaded files". Confirm the delete action really clears
+    // everything before this ships.
     q: "Can I delete my account?",
-    a: "Yes, from your profile. It cancels any subscription, then removes your account and your uploaded files straight away.",
+    a: "Yes, you delete your account from your profile. Your subscription gets cancelled and all of your data is removed right away.",
   },
 ];
 
 const LEGAL_LINKS: readonly LegalLink[] = [
   { href: "/terms", label: "Terms" },
-  { href: "/privacy", label: "Privacy" },
+  { href: "/privacy", label: "Privacy policy" },
   { href: "/medical-disclaimer", label: "Medical disclaimer" },
   // ⚠️ The full name, verbatim. See `SiteFooter` and
   // `lib/legal/verbatimQuotes.test.ts`: the statute requires this label.
@@ -198,12 +218,12 @@ export default function LandingPage() {
           className={cn("lp-sec outline-none", !reviews && "pt-16")}
         >
           <div className="lp-enter lp-col text-center">
-            <p className={CARD_EYEBROW}>Features</p>
-            <h2 id="features-title" className={cn(LANDING_TITLE, "mt-4 text-balance")}>
+            <h2 id="features-title" className={cn(LANDING_TITLE, "text-balance")}>
               Seven things your notes app can&apos;t do.
             </h2>
-            <p className={cn(LANDING_SUB, "mx-auto mt-5 max-w-[30rem]")}>
-              Pick one to see it in the app.
+            <p className={cn(LANDING_SUB, "mx-auto mt-5 max-w-[34rem] text-pretty")}>
+              Take a look at all the ways {PRODUCT_NAME} is built to make running a protocol
+              seamless.
             </p>
           </div>
           <div className="lp-wide mt-10 md:mt-14">
@@ -218,16 +238,16 @@ export default function LandingPage() {
         <section data-cta aria-labelledby="waiting-title" className="lp-sec overflow-x-clip">
           <div className="lp-enter lp-col text-center">
             <h2 id="waiting-title" className={cn(LANDING_TITLE, "text-balance")}>
-              What are you waiting for?
+              Don&apos;t take our word for it...
             </h2>
           </div>
           <div className="lp-wide mt-6 md:mt-8">
             <KyleCloser />
           </div>
           <div className="lp-col mt-6 text-center md:mt-8">
-            <p className={cn(LANDING_SUB, "mx-auto max-w-[28rem] text-pretty")}>
-              Seven days free, with everything in. Set it up once, and it takes
-              seconds a day after that.
+            <p className={cn(LANDING_SUB, "mx-auto max-w-[30rem] text-pretty")}>
+              Experience how easy it is to run your protocol with {PRODUCT_NAME} today.
+              We&apos;ll even give you 7 days free because we know you won&apos;t look back.
             </p>
             <PrimaryCta label="Let's get started" className="mt-8" />
           </div>
@@ -241,11 +261,11 @@ export default function LandingPage() {
             in ~220px of black. See `globals.css` -> "Between sections". */}
         <section id="compare" tabIndex={-1} aria-labelledby="compare-title" className="lp-sec lp-sec-tight outline-none">
           <div className="lp-enter lp-col text-center">
-            <h2 id="compare-title" className={LANDING_TITLE}>
-              Compare us
+            <h2 id="compare-title" className={cn(LANDING_TITLE, "text-balance")}>
+              Us vs other tracking apps
             </h2>
             <p className={cn(LANDING_SUB, "mx-auto mt-5 max-w-[30rem]")}>
-              What you get here that you will not get elsewhere.
+              What you get here that others won&apos;t give you.
             </p>
           </div>
           <div className="lp-enter mx-auto mt-10 w-full max-w-[52rem] px-4 md:mt-14 md:px-8">
@@ -265,31 +285,34 @@ export default function LandingPage() {
         >
           <div className="lp-col">
             <div className="lp-enter text-center">
-              <p className={CARD_EYEBROW}>Our story</p>
-              <h2 id="founders-title" className={cn(LANDING_TITLE, "mt-4")}>
-                A note from the founders
+              <h2 id="founders-title" className={LANDING_TITLE}>
+                A letter from the founders
               </h2>
             </div>
             <div className="lp-enter lp-panel mt-10 rounded-[2rem] px-6 py-9 md:mt-12 md:px-12 md:py-12">
-              {/* TODO(3-03): Adrian is writing a better letter. This is the
-                  3-02 one, kept until his lands. */}
+              {/* Adrian's letter, written in the 2026-09-18 copy pass. It replaced
+                  the 3-02 one wholesale, so it is a letter now rather than a note:
+                  the salutation is its own line and the section heading follows. */}
               <div className="space-y-5 text-[1.08rem] font-light leading-relaxed text-foreground md:text-[1.2rem]">
+                <p>To the potential {PRODUCT_NAME} customer,</p>
                 <p>
-                  We are two people who run protocols, and for years we ran them badly: a
-                  note on one phone, a spreadsheet neither of us opened, and a calculator
-                  app we used at the kitchen bench on a Sunday.
+                  We want to thank you, first of all, for (hopefully) choosing to use our
+                  app. We take this very seriously and won&apos;t stop until we build you the
+                  most useful, simple and innovative app to track your protocol.
                 </p>
                 <p>
-                  The thing that finally got us was smaller than you would think. Neither
-                  of us could answer, without counting backwards through a notes app, how
-                  much was left in the vial in front of us.
+                  Because we both run compounds, we know what it is like to use a notes
+                  app, or to waste your money on the other vibe coded peptide apps. Which
+                  is the exact reason we built {PRODUCT_NAME}.
                 </p>
                 <p>
-                  So we built this, we use it every day, and we would rather hear that it
-                  is wrong than never hear from you.
+                  So if you do choose to run your protocol with us, a huge thank you. And
+                  get excited, because it&apos;s only going to get better from here...
                 </p>
               </div>
-              <p className="mt-8 text-sm text-text-secondary">Angus and Adrian, founders</p>
+              <p className="mt-8 text-sm text-text-secondary">
+                Angus and Adrian, founders of {BUSINESS_NAME}
+              </p>
             </div>
           </div>
         </section>
@@ -299,9 +322,14 @@ export default function LandingPage() {
         {/* ---------------------------------------- Still have questions */}
         <section id="questions" tabIndex={-1} aria-labelledby="questions-title" className="lp-sec lp-sec-tight outline-none">
           <div className="lp-col">
-            <h2 id="questions-title" className={cn(LANDING_TITLE, "lp-enter text-center")}>
-              Still have questions?
-            </h2>
+            <div className="lp-enter text-center">
+              <h2 id="questions-title" className={LANDING_TITLE}>
+                Still have questions? All good.
+              </h2>
+              <p className={cn(LANDING_SUB, "mx-auto mt-5 max-w-[30rem]")}>
+                Here are some of our commonly asked questions.
+              </p>
+            </div>
             <div className="lp-enter mt-10 md:mt-12">
               <FaqList items={FAQS} />
             </div>

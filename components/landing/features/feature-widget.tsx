@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import Link from "next/link";
 
-import { ArrowRight } from "@/components/icons";
 import type { CompoundCategory } from "@/lib/compound-categories";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +15,6 @@ import {
   StacksScreen,
   StockScreen,
 } from "../screens/features";
-import { CALCULATOR_HREF } from "../site-header";
 import { useInView } from "../use-in-view";
 import {
   BlocksIcon,
@@ -70,7 +67,6 @@ interface Feature {
   Screen: (props: { live: boolean; counts: Counts }) => ReactNode;
   /** False when the screen is a sheet that covers the tab bar. */
   chrome?: boolean;
-  extra?: ReactNode;
 }
 
 type Counts = Partial<Record<CompoundCategory, number>>;
@@ -81,28 +77,28 @@ function features(total: number): Feature[] {
       id: "stock",
       short: "Stock",
       name: "Stock",
-      line: "Every dose you log comes off the vial, down to the day it runs dry.",
+      line: "Every dose you log comes straight off the vial, down to the day it runs out.",
       Icon: StockIcon,
       tab: "protocol",
       label: "The Protocol screen: three compounds with what is left in each and the day each runs dry.",
       callouts: [
-        { title: "Counts down as you log", line: "A dose comes straight off the vial", x: 23.3, y: 31, side: "right", py: 19, ly: 31 },
-        { title: "Knows when it runs dry", line: "Before you are caught short", x: 60.2, y: 48.7, side: "left", py: 56, ly: 48.7 },
+        { title: "Goes down as you log", x: 23.3, y: 31, side: "right", py: 19, ly: 31 },
+        { title: "Knows how long until it runs dry", x: 60.2, y: 48.7, side: "left", py: 56, ly: 48.7 },
       ],
       Screen: StockScreen,
     },
     {
       id: "sites",
       short: "Sites",
-      name: "Injection sites",
-      line: "Where every shot went, and which sites have rested.",
+      name: "Injection site rotation",
+      line: "Where you pinned before, and which sites have rested.",
       Icon: SitesIcon,
       tab: "dashboard",
       label:
         "The injection sites map: one site on the abdomen logged today in full amber, and one logged two days ago, lighter.",
       callouts: [
         { title: "Each injection is logged to its site", x: 57, y: 46.6, side: "right", py: 30, ly: 38 },
-        { title: "The shading fades as the site rests", line: "Two days ago, already lighter", x: 43.1, y: 46.6, side: "left", py: 64, ly: 56 },
+        { title: "The sites fade out each day they've been rested", line: "Two days ago shows a lighter shade than a more recent pin", x: 43.1, y: 46.6, side: "left", py: 64, ly: 56 },
       ],
       Screen: SitesScreen,
     },
@@ -110,13 +106,17 @@ function features(total: number): Feature[] {
       id: "progress",
       short: "Progress",
       name: "Progress",
-      line: "Weight, photos, bloodwork and a journal, beside the protocol that made them.",
+      line: "See your weight, photos, bloods and journal logs beside your compounds.",
       Icon: ProgressIcon,
       tab: "progress",
       label: "The Progress screen: a weight trend line, progress photos side by side, a journal entry and a bloodwork panel.",
       callouts: [
-        { title: "The trend, not the daily noise", x: 78, y: 48.5, side: "right", py: 57, ly: 44 },
-        { title: "Photos lined up by date", x: 27.4, y: 73.2, side: "right", py: 86, ly: 73 },
+        { title: "See the trend in your data, not the daily noise", x: 78, y: 48.5, side: "right", py: 57, ly: 44 },
+        // ⚠️ Adrian raised this line himself as sounding dodgy and then ruled to
+        // keep it (2026-09-18). It is the only outcome claim on the page: it
+        // ties a body change to running compounds, where everything else is
+        // careful to describe the record and not the result.
+        { title: "Compare your before and afters", line: "See how your body changes as you run different compounds", x: 27.4, y: 73.2, side: "right", py: 86, ly: 73 },
       ],
       Screen: ProgressScreen,
     },
@@ -124,13 +124,13 @@ function features(total: number): Feature[] {
       id: "blocks",
       short: "Blocks",
       name: "Training blocks",
-      line: "Run a cut or a build as a block, then look back on how it went.",
+      line: "Organise your cutting, bulking and recomp blocks and look back on how they went.",
       Icon: BlocksIcon,
       tab: "progress",
       label: "The Blocks screen: week 7 of a 16 week cut, with past blocks listed underneath.",
       callouts: [
-        { title: "Where you are in the block", x: 45.4, y: 38.3, side: "right", py: 27, ly: 38.3 },
-        { title: "Every block you have run, kept", x: 30, y: 66.5, side: "left", py: 86, ly: 70 },
+        { title: "How you're progressing towards your goal in the block", x: 45.4, y: 38.3, side: "right", py: 27, ly: 38.3 },
+        { title: "Every block you've run in the past, there for you to look back on", x: 30, y: 66.5, side: "left", py: 86, ly: 70 },
       ],
       Screen: BlocksScreen,
     },
@@ -138,12 +138,15 @@ function features(total: number): Feature[] {
       id: "stacks",
       short: "Stacks and cycles",
       name: "Stacks and cycles",
-      line: "Group what you take together, and run compounds on and off.",
+      line: "Group compounds together, and cycle them on and off.",
       Icon: StacksIcon,
       tab: "protocol",
-      label: "The Protocol screen: a morning stack of three compounds ticked together, and a five on, two off cycle on a calendar.",
+      label: "The Protocol screen: a morning stack of three compounds ticked together, and a seven on, seven off cycle on a calendar.",
       callouts: [
-        { title: "One tap logs the whole stack", x: 12.5, y: 28.3, side: "right", py: 19, ly: 28.3 },
+        // Points at the compounds inside the stack (`data-mark="stack-list"`),
+        // not the tick that logs them (Adrian, 2026-09-18): the line is about
+        // the grouping now, so it has to indicate the group.
+        { title: "Organise your protocol into grouped stacks", x: 30, y: 41.5, side: "right", py: 26, ly: 41.5 },
         { title: "On days and off days at a glance", x: 30, y: 78, side: "left", py: 91, ly: 75 },
       ],
       Screen: StacksScreen,
@@ -151,40 +154,31 @@ function features(total: number): Feature[] {
     {
       id: "library",
       short: "Library",
-      name: "The compound library",
-      line: `Over ${Math.floor(total / 100) * 100} compounds to pick from, or add your own.`,
+      name: "Compound library",
+      line: `Over ${Math.floor(total / 100) * 100} compounds to choose from, or add your own.`,
       Icon: LibraryIcon,
       tab: "dashboard",
       label: "The Add compound sheet: a search box and the library browsed by category.",
       chrome: false,
       callouts: [
-        { title: `Over ${Math.floor(total / 100) * 100} compounds, sorted by type`, x: 11, y: 35.4, side: "right", py: 13, ly: 38 },
-        { title: "Not there? Make your own", x: 13.8, y: 85.9, side: "right", py: 96, ly: 86 },
+        { title: `${Math.floor(total / 100) * 100}+ compounds, sorted by type`, x: 11, y: 35.4, side: "right", py: 13, ly: 38 },
+        { title: "Not on the current list? Make your own", x: 13.8, y: 85.9, side: "right", py: 96, ly: 86 },
       ],
       Screen: LibraryScreen,
     },
     {
       id: "calculator",
       short: "Calculator",
-      name: "The reconstitution calculator",
-      line: "Powder and water in. Units on the syringe out.",
+      name: "Reconstitution calculator",
+      line: "Powder and water in. Syringe units out.",
       Icon: CalculatorIcon,
       tab: "calculator",
       label: "The Calculator screen: 20 units drawn on a half millilitre syringe, with the concentration and volume beside it.",
       callouts: [
-        { title: "Drawn on the syringe you use", x: 40, y: 34, side: "right", py: 21, ly: 34 },
+        { title: "Tells you how many units to draw", x: 40, y: 34, side: "right", py: 21, ly: 34 },
         { title: "Every figure shown", x: 6.8, y: 45.5, side: "left", py: 56, ly: 45.5 },
       ],
       Screen: CalculatorScreen,
-      extra: (
-        <Link
-          href={CALCULATOR_HREF}
-          className="group inline-flex items-center gap-1.5 rounded-sm text-sm text-foreground underline decoration-text-secondary underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
-        >
-          Try it free, no account needed
-          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" />
-        </Link>
-      ),
     },
   ];
 }
@@ -214,6 +208,17 @@ export function FeatureWidget({ counts, total }: { counts: Counts; total: number
   const inView = useInView(root, { threshold: 0.2 });
   const baseId = useId();
   const current = list[shown];
+  const laptopTabs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  /** Up and down walk the laptop tab list, as a vertical tab list must. */
+  const onLaptopKey = (e: React.KeyboardEvent) => {
+    const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = Math.max(0, Math.min(list.length - 1, shown + step));
+    setShown(next);
+    laptopTabs.current[next]?.focus();
+  };
 
   return (
     <div ref={root}>
@@ -248,70 +253,71 @@ export function FeatureWidget({ counts, total }: { counts: Counts; total: number
               />
             ))}
           </div>
-          {current.extra ? <div className="mt-6 text-center">{current.extra}</div> : null}
         </div>
       </div>
 
       {/* ---- Laptop ---- */}
+      {/* ⚠️ A TAB LIST, NOT AN ACCORDION (Adrian, 2026-09-18: the notes "should
+          only be on the diagram"). Picking a row used to open it to its
+          callouts as a bulleted list AND draw the same words on the phone
+          beside it, which said everything twice. The list went, and with the
+          calculator link cut in the same pass there was nothing left inside a
+          row to expand into, so the rows now simply choose what the phone
+          shows. Which is a tab list, so it is built as one: Tab reaches the
+          chosen row, arrows move along them, and the phone is the panel. */}
       <div className="lp-panel hidden overflow-clip rounded-[2rem] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <ul className="divide-hairline divide-border-default p-3">
+        <div
+          role="tablist"
+          aria-label="Features"
+          aria-orientation="vertical"
+          onKeyDown={onLaptopKey}
+          className="divide-hairline divide-border-default p-3"
+        >
           {list.map((f, i) => {
-            const isOpen = shown === i;
-            const panelId = `${baseId}-${f.id}`;
+            const on = shown === i;
             return (
-              <li key={f.id}>
-                <h3>
-                  <button
-                    type="button"
-                    aria-expanded={isOpen}
-                    aria-controls={panelId}
-                    onClick={() => setShown(i)}
-                    className={cn(
-                      "group flex w-full items-center gap-4 rounded-3xl px-4 py-4 text-left transition-colors",
-                      "hover:bg-text-primary/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none",
-                    )}
-                  >
-                    <FeatureIcon Icon={f.Icon} on={isOpen} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[1.02rem] tracking-[-0.01em] text-foreground">{f.name}</span>
-                      <span className="mt-0.5 block text-sm leading-snug text-text-secondary">{f.line}</span>
-                    </span>
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "h-1.5 w-1.5 shrink-0 rounded-full transition-colors motion-reduce:transition-none",
-                        isOpen ? "bg-foreground" : "bg-border-strong",
-                      )}
-                    />
-                  </button>
-                </h3>
-
-                <div id={panelId} className="lp-expand" style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}>
-                  <div className="min-h-0 overflow-hidden" inert={!isOpen}>
-                    <div className="pb-5 pl-[4.75rem] pr-6">
-                      <ul className="space-y-1.5">
-                        {f.callouts.map((c) => (
-                          <li key={c.title} className="flex items-baseline gap-2.5 text-sm text-foreground">
-                            <span aria-hidden className="relative top-[-2px] h-1 w-1 shrink-0 rounded-full bg-text-secondary" />
-                            <span>
-                              {c.title}
-                              {c.line ? <span className="text-text-secondary">. {c.line}.</span> : null}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                      {f.extra ? <div className="mt-4">{f.extra}</div> : null}
-                    </div>
-                  </div>
-                </div>
-              </li>
+              <button
+                key={f.id}
+                ref={(el) => {
+                  laptopTabs.current[i] = el;
+                }}
+                id={`${baseId}-lt-${f.id}`}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                aria-controls={`${baseId}-stage`}
+                tabIndex={on ? 0 : -1}
+                onClick={() => setShown(i)}
+                className={cn(
+                  "group flex w-full items-center gap-4 rounded-3xl px-4 py-4 text-left transition-colors",
+                  "hover:bg-text-primary/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none",
+                )}
+              >
+                <FeatureIcon Icon={f.Icon} on={on} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[1.02rem] tracking-[-0.01em] text-foreground">{f.name}</span>
+                  <span className="mt-0.5 block text-sm leading-snug text-text-secondary">{f.line}</span>
+                </span>
+                <span
+                  aria-hidden
+                  className={cn(
+                    "h-1.5 w-1.5 shrink-0 rounded-full transition-colors motion-reduce:transition-none",
+                    on ? "bg-foreground" : "bg-border-strong",
+                  )}
+                />
+              </button>
             );
           })}
-        </ul>
+        </div>
 
-        {/* The phone for whichever row is open. Keyed, so switching rows mounts
-            a fresh screen and its moment plays again. */}
-        <div className="relative flex items-center justify-center border-l-[0.5px] border-border-default py-14">
+        {/* The phone for whichever row is chosen. Keyed, so switching rows
+            mounts a fresh screen and its moment plays again. */}
+        <div
+          id={`${baseId}-stage`}
+          role="tabpanel"
+          aria-labelledby={`${baseId}-lt-${current.id}`}
+          className="relative flex items-center justify-center border-l-[0.5px] border-border-default py-14"
+        >
           <StageGlow />
           <Stage key={current.id} feature={current} counts={counts} active={inView} />
         </div>

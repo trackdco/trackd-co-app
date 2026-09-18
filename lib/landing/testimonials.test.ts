@@ -28,9 +28,22 @@ describe("placeholder testimonials", () => {
     expect(PLACEHOLDER_TESTIMONIALS).toBe(true);
   });
 
-  it("follow the voice rules: no em dash, no exclamation mark", () => {
+  /**
+   * ⚠️ THE HOUSE STYLE STOPS AT THE QUOTATION MARKS (Adrian, 2026-09-18).
+   *
+   * The page bans exclamation marks and emoji, and this test used to hold the
+   * reviews to that too. It no longer does: a review is a person talking, and
+   * flattening one into house voice is how a real quote starts reading as a
+   * written one. Jasmine's "I'd highly recommend!!! :)" stands.
+   *
+   * The em dash stays banned, and that is the point of what is left here. It
+   * is the one mark almost nobody types on a phone, so an em dash inside a
+   * quote is the tell that the house wrote it rather than the person. Same for
+   * an @handle, which would collide with a real account.
+   */
+  it("keeps the one mark that would give away a quote the house wrote", () => {
     for (const t of TESTIMONIALS) {
-      expect(t.quote).not.toMatch(/[—!]/);
+      expect(t.quote).not.toMatch(/—/);
       expect(t.name).not.toMatch(/^@/);
     }
   });

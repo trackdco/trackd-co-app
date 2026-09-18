@@ -42,8 +42,9 @@ export function StartButton({
 }
 
 /**
- * "Already a current user? Log in" (Adrian, 2026-09-17), with the link
- * underlined. Under the hero button and in the docked widget.
+ * "Already a current user? Log in here" (Adrian, 2026-09-17, "here" added in
+ * the 2026-09-18 copy pass), with the link underlined. Under the hero button
+ * and in the docked widget.
  *
  * "Log in" rather than "Login": the verb, which is how the app's own sign-in
  * link has always read.
@@ -56,7 +57,7 @@ export function LoginLine({ className }: { className?: string }) {
         href={LOGIN_HREF}
         className="rounded-sm text-foreground underline decoration-text-secondary underline-offset-[3px] transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
       >
-        Log in
+        Log in here
       </Link>
     </p>
   );
