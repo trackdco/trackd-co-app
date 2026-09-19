@@ -45,7 +45,7 @@ const ROWS: { feature: string; others: boolean; trackd: boolean }[] = [
   { feature: "Active stock that changes with every dose you log", others: false, trackd: true },
   { feature: "Built-in reconstitution calculator that shows more than the units", others: false, trackd: true },
   { feature: "Training blocks that keep a whole prep in one place", others: false, trackd: true },
-  { feature: "Peptides, anabolics and supplements in one place", others: false, trackd: true },
+  { feature: "One shelf for the pins, the tablets and the tubs", others: false, trackd: true },
   { feature: "Works on your laptop as well as your phone", others: false, trackd: true },
   { feature: "Vibe coded in a weekend", others: true, trackd: false },
 ];

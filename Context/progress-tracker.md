@@ -5673,3 +5673,57 @@ together with the same mapping.
 "tail" is kept but unused: on "Join the movement" at 390px its return pass was
 64px against the first stroke's 152px and sat inside it vertically, so it read
 as one line with a thick end.
+
+## The carousel, the avatars, and seven rows that research says are false (2026-09-19)
+
+### What Adrian picked
+Coverflow for the carousel, natural card heights, a drawn figure for the avatar,
+and one of the seven comparison rows replaced.
+
+- **Coverflow.** The active card faces you centred; the neighbours are turned
+  away, tucked behind and dimmed. The old snap-scroller could centre a card but
+  only ever left-aligned its track, so the section never looked centred at rest.
+- **⚠️ The cards share ONE grid cell** rather than being absolutely positioned.
+  The row is then as tall as the tallest card while each card keeps its own
+  height, which is what makes natural heights possible without measuring
+  anything in JS. Do not "simplify" it to `position: absolute`.
+- **⚠️ The coverflow numbers are bounded by the screen edge, not by taste.** At
+  the first setting a neighbour's outer edge landed outside a 390px phone and
+  the card was guillotined mid-word, which reads as a bug rather than as depth.
+  Offset, rotation and scale are now set so the edge stays inside, and the stage
+  clips as well.
+- **A drawn figure, not initials and not a photograph.** He asked for photos so
+  the cards would stop looking anonymous. An alias hides a real person who
+  really said something; a face asserts a person, and a stock or generated one
+  asserts a person who does not exist. If the three ever send their own photos,
+  `Avatar` is the only component that has to change.
+
+### ⚠️ Five of the seven comparison rows are FALSE, and six of them are still live
+
+Thirteen agents surveyed the market. Five rows were judged false, meaning a
+cross in the "Other apps" column is contradicted by named rivals' own marketing:
+
+- Site rotation that fades: My TRT App ships "11 anatomical injection sites,
+  colour-coded by rest level"; DoneDose, PepDose, StackTrax and Peptide Tracker
+  all sell rest-state shading, and ten more do rotation.
+- Stock that changes as you log: StackTrax "auto-decrements as you log doses";
+  Anabolic Steroid & TRT Tracker "automatically track the amount of gear
+  remaining"; also DoneDose, Dose, Dosecast.
+- A calculator showing more than the units: Peptide Deck markets itself on
+  exactly that line; Titrate and StackTrax publish doses-per-vial too.
+- Peptides, anabolics and supplements in one place: TRT+ and Dose name all three.
+- Works on your laptop: app.peptiq.io returned HTTP 200 serving a real PWA.
+
+Blocks and the inverted "vibe coded in a weekend" row came back risky; the
+latter's tick asserts that Shotsy (1M+ downloads) and Medisafe were vibe coded
+in a weekend.
+
+**Adrian kept six of the seven as they are** and took an alternative only on the
+supplements row, which is now "One shelf for the pins, the tablets and the
+tubs". His call, made with the verdicts and the evidence in front of him.
+
+⚠️ The thing that carries the risk is the CROSS, not the wording: every row is
+true of Trackd, and it is the "Other apps" column that turns each one into a
+comparative claim. Dropping that column would keep all seven lines word for word
+and remove the exposure, and it has not been offered to him yet as its own
+decision. The researched alternatives are in the artifact if he wants them later.
