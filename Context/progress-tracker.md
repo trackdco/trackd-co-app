@@ -5727,3 +5727,38 @@ true of Trackd, and it is the "Other apps" column that turns each one into a
 comparative claim. Dropping that column would keep all seven lines word for word
 and remove the exposure, and it has not been offered to him yet as its own
 decision. The researched alternatives are in the artifact if he wants them later.
+
+## The comparison column became "a notes app" (2026-09-19)
+
+Adrian's question was whether the column could be kept and simply renamed. It
+could not: the test is the impression a reasonable person takes from the page,
+so "Them", "The rest" or "Typical apps" all still read as rival apps. What works
+is changing what the column IS.
+
+⚠️ THE RISK WAS NEVER THE WORDING OF THE ROWS. Every row is true of Trackd. It
+was the cross beside them, because "Other apps" turned each line into a factual
+claim about competitors, and five of the seven were falsified by rivals' own
+marketing. Against a notes app every cross is simply true.
+
+It also makes the page agree with itself. The hero says take your protocol out
+of your notes app, the features heading is "Seven things your notes app can't
+do", the closing line says get it out of the notes app. This table was the one
+place that switched enemy, and it switched to the one we cannot win on paper.
+
+Two rows had to move with the column:
+
+- **"Works on your laptop as well as your phone" is gone.** Apple Notes and
+  Google Keep sync across devices, so that cross would have been false on day
+  one. It is now "Charts your weight against what you were running", which a
+  notes app plainly cannot do.
+- **The inverted row is "Leaves the maths to you"** rather than "Vibe coded in a
+  weekend", which was never true of a notes app.
+
+⚠️ THE TEST FOR ANY NEW ROW IS NOT "is this good about us". It is "would a notes
+app plainly fail this". The data field is called \`notesApp\` now so the code
+reads the same way.
+
+Still outstanding: the founders' letter says "other vibe coded apps that only
+ever get half of it right", which is the last comparative claim about rivals on
+the page. It sits in a letter as opinion rather than beside a cross in a table,
+so it is a different kind of statement, but it has not been looked at.

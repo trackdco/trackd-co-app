@@ -267,10 +267,10 @@ export default function LandingPage() {
         <section id="compare" tabIndex={-1} aria-labelledby="compare-title" className="lp-sec lp-sec-tight outline-none">
           <div className="lp-enter lp-col text-center">
             <h2 id="compare-title" className={cn(LANDING_TITLE, "text-balance")}>
-              Us vs other tracking apps
+              Us vs a notes app
             </h2>
             <p className={cn(LANDING_SUB, "mx-auto mt-5 max-w-[30rem]")}>
-              What you get here that others won&apos;t give you.
+              What you get here that a notes app never will.
             </p>
           </div>
           <div className="lp-enter mx-auto mt-10 w-full max-w-[52rem] px-4 md:mt-14 md:px-8">

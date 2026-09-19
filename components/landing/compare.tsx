@@ -6,48 +6,46 @@ import { cn } from "@/lib/utils";
 /**
  * THE COMPARISON TABLE (spec 3-03 §3.6).
  *
- * `Feature | Other apps | Trackd`, crosses down one column and ticks down the
+ * `Feature | A notes app | Trackd`, crosses down one column and ticks down the
  * other, and then a last row that turns it round on purpose: the feature is a
- * BAD one, so other apps have it and Trackd does not.
+ * BAD one, so the notes app has it and Trackd does not.
  *
  * ## How the inversion reads as a point rather than a mistake
  *
  * The Trackd column is lit the whole way down. The MARK follows the symbol,
  * not the column (Adrian, 2026-09-17): a tick is always the filled white one
- * and a cross is always the muted outline one, so on the last row the two
- * swap sides, and the flip is the punchline. (A caption saying so was cut.)
+ * and a cross is always the muted outline one, so on the last row the two swap
+ * sides, and the flip is the punchline.
  *
- * ## ⚠️ TODO(3-03): THESE ARE CLAIMS ABOUT COMPETITORS
+ * ## ⚠️ THE COLUMN USED TO SAY "OTHER APPS", AND THAT IS WHY IT DOES NOT
  *
- * A cross under "Other apps" says other apps lack the feature. Some apps in
- * this space do have some of these, and a comparative claim on a live page has
- * to be true. Adrian rewrote all seven in the 2026-09-18 copy pass and STILL
- * has to confirm each one: row 5 ("peptides, anabolics and supplements in one
- * place") is the broadest of them. Nothing here names a competitor, and none of
- * it says anything about health.
+ * Every row here is true OF TRACKD. What made the old column a problem was not
+ * the wording of the rows, it was the cross beside them: "Other apps" turned
+ * each line into a factual claim about competitors, and a market survey found
+ * five of the seven falsified by rivals' own marketing. My TRT App sells "11
+ * anatomical injection sites, colour-coded by rest level". StackTrax
+ * "auto-decrements as you log doses". Peptide Deck markets itself on publishing
+ * more than the units. TRT+ and Dose both cover peptides, anabolics and
+ * supplements. app.peptiq.io serves a working PWA.
  *
- * "Anabolics" is deliberate (Adrian, 2026-09-18): "juice" is slang on a page
- * Apple reads, and "steroids" reads worse than the thing it names.
+ * Against a NOTES APP every cross is simply true, and the page finally agrees
+ * with itself: the hero, the features heading and the closing line all name the
+ * notes app as the thing you are leaving. This table was the one place that
+ * switched enemy, and it switched to the one we cannot win on paper.
  *
- * ⚠️ NO MEDICAL ROW HERE ANY MORE, and that is a decision rather than an
- * oversight. "Never gives you sketchy medical advice" and then "Built to track,
- * not to advise" both sat in row 6, and Adrian's ruling is that this table
- * compares FEATURES: a disclaimer scored against other apps reads as a feature
- * you are boasting about. The position is still stated twice on the page, in
- * the first FAQ answer and in the footer.
- *
- * The last row is deliberately an opinion rather than a checkable claim
- * (Adrian, 2026-09-18, chosen over "locks your history when you stop paying",
- * which would have been a factual assertion about other apps).
+ * ⚠️ SO THE TEST FOR A NEW ROW IS NOT "is this good about us". It is "would a
+ * notes app plainly fail this". "Works on your laptop as well as your phone"
+ * was dropped at the rename for exactly that reason: Apple Notes and Google
+ * Keep sync across devices, so the cross would have been false on day one.
  */
-const ROWS: { feature: string; others: boolean; trackd: boolean }[] = [
-  { feature: "Built-in injection site rotation that fades as sites rest", others: false, trackd: true },
-  { feature: "Active stock that changes with every dose you log", others: false, trackd: true },
-  { feature: "Built-in reconstitution calculator that shows more than the units", others: false, trackd: true },
-  { feature: "Training blocks that keep a whole prep in one place", others: false, trackd: true },
-  { feature: "One shelf for the pins, the tablets and the tubs", others: false, trackd: true },
-  { feature: "Works on your laptop as well as your phone", others: false, trackd: true },
-  { feature: "Vibe coded in a weekend", others: true, trackd: false },
+const ROWS: { feature: string; notesApp: boolean; trackd: boolean }[] = [
+  { feature: "Built-in injection site rotation that fades as sites rest", notesApp: false, trackd: true },
+  { feature: "Active stock that changes with every dose you log", notesApp: false, trackd: true },
+  { feature: "Built-in reconstitution calculator that shows more than the units", notesApp: false, trackd: true },
+  { feature: "Training blocks that keep a whole prep in one place", notesApp: false, trackd: true },
+  { feature: "One shelf for the pins, the tablets and the tubs", notesApp: false, trackd: true },
+  { feature: "Charts your weight against what you were running", notesApp: false, trackd: true },
+  { feature: "Leaves the maths to you", notesApp: true, trackd: false },
 ];
 
 export function CompareTable() {
@@ -70,7 +68,7 @@ export function CompareTable() {
             <col className="w-11 md:w-[22%]" />
           </colgroup>
           <caption className="sr-only">
-            {BUSINESS_NAME} compared with other tracking apps, feature by feature.
+            {BUSINESS_NAME} compared with a notes app, feature by feature.
           </caption>
           <thead>
             <tr>
@@ -79,8 +77,12 @@ export function CompareTable() {
               </th>
               <th scope="col" className="px-1 pb-4 pt-5 text-center align-bottom md:px-2 md:pt-6">
                 <span className="text-[9px] uppercase tracking-normal text-text-secondary md:text-[10px] md:tracking-[0.18em]">
-                  <span className="md:hidden">Others</span>
-                  <span className="hidden md:inline">Other apps</span>
+                  {/* One word on a phone: the column is 44px and "Notes app"
+                      wrapped onto two lines, which threw the header row out of
+                      line with FEATURE beside it. The section title two inches
+                      up already says what this column is. */}
+                  <span className="md:hidden">Notes</span>
+                  <span className="hidden md:inline">A notes app</span>
                 </span>
               </th>
               <th scope="col" className="px-1 pb-4 pt-5 text-center align-bottom md:px-2 md:pt-6">
@@ -111,7 +113,7 @@ export function CompareTable() {
                   {r.feature}
                 </th>
                 <td className="px-0.5 text-center md:px-2">
-                  <Mark on={r.others} />
+                  <Mark on={r.notesApp} />
                 </td>
                 <td className="px-0.5 text-center md:px-2">
                   <Mark on={r.trackd} />
