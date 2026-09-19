@@ -3960,34 +3960,3 @@ body[data-inline-edit="true"] .shortcuts-layer {
     transform: none;
   }
 }
-
-/* ---------------------------------------------------------------- Coverflow
-   The reviews carousel (`components/landing/testimonials.tsx`).
-
-   ⚠️ EVERY CARD SHARES ONE GRID CELL. The row is then as tall as the tallest
-   card while each card keeps its own height, which is what lets a short quote
-   sit in a short card without the stage collapsing. Absolute positioning would
-   need the height measured in JS on every resize and font load. */
-.lp-flow {
-  perspective: 1100px;
-  transform-style: preserve-3d;
-  /* The turned-away cards stop at the section edge rather than the viewport. */
-  overflow-x: clip;
-}
-.lp-flow > * {
-  grid-area: 1 / 1;
-  transition:
-    transform var(--motion-slow, 420ms) var(--motion-ease, cubic-bezier(0.22, 0.7, 0.3, 1)),
-    opacity var(--motion-slow, 420ms) var(--motion-ease, cubic-bezier(0.22, 0.7, 0.3, 1));
-  /* A swipe must always land on the stage, never on whichever card happens to
-     be under the finger. */
-  pointer-events: none;
-}
-.lp-flow > [data-on] {
-  pointer-events: auto;
-}
-@media (prefers-reduced-motion: reduce) {
-  .lp-flow > * {
-    transition: none;
-  }
-}
