@@ -37,15 +37,45 @@ import { cn } from "@/lib/utils";
  * notes app plainly fail this". "Works on your laptop as well as your phone"
  * was dropped at the rename for exactly that reason: Apple Notes and Google
  * Keep sync across devices, so the cross would have been false on day one.
+ *
+ * ## ⚠️ THREE MORE ROWS FAILED THAT TEST AND WERE REPLACED THE SAME DAY
+ *
+ * A sweep of Apple Notes, Google Keep, Notion, OneNote, Samsung Notes and
+ * Obsidian killed three of the seven within an hour of the rename:
+ *
+ * - **"Leaves the maths to you" was false of all six.** Apple Notes has shipped
+ *   MATH NOTES since iOS 18: type an equation with "=" and it solves, named
+ *   variables recalculate everything downstream, it converts units, runs the
+ *   scientific function set and solves handwriting on iPad. Any reader could
+ *   disprove that row on their own phone in about ten seconds, which is the
+ *   worst property a comparison row can have. The true, narrower claim is that
+ *   a notes app does the arithmetic and knows nothing about the domain, which
+ *   is what "Doesn't know mg from IU" says.
+ * - **"Training blocks that keep a whole prep in one place" is a paraphrase of
+ *   what a notes app IS.** Folders, nested subfolders, tags, Smart Folders,
+ *   note links, collapsible headings. The cross read as a straw man and cost
+ *   credibility on the rows that are genuinely strong. Our differentiator was
+ *   never the container, it is that a block is typed and dated, so the row
+ *   says the part a notes app cannot reach: it knows what week you are in.
+ * - **"One shelf for the pins, the tablets and the tubs" loses to one Keep
+ *   list with three groups**, which is exactly what our own hero says people
+ *   already do. The unreachable half is the forecast, not the list.
+ *
+ * Rows 1 and 6 came back clean against all six apps and should anchor the
+ * table. Rows 2 and 3 came back "partly": both hold while the weight stays on
+ * the self-updating half ("changes with every dose you log", "more than the
+ * units"), because Math Notes variables cover more of the static half than the
+ * old framing ever forced us to admit. Do not weaken either into a bare
+ * "built-in calculator" or a plain "tracks your stock".
  */
 const ROWS: { feature: string; notesApp: boolean; trackd: boolean }[] = [
   { feature: "Built-in injection site rotation that fades as sites rest", notesApp: false, trackd: true },
   { feature: "Active stock that changes with every dose you log", notesApp: false, trackd: true },
   { feature: "Built-in reconstitution calculator that shows more than the units", notesApp: false, trackd: true },
-  { feature: "Training blocks that keep a whole prep in one place", notesApp: false, trackd: true },
-  { feature: "One shelf for the pins, the tablets and the tubs", notesApp: false, trackd: true },
+  { feature: "Knows it is week 7 of 16, without you counting", notesApp: false, trackd: true },
+  { feature: "Tells you a vial runs dry before it does", notesApp: false, trackd: true },
   { feature: "Charts your weight against what you were running", notesApp: false, trackd: true },
-  { feature: "Leaves the maths to you", notesApp: true, trackd: false },
+  { feature: "Doesn't know mg from IU", notesApp: true, trackd: false },
 ];
 
 export function CompareTable() {

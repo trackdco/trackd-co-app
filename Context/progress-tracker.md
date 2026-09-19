@@ -5762,3 +5762,31 @@ Still outstanding: the founders' letter says "other vibe coded apps that only
 ever get half of it right", which is the last comparative claim about rivals on
 the page. It sits in a letter as opinion rather than beside a cross in a table,
 so it is a different kind of statement, but it has not been looked at.
+
+### ⚠️ Three of the seven notes-app rows were false within the hour
+
+A sweep of Apple Notes, Google Keep, Notion, OneNote, Samsung Notes and
+Obsidian checked every row against every app. Three failed:
+
+- **"Leaves the maths to you" was false of all six.** Apple Notes has shipped
+  MATH NOTES since iOS 18: type an equation with "=" and it solves, named
+  variables recalculate downstream, it converts units, runs the scientific
+  function set, and solves handwriting on iPad. Any reader could disprove it on
+  their own phone in ten seconds. It is now "Doesn't know mg from IU", which is
+  the true, narrower claim: a notes app does the arithmetic and knows nothing
+  about the domain.
+- **"Training blocks that keep a whole prep in one place" is a paraphrase of
+  what a notes app IS** (folders, nested subfolders, tags, Smart Folders, note
+  links). The cross read as a straw man. Our differentiator was never the
+  container, it is that a block is typed and dated, so the row is now "Knows it
+  is week 7 of 16, without you counting".
+- **"One shelf for the pins, the tablets and the tubs" loses to one Google Keep
+  list with three groups**, which is what our own hero says people already do.
+  It is now "Tells you a vial runs dry before it does": the unreachable half is
+  the forecast, not the list.
+
+Rows 1 and 6 came back clean against all six and anchor the table. Rows 2 and 3
+came back "partly" and hold only while the weight stays on the self-updating
+half: do not weaken either into a bare "built-in calculator" or a plain "tracks
+your stock", because Math Notes variables cover more of the static half than the
+old "Other apps" framing ever forced us to admit.
