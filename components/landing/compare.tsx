@@ -59,7 +59,16 @@ import { cn } from "@/lib/utils";
  *   says the part a notes app cannot reach: it knows what week you are in.
  * - **"One shelf for the pins, the tablets and the tubs" loses to one Keep
  *   list with three groups**, which is exactly what our own hero says people
- *   already do. The unreachable half is the forecast, not the list.
+ *   already do. A notes app can hold a list; what it cannot do is BUILD one
+ *   from a schedule, so the row became the daily log (Adrian, 2026-09-19).
+ *
+ * ## The flipped row is an observation, not a feature claim
+ *
+ * "Gets buried under the shopping list" is deliberately about how a notes app
+ * gets USED rather than what it can do, which is why it is the one row nothing
+ * can falsify. Its two predecessors both failed on capability: "Vibe coded in
+ * a weekend" asserted something untrue about real companies, and "Leaves the
+ * maths to you" was disproved by Math Notes. Keep this row in that register.
  *
  * Rows 1 and 6 came back clean against all six apps and should anchor the
  * table. Rows 2 and 3 came back "partly": both hold while the weight stays on
@@ -73,9 +82,9 @@ const ROWS: { feature: string; notesApp: boolean; trackd: boolean }[] = [
   { feature: "Active stock that changes with every dose you log", notesApp: false, trackd: true },
   { feature: "Built-in reconstitution calculator that shows more than the units", notesApp: false, trackd: true },
   { feature: "Knows it is week 7 of 16, without you counting", notesApp: false, trackd: true },
-  { feature: "Tells you a vial runs dry before it does", notesApp: false, trackd: true },
+  { feature: "Today's doses are already listed when you open it", notesApp: false, trackd: true },
   { feature: "Charts your weight against what you were running", notesApp: false, trackd: true },
-  { feature: "Doesn't know mg from IU", notesApp: true, trackd: false },
+  { feature: "Gets buried under the shopping list", notesApp: true, trackd: false },
 ];
 
 export function CompareTable() {
