@@ -70,8 +70,19 @@ import { cn } from "@/lib/utils";
  * a weekend" asserted something untrue about real companies, and "Leaves the
  * maths to you" was disproved by Math Notes. Keep this row in that register.
  *
- * Rows 1 and 6 came back clean against all six apps and should anchor the
- * table. Rows 2 and 3 came back "partly": both hold while the weight stays on
+ * ⚠️ ROW 6 WAS THE OTHER CLEAN ONE AND IS NO LONGER. It read "Charts your
+ * weight against what you were running", and the sweep passed it because
+ * CHARTING is the unreachable part: Apple's Math Notes graphs functions, not a
+ * column of logged weights, and a notes app cannot plot one series against
+ * another. Rewording it to "Your weight, photos and bloods beside what you ran"
+ * broadened the claim but dropped that word, and co-locating three things in
+ * one note is precisely what a notes app is FOR. It is now the same shape of
+ * risk that killed "Training blocks that keep a whole prep in one place": a
+ * reader thinks of their own note with a photo and a number in it, and the
+ * cross reads as a straw man. If it is tightened later, put the mechanism back
+ * rather than the breadth.
+ *
+ * Row 1 came back clean against all six apps and anchors the table. Rows 2 and 3 came back "partly": both hold while the weight stays on
  * the self-updating half ("changes with every dose you log", "more than the
  * units"), because Math Notes variables cover more of the static half than the
  * old framing ever forced us to admit. Do not weaken either into a bare
@@ -81,9 +92,9 @@ const ROWS: { feature: string; notesApp: boolean; trackd: boolean }[] = [
   { feature: "Built-in injection site rotation that fades as sites rest", notesApp: false, trackd: true },
   { feature: "Active stock that changes with every dose you log", notesApp: false, trackd: true },
   { feature: "Built-in reconstitution calculator that shows more than the units", notesApp: false, trackd: true },
-  { feature: "Knows it is week 7 of 16, without you counting", notesApp: false, trackd: true },
-  { feature: "Today's doses are already listed when you open it", notesApp: false, trackd: true },
-  { feature: "Charts your weight against what you were running", notesApp: false, trackd: true },
+  { feature: "Always knows what week of the prep you are in", notesApp: false, trackd: true },
+  { feature: "Opens on what is due today", notesApp: false, trackd: true },
+  { feature: "Your weight, photos and bloods beside what you ran", notesApp: false, trackd: true },
   { feature: "Gets buried under the shopping list", notesApp: true, trackd: false },
 ];
 
