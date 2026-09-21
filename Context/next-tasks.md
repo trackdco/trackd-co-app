@@ -3559,7 +3559,7 @@ The supplied file reads "Trakabl." — capital T, trailing dot. The header logo 
 replaces was lowercase "trackd co". It was installed as sent, at the same path.
 Worth a decision, because it changes the header's character.
 
-Separately, `scripts/brand/trackd-mark.src.png` is the old serif "Trackd" mark.
-Nothing reads it now that the splash belongs to `kyle.mjs`. It is a stale
-old-brand source sitting in the brand folder, which is the kind of file a later
-sweep picks up by mistake. Delete it or replace it.
+DONE: `scripts/brand/trackd-mark.src.png` (the old serif "Trackd" mark) is
+deleted. Nothing read it once the splash moved to `kyle.mjs`, and a stale
+old-brand source in the brand folder is the kind of file a later sweep picks up
+and reinstalls by mistake. Recoverable from git at 0b2f8c4 if ever wanted.
