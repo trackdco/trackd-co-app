@@ -84,8 +84,14 @@ function Bloom({ extent }: { extent: string }) {
       aria-hidden
       className="animate-welcome-bloom pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
       style={{
-        width: `calc(${extent} * 0.95)`,
-        height: `calc(${extent} * 0.95)`,
+        /* 1.405, not the old 0.95, and the two are the SAME bloom.
+           It is sized off `extent` — the image BOX — and the box shrank by
+           0.6761 when the art was cropped tight, while Kyle inside it did not
+           change size at all. Left at 0.95 the bloom quietly lost a third of
+           its spread relative to him. 0.95 / 0.6761 = 1.405 restores it. If
+           the crop ever changes again, this moves with the call sites. */
+        width: `calc(${extent} * 1.405)`,
+        height: `calc(${extent} * 1.405)`,
         background:
           "radial-gradient(circle, color-mix(in srgb, var(--accent-amber) 26%, transparent), transparent 70%)",
       }}

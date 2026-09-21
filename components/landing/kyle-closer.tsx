@@ -61,7 +61,10 @@ export function KyleCloser() {
           <Image
             src="/onboarding/kyle-flex.png"
             alt=""
-            width={720}
+            /* The art's real pixels — 1018x900 since the shared crop. This
+               bypasses Mascot, so it does not inherit the component's
+               intrinsics and has to be kept in step by hand. */
+            width={1018}
             height={900}
             sizes="(min-width: 800px) 17rem, 10.5rem"
             className="h-auto w-full drop-shadow-[0_24px_40px_rgb(0_0_0/0.6)]"

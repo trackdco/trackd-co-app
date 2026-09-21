@@ -69,9 +69,14 @@ export function IntroScreen() {
             />
             <Image
               src="/onboarding/kyle-wave.png"
-              alt="Kyle, the Trackd vial, waving hello"
-              width={800}
-              height={730}
+              alt="Kyle, the Trakabl vial, waving hello"
+              /* The art's real pixels. Kyle is cropped to one box shared by
+                 every pose now, so this matches the other three — see
+                 scripts/brand/kyle.mjs. It was 800x730 against the previous
+                 render; left stale it reserves the wrong aspect box and the
+                 text below jumps as the image loads. */
+              width={1018}
+              height={900}
               priority
               sizes="230px"
               className="relative h-auto w-full drop-shadow-[0_22px_36px_rgb(0_0_0/0.55)]"
