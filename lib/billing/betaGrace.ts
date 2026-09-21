@@ -70,7 +70,7 @@ export const COMP_EMAILS: readonly string[] = [
   // The two founder accounts.
   "admin@trackdco.app",
   "adrianschimizzi1@gmail.com",
-  // Friends, given Trackd for life (Adrian, 2026-08-14).
+  // Friends, given Trakabl for life (Adrian, 2026-08-14).
   //
   // ⚠️ LOWERCASE, ALWAYS. `betaGrantFor` lowercases what it is given, so a
   // capitalised sign-up address still matches — but only if the entry here is
@@ -228,7 +228,7 @@ export function graceAsTrial(
  * not stop them landing in read-only the moment the gate goes on at P13,
  * because nothing grants them a row and the only writer today is the hand-run
  * backfill — which by definition ran before they signed up. So the person Adrian
- * promised Trackd to for life gets the app taken off them on launch morning.
+ * promised Trakabl to for life gets the app taken off them on launch morning.
  *
  * **Both, not either.** If this grant ever fails or races, the refusal is still
  * what stops the charge; if the refusal were ever weakened, this is what keeps

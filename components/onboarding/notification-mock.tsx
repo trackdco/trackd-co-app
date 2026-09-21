@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The OS PERMISSION PROMPT, drawn as the user's phone draws it (Adrian,
- * 2026-08-01: "the actual, like, when it says Trackd would like to send you
+ * 2026-08-01: "the actual, like, when it says Trakabl would like to send you
  * notifications").
  *
  * Showing a sample notification was answering a different question. What the
@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
  * screen reader would add noise and no capability.
  */
 
-const APP = "Trackd";
+const APP = "Trakabl";
 
 export function NotificationMock({
   platform,

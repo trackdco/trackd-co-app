@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { WelcomeEffectPicker } from "@/components/onboarding/welcome-effect-picker";
 
 export const metadata: Metadata = {
-  title: "Welcome effect options · Trackd Co",
+  title: "Welcome effect options · Trakabl",
   robots: { index: false, follow: false },
 };
 

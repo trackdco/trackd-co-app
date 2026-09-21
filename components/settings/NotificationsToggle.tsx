@@ -35,7 +35,7 @@ export function NotificationsToggle({
     if (!result.ok) {
       if (result.reason === "denied") {
         setMessage(
-          "Notifications are blocked. Turn them on for Trackd in your browser or phone settings, then try again.",
+          "Notifications are blocked. Turn them on for Trakabl in your browser or phone settings, then try again.",
         );
       } else if (result.reason === "error") {
         setMessage("Couldn't update notifications. Please try again.");
@@ -83,7 +83,7 @@ export function NotificationsToggle({
 
       {status === "denied" && (
         <p className="mt-3 text-sm leading-relaxed text-text-muted">
-          Notifications are blocked. Allow them for Trackd in your browser or
+          Notifications are blocked. Allow them for Trakabl in your browser or
           phone settings.
         </p>
       )}

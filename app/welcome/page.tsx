@@ -7,7 +7,7 @@ import { DEFAULT_NEXT, safeNextPath } from "@/lib/auth/nextPath";
 import { GateForm } from "./gate-form";
 
 export const metadata: Metadata = {
-  title: "Welcome · Trackd Co",
+  title: "Welcome · Trakabl",
 };
 
 /**
@@ -42,7 +42,7 @@ export default async function WelcomePage({
     <div className="flex min-h-dvh flex-col items-center justify-center px-8 text-center">
       <Image
         src="/trackd-wordmark.png"
-        alt="trackd co"
+        alt="Trakabl"
         width={1049}
         height={200}
         priority

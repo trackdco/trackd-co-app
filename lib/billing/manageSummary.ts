@@ -42,7 +42,7 @@ import {
  * per-state sentences are that one sentence. So the set below REPLACES §3.3's
  * line; Manage still carries exactly one summary. Nothing is lost by dropping the
  * replaced one — §3.4's handoff dialog already says "Stripe handles payments for
- * Trackd Co, so your card details never touch us", to the same person, one tap
+ * Trakabl, so your card details never touch us", to the same person, one tap
  * later, at the moment it matters.
  *
  * ## ⚠️ EVERY SUBSTITUTION COMES FROM ITS SOURCE. NONE IS TYPED.
@@ -369,7 +369,7 @@ export function summaryStateFor(f: SummaryFacts): SummaryState {
    *
    *     gate off  "You're on your Pro plan at $11.99 USD a month, and it renews
    *                on 18 Sept 2026."
-   *     gate on   "You're not on a plan at the moment. Trackd Co is read only."
+   *     gate on   "You're not on a plan at the moment. Trakabl is read only."
    *
    * Both to a customer Stripe will invoice on schedule.
    *
@@ -555,7 +555,7 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
      *
      * These three read as ONE sentence — "You've cancelled, so you keep…" — and
      * `splitSummary` splits at ". ", so they arrived on screen as a title with no
-     * subtitle while "You're not on a plan at the moment. Trackd Co is read only."
+     * subtitle while "You're not on a plan at the moment. Trakabl is read only."
      * next to them split correctly. The card format was inconsistent because the
      * COPY was, not because the component was.
      *
@@ -680,7 +680,7 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
        * ⚠️ RE-SIGNED 2026-08-25. The comma splice became a full stop.
        *
        * Adrian, on the copy review: *"just get rid of the 'so' so it says,
-       * 'You're not on a plan at the moment. Trackd Co is read only.'"*
+       * 'You're not on a plan at the moment. Trakabl is read only.'"*
        *
        * Two sentences rather than one clause hanging off another: the first is
        * the state, the second is the consequence, and neither has to be read
@@ -693,7 +693,7 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
        * the read-only pop-up, and adding it here would push this card toward the
        * three-line wrap the same review objected to.
        */
-      return "You're not on a plan at the moment. Trackd Co is read only.";
+      return "You're not on a plan at the moment. Trakabl is read only.";
   }
 }
 
@@ -702,7 +702,7 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
  *
  * Adrian's notice-card format (2026-08-25) wants the first sentence larger and
  * white with the remainder muted beneath it: *"the title could be 'You're not on
- * a plan at the moment' and the subtext could be 'Trackd Co is read only'."*
+ * a plan at the moment' and the subtext could be 'Trakabl is read only'."*
  *
  * ## ⚠️ THIS IS A SPLIT, NOT A REWRITE, AND THE DIFFERENCE HAS TO BE PROVABLE
  *

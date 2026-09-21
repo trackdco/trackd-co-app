@@ -103,7 +103,7 @@ export function NotificationsScreen() {
       // opens anything and a control that does nothing visible reads as broken.
       sub={
         deferred
-          ? "A nudge on dose days. Nothing else. Your phone will ask once Trackd is on your home screen."
+          ? "A nudge on dose days. Nothing else. Your phone will ask once Trakabl is on your home screen."
           : "A nudge on dose days. Nothing else."
       }
       footer={

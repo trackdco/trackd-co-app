@@ -1106,7 +1106,7 @@ export async function runForUser(
     if (lowMsg) messages.push(lowMsg);
     if (messages.length === 0) {
       messages.push({
-        title: "Trackd",
+        title: "Trakabl",
         body: "Notifications are working. Nothing's due right now.",
         url: "/dashboard",
         tag: "trackd-test",

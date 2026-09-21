@@ -20,7 +20,7 @@ import { PRESS } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 /**
- * Profile → App row to install Trackd, platform-aware and self-hiding:
+ * Profile → App row to install Trakabl, platform-aware and self-hiding:
  *  - **Already on the Home Screen** (running standalone): the row is REMOVED — no
  *    point telling someone who's in the installed app to install it. (It renders
  *    its OWN leading divider, so when it returns null the list closes up cleanly —
@@ -99,9 +99,9 @@ export function InstallAppRow() {
             side="bottom"
             className="gap-0 rounded-t-3xl border-border-default bg-bg-surface px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
           >
-            <SheetTitle className="sr-only">Get Trackd on your phone</SheetTitle>
+            <SheetTitle className="sr-only">Get Trakabl on your phone</SheetTitle>
             <SheetDescription className="sr-only">
-              Scan this code with your phone camera to open Trackd there.
+              Scan this code with your phone camera to open Trakabl there.
             </SheetDescription>
             <PhoneHandoffPrompt />
           </SheetContent>
@@ -115,9 +115,9 @@ export function InstallAppRow() {
             side="bottom"
             className="gap-0 rounded-t-3xl border-border-default bg-bg-surface px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
           >
-            <SheetTitle className="sr-only">Add Trackd to your Home Screen</SheetTitle>
+            <SheetTitle className="sr-only">Add Trakabl to your Home Screen</SheetTitle>
             <SheetDescription className="sr-only">
-              How to install Trackd as an app on your iPhone Home Screen.
+              How to install Trakabl as an app on your iPhone Home Screen.
             </SheetDescription>
             {mode === "ios" ? <AddToHomeScreenPrompt /> : <OpenInSafariPrompt />}
           </SheetContent>

@@ -1,5 +1,5 @@
 /**
- * The Trackd number pad's key rules (feel pass, wave 3 §3), as pure logic.
+ * The Trakabl number pad's key rules (feel pass, wave 3 §3), as pure logic.
  *
  * - At most 6 digits and one decimal point.
  * - `.` is refused on an integer field; on an empty field it reads "0.".

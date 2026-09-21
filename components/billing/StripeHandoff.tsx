@@ -52,7 +52,7 @@ import { cn } from "@/lib/utils";
 
 /** ⚠️ SIGNED COPY, §3.4. Character for character. No em dash. */
 const TITLE = "You're off to Stripe";
-const BODY = "Stripe handles payments for Trackd Co, so your card details never touch us.";
+const BODY = "Stripe handles payments for Trakabl, so your card details never touch us.";
 const BODY_TWO =
   "Their page is where you change your card or download receipts. You'll come straight back here after.";
 const DISMISS = "Not now";

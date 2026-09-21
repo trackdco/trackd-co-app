@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 /**
  * PWA web app manifest (Next.js 16 `app/manifest.ts` file convention — served at
- * /manifest.webmanifest). Makes Trackd installable to the home screen as a
+ * /manifest.webmanifest). Makes Trakabl installable to the home screen as a
  * standalone app on Android/Chrome; iOS uses this plus the apple-touch-icon and
  * the appleWebApp metadata in app/layout.tsx.
  *
@@ -11,8 +11,8 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Trackd Co",
-    short_name: "Trackd",
+    name: "Trakabl",
+    short_name: "Trakabl",
     description:
       "Track peptide, anabolic, supplement, and hormone-optimisation protocols in one place.",
     // Installed app opens straight to /dashboard (the guard sends a logged-out

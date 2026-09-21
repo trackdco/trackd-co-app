@@ -6,7 +6,7 @@ import { GateForm } from "@/app/welcome/gate-form";
  * DEV-ONLY preview of the signup 18+/consent gate (Spec 12, Step 1) — the three
  * separate consents + the date-of-birth fields, viewable without signing in.
  * 404 in production. Visual only: the submit action requires a real session, so
- * "Enter Trackd" won't complete here — it's for reviewing the layout/copy.
+ * "Enter Trakabl" won't complete here — it's for reviewing the layout/copy.
  */
 export default function PreviewLegalConsentPage() {
   if (process.env.NODE_ENV === "production") notFound();
@@ -17,7 +17,7 @@ export default function PreviewLegalConsentPage() {
         Preview · signup consent
       </span>
       <h1 className="mt-8 text-2xl font-light tracking-[-0.02em] text-foreground">
-        Welcome to Trackd
+        Welcome to Trakabl
       </h1>
       <p className="mt-2 text-sm text-text-muted">
         Confirm your age and agree to the documents to continue.

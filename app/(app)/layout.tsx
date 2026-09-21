@@ -120,7 +120,7 @@ export default async function AppLayout({
       >
         <Image
           src="/trackd-wordmark.png"
-          alt="trackd co"
+          alt="Trakabl"
           width={1049}
           height={200}
           priority

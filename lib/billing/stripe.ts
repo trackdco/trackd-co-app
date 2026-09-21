@@ -48,7 +48,7 @@ export function stripe(): Stripe {
      * the drift worth worrying about: a version bump there cannot change what
      * this client parses.
      */
-    appInfo: { name: "Trackd Co", url: "https://trackdco.app" },
+    appInfo: { name: "Trakabl", url: "https://trackdco.app" },
   });
   return client;
 }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ForgotPasswordForm } from "@/app/forgot-password/forgot-password-form";
 
 export const metadata: Metadata = {
-  title: "Reset your password · Trackd Co",
+  title: "Reset your password · Trakabl",
 };
 
 /**
@@ -15,10 +15,10 @@ export const metadata: Metadata = {
 export default function ForgotPasswordPage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-8 text-center">
-      <Link href="/" aria-label="trackd co">
+      <Link href="/" aria-label="Trakabl">
         <Image
           src="/trackd-wordmark.png"
-          alt="trackd co"
+          alt="Trakabl"
           width={1049}
           height={200}
           priority

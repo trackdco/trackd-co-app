@@ -13,7 +13,7 @@ import { CostVariantG } from "./cost-variants";
  *
  * G is the tiers idea he described: the things you already pay for accumulating
  * as one bar, each row carrying a MASKED amount (`$X,XXX`) rather than a figure
- * we would be inventing, and Trackd last as the only real price on the screen.
+ * we would be inventing, and Trakabl last as the only real price on the screen.
  *
  * The full set stays reachable at `/start/cost` until he says the choice is
  * final, at which point the losers and that route both get deleted. Swapping the

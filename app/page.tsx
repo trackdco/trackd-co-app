@@ -61,9 +61,12 @@ import { cn } from "@/lib/utils";
  * - **Sentence case, and the house style holds** for page copy: no em dashes,
  *   no emoji, no exclamation marks. The four reviews are the one exception,
  *   printed exactly as their authors wrote them, punctuation included.
- * - **"Trackd" is the app, "Trackd Co" is the company.** Prose says
- *   `PRODUCT_NAME`; `BUSINESS_NAME` appears only where the legal entity is
- *   genuinely the subject, which is the footer and the link preview's site name.
+ * - **"Trakabl" is both the app and the business name; "Trackd Co Pty Ltd"
+ *   is the legal entity.** The rename collapsed the first two into one word
+ *   (see `lib/brand.ts`), so prose says `PRODUCT_NAME` and `BUSINESS_NAME`
+ *   resolves to the same string. `LEGAL_ENTITY` appears only where the
+ *   company is genuinely the subject: the footer disclosure and the legal
+ *   documents.
  * - **The founders' note became a letter**, so the heading and the menu item
  *   both say letter now.
  *
@@ -400,7 +403,7 @@ function HeroDevice() {
       <Phone
         hero
         tab="dashboard"
-        label="The Trackd dashboard: today's log with four compounds, the due one being ticked off, and weight and next-dose cards below."
+        label="The Trakabl dashboard: today's log with four compounds, the due one being ticked off, and weight and next-dose cards below."
         className="lp-rise"
       >
         <TodayScreen />

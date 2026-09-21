@@ -149,9 +149,9 @@ describe("the fortnight's number and its signed sentence cannot drift apart", ()
      *
      * Matched with a word boundary on the end so an appended character fails.
      */
-    expect(copy).toMatch(/Trackd Co is going paid!(?!\w)/);
-    expect(copy).not.toMatch(/Trackd Co is going paid(?![!])/);
-    expect(copy).toContain("Trackd Co is yours. For life.");
+    expect(copy).toMatch(/Trakabl is going paid!(?!\w)/);
+    expect(copy).not.toMatch(/Trakabl is going paid(?![!])/);
+    expect(copy).toContain("Trakabl is yours. For life.");
     expect(copy).toContain("Set up my plan");
     expect(copy.length).toBeGreaterThan(600);
   });

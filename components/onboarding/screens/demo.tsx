@@ -127,7 +127,7 @@ const HEADINGS: Record<Stage, { title: string; sub: string }> = {
     // "It is all still there in six months" was killed by Adrian (2026-08-01)
     // for sounding like a storage guarantee rather than a reason to care. What
     // replaces it stays a statement about the RECORD, not about the user's
-    // results: Trackd shows you the run, it does not claim to improve it.
+    // results: Trakabl shows you the run, it does not claim to improve it.
     sub: "Bloods, weight and notes, sitting next to whatever you were running at the time.",
   },
 };

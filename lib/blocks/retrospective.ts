@@ -3,7 +3,7 @@
  * (`code-standards.md`).
  *
  * This is the whole point of the feature (Adrian, 2026-07-30). Everything here
- * is a QUERY over dated things Trackd already stores: weight, photos, bloods,
+ * is a QUERY over dated things Trakabl already stores: weight, photos, bloods,
  * journal entries, markers, and the dose log. Nothing new is captured and
  * nothing is stored — the no-stored-derived-values invariant means the numbers
  * on this screen are recomputed on every read, which is also what keeps them

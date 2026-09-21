@@ -258,7 +258,7 @@ describe("a comp is refused by two independent authorities", () => {
   it("also refuses on the in-memory comp list, which cannot fail", () => {
     // The entitlements read is a network call, so the refusal fails OPEN: a
     // Postgres blip at the wrong moment lets one of the five people promised
-    // Trackd for life confirm a card. `betaGrantFor` has no failure mode.
+    // Trakabl for life confirm a card. `betaGrantFor` has no failure mode.
     expect(body).toContain("betaGrantFor(user.email)");
     expect(body.indexOf("betaGrantFor(user.email)")).toBeLessThan(
       body.indexOf("findOrCreateCustomer"),

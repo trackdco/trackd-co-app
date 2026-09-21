@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
  * He hit an error partway through `/plans`, and the only two things the screen
  * offered were "Try again" and "Back to home". He clicked the second, `/` sent
  * him to `/dashboard` (`app/page.tsx` routes a signed-in, gated user straight
- * into the app), and he was inside Trackd having never reached a card field.
+ * into the app), and he was inside Trakabl having never reached a card field.
  *
  * ⚠️ **THAT DOOR IS NOT ALLOWED TO EXIST HERE.** An error thrown while somebody
  * is choosing a plan or entering a card is a reason to put them BACK IN THE
@@ -75,7 +75,7 @@ export function FlowError({
     <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-6 text-center">
       <Image
         src="/trackd-wordmark.png"
-        alt="trackd co"
+        alt="Trakabl"
         width={1049}
         height={200}
         className="h-4 w-auto opacity-80"

@@ -58,7 +58,7 @@ export const STAYING_NOTICE_TITLE = "Glad you're staying.";
  * consent to health-data processing.
  */
 export const CONTINUED_USE_PARTS = {
-  lead: "By continuing to use Trackd, you agree to the updated",
+  lead: "By continuing to use Trakabl, you agree to the updated",
   terms: "Terms of Service",
   join: "and",
   privacy: "Privacy Policy",
@@ -112,6 +112,20 @@ export const GRACE_NOTICE_PARTS = {
 
   /** Body, first paragraph. The date follows `runEnds`. */
   runEnds: "Your free run ends",
+  /**
+   * ⚠️ THIS ONE SENTENCE KEEPS THE OLD NAME, DELIBERATELY (Adrian, 2026-09-21).
+   *
+   * Every other signed string was re-signed to "Trakabl" in the rename, because
+   * an app called Trakabl cannot tell somebody "Trackd Co is read only". This
+   * one is different in kind: it is addressed to the beta cohort, about the
+   * thing they helped build, in the past tense — and the thing they helped
+   * build WAS called Trackd Co. Renaming it retroactively would rewrite their
+   * history rather than update a label.
+   *
+   * It is pinned against `signed/grace-ending.txt`, which also still reads
+   * "Trackd Co". If a later rename sweep changes one, it must change both, and
+   * it should not change either.
+   */
   thanks: "Thank you for helping make Trackd Co what it has become today.",
 
   /**
@@ -175,7 +189,7 @@ export const GRACE_NOTICE_PARTS = {
  * Signed by Adrian as option 2 of three, 2026-09-03.
  */
 export const GRACE_CONTINUED_USE_PARTS = {
-  lead: "Continuing to use Trackd Co means you accept the updated",
+  lead: "Continuing to use Trakabl means you accept the updated",
   terms: "Terms of Service",
   join: "and",
   privacy: "Privacy Policy",

@@ -133,7 +133,7 @@ export function InstallScreen() {
    * "I've added it" lands on a confirmation, not the dashboard.
    *
    * Adrian: "it takes me to the home page. I want it to take me to the page
-   * where it says Trackd is on your home screen." He is right — the tab they
+   * where it says Trakabl is on your home screen." He is right — the tab they
    * are looking at is now the WRONG copy of the app, and dropping them on the
    * dashboard inside it is an invitation to carry on in a browser tab whose
    * notifications will never arrive.
@@ -193,7 +193,7 @@ export function InstallScreen() {
     return (
       <StepFrame
         center
-        title="Trackd is on your home screen"
+        title="Trakabl is on your home screen"
         sub="Open it from there, not from this tab. That is where your reminders come from."
         footer={
           <div className="space-y-1">
@@ -219,8 +219,8 @@ export function InstallScreen() {
       <StepFrame
         center
         title="You're already set up"
-        sub="Trackd is on your home screen, so reminders can reach you."
-        footer={<FlowCta onClick={confirmManually}>Enter Trackd</FlowCta>}
+        sub="Trakabl is on your home screen, so reminders can reach you."
+        footer={<FlowCta onClick={confirmManually}>Enter Trakabl</FlowCta>}
       />
     );
   }
@@ -230,7 +230,7 @@ export function InstallScreen() {
     return (
       <StepFrame
         center
-        title="Add Trackd to your home screen"
+        title="Add Trakabl to your home screen"
         sub={
           promptFailed
             ? "The install prompt did not open. You can add it from the browser menu instead."
@@ -279,7 +279,7 @@ export function InstallScreen() {
   // genuinely does not exist and the honest answer is "switch browser".
   // `canInstallHere` also returns false for `desktop` now, for an unrelated
   // reason (a laptop has no home screen), and that dropped a MacBook into this
-  // branch reading "Open Trackd in Safari to add it / Chrome on iPhone can't
+  // branch reading "Open Trakabl in Safari to add it / Chrome on iPhone can't
   // add apps to the home screen" — while the steps underneath it were correctly
   // the desktop ones. Narrowed to the platform the copy is actually about.
   //
@@ -293,8 +293,8 @@ export function InstallScreen() {
       center
       title={
         wrongBrowser
-          ? `Open Trackd in Safari to add it`
-          : "Add Trackd to your home screen"
+          ? `Open Trakabl in Safari to add it`
+          : "Add Trakabl to your home screen"
       }
       // "Do this first." and nothing after it (Adrian, 2026-08-05). The tail
       // used to explain the consequence — "or reminders can't reach you" —

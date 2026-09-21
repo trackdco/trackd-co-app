@@ -205,7 +205,7 @@ describe("⚠️ the twelve signed sentences, each from its own state", () => {
 
   it("LAPSED", () => {
     expect(say(f({ gateEnabled: true }), "lapsed")).toBe(
-      "You're not on a plan at the moment. Trackd Co is read only.",
+      "You're not on a plan at the moment. Trakabl is read only.",
     );
   });
 

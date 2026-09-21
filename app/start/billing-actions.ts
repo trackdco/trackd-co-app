@@ -372,7 +372,7 @@ export async function startTrial(
    * `revoked` is the only one of the four that falls through, and it is the only
    * one where somebody has actually decided this person should pay. A Postgres
    * blip, or a backfill that has not run, must never be the reason one of the
-   * five people promised Trackd for life is handed a card form — and refusing
+   * five people promised Trakabl for life is handed a card form — and refusing
    * costs a comp nothing.
    */
   if (
@@ -1605,7 +1605,7 @@ async function findOrCreateCustomer(
  * Adrian, 2026-08-14: one trial per user, ever. Not per plan, not per
  * subscription. Before this, the loop was subscribe, cancel, wait for it to
  * lapse, subscribe again, free forever in seven-day steps. Harmless while
- * nothing gated; the read-only gate is what turns it into the way to use Trackd
+ * nothing gated; the read-only gate is what turns it into the way to use Trakabl
  * Co for nothing.
  *
  * ## ⚠️ THE TEST IS "DID A CARD EVER VALIDATE ON IT", NOT "DID IT HAVE A TRIAL"

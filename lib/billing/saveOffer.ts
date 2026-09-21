@@ -490,7 +490,7 @@ export async function grantExtraTime(
    * A cold review found two ways round the flags alone, because `OFFER_SHOWN_KEY` is
    * customer-scoped and permanent while the subscription underneath it is not:
    *
-   *   (a) cancel, take the un-cancel ("Keep Trackd after 19 Aug"), THEN claim.
+   *   (a) cancel, take the un-cancel ("Keep Trakabl after 19 Aug"), THEN claim.
    *       Result: a free week on a subscription nobody is leaving.
    *   (b) cancel, let it die, start a NEW subscription, claim on that one.
    *       Result: the same, on a subscription that was never cancelled at all.

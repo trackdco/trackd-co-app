@@ -17,7 +17,7 @@ import { getCapability } from "@/lib/push/pushService";
 import { useIsDesktop } from "@/lib/desktop/breakpoint";
 
 /**
- * "Add Trackd to your Home Screen" popup, shown on EVERY physical sign-in / sign-up
+ * "Add Trakabl to your Home Screen" popup, shown on EVERY physical sign-in / sign-up
  * (Adrian's call). `freshSignIn` comes from the `trackd-install-hint` cookie the
  * auth callback sets; the cookie is consumed only on DISMISS (POST
  * /api/install-hint — a route handler, NOT a Server Action, so it can't trigger an
@@ -56,7 +56,7 @@ export function InstallHomeScreenPopup({
         //
         // The sibling `components/profile/InstallAppRow.tsx` grew this guard
         // when the app gained a desktop layout, and this popup did not, so a
-        // laptop still met "Add Trackd to your Home Screen" on the dashboard
+        // laptop still met "Add Trakabl to your Home Screen" on the dashboard
         // immediately after an onboarding that had just decided it had no home
         // screen to add anything to. On desktop Chrome `cap.isIOS` is false and
         // `beforeinstallprompt` does fire (the manifest qualifies), so it fell
@@ -109,16 +109,16 @@ export function InstallHomeScreenPopup({
         side="bottom"
         className="gap-0 rounded-t-3xl border-border-default bg-bg-surface px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
       >
-        <SheetTitle className="sr-only">Add Trackd to your Home Screen</SheetTitle>
+        <SheetTitle className="sr-only">Add Trakabl to your Home Screen</SheetTitle>
         <SheetDescription className="sr-only">
-          Install Trackd as an app on your Home Screen.
+          Install Trakabl as an app on your Home Screen.
         </SheetDescription>
 
         {platform === "android" ? (
           <>
             <div className="rounded-2xl bg-bg-surface p-5">
               <p className="text-lg font-light tracking-[-0.02em] text-foreground">
-                Add Trackd to your Home Screen
+                Add Trakabl to your Home Screen
               </p>
               <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
                 Get the full app, not a browser tab. Full-screen and one tap away.

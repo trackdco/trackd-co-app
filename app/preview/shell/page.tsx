@@ -12,7 +12,7 @@ import type { StackCompound } from "@/lib/home/stack";
 import { slotKey } from "@/lib/home/doseLog";
 
 export const metadata: Metadata = {
-  title: "Desktop shell · Trackd Co",
+  title: "Desktop shell · Trakabl",
 };
 
 /**

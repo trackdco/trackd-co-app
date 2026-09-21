@@ -29,7 +29,7 @@ import { SHEET_TITLE } from "@/lib/ui-presets";
 export function AddToHomeScreenPrompt() {
   return (
     <div className="rounded-2xl bg-bg-surface p-5">
-      <p className={SHEET_TITLE}>Add Trackd to your Home Screen</p>
+      <p className={SHEET_TITLE}>Add Trakabl to your Home Screen</p>
       <p className="mt-1.5 mb-4 text-sm leading-relaxed text-text-muted">
         Get the full app, not a Safari tab. Here&apos;s how:
       </p>

@@ -137,7 +137,7 @@ export function chooseNotice(input: {
   /**
    * Everybody else on a `comp` row: the five free-for-life accounts. Their
    * variant is the only screen that ever tells them they have been given
-   * Trackd Co for good, so it is deliberately NOT superseded by anything.
+   * Trakabl for good, so it is deliberately NOT superseded by anything.
    */
   if (input.entitlement?.source === "comp" && !input.launchSeen) return "launch";
 

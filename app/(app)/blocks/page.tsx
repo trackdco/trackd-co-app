@@ -11,7 +11,7 @@ import type { ProgressPhoto } from "@/lib/progress/photos";
 import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 
 // A tab title is a user-facing string, so the no-em-dash rule applies to it too.
-export const metadata: Metadata = { title: "Blocks · Trackd Co" };
+export const metadata: Metadata = { title: "Blocks · Trakabl" };
 
 /**
  * A ceiling on every per-user read here.

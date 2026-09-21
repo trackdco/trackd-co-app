@@ -48,7 +48,7 @@
  * ## The rest of the safety
  *
  *   - `?dry=1` reports what it WOULD do and writes nothing. Run that first, and
- *     READ it: `compAccounts` names every address about to be given Trackd for
+ *     READ it: `compAccounts` names every address about to be given Trakabl for
  *     good, so a typo in the comp list is visible before it is permanent.
  *   - A real subscriber is never handed a comp.
  *   - Nobody's clock is restarted, or cut short.
@@ -234,7 +234,7 @@ export async function POST(req: Request) {
      * will add one after go-live, and re-running this is the only way to grant
      * them. With a plain "has a row" skip they would be skipped forever, because
      * the first run already gave them a fourteen-day grace — so the friend he
-     * meant to give Trackd to for good would quietly lapse instead.
+     * meant to give Trakabl to for good would quietly lapse instead.
      *
      * A cold review found the same thing from the other end and called it "the
      * comp list does nothing on a re-run", which it did.
@@ -330,7 +330,7 @@ export async function POST(req: Request) {
      *
      * A dry run exists to be READ before anything is permanent — `compAccounts`
      * is how a typo in the comp list becomes visible before somebody is given
-     * Trackd for good by accident, and `upgradedAccounts` is how you check the
+     * Trakabl for good by accident, and `upgradedAccounts` is how you check the
      * right friend was upgraded. That needs names.
      *
      * A cold review pointed out that the live run was returning the same thing:

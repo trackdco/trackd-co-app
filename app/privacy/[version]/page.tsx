@@ -25,7 +25,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { version } = await params;
   return {
-    title: `Privacy Policy v${version} · Trackd Co`,
+    title: `Privacy Policy v${version} · Trakabl`,
     /**
      * ⚠️ NOINDEX, and it is the point of the page rather than an afterthought.
      * A superseded document that competes with the live one in search results

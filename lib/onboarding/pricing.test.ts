@@ -153,7 +153,7 @@ describe("derived figures", () => {
     expect(monthlyEquivalent(priced.weekly)).toBeNull();
   });
 
-  it("prices the weekly plan as the most expensive way to buy Trackd", () => {
+  it("prices the weekly plan as the most expensive way to buy Trakabl", () => {
     // The whole point of the tier, and now a check on the DASHBOARD rather than
     // on a constant: if Adrian ever prices weekly below the yearly per-week
     // figure, the paywall is steering people to the wrong plan and the saving

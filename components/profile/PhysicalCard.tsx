@@ -131,7 +131,7 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
   );
   const [goal, setGoal] = useState(initial.goal ?? "");
   const [name, setName] = useState(initial.displayName ?? "");
-  // Height is typed on the Trackd pad (feel pass §3).
+  // Height is typed on the Trakabl pad (feel pass §3).
   const [heightPad, setHeightPad] = useState(false);
   const heightRef = useRef<HTMLButtonElement>(null);
   /**

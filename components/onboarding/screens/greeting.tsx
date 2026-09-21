@@ -13,7 +13,7 @@ import { WelcomeStage, type WelcomeEffect } from "../welcome-effects";
  *
  * ## Its last line points forward, deliberately
  *
- * "Let's see if Trackd is for you" was rejected: it invites a verdict on us at
+ * "Let's see if Trakabl is for you" was rejected: it invites a verdict on us at
  * the exact moment we want them talking about themselves, and it frames the
  * next two screens as a test they might fail. The line here says what happens
  * next and why it is worth answering — the two intent screens immediately
@@ -38,7 +38,7 @@ export function GreetingScreen() {
           <WelcomeStage
             effect={EFFECT}
             name={session.name}
-            sub="Let's learn a bit more about you, so Trackd can be built around your actual protocol."
+            sub="Let's learn a bit more about you, so Trakabl can be built around your actual protocol."
           />
         </ScrollPort>
 

@@ -640,7 +640,7 @@ export async function claimExtraTime(): Promise<
    *
    * A cold review measured the gap: `claimExtraTime` returned "22 Aug 2026" while
    * the screen behind the dialog still read "Trial ends 15 Aug 2026 / Keep
-   * Trackd after 15 Aug", and `entitlements.active_until` was still 15 Aug.
+   * Trakabl after 15 Aug", and `entitlements.active_until` was still 15 Aug.
    * Neither is written by this action; only the Stripe webhook writes them.
    *
    * Usually that lands a second later and nobody notices. When it does not —

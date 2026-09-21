@@ -364,7 +364,7 @@ function LogDoseBody({
   const slotDose = doseAmountsOf(onDay.schedule, onDay.dose)[slot] ?? onDay.dose
   const slotTime = doseTimesOf(onDay.schedule)[slot] ?? onDay.schedule.timeOfDay
   const [amount, setAmount] = useState(existing?.amount ?? String(slotDose))
-  // The dose is typed on the Trackd pad (feel pass §3), never the system keypad.
+  // The dose is typed on the Trakabl pad (feel pass §3), never the system keypad.
   const [padOpen, setPadOpen] = useState(false)
   const doseFieldRef = useRef<HTMLButtonElement>(null)
 
@@ -884,7 +884,7 @@ function LogDoseBody({
         >
           <LogRow label="Dose">
             <div className="flex items-center justify-end gap-2">
-              {/* The Trackd pad (feel pass §3): tapping the dose opens the pad
+              {/* The Trakabl pad (feel pass §3): tapping the dose opens the pad
                   over the sheet, which never grows or shrinks for it. An empty
                   dose is empty, never a placeholder figure. */}
               <PadInput

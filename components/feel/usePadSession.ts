@@ -5,7 +5,7 @@ import { useCallback, useRef, useState, type RefObject } from "react"
 import type { NumberPadProps, PadField } from "@/components/feel/NumberPad"
 
 /**
- * One Trackd pad over a form of several number fields (feel pass §3).
+ * One Trakabl pad over a form of several number fields (feel pass §3).
  *
  * The form keeps its own values and builds the field list in the order the
  * fields appear; this hook owns which one is being typed, remembers each

@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
  *
  * ## Why this exists: the documents say it happens, and it did not
  *
- * Terms v2.0 §25: *"By continuing to use Trackd after we have given you clear
+ * Terms v2.0 §25: *"By continuing to use Trakabl after we have given you clear
  * notice of updated terms, you agree to the updated Terms of Service and Privacy
  * Policy"* and *"We record which version of each document you accepted, and when
  * you accepted it."* Privacy v2.0 §13: *"We record your acceptance of our

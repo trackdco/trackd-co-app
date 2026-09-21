@@ -242,7 +242,7 @@ export function offerTitle(): string {
 /**
  * ⚠️ SIGNED. The thank-you is REMOVED, deliberately.
  *
- * It read *"Thank you for choosing Trackd Co to run your protocol. Before you go,
+ * It read *"Thank you for choosing Trakabl to run your protocol. Before you go,
  * we'd like to offer you another {period}, free."* Adrian cut the first sentence
  * on the 2026-08-25 review: it thanks somebody for a decision they have just
  * reversed, on the screen where they pressed cancel.

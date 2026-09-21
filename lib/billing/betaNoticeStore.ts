@@ -29,7 +29,7 @@
  *
  * The trial notice's cookie carries a `forDate` so a returning customer's SECOND
  * trial is announced again. This one deliberately does not: there is only one
- * moment when Trackd starts charging, it happens once, and re-announcing it
+ * moment when Trakabl starts charging, it happens once, and re-announcing it
  * would be an interruption with nothing new to say.
  *
  * ## ⚠️ D90 — IT HOLDS EVERY ACCOUNT THAT HAS DISMISSED IT, NOT THE LAST ONE

@@ -93,7 +93,7 @@ export function Arcade({ onClose }: { onClose: () => void }) {
               </button>
             )}
             <p className="text-[10px] tracking-[0.18em] uppercase text-text-muted">
-              {game ? game.name : "Trackd · arcade"}
+              {game ? game.name : "Trakabl · arcade"}
             </p>
           </div>
           <div className="flex items-center gap-2">

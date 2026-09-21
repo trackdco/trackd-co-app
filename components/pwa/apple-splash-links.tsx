@@ -2,11 +2,11 @@
  * iOS PWA launch (splash) images.
  *
  * iOS does NOT auto-generate a splash from the web manifest (that's Android-only),
- * so an installed Trackd PWA shows a blank #111110 screen on launch unless we
+ * so an installed Trakabl PWA shows a blank #111110 screen on launch unless we
  * provide `apple-touch-startup-image` links. iOS exact-matches on logical
  * width/height/DPR/orientation — no closest-match, no scaling — so we enumerate
  * every modern iPhone. `media` is in LOGICAL points; the PNG is PHYSICAL pixels
- * (logical × DPR). Each PNG has the Trackd mark baked onto #111110.
+ * (logical × DPR). Each PNG has the Trakabl mark baked onto #111110.
  *
  * Each PNG shows Kyle the vial fit (object-contain) into the device's physical
  * resolution and letterboxed on pure black. This launch image IS the splash:

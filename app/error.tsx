@@ -48,7 +48,7 @@ export default function Error({
     <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-6 text-center">
       <Image
         src="/trackd-wordmark.png"
-        alt="trackd co"
+        alt="Trakabl"
         width={1049}
         height={200}
         className="h-4 w-auto opacity-80"

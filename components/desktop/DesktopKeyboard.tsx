@@ -45,7 +45,7 @@ function modalOpen(): boolean {
   return Boolean(
     document.querySelector('[data-slot="sheet-content"][data-state="open"]') ||
       document.querySelector('[role="dialog"][aria-modal="true"]') ||
-      // The Trackd number pad, open on a page (the Weight screen, the
+      // The Trakabl number pad, open on a page (the Weight screen, the
       // Calculator): leaving would throw the figure away.
       document.querySelector("[data-pad-layer]") ||
       document.body.dataset.inlineEdit === "true",
@@ -69,7 +69,7 @@ function isTyping(target: EventTarget | null): boolean {
     tag === "TEXTAREA" ||
     tag === "SELECT" ||
     el.isContentEditable ||
-    // A number field is a button that opens the Trackd pad (feel pass §3);
+    // A number field is a button that opens the Trakabl pad (feel pass §3);
     // typing on it is typing.
     Boolean(el.closest?.("input, textarea, select, [contenteditable='true'], .pad-input, [data-pad-field]"))
   )

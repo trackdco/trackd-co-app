@@ -127,12 +127,12 @@ export function DesktopSidebar({
     >
       <Link
         href="/dashboard"
-        aria-label="Trackd Co, go to dashboard"
+        aria-label="Trakabl, go to dashboard"
         className="mb-6 block rounded-lg px-3 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Image
           src="/trackd-wordmark.png"
-          alt="trackd co"
+          alt="Trakabl"
           width={1049}
           height={200}
           priority

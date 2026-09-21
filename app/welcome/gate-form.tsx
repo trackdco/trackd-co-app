@@ -96,7 +96,7 @@ export function GateForm({
       ? `${year}-${String(month).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`
       : "";
 
-  // Enable "Enter Trackd" only once a DOB + sex are entered and all three
+  // Enable "Enter Trakabl" only once a DOB + sex are entered and all three
   // consents are ticked. The server still enforces the 18+ age check on top of
   // this, and re-validates sex (the client never decides either).
   const canSubmit =
@@ -160,7 +160,7 @@ export function GateForm({
       {/* Composed value the server action reads + validates. */}
       <input type="hidden" name="date_of_birth" value={dob} />
       <p className="mt-2 text-[0.7rem] text-text-subtle">
-        Trackd is for adults 18 and over. We use this to confirm your age.
+        Trakabl is for adults 18 and over. We use this to confirm your age.
       </p>
 
       {/* Sex — required. Sets which body the injection-site map draws; changeable
@@ -233,7 +233,7 @@ export function GateForm({
         {isPending ? (
           <CircleNotch className="size-5 animate-spin" aria-hidden="true" />
         ) : null}
-        {isPending ? "Setting up…" : "Enter Trackd"}
+        {isPending ? "Setting up…" : "Enter Trakabl"}
       </Button>
     </form>
   );

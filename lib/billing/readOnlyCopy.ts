@@ -47,7 +47,7 @@ export const READ_ONLY_POPUP = {
    * would cost to undo it.
    */
   body:
-    "You don't have access at the moment, so Trackd Co is read only. " +
+    "You don't have access at the moment, so Trakabl is read only. " +
     "You can still view everything you've logged, you just can't add to it.",
   reassurance: "Nothing has been deleted.",
   dismiss: "Back to my logs",

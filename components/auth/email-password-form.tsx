@@ -156,7 +156,7 @@ export function EmailPasswordForm({
       <p className="text-center text-[0.8rem] text-text-muted">
         {mode === "signin" ? (
           <>
-            New to Trackd?{" "}
+            New to Trakabl?{" "}
             <button
               type="button"
               onClick={() => setMode("signup")}

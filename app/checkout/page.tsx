@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { BillingFlowEntry } from "@/components/billing/BillingFlowEntry";
 
-export const metadata: Metadata = { title: "Payment details · Trackd Co" };
+export const metadata: Metadata = { title: "Payment details · Trakabl" };
 
 /**
  * `/checkout` — THE CARD SCREEN FOR SOMEBODY WHO ALREADY HAS AN ACCOUNT.

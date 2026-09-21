@@ -112,7 +112,7 @@ function Field({
   /**
    * PUBLIC PAGES ONLY (the landing page's free calculator and the features
    * widget): a plain input with the system keyboard, which is what those pages
-   * shipped and what someone who has never seen Trackd expects on a web page.
+   * shipped and what someone who has never seen Trakabl expects on a web page.
    * The pad is the app's rule (feel pass §3), and the app passes no `onChange`.
    */
   onChange?: (v: string) => void
@@ -145,7 +145,7 @@ function Field({
       {/* `pl-2.5` + `gap-1` rather than the roomier defaults: the paired
           columns are tightest at 360-390px, where the pill and the number are
           competing for about 110px of field. */}
-      {/* The value is typed on the Trackd pad (feel pass §3): a button, so
+      {/* The value is typed on the Trakabl pad (feel pass §3): a button, so
           nothing summons the system keypad, with the white ring and a caret
           while it is the field being edited. No placeholder figure: an empty
           field is empty. */}

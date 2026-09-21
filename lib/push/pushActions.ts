@@ -270,7 +270,7 @@ export async function sendTestNotification(): Promise<Ok> {
     if (error || !subs || subs.length === 0) return { ok: false };
 
     const body = JSON.stringify({
-      title: "Trackd",
+      title: "Trakabl",
       body: "Test notification. Push is working.",
       url: "/dashboard",
       tag: "trackd-test",

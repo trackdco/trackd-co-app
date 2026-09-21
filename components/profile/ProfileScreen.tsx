@@ -206,7 +206,7 @@ export function ProfileScreen({
         className="animate-home-up text-center text-xs text-text-subtle"
         style={{ animationDelay: "220ms" }}
       >
-        Trackd Co · v0.4 (Beta)
+        Trakabl · v0.4 (Beta)
       </p>
     </div>
   );

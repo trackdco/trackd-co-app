@@ -100,7 +100,7 @@ export function FeedbackSheet({
 
           <SheetTitle className="sr-only">{title}</SheetTitle>
           <SheetDescription className="sr-only">
-            Send a bug report or idea straight to the Trackd founders.
+            Send a bug report or idea straight to the Trakabl founders.
           </SheetDescription>
 
           <div className="flex-1 overflow-y-auto px-6 pb-2">

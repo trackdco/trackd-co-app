@@ -19,7 +19,7 @@ import { FlowCta, StepFrame } from "../chrome";
  * refuses to guess yours, C asks you, D shows no numbers. Every one is TGA-safe
  * for a different reason.
  *
- * The Trackd price is always read from `lib/onboarding/pricing.ts`, never typed
+ * The Trakabl price is always read from `lib/onboarding/pricing.ts`, never typed
  * in, so a pricing change moves all four at once.
  */
 
@@ -74,7 +74,7 @@ export function CostVariantA({ onContinue, yearlyPrice }: CostVariantProps) {
       footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       <div className="space-y-8 text-center">
-        <p className={CARD_EYEBROW}>A year of Trackd</p>
+        <p className={CARD_EYEBROW}>A year of Trakabl</p>
 
         <p className="text-[2.75rem] font-light leading-[1.05] tracking-[-0.03em] text-foreground">
           costs less than
@@ -139,7 +139,7 @@ export function CostVariantB({ onContinue, yearlyPrice }: CostVariantProps) {
           </ul>
 
           <div className="mt-1 flex items-baseline justify-between gap-4 border-t-[0.5px] border-border-strong pt-4">
-            <span className="text-[0.9rem] text-foreground">Trackd, per year</span>
+            <span className="text-[0.9rem] text-foreground">Trakabl, per year</span>
             <span className="font-mono text-xl font-light tabular-nums text-accent-amber">
               {ourPrice(yearlyPrice)}
             </span>
@@ -165,7 +165,7 @@ const MAX_SPEND = 600;
 export function CostVariantC({ onContinue, yearlyPrice }: CostVariantProps) {
   const [monthly, setMonthly] = useState(180);
   const theirYear = monthly * 12;
-  // Both bars are drawn against THEIR yearly figure, so the Trackd bar shrinks
+  // Both bars are drawn against THEIR yearly figure, so the Trakabl bar shrinks
   // as they drag up. That is the whole argument, made without a word.
   const trackdWidth = Math.max(1.5, ((yearlyPrice ?? 0) / theirYear) * 100);
 
@@ -212,7 +212,7 @@ export function CostVariantC({ onContinue, yearlyPrice }: CostVariantProps) {
 
           <div className="space-y-2">
             <div className="flex items-baseline justify-between">
-              <span className="text-[0.85rem] text-text-muted">Trackd</span>
+              <span className="text-[0.85rem] text-text-muted">Trakabl</span>
               <span className="font-mono text-sm tabular-nums text-foreground">
                 {ourPrice(yearlyPrice)}
               </span>
@@ -236,14 +236,14 @@ export function CostVariantC({ onContinue, yearlyPrice }: CostVariantProps) {
    =========================================================================== */
 const BARS = [
   { label: "What you run", height: 100, accent: false },
-  { label: "Trackd", height: 6, accent: true },
+  { label: "Trakabl", height: 6, accent: true },
 ];
 
 /**
  * A shower of dollar signs lifting off the top of a bar and falling away.
  *
  * `count` is the whole point of the comparison: the expensive bar sheds a lot
- * and the Trackd bar sheds one. Deterministic scatter, so it is identical on
+ * and the Trakabl bar sheds one. Deterministic scatter, so it is identical on
  * every render and cannot differ between server and client.
  */
 function DollarFall({
@@ -253,7 +253,7 @@ function DollarFall({
 }: {
   count: number;
   delay: number;
-  /** The Trackd bar's money is AMBER (Adrian, 2026-08-01), and there is barely
+  /** The Trakabl bar's money is AMBER (Adrian, 2026-08-01), and there is barely
    *  any of it. Two amber glyphs against nine muted ones is the whole argument
    *  in colour. This is not a new meaning for amber: the glyphs belong to the
    *  amber bar they fall from, so the bar and its money are ONE beat, which is
@@ -395,7 +395,7 @@ export function CostVariantD({ onContinue }: CostVariantProps) {
 /* ===========================================================================
    E — Itemised, redacted, one real figure  (Adrian's synthesis)
    His note: compare what things cost WITHOUT showing an amount, framed "per
-   year", with Trackd's real price at the bottom. The bars carry relative
+   year", with Trakabl's real price at the bottom. The bars carry relative
    magnitude, so the comparison still lands; only the numbers are withheld.
    =========================================================================== */
 const LINE_ITEMS = [
@@ -445,7 +445,7 @@ export function CostVariantE({ onContinue, yearlyPrice }: CostVariantProps) {
 
           <div className="mt-6 space-y-2 border-t-[0.5px] border-border-strong pt-5">
             <div className="flex items-baseline justify-between">
-              <span className="text-[0.85rem] text-foreground">Trackd</span>
+              <span className="text-[0.85rem] text-foreground">Trakabl</span>
               <span className="font-mono text-lg font-light tabular-nums text-accent-amber">
                 {ourPrice(yearlyPrice)}
               </span>
@@ -467,7 +467,7 @@ export function CostVariantE({ onContinue, yearlyPrice }: CostVariantProps) {
    F — Two rows. D, with the price on it.
    Adrian picked D as the best of the first four and asked for the $70 to show.
    This is that: one redacted bar for what a protocol costs, one amber sliver
-   for Trackd, both under "per year", and only Trackd carries a figure.
+   for Trakabl, both under "per year", and only Trakabl carries a figure.
    =========================================================================== */
 export function CostVariantF({ onContinue, yearlyPrice }: CostVariantProps) {
   const [grown, setGrown] = useState(false);
@@ -502,7 +502,7 @@ export function CostVariantF({ onContinue, yearlyPrice }: CostVariantProps) {
 
             <div className="space-y-2.5">
               <div className="flex items-baseline justify-between">
-                <span className="text-[0.9rem] text-foreground">Trackd</span>
+                <span className="text-[0.9rem] text-foreground">Trakabl</span>
                 <span className="font-mono text-lg font-light tabular-nums text-accent-amber">
                   {ourPrice(yearlyPrice)}
                 </span>
@@ -528,14 +528,14 @@ export function CostVariantF({ onContinue, yearlyPrice }: CostVariantProps) {
 /* ===========================================================================
    G — The stack that builds. ADRIAN'S OWN IDEA (2026-08-05): "different levels
    ... compounds, needles, BAC water, etc, and the costs go up and up and it
-   keeps unlocking the new tiers, and then Trackd is the smallest one."
+   keeps unlocking the new tiers, and then Trakabl is the smallest one."
 
    Built as a CUMULATIVE bar rather than four bars of different lengths, and
    that is the whole design decision. Four separate lengths would be a claim
    about which of these costs more than which — a fabricated statistic, which
    §14 bans outright and which we could not stand behind anyway. A stack that
    GROWS only claims that these things add up, which is true by construction and
-   is the actual argument. Nothing carries a figure except Trackd.
+   is the actual argument. Nothing carries a figure except Trakabl.
    =========================================================================== */
 /**
  * `masked` is A REDACTED AMOUNT — one dollar sign, then literal capital X's
@@ -549,12 +549,12 @@ export function CostVariantF({ onContinue, yearlyPrice }: CostVariantProps) {
  * figure at all, so nothing here is a claim about what anyone spends. §14 bans
  * fabricated statistics and this cannot become one.
  *
- * Trackd is the only row with an actual price on it, and that contrast is the
+ * Trakabl is the only row with an actual price on it, and that contrast is the
  * entire screen.
  */
 /**
  * THE SHARES SUM TO 94, AND TRACKD'S 6 COMPLETES THE BAR (Adrian, 2026-08-05:
- * "make the little bar for Trackd go all the way to the end ... right now it's
+ * "make the little bar for Trakabl go all the way to the end ... right now it's
  * a bit of a cutoff").
  *
  * They used to total 98, leaving a 2% gap of empty track at the right-hand end.
@@ -572,27 +572,27 @@ export function CostVariantF({ onContinue, yearlyPrice }: CostVariantProps) {
  * drawn at 12% — the picture said BAC water was a third of a compound spend
  * while the text said a hundredth. Fixed by making the shares MONOTONIC.
  *
- * Round two found monotonic was not enough, and it is right. Trackd's segment
+ * Round two found monotonic was not enough, and it is right. Trakabl's segment
  * sits on the SAME TRACK carrying the screen's one real figure, `$69.99`. That
  * supplies a SCALE, and a scale can be divided. At the round-one numbers
- * (Trackd 6%) the implied total was $1,166, which made compounds $676 — three
+ * (Trakabl 6%) the implied total was $1,166, which made compounds $676 — three
  * digits, under a label promising four.
  *
  * So the shares are now solved against the real price rather than eyeballed.
- * With Trackd at 2.3%, the implied total is 69.99 / 0.023 ≈ $3,043:
+ * With Trakabl at 2.3%, the implied total is 69.99 / 0.023 ≈ $3,043:
  *
  *   Compounds          70%   -> ~$2,130   four digits  ✓ $X,XXX
  *   Bloodwork          24%   -> ~$730     three digits ✓ $XXX
  *   Pins and supplies   2%   -> ~$61      two digits   ✓ $XX
  *   BAC water          1.7%  -> ~$52      two digits   ✓ $XX
- *   Trackd             2.3%  -> $69.99    the real one
+ *   Trakabl             2.3%  -> $69.99    the real one
  *
  * Every row now divides to a figure with the number of digits its label claims,
  * so there is no reading of this bar that contradicts its own text. §14 bans
  * fabricated statistics, and a diagram that implies a number nobody could stand
  * behind is one.
  *
- * THE SMALL SEGMENTS ARE MEANT TO BE SLIVERS. Pins, water and Trackd are thin
+ * THE SMALL SEGMENTS ARE MEANT TO BE SLIVERS. Pins, water and Trakabl are thin
  * because they genuinely are, and that IS the argument the screen is making.
  * Fattening them for legibility is exactly the fudge that produced round one.
  *
@@ -633,7 +633,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
 
           ⚠️ EVERY GAP ON THIS SCREEN IS A `fit()` (2026-09-11). On an iPhone SE
           the rhythm below added up to 168px more than the port had, so the
-          Trackd row — the one uncovered figure, the whole point of the card —
+          Trakabl row — the one uncovered figure, the whole point of the card —
           was under the button. The air gives way on a short phone and nothing
           else does; on a tall one every figure is the one it was tuned at. See
           `lib/onboarding/fit.ts`.
@@ -693,7 +693,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
                 }}
               />
             ))}
-            {/* Trackd's share, last and smallest, and it FINISHES the track —
+            {/* Trakabl's share, last and smallest, and it FINISHES the track —
                 the shares are chosen to total exactly 100. A 2px gap before it
                 so it reads as its own thing rather than as more of the grey. */}
             <span
@@ -707,7 +707,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
 
           {/* `flex-1` + `justify-center` so the rows use the height the card
               gained by filling the screen, rather than bunching at the top.
-              `gap-6` between rows and a wider gap before the Trackd rule: the
+              `gap-6` between rows and a wider gap before the Trakabl rule: the
               masked figures are the thing being compared, so they need air
               around them more than the labels do. */}
           <ul
@@ -741,7 +741,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
               </li>
             ))}
 
-            {/* Trackd, on the same rail so the comparison is like for like:
+            {/* Trakabl, on the same rail so the comparison is like for like:
                 same column, same units, and the only uncovered figure. */}
             <li
               className={cn(
@@ -750,7 +750,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
               )}
               style={{ marginTop: fit(8, 4), paddingTop: fit(24, 12, 8) }}
             >
-              <span className="text-[0.95rem] text-foreground">Trackd</span>
+              <span className="text-[0.95rem] text-foreground">Trakabl</span>
               <span className="flex shrink-0 items-baseline gap-1.5">
                 <span
                   className={cn(
@@ -794,7 +794,7 @@ export function CostVariantH({ onContinue, yearlyPrice }: CostVariantProps) {
         </p>
 
         <p className={cn(DATA_MONO, "text-sm uppercase tracking-[0.08em]")}>
-          Trackd · {ourPrice(yearlyPrice)} / year
+          Trakabl · {ourPrice(yearlyPrice)} / year
         </p>
       </div>
     </StepFrame>

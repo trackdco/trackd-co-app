@@ -157,7 +157,7 @@ export function BlockCreateSheet({
     }
   }
 
-  // The target is typed on the Trackd pad (feel pass §3).
+  // The target is typed on the Trakabl pad (feel pass §3).
   const [padOpen, setPadOpen] = useState(false)
   const targetRef = useRef<HTMLButtonElement>(null)
 

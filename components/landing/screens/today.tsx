@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 /**
  * THE DASHBOARD, FOR THE HERO PHONE.
  *
- * The screen a Trackd user opens every day, drawn with the app's own classes
+ * The screen a Trakabl user opens every day, drawn with the app's own classes
  * (`TodaysCycleCard`'s rows and dividers, `WeekStrip`'s cells, the glance
  * cards) at the app's own size; `Phone` scales it.
  *

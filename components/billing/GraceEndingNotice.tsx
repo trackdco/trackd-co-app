@@ -474,7 +474,7 @@ function GraceEndingDialog({
             />
             <Image
               src="/icon-192.png"
-              alt="Trackd Co"
+              alt="Trakabl"
               width={192}
               height={192}
               className="animate-grace-icon relative h-[84px] w-[84px] rounded-[20px]"

@@ -94,7 +94,7 @@ export async function completeGate(
     return { error: "That date of birth doesn't look right." };
   }
   if (ageInYears(dob, now) < 18) {
-    return { error: "You must be 18 or older to use Trackd." };
+    return { error: "You must be 18 or older to use Trakabl." };
   }
 
   // Record WHICH version of each document was accepted — read the live (current)

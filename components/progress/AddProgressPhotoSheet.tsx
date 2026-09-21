@@ -96,7 +96,7 @@ export function AddProgressPhotoSheet({
   const [weight, setWeight] = useState("");
   /** The weight drop-up. Closed on open: this sheet leads with the photos. */
   const [weightOpen, setWeightOpen] = useState(false);
-  // The weight is typed on the Trackd pad (feel pass §3).
+  // The weight is typed on the Trakabl pad (feel pass §3).
   const [weightPad, setWeightPad] = useState(false);
   const weightRef = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);

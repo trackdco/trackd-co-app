@@ -13,7 +13,7 @@ import "./install-mocks.css";
 /**
  * The install screens, at real device size.
  *
- * These are the surfaces Trackd itself owns — the pre-sell, the black stop
+ * These are the surfaces Trakabl itself owns — the pre-sell, the black stop
  * screen, and the three "you came back to the browser" states. They render
  * full-bleed so `/preview/install/*` can be opened on an actual handset and
  * judged at the size it will ship at, which a scaled mock cannot show you.
@@ -53,7 +53,7 @@ function FlowHead({ pct }: { pct: number }) {
 /* ------------------------------------------------------------- pre-sell */
 
 /**
- * "This is where Trackd goes".
+ * "This is where Trakabl goes".
  *
  * ONE ACTION, deliberately (Adrian, this round). Installing is how
  * notifications work at all on iOS, so there is no "I understand" and no
@@ -71,7 +71,7 @@ export function PresellScreen({ skin }: { skin: Skin }) {
       <FlowHead pct={88} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5">
         <h1 className={cn(FLOW_TITLE, "text-center text-[1.66rem] text-balance")}>
-          This is where Trackd goes
+          This is where Trakabl goes
         </h1>
         <div className="h-[18px] flex-none" />
         <div className="relative h-[352px] flex-none overflow-hidden rounded-[26px] border border-border-default">
@@ -166,10 +166,10 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
         <div className="im-ret">
           <TrackdIcon tick />
           <h2 className={cn(FLOW_TITLE, "mt-7 text-[1.95rem] text-balance")}>
-            Trackd is on your home screen
+            Trakabl is on your home screen
           </h2>
           <p className={cn(FLOW_SUB, "mt-3 max-w-[19rem] text-center text-pretty")}>
-            You can close this tab. Open Trackd from your home screen. That&rsquo;s where
+            You can close this tab. Open Trakabl from your home screen. That&rsquo;s where
             your reminders come from.
           </p>
           <span className="mt-5 flex items-center gap-2 font-mono text-[9.5px] tracking-[0.16em] text-text-subtle uppercase">
@@ -194,7 +194,7 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
       <Screen>
         <div className="im-ret">
           <TrackdIcon asking />
-          <h2 className={cn(FLOW_TITLE, "mt-7 text-[1.95rem] text-balance")}>Did you add Trackd?</h2>
+          <h2 className={cn(FLOW_TITLE, "mt-7 text-[1.95rem] text-balance")}>Did you add Trakabl?</h2>
           <p className={cn(FLOW_SUB, "mt-3 max-w-[19rem] text-center text-pretty")}>
             If it&rsquo;s on your Home Screen, open it from there. Everything happens in the
             app now.
@@ -220,7 +220,7 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
       <div className="im-ret">
         <TrackdIcon tick />
         <h2 className={cn(FLOW_TITLE, "mt-7 text-[1.95rem] text-balance")}>
-          Open Trackd from your Home Screen
+          Open Trakabl from your Home Screen
         </h2>
         <p className={cn(FLOW_SUB, "mt-3 max-w-[19rem] text-center text-pretty")}>
           Look for this icon. This Safari tab is finished, and carrying on here won&rsquo;t

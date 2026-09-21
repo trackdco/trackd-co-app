@@ -142,7 +142,7 @@ export const PLANS: Record<PlanId, Plan> = {
 /**
  * The order plans are OFFERED in, and it is not the order of the record above.
  * Yearly first because it is the one we would rather sell and the one carrying
- * the saving; weekly last because it is the most expensive way to buy Trackd.
+ * the saving; weekly last because it is the most expensive way to buy Trakabl.
  */
 export const PLAN_ORDER: readonly PlanId[] = ["yearly", "monthly", "weekly"];
 

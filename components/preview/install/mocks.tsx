@@ -1659,14 +1659,14 @@ function App({ art, name }: { art: string; name: string }) {
   );
 }
 
-/** Trackd's own icon — the real `public/icon-192.png`, not a redraw. */
+/** Trakabl's own icon — the real `public/icon-192.png`, not a redraw. */
 export function TrackdApp({ landing }: { landing?: boolean }) {
   return (
     <span className={cn("im-app ours", landing && "landing")}>
       <span className="im-tile">
         <Image src="/icon-192.png" alt="" width={192} height={192} />
       </span>
-      <span className="im-nm">Trackd</span>
+      <span className="im-nm">Trakabl</span>
     </span>
   );
 }
@@ -1674,7 +1674,7 @@ export function TrackdApp({ landing }: { landing?: boolean }) {
 export type Skin = "ios" | "sam" | "pix";
 
 /**
- * A drawn home screen. `landing` plays the slam-in on Trackd's tile;
+ * A drawn home screen. `landing` plays the slam-in on Trakabl's tile;
  * `withoutTrackd` holds its slot with another app, for the frames that come
  * BEFORE the install and must not give the ending away.
  */

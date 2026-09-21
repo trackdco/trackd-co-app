@@ -119,7 +119,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [busyDelete, setBusyDelete] = useState<string | null>(null);
-  // The weight is typed on the Trackd pad (feel pass §3). Done on the pad is the
+  // The weight is typed on the Trakabl pad (feel pass §3). Done on the pad is the
   // same save as the Done button below it.
   const [padOpen, setPadOpen] = useState(false);
   const weightRef = useRef<HTMLButtonElement>(null);

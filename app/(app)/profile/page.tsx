@@ -11,7 +11,7 @@ import { BILLABLE_STATUSES } from "@/lib/billing/cancel";
 import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Profile · Trackd Co" };
+export const metadata: Metadata = { title: "Profile · Trakabl" };
 
 /**
  * Profile tab — the data wrapper. Reads only the caller's own profiles row

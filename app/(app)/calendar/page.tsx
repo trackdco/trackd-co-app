@@ -16,7 +16,7 @@ import type { CalendarPhoto } from "@/lib/calendar/calendar";
 import { bodySexFor } from "@/lib/db/types";
 import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 
-export const metadata: Metadata = { title: "Calendar · Trackd Co" };
+export const metadata: Metadata = { title: "Calendar · Trakabl" };
 
 /**
  * The Calendar tab's route — reached from the calendar shortcut on the Dashboard

@@ -6,7 +6,7 @@
  * The naming was his call and it changed the feature rather than renaming it: a
  * GOAL is a target you hit or miss, a BLOCK is a period you ran. That makes the
  * look-back the centre of the thing and the progress figure a secondary reading,
- * which is the right way round — Trackd already holds every dated thing a
+ * which is the right way round — Trakabl already holds every dated thing a
  * retrospective needs, so a block is a lens over data that exists rather than
  * anything new to capture.
  *

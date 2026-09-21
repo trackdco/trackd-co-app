@@ -2,17 +2,30 @@
  * THE ONE PLACE THE PRODUCT NAME AND THE HEADLINE PRICES ARE WRITTEN DOWN
  * (Spec 3-02 §Implementation 1).
  *
- * The rename is coming and has not been chosen yet. Every visible instance of
- * the name on the public landing page resolves from here, so renaming the
- * product is an edit to ONE line rather than a sweep across a page that a
- * reviewer, a crawler and an Apple enrolment case are all looking at.
+ * The rename HAS NOW HAPPENED (Adrian, 2026-09-21): the product is Trakabl.
+ * Every visible instance of the name on the public landing page resolves from
+ * here, so the next rename — or a correction to this one — is an edit to ONE
+ * line rather than a sweep across a page that a reviewer, a crawler and an
+ * Apple enrolment case are all looking at.
  *
- * ⚠️ SCOPE, because the check in the spec reads wider than what was built.
- * Adrian's call (2026-09-16): this covers the LANDING PAGE and the site
- * metadata. The ~270 other "Trackd" strings across the app and the legal
- * chrome stay where they are until the trademark clearance search comes back
- * and the rename spec runs. A blanket find-and-replace before that answer is
- * exactly what he asked not to happen.
+ * ⚠️ THE SPELLING IS "Trakabl". No "c", no trailing "e".
+ *
+ * It is NOT "Trackable", which is the ordinary English word and is what
+ * dictation produces when Adrian says the name out loud — his own first
+ * message carried both spellings and he confirmed the short one. It is not
+ * "Trakabel" or "Trakable" either. There is no phonetic route to the correct
+ * spelling, so anything writing this name should import it from here rather
+ * than typing it, and a reviewer who sees it typed inline should treat that as
+ * a defect. The precedent is on file: "Trackd.co" was wrong, was typed inline
+ * in several places, and shipped.
+ *
+ * ⚠️ SCOPE HAS WIDENED. This file used to cover the LANDING PAGE ONLY, because
+ * the name had not been chosen and a blanket find-and-replace before the
+ * trademark answer was exactly what Adrian asked not to happen. That answer is
+ * in and the rename spec is running, so the app and the legal chrome are being
+ * swept too. New code should import from here; the existing inline strings are
+ * being converted where they are plain copy and deliberately left alone where
+ * they are pinned legal text (see `lib/billing/signed/`).
  *
  * ⚠️ THE PRICES HERE ARE FOR DISPLAY ON THE PUBLIC PAGE ONLY, AND NOTHING
  * CHARGES FROM THEM. `lib/billing/prices.ts` reads the real amounts from
@@ -29,31 +42,80 @@
  */
 
 /** The product name, as it appears to a visitor. Lowercase in the wordmark. */
-export const PRODUCT_NAME = "Trackd";
+export const PRODUCT_NAME = "Trakabl";
 
 /**
  * The BUSINESS name, for formal surfaces that are not the legal entity: the
  * openGraph `siteName` a link unfurler prints, and anywhere the product is
  * being named rather than addressed.
  *
- * ⚠️ "Trackd.co" is retired and must never appear (Adrian, 2026-09-04). It is
- * wrong twice over: it is not the registered entity, and the dot reads as a
- * domain the company does not own. The real domain is trackdco.app.
+ * ⚠️ IT IS NOW THE SAME WORD AS `PRODUCT_NAME`, AND THAT IS NOT A MISTAKE.
+ * It was "Trackd Co" — product plus a suffix — and the rename collapses the
+ * two: Trakabl is a registered business name trading under the unchanged legal
+ * entity below (Adrian, 2026-09-21: "The company is not being renamed. We are
+ * making a business name that it will be trading under"). Both constants stay
+ * because their CALL SITES mean different things, and the next brand decision
+ * may separate them again. Do not delete one and alias the other.
  *
- * It lives here for the same reason the product name does. `siteName` was
- * typed straight into the landing page's metadata, which is a VISIBLE instance
- * of the name that a rename would have missed, and missing one is exactly what
- * this file exists to prevent.
+ * ⚠️ "Trackd.co" is retired and must never appear (Adrian, 2026-09-04). It was
+ * wrong twice over: not the registered entity, and the dot read as a domain the
+ * company does not own. "Trackd Co" is now retired too, as a VISIBLE name — it
+ * survives only inside `LEGAL_ENTITY`.
  */
-export const BUSINESS_NAME = "Trackd Co";
+export const BUSINESS_NAME = "Trakabl";
 
-/** The registered entity. Must match ASIC and the Stripe descriptor exactly. */
+/**
+ * The registered entity. Must match ASIC and the Stripe descriptor exactly.
+ *
+ * ⚠️ THIS DOES NOT CHANGE WITH THE RENAME. Trakabl is a business name; the
+ * company behind it is still Trackd Co Pty Ltd, and the legal documents, the
+ * card statement and the ASIC record all still say so. Anywhere the entity is
+ * being named — a contract, a merchant-of-record line, a footer disclosure —
+ * uses this and not `BUSINESS_NAME`. Sweeping "Trackd" out of this string would
+ * make the legal documents name a company that does not exist.
+ */
 export const LEGAL_ENTITY = "Trackd Co Pty Ltd";
 
 /** Australian Company Number, in ASIC's own spacing. */
 export const ACN = "698 405 462";
 
-/** Where a visitor writes to. Also the address in the legal documents. */
+/**
+ * How the product and the company relate, for the surfaces that have to say it
+ * out loud: the rebrand notice, the landing footer and the legal preamble.
+ *
+ * Written once here because it is a CLAIM ABOUT A LEGAL RELATIONSHIP and three
+ * surfaces making it in three slightly different ways is how a disclosure ends
+ * up inaccurate in one of them.
+ */
+export const TRADING_AS = `${BUSINESS_NAME} is a business name of ${LEGAL_ENTITY} (ACN ${ACN})`;
+
+/**
+ * THE DOMAIN, AND WHY IT STILL SAYS trackdco.app.
+ *
+ * The new domain is being purchased and has not been named yet (Adrian,
+ * 2026-09-21), so every reference resolves from this one constant and the swap
+ * is a one-line change rather than another sweep of 120-odd strings.
+ *
+ * ⚠️ WHEN THE NEW DOMAIN ARRIVES, THIS IS NOT A REPLACE. The old origin has to
+ * keep serving the app, because an installed PWA is scoped to the origin it was
+ * installed from: point trackdco.app wholesale at a new domain and every
+ * existing home-screen install drops out of standalone and every push
+ * subscription dies with the service-worker registration. The plan is both
+ * origins served, the new one canonical, and only the marketing routes
+ * redirected — so expect this to become a canonical origin PLUS a list of
+ * additional served origins, not a single swapped string.
+ */
+export const PRODUCTION_ORIGIN = "https://trackdco.app";
+
+/** The bare host, for copy that says the address out loud rather than links it. */
+export const PRODUCTION_HOST = "trackdco.app";
+
+/**
+ * Where a visitor writes to. Also the address in the legal documents.
+ *
+ * Still on the old domain deliberately: mail has to keep arriving, and it will
+ * until the new domain's MX records exist. Moves with `PRODUCTION_ORIGIN`.
+ */
 export const SUPPORT_EMAIL = "support@trackdco.app";
 
 export interface BrandPlan {
@@ -89,9 +151,14 @@ const WEEKS_PER_YEAR = 52;
 export const YEARLY_PER_WEEK = Math.round((PLANS.yearly.amount / WEEKS_PER_YEAR) * 100) / 100;
 
 /**
- * Trackd Co's own social accounts (Adrian, 2026-09-17). The footer links to
+ * The company's own social accounts (Adrian, 2026-09-17). The footer links to
  * both. Kept here rather than in the footer because a handle change is the same
  * kind of edit as a name change: one line, found in one place.
+ *
+ * ⚠️ STILL THE OLD HANDLES. @trackdcoapp on both platforms — renaming a TikTok
+ * or Instagram handle is an account action Adrian has to take, not a code
+ * change, and a link to a handle that has not been renamed yet is a dead link.
+ * Update these in the same sitting as the handles themselves.
  */
 export const SOCIAL_LINKS = {
   tiktok: "https://www.tiktok.com/@trackdcoapp",

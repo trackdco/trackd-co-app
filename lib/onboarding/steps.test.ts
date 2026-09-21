@@ -86,7 +86,7 @@ describe("STEP_ORDER", () => {
   /**
    * NO INSTALL STEP ON A COMPUTER (Adrian, 2026-09-10).
    *
-   * "Add Trackd to your home screen" is not something a laptop can do, and it
+   * "Add Trakabl to your home screen" is not something a laptop can do, and it
    * was the LAST screen of the flow, so before this a desktop user finished
    * onboarding on an instruction they could not follow.
    *

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
  * page assigns it to `location.href`. Chrome kept the navigation for itself, so
  * the button quietly did the wrong thing twice:
  *
- *   "when I press Open in Safari, it just takes me to the Trackd dashboard"
+ *   "when I press Open in Safari, it just takes me to the Trakabl dashboard"
  *   "it keeps opening in Google, not in Safari"
  *
  * His call, and the right one: *"we don't want to give people [a button] that

@@ -3,6 +3,12 @@ import { cookies } from "next/headers";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { BetaLaunchNotice } from "@/components/billing/BetaLaunchNotice";
+import { RebrandNotice } from "@/components/rebrand/RebrandNotice";
+import {
+  REBRAND_NOTICE_COOKIE,
+  rebrandNoticeSeen,
+  shouldShowRebrandNotice,
+} from "@/lib/rebrand/rebrandNotice";
 import { GraceEndingNotice } from "@/components/billing/GraceEndingNotice";
 import { PaymentFailedBanner } from "@/components/billing/PaymentFailedBanner";
 import { PlanEndsTodayBanner } from "@/components/billing/PlanEndsTodayBanner";
@@ -38,7 +44,7 @@ import { sitesForSex } from "@/lib/home/siteCatalog";
 
 
 export const metadata: Metadata = {
-  title: "Home · Trackd Co",
+  title: "Home · Trakabl",
 };
 
 /**
@@ -410,6 +416,29 @@ export default async function DashboardPage() {
     launchSeen: betaNoticeSeen(cookieStore.get(BETA_NOTICE_COOKIE)?.value, user.id),
   });
 
+  /**
+   * THE REBRAND NOTICE, AND WHY IT YIELDS TO EVERY BILLING NOTICE.
+   *
+   * `notice` is the billing announcement this account is owed, and both of its
+   * non-"none" values are MODALS. Two modals on one dashboard load would stack,
+   * and whichever lost would be dismissed blind behind the other.
+   *
+   * The order is not arbitrary. A billing notice is a deadline — somebody is
+   * about to be charged, or is about to lose write access — and the rebrand is
+   * an announcement with nothing at stake. So billing wins, and the rebrand
+   * waits for the next load. Its cookie is untouched in the meantime, so
+   * nothing is consumed by not being shown.
+   */
+  const showRebrand =
+    notice === "none" &&
+    shouldShowRebrandNotice({
+      seen: rebrandNoticeSeen(
+        cookieStore.get(REBRAND_NOTICE_COOKIE)?.value,
+        user.id,
+      ),
+      accountCreatedAt: user.created_at,
+    });
+
   // Set by the auth callback on a fresh sign-in / sign-up — drives the one-time
   // (per-login) "Add to Home Screen" popup below.
   const freshSignIn = cookieStore.get("trackd-install-hint")?.value === "1";
@@ -487,6 +516,7 @@ export default async function DashboardPage() {
           isComp={!betaEntitlement?.activeUntil}
         />
       ) : null}
+      {showRebrand ? <RebrandNotice userId={user.id} /> : null}
       <HomeScreen
         todayKey={todayKey}
         userId={user?.id ?? "anon"}

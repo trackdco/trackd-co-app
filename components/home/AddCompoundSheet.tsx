@@ -724,7 +724,7 @@ function AddCompoundBody({
     stockType === "oral_solid" ? stEffectiveOralForm : stockType === "bulk_powder" ? "g" : "mL"
 
   /**
-   * THE PAD (feel pass §3). Every number on this sheet is typed on one Trackd
+   * THE PAD (feel pass §3). Every number on this sheet is typed on one Trakabl
    * pad, in the order the fields appear, so Next walks the form without the
    * keyboard ever dropping. Only the fields currently on screen are in it.
    *

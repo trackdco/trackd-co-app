@@ -6,7 +6,7 @@ import { loadPricesSafe } from "@/lib/billing/prices";
 import { PaywallPreview } from "./preview";
 
 export const metadata: Metadata = {
-  title: "Paywall preview · Trackd Co",
+  title: "Paywall preview · Trakabl",
   robots: { index: false, follow: false },
 };
 

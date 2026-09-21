@@ -490,7 +490,7 @@ export function trialReminderMessage(
        * happens instead is stated plainly, in the same words the notice and the
        * pop-up use, so the three surfaces agree.
        */
-      body: `Trackd stays free until ${when}. After that you can still read everything, but not log anything new.`,
+      body: `Trakabl stays free until ${when}. After that you can still read everything, but not log anything new.`,
       url: "/profile",
       tag: "trackd-trial-ending",
     };

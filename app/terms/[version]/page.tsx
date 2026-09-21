@@ -25,7 +25,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { version } = await params;
   return {
-    title: `Terms of Service v${version} · Trackd Co`,
+    title: `Terms of Service v${version} · Trakabl`,
     /**
      * ⚠️ NOINDEX, and it is the point of the page rather than an afterthought.
      * A superseded document that competes with the live one in search results

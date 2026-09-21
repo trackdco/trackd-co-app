@@ -30,7 +30,7 @@ const PHONE_WIDTH = `max(${fit(172, 118)}, var(--free-phone-lg, 0px))`;
 
 /**
  * The free-trial reveal, between the cost argument and the price list (Adrian,
- * 2026-08-05: "we want you to try Trackd for free ... it should say $0 or no
+ * 2026-08-05: "we want you to try Trakabl for free ... it should say $0 or no
  * payment needed, and a bit of a screenshot of the UI").
  *
  * ## Why this is its own step and not the top of the paywall
@@ -122,7 +122,7 @@ export function FreeScreen() {
               <span aria-hidden className="flex-[1_0_0]" />
               <PhoneVideo
                 phoneWidth={PHONE_WIDTH}
-                label="A recording of the Trackd app on an iPhone: the dashboard, a dose being logged, the injection site map and a new stack being built."
+                label="A recording of the Trakabl app on an iPhone: the dashboard, a dose being logged, the injection site map and a new stack being built."
               />
               <span aria-hidden className="flex-[2_0_0]" />
             </div>

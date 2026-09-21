@@ -10,7 +10,7 @@ import { ImageResponse } from "next/og";
  * #7A7A74, amber #C8861A. Every container declares an explicit flex layout
  * (Satori requirement).
  */
-export const alt = "Trackd Co. Track the whole protocol. Join the waitlist.";
+export const alt = "Trakabl. Track the whole protocol. Join the waitlist.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -90,9 +90,12 @@ export default function OpengraphImage() {
             justifyContent: "space-between",
           }}
         >
-          <div style={{ display: "flex", flexDirection: "row", fontSize: "40px", fontWeight: 600 }}>
-            <div style={{ color: "#F0EFE9", display: "flex" }}>trackd</div>
-            <div style={{ color: "#C8861A", display: "flex" }}>&nbsp;co</div>
+          <div style={{ display: "flex", flexDirection: "row", fontSize: "40px", fontWeight: 300 }}>
+            {/* Mirrors public/trackd-wordmark.png: the word in off-white, the
+                terminal dot in amber. Weight 300, not 600 — the new mark is a
+                light sans and a semibold render reads as a different logo. */}
+            <div style={{ color: "#F0EFE9", display: "flex" }}>Trakabl</div>
+            <div style={{ color: "#C8861A", display: "flex" }}>.</div>
           </div>
           <div style={{ fontSize: "32px", color: "#C8861A", display: "flex" }}>
             Join the waitlist →

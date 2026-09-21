@@ -668,7 +668,7 @@ function AddStockForm({
            */
           setError(
             pushed.refusal === "read-only"
-              ? "Trackd is read only until you subscribe."
+              ? "Trakabl is read only until you subscribe."
               : "Couldn’t sync this compound. Check your connection and try again.",
           )
           return
@@ -692,7 +692,7 @@ function AddStockForm({
           // Same reasoning as the push above: the gate is not a failure and not
           // the user's fault, so it does not get a "please try again".
           r.refusal === "read-only"
-            ? "Trackd is read only until you subscribe."
+            ? "Trakabl is read only until you subscribe."
             : r.pendingMigration
             ? "This container type isn’t available yet. Try Reconstituted, Pre-mixed or Oral for now."
             : r.rejectedShape
@@ -735,7 +735,7 @@ function AddStockForm({
     cn(PRESS.pill, STOCK_PILL, "duration-300", active ? PILL_ON : PILL_OFF)
 
   /**
-   * THE PAD (feel pass §3): every amount on this form on one Trackd pad, in
+   * THE PAD (feel pass §3): every amount on this form on one Trakabl pad, in
    * the order the fields appear for the chosen type.
    */
   const pad = usePadSession()

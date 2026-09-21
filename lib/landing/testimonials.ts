@@ -48,7 +48,7 @@ export const TESTIMONIALS: readonly Testimonial[] = [
     name: "Ryan T.",
     initials: "RT",
     quote:
-      "Trackd works so well for me. I've been able to take all the thought out of what I'm running and just follow what I set for myself.",
+      "Trakabl works so well for me. I've been able to take all the thought out of what I'm running and just follow what I set for myself.",
   },
   {
     // Shortened at Adrian's request using only the words already here: the
@@ -57,7 +57,7 @@ export const TESTIMONIALS: readonly Testimonial[] = [
     name: "Mia L.",
     initials: "ML",
     quote:
-      "I'm fairly new to peptides and I wanted to do them safely. Trackd has helped me track my reta without doubling up injection sites, and it helps me know when to reorder since I can track my stock. I'd highly recommend!!! :)",
+      "I'm fairly new to peptides and I wanted to do them safely. Trakabl has helped me track my reta without doubling up injection sites, and it helps me know when to reorder since I can track my stock. I'd highly recommend!!! :)",
   },
   {
     name: "Josh N.",
@@ -69,7 +69,7 @@ export const TESTIMONIALS: readonly Testimonial[] = [
     name: "Dean C.",
     initials: "DC",
     quote:
-      'Found Trackd right before I started prepping for my bodybuilding show this coming November. I\'m running a lot of compounds and the ease of adding to and tracking them was outstanding. Their "Block" thing is also really cool too because I can see my progress photos, bloods and weight change all in that one period.',
+      'Found Trakabl right before I started prepping for my bodybuilding show this coming November. I\'m running a lot of compounds and the ease of adding to and tracking them was outstanding. Their "Block" thing is also really cool too because I can see my progress photos, bloods and weight change all in that one period.',
   },
 ];
 

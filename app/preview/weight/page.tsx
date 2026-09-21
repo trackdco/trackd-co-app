@@ -54,7 +54,7 @@ export default async function PreviewWeightPage({
       >
         <Image
           src="/trackd-wordmark.png"
-          alt="trackd co"
+          alt="Trakabl"
           width={1049}
           height={200}
           className="h-4 w-auto"

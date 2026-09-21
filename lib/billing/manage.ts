@@ -1070,7 +1070,7 @@ export function formatAccessDate(iso: string, tz: string): string {
 /**
  * The same date with the YEAR DROPPED, for a control label.
  *
- * "Keep Trackd after 19 Aug" is a button, and a button is read at a glance. The
+ * "Keep Trakabl after 19 Aug" is a button, and a button is read at a glance. The
  * year is noise there: the date being named is inside the next twelve months by
  * construction (it is a trial end or a billing period end), so "2026" carries no
  * information and costs the label a third of its width on a 390px phone.

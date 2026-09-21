@@ -19,13 +19,13 @@ import { CONTINUED_USE_PARTS } from "@/lib/billing/noticeCopy";
 /**
  * THE ONE-TIME NOTICE. What happens to the people who were already here.
  *
- * ~90 accounts have used the whole of Trackd for free, some for two months, and
+ * ~90 accounts have used the whole of Trakabl for free, some for two months, and
  * agreed to nothing. This is the only thing that tells them the arrangement has
  * changed, so it is a modal rather than a banner: a banner is a glance, and this
  * is the one message that must not be glanced past.
  *
  * It appears ONCE, ever (see `betaNoticeStore.ts`), and it appears whether the
- * account got the comp or the fortnight — a friend who has been given Trackd for
+ * account got the comp or the fortnight — a friend who has been given Trakabl for
  * good should be told that, not left to work out from silence that nothing
  * happened to them.
  *
@@ -64,7 +64,7 @@ export function BetaLaunchNotice({
   userId,
   /** Formatted server-side in the user's own timezone. Null for a comp. */
   endsOn,
-  /** True when this account has been given Trackd for good. */
+  /** True when this account has been given Trakabl for good. */
   isComp,
 }: {
   userId: string;
@@ -381,7 +381,7 @@ function BetaLaunchDialog({
           id="beta-notice-title"
           className="relative text-lg font-medium text-foreground"
         >
-          {isComp ? "Trackd Co is yours. For life." : "Trackd Co is going paid!"}
+          {isComp ? "Trakabl is yours. For life." : "Trakabl is going paid!"}
         </h2>
 
         {isComp ? (

@@ -9,7 +9,7 @@ import { getSessionContext } from "@/lib/auth";
 import { DEFAULT_NEXT, safeNextPath } from "@/lib/auth/nextPath";
 
 export const metadata: Metadata = {
-  title: "Log in · Trackd Co",
+  title: "Log in · Trakabl",
 };
 
 /**
@@ -71,10 +71,10 @@ export default async function LoginPage({
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-8 text-center">
-      <Link href="/" aria-label="trackd co">
+      <Link href="/" aria-label="Trakabl">
         <Image
           src="/trackd-wordmark.png"
-          alt="trackd co"
+          alt="Trakabl"
           width={1049}
           height={200}
           priority

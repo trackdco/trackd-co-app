@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  *
  * ⚠️ THE WARNING IS TRUE, WHICH IS THE ONLY REASON IT IS HERE. Skipping is not
  * a preference on iOS: Apple only delivers Web Push to a home-screen app, so an
- * un-installed Trackd cannot send a reminder at all. A confirm step that
+ * un-installed Trakabl cannot send a reminder at all. A confirm step that
  * invented a consequence to keep somebody in the flow would be a dark pattern.
  * This one states the mechanism and names the way back — there IS a permanent
  * "Add to Home Screen" row in Profile — which is what stops it reading as a
@@ -42,7 +42,7 @@ export function SkipConfirm({
     >
       <p className="text-[0.92rem] font-medium text-foreground">Skip adding it?</p>
       <p className="mt-1 text-[0.83rem] leading-snug text-text-muted">
-        Reminders can&rsquo;t reach you until Trackd is on your home screen. You
+        Reminders can&rsquo;t reach you until Trakabl is on your home screen. You
         can add it later from your profile.
       </p>
       <div className="mt-3.5 flex gap-2">

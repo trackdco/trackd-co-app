@@ -1117,7 +1117,7 @@ export function noAlertDeviceSubscribed(s: ReconcileSnapshot): Finding[] {
       evidence: [
         `no founder device is subscribed to web push`,
         `every alert this script raises would reach nobody`,
-        `open Trackd Co on a founder account and enable notifications`,
+        `open Trakabl on a founder account and enable notifications`,
       ],
     },
   ];

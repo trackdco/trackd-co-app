@@ -6,7 +6,7 @@ import { ResetPasswordForm } from "@/app/reset-password/reset-password-form";
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Set a new password · Trackd Co",
+  title: "Set a new password · Trakabl",
 };
 
 /**
@@ -20,10 +20,10 @@ export default async function ResetPasswordPage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-8 text-center">
-      <Link href="/" aria-label="trackd co">
+      <Link href="/" aria-label="Trakabl">
         <Image
           src="/trackd-wordmark.png"
-          alt="trackd co"
+          alt="Trakabl"
           width={1049}
           height={200}
           priority

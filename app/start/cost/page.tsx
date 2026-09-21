@@ -5,7 +5,7 @@ import { CostVariantPicker } from "@/components/onboarding/cost-picker";
 import { loadPricesSafe } from "@/lib/billing/prices";
 
 export const metadata: Metadata = {
-  title: "Cost screen options · Trackd Co",
+  title: "Cost screen options · Trakabl",
   robots: { index: false, follow: false },
 };
 

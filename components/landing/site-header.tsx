@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { BUSINESS_NAME } from "@/lib/brand";
+import { ArrivalNotice } from "@/components/landing/ArrivalNotice";
 import { cn } from "@/lib/utils";
 
 import { LOGIN_HREF } from "./cta";
@@ -146,6 +147,8 @@ export function SiteHeader({
             className="h-[1.05rem] w-auto md:h-[1.15rem]"
           />
         </Link>
+
+        <ArrivalNotice />
 
         <button
           ref={buttonRef}

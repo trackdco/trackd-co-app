@@ -177,7 +177,7 @@ export async function refuseWrite(): Promise<WriteRefusal | null> {
  * is the app describing a transaction that never happened, in the message
  * explaining why they cannot log a dose.
  *
- * "Trackd is read only until you subscribe" is true for a lapsed subscriber, a
+ * "Trakabl is read only until you subscribe" is true for a lapsed subscriber, a
  * lapsed trial and a lapsed beta account alike, and it is the same sentence the
  * pop-up leads with, so the two surfaces cannot describe the same state
  * differently.
@@ -188,7 +188,7 @@ export async function refuseWrite(): Promise<WriteRefusal | null> {
  * cover. It should not try to sell anything.
  */
 export const READ_ONLY_MESSAGE =
-  "Trackd is read only until you subscribe. Everything you've logged is still here.";
+  "Trakabl is read only until you subscribe. Everything you've logged is still here.";
 
 /**
  * ⚠️ WHAT A ROUTE ACTION SAYS WHEN THE ENTITLEMENT READ FAILED.

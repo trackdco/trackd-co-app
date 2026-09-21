@@ -101,7 +101,7 @@ export function InstallWalkthrough({ device }: { device: DeviceGuess }) {
   const pct = last ? (now / last) * 100 : 0;
 
   return (
-    <section aria-label="How to add Trackd, step by step" className="space-y-4">
+    <section aria-label="How to add Trakabl, step by step" className="space-y-4">
       {/* ONE phone. Every step passes through this same frame. */}
       <div
         key={flow}

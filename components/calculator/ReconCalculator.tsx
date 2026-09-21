@@ -263,7 +263,7 @@ export function ReconCalculator() {
               4). It was made sticky-while-typing once before (2026-07-31) and
               reversed the same day, because iOS resized the visual viewport for
               its keyboard and the pinned section covered the field being typed
-              in. The Trackd pad has no system keyboard and never resizes
+              in. The Trakabl pad has no system keyboard and never resizes
               anything: it covers the inputs, and the pinned draw figure and
               syringe are exactly what you want to watch while it does. Closed,
               the section scrolls with the page as before.

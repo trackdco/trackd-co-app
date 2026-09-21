@@ -27,11 +27,11 @@
  */
 
 /**
- * `desktop` was added 2026-09-10, when Trackd stopped being phone-only.
+ * `desktop` was added 2026-09-10, when Trakabl stopped being phone-only.
  *
  * Before it, `guessPlatform` fell through to `"ios"` for anything that was not
  * Android — including a MacBook — so somebody onboarding on a laptop was shown
- * Safari's iPhone Share sheet and told to add Trackd to their home screen. That
+ * Safari's iPhone Share sheet and told to add Trakabl to their home screen. That
  * was harmless while the app refused to run above 1024px anyway. It is not
  * harmless now.
  */
@@ -106,7 +106,7 @@ export function guessDevice(): DeviceGuess {
 export function canInstallHere({ platform, browser }: DeviceGuess): boolean {
   // A laptop has no home screen. Desktop Chrome CAN install a PWA, but that is
   // a different thing with a different name, and `app/manifest.ts` still
-  // declares `orientation: "portrait"` — installing it today would open Trackd
+  // declares `orientation: "portrait"` — installing it today would open Trakabl
   // in a portrait window on a widescreen monitor. Offering it is its own
   // decision; see `Context/next-tasks.md`.
   if (platform === "desktop") return false;
@@ -143,7 +143,7 @@ export function installSteps({ platform, browser }: DeviceGuess): InstallStep[] 
   // by design. Answer honestly rather than inventing a menu that is not there.
   if (platform === "desktop") {
     return [
-      { icon: null, text: "Trackd runs right here in this browser" },
+      { icon: null, text: "Trakabl runs right here in this browser" },
       { icon: null, text: "To carry it in your pocket, open trackdco.app on your phone" },
       { icon: "plus", text: "Then add it to your home screen there" },
     ];
@@ -266,26 +266,26 @@ export const INSTALL_WALKTHROUGH: Record<InstallFlowId, WalkthroughStep[]> = {
     { text: "The sheet opens part-way. Tap View More", strong: "View More" },
     { text: "The list grows. Tap Add to Home Screen", strong: "Add to Home Screen" },
     { text: "Check the name, then tap Add", strong: "Add" },
-    { text: "Trackd is on the Home Screen" },
+    { text: "Trakabl is on the Home Screen" },
   ],
   "android-chrome": [
     { text: "Tap ⋮ at the top right", strong: "⋮" },
     { text: "Tap Install and create shortcut", strong: "Install and create shortcut" },
     { text: "Tap Add", strong: "Add" },
-    { text: "Trackd is on the home screen" },
+    { text: "Trakabl is on the home screen" },
   ],
   "android-samsung": [
     { text: "Tap the menu, bottom right", strong: "menu" },
     { text: "Tap Add page to", strong: "Add page to" },
     { text: "Tap Home screen", strong: "Home screen" },
     { text: "Tap Add", strong: "Add" },
-    { text: "Trackd is on the home screen" },
+    { text: "Trakabl is on the home screen" },
   ],
   "android-firefox": [
     { text: "Tap ⋮, bottom right", strong: "⋮" },
     { text: "It isn’t top level. Tap More", strong: "More" },
     { text: "Tap Add to Home screen", strong: "Add to Home screen" },
     { text: "Tap Add", strong: "Add" },
-    { text: "Trackd is on the home screen" },
+    { text: "Trakabl is on the home screen" },
   ],
 };

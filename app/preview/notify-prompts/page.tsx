@@ -6,7 +6,7 @@ import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Notification prompts · Trackd Co",
+  title: "Notification prompts · Trakabl",
 };
 
 /**

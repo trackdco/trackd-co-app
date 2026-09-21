@@ -341,7 +341,7 @@ export function stepMeta(id: StepId): StepMeta | null {
  */
 export function stepAppliesTo(id: StepId, platform: Platform): boolean {
   if (id === "notifications") return platform !== "ios";
-  // NO INSTALL STEP ON A COMPUTER (Adrian, 2026-09-10). "Add Trackd to your
+  // NO INSTALL STEP ON A COMPUTER (Adrian, 2026-09-10). "Add Trakabl to your
   // home screen" is not a thing a laptop can do, and it was the last screen of
   // the flow, so a desktop user finished onboarding on an instruction they
   // could not follow. `notifications` is deliberately NOT skipped with it:

@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server"
 import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets"
 
 export const metadata: Metadata = {
-  title: "Admin · Trackd Co",
+  title: "Admin · Trakabl",
   robots: { index: false, follow: false },
 }
 
@@ -62,7 +62,7 @@ export default async function AdminPage({
   if (!user) {
     return (
       <Shell>
-        <p className={CARD_EYEBROW}>Trackd · Admin</p>
+        <p className={CARD_EYEBROW}>Trakabl · Admin</p>
         <h1 className={`mt-3 ${PAGE_TITLE}`}>Founder access</h1>
         <p className="mt-3 text-sm text-text-muted">
           Sign in with a founder account to continue.

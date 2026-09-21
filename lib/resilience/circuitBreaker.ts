@@ -1,6 +1,6 @@
 /**
  * A small timeout + circuit-breaker combinator for guarding calls to a slow or
- * flaky external dependency. Trackd's only such dependency is Supabase (Auth /
+ * flaky external dependency. Trakabl's only such dependency is Supabase (Auth /
  * Postgres / Storage); a hung call there is the one thing that can "drag down
  * unrelated parts of the app" — a request with no timeout blocks the serverless
  * function up to the platform limit, and many of those at once exhaust function

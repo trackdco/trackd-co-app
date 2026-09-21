@@ -77,7 +77,7 @@ function Wordmark() {
   return (
     <Image
       src="/trackd-wordmark.png"
-      alt="Trackd Co"
+      alt="Trakabl"
       width={1049}
       height={200}
       className="h-3 w-auto opacity-70"
@@ -928,7 +928,7 @@ function OnboardingFlowClient({
             <div className="flex items-center justify-center">
               {railVisible ? <ProgressRail progress={stepProgress(step)} /> : null}
               {/* THE HOOK CENTRES THE MARK (Adrian, 2026-08-27: "for only the
-                  hero section, I want Trackd in the center of the screen").
+                  hero section, I want Trakabl in the center of the screen").
                   It can, and only it can: the hook is the one step with no
                   progress rail, so the middle cell is free. Everywhere else the
                   rail owns the centre and the mark stays right, which is why

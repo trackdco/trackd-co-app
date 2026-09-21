@@ -14,7 +14,7 @@ import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 import { graceDaysLeft } from "@/lib/billing/graceEnding";
 
-export const metadata: Metadata = { title: "Manage · Trackd Co" };
+export const metadata: Metadata = { title: "Manage · Trakabl" };
 
 /**
  * MANAGE — the sentence, then Card, then Receipts.
@@ -173,7 +173,7 @@ export default async function ManagePage() {
         * flagged as a change of purpose. The signed per-state set is what the
         * brief originally asked for, and it REPLACES that line, so Manage still
         * carries exactly one summary. Nothing is lost: §3.4's handoff dialog says
-        * "Stripe handles payments for Trackd Co, so your card details never touch
+        * "Stripe handles payments for Trakabl, so your card details never touch
         * us" to the same person one tap later, at the moment it matters.
         *
         * ⚠️ IT CAN BE ABSENT, AND ABSENT IS CORRECT. `paused`, `unpaid` and

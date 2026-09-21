@@ -354,7 +354,7 @@ export function CheckoutScreen() {
 
     const regularBilling = {
       /** The line the customer sees against the recurring charge. */
-      label: "Trackd Pro",
+      label: "Trakabl Pro",
       amount: planAmountMinor,
       recurringPaymentIntervalUnit: every.unit,
       recurringPaymentIntervalCount: every.count,
@@ -782,7 +782,7 @@ export function CheckoutScreen() {
                  */
                 `We're setting billing up now, so nothing interrupts you when your ${hadDays} days are up.`
               : wasBeta
-                ? `We gave you ${hadDays} days free when Trackd Co went paid. Your plan starts from today.`
+                ? `We gave you ${hadDays} days free when Trakabl went paid. Your plan starts from today.`
                 : "Free trials are for new accounts, so your plan starts today."
           : undefined
       }

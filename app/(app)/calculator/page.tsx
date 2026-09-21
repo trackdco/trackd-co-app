@@ -8,7 +8,7 @@ import {
   RouteTitle,
 } from "@/components/feel/RouteSkeletons";
 
-export const metadata: Metadata = { title: "Calculator · Trackd Co" };
+export const metadata: Metadata = { title: "Calculator · Trakabl" };
 
 /**
  * The reconstitution calculator's own screen — the centre bottom-nav slot's

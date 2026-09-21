@@ -247,7 +247,7 @@ export function ProtocolPreview() {
           paddingBottom: "0.75rem",
         }}
       >
-        <Image src="/trackd-wordmark.png" alt="trackd co" width={1049} height={200} className="h-4 w-auto" />
+        <Image src="/trackd-wordmark.png" alt="Trakabl" width={1049} height={200} className="h-4 w-auto" />
         <span className="rounded-full bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
           Preview · Protocol
         </span>

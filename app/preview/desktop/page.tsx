@@ -6,7 +6,7 @@ import { CARD_EYEBROW, DATA_MONO, PAGE_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Desktop tour · Trackd Co",
+  title: "Desktop tour · Trakabl",
 };
 
 /**
@@ -114,7 +114,7 @@ const OUTSIDE_SHELL: Screen[] = [
     href: "/start",
     name: "Onboarding",
     desktop:
-      'Was already exempt from the old gate. What changed: there is no "add to home screen" step on a laptop (nothing to add it to), so the founder letter is the last screen and its button reads "Open Trackd". The notification prompt is drawn as a browser panel rather than an Android sheet.',
+      'Was already exempt from the old gate. What changed: there is no "add to home screen" step on a laptop (nothing to add it to), so the founder letter is the last screen and its button reads "Open Trakabl". The notification prompt is drawn as a browser panel rather than an Android sheet.',
   },
   {
     href: "/forgot-password",
@@ -202,7 +202,7 @@ export default function DesktopTourPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl px-6 py-14">
-      <p className={CARD_EYEBROW}>Trackd Co · branch desktop-app</p>
+      <p className={CARD_EYEBROW}>Trakabl · branch desktop-app</p>
       <h1 className={cn(PAGE_TITLE, "mt-3 text-[2rem]")}>The desktop tour</h1>
       <p className="mt-4 max-w-[62ch] text-sm leading-relaxed text-text-muted">
         Every screen in the app, on a laptop. Open these in a window wider than

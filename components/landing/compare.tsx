@@ -6,13 +6,13 @@ import { cn } from "@/lib/utils";
 /**
  * THE COMPARISON TABLE (spec 3-03 §3.6).
  *
- * `Feature | A notes app | Trackd`, crosses down one column and ticks down the
+ * `Feature | A notes app | Trakabl`, crosses down one column and ticks down the
  * other, and then a last row that turns it round on purpose: the feature is a
- * BAD one, so the notes app has it and Trackd does not.
+ * BAD one, so the notes app has it and Trakabl does not.
  *
  * ## How the inversion reads as a point rather than a mistake
  *
- * The Trackd column is lit the whole way down. The MARK follows the symbol,
+ * The Trakabl column is lit the whole way down. The MARK follows the symbol,
  * not the column (Adrian, 2026-09-17): a tick is always the filled white one
  * and a cross is always the muted outline one, so on the last row the two swap
  * sides, and the flip is the punchline.

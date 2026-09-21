@@ -7,7 +7,7 @@ import { graceDaysLeft } from "@/lib/billing/graceEnding";
 import { formatAccessDate, formatAccessDateShort } from "@/lib/billing/manage";
 
 export const metadata: Metadata = {
-  title: "Grace notice preview · Trackd Co",
+  title: "Grace notice preview · Trakabl",
   robots: { index: false, follow: false },
 };
 

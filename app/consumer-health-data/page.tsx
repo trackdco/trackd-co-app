@@ -27,7 +27,7 @@ import { LegalDocument } from "@/components/legal/legal-document";
  * about how many things the user agreed to.
  */
 export const metadata: Metadata = {
-  title: "Consumer Health Data Privacy Policy · Trackd Co",
+  title: "Consumer Health Data Privacy Policy · Trakabl",
 };
 
 // Public, user-identical page — statically render + revalidate on a schedule

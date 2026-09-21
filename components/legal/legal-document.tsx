@@ -140,10 +140,10 @@ export async function LegalDocument({
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col px-6 py-16">
-      <Link href="/" aria-label="trackd co" className="w-fit">
+      <Link href="/" aria-label="Trakabl" className="w-fit">
         <Image
           src="/trackd-wordmark.png"
-          alt="trackd co"
+          alt="Trakabl"
           width={1049}
           height={200}
           className="h-4 w-auto"
@@ -151,7 +151,7 @@ export async function LegalDocument({
       </Link>
 
       <h1 className={`mt-12 ${PAGE_TITLE}`}>
-        {doc.title.replace(/^Trackd Co\s*[—-]\s*/, "")}
+        {doc.title.replace(/^Trakabl\s*[—-]\s*/, "")}
       </h1>
       <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-subtle">
         Version {doc.version}

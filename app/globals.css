@@ -3960,3 +3960,133 @@ body[data-inline-edit="true"] .shortcuts-layer {
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE REBRAND NOTICE'S WORDMARK SWAP (Adrian, 2026-09-21 — "N1").
+
+   A flat amber bar crosses the mark once; the old wordmark is clipped away
+   behind it and the new one is revealed in its wake. One pass, then it is gone.
+
+   ⚠️ FLAT, AND THAT IS THE WHOLE BRIEF. Two earlier passes carried a glow — a
+   box-shadow halo on the bar and a radial bloom behind the mark — and both were
+   rejected ("It's too glowy now. I don't want you to glow it... make it more
+   flat"). There is no box-shadow, no filter, no gradient falloff on the bar
+   anywhere below. If a later pass wants to make this "pop", the answer is the
+   easing curve, not luminosity.
+
+   The curve is the iOS sheet easing rather than --motion-ease. The house curve
+   is a pure ease-out and reads as "arriving"; this is a pass THROUGH the frame,
+   which needs to accelerate in as well as settle out.
+
+   One-shot, not ambient, so it sits inside ui-context.md's motion ban rather
+   than against it: it fires once when the notice mounts and never repeats.
+   --------------------------------------------------------------------------- */
+:root {
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes rebrand-old-out {
+  0%,
+  10% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+@keyframes rebrand-new-in {
+  0%,
+  10% {
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes rebrand-bar {
+  0%,
+  10% {
+    left: 0%;
+    opacity: 1;
+  }
+  96% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-rebrand-old {
+  animation: rebrand-old-out 1300ms var(--ease-sheet) both;
+}
+
+.animate-rebrand-new {
+  animation: rebrand-new-in 1300ms var(--ease-sheet) both;
+}
+
+.animate-rebrand-bar {
+  animation: rebrand-bar 1300ms var(--ease-sheet) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* ⚠️ NOT `animation: none`. The trap ui-context.md names applies exactly here:
+     the old mark's resting state is un-clipped and the new mark's is fully
+     clipped, so killing the animation alone strands the OLD wordmark visible
+     and hides the new one — the precise opposite of the notice's purpose. Each
+     element is pinned to its END state instead, and the bar is removed
+     outright rather than left parked at the left edge. */
+  .animate-rebrand-old {
+    animation: none;
+    clip-path: inset(0 0 0 100%);
+  }
+
+  .animate-rebrand-new {
+    animation: none;
+    clip-path: inset(0 0 0 0);
+  }
+
+  .animate-rebrand-bar {
+    animation: none;
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE ARRIVAL NOTICE'S ENTRANCE (landing page header, Adrian 2026-09-21).
+
+   It appears a frame after hydration — both its inputs are client-only — so it
+   has to arrive rather than snap. Delayed past the header's own settle so it
+   does not compete with the wordmark and the hero for the first look.
+
+   ⚠️ NO LAYOUT SHIFT BY CONSTRUCTION. It animates opacity and transform only,
+   never width or margin: the header row is a fixed-height flex line and the
+   element is already in it at its final size before the first frame paints.
+   An earlier sketch animated width from 0 and that reflowed the burger beside
+   it on every frame.
+   --------------------------------------------------------------------------- */
+@keyframes arrival-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lp-arrival {
+  animation: arrival-in 620ms var(--ease-sheet) 140ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Safe to zero here, unlike the rebrand swap: this element's resting state IS
+     its end state, so removing the animation leaves it correctly visible. */
+  .lp-arrival {
+    animation: none;
+  }
+}

@@ -12,7 +12,7 @@ import { SHEET_TITLE } from "@/lib/ui-presets"
  * pocket, offered from Profile where somebody would go looking for it rather
  * than thrown in front of the app.
  *
- * The copy carries that difference. Nothing here says Trackd needs a phone or
+ * The copy carries that difference. Nothing here says Trakabl needs a phone or
  * works better on one, because neither is true any more.
  */
 
@@ -24,7 +24,7 @@ export function PhoneHandoffPrompt() {
     <div className="pb-2">
       <h2 className={SHEET_TITLE}>Get it on your phone</h2>
       <p className="mt-2 text-sm leading-relaxed text-text-muted">
-        Scan this with your phone camera. Trackd opens signed out, so sign in
+        Scan this with your phone camera. Trakabl opens signed out, so sign in
         once and add it to your Home Screen for reminders.
       </p>
 

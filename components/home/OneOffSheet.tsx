@@ -119,7 +119,7 @@ function OneOffBody({
   const [query, setQuery] = useState("")
   const [picked, setPicked] = useState<OneOffChoice | null>(null)
   const [amount, setAmount] = useState("")
-  // The amount is typed on the Trackd pad (feel pass §3).
+  // The amount is typed on the Trakabl pad (feel pass §3).
   const [padOpen, setPadOpen] = useState(false)
   const amountRef = useRef<HTMLButtonElement>(null)
   const [unit, setUnit] = useState<OneOffUnit>("mg")

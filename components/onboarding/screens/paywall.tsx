@@ -419,8 +419,8 @@ export function PaywallScreen() {
              * instead. Everything before the clause is still true.
              */
             firstChargeOn
-            ? `Everything in Trackd, from today. Nothing to pay until ${firstChargeOn}.`
-            : "Everything in Trackd, from today."
+            ? `Everything in Trakabl, from today. Nothing to pay until ${firstChargeOn}.`
+            : "Everything in Trakabl, from today."
           : "Three billing options."
       }
     >

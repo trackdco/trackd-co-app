@@ -65,11 +65,11 @@ export function LetterScreen() {
       <div className="flex flex-1 flex-col justify-center pt-6">
         <div className="space-y-4">
           <p className={cn(CARD_EYEBROW, "text-accent-amber")}>
-            To Trackd Co&apos;s newest user
+            To Trakabl&apos;s newest user
           </p>
 
           <p className={PARAGRAPH}>
-            Thank you for choosing Trackd Co! We built Trackd with one goal: to
+            Thank you for choosing Trakabl! We built it with one goal: to
             get your protocol out of a messy notes app and into something
             simple, effective, and built around how you <em>actually</em> track.
           </p>
@@ -111,17 +111,17 @@ export function LetterScreen() {
             <p className="animate-hand-write font-[family-name:var(--font-hand)] text-[2rem] leading-none text-accent-amber">
               Angus &amp; Adrian
             </p>
-            <p className={cn(CARD_EYEBROW, "mt-2.5")}>Founders, Trackd Co</p>
+            <p className={cn(CARD_EYEBROW, "mt-2.5")}>Founders, Trakabl</p>
           </div>
 
           {/* The way out, at the end of the letter rather than over it. The gap
               above is wider than the letter's own rhythm so the button reads as
               what happens next and not as part of the sign-off.
 
-              IT NO LONGER SAYS "Enter Trackd" (Adrian, 2026-08-07). Install
+              IT NO LONGER SAYS "Enter Trakabl" (Adrian, 2026-08-07). Install
               moved to the very end of the flow, so this is not the last screen
               any more and that label was a promise the next tap did not keep.
-              "Enter Trackd" moved WITH the exit, onto the install screen, so
+              "Enter Trakabl" moved WITH the exit, onto the install screen, so
               the flow still ends on the same words.
 
               "Last step" (Adrian, 2026-08-07), over an interim "One last
@@ -140,7 +140,7 @@ export function LetterScreen() {
               last thing" made from the other direction. */}
           <div className="pt-8">
             <FlowCta onClick={goNext}>
-              {isLast ? "Open Trackd" : "Last step"}
+              {isLast ? "Open Trakabl" : "Last step"}
             </FlowCta>
           </div>
         </div>

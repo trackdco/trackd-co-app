@@ -19,7 +19,7 @@ import { WELCOME_EFFECTS, WelcomeStage } from "./welcome-effects";
  * seeing a long name in a 40px headline is half of what is being judged.
  */
 const SAMPLE_SUB =
-  "Let's learn a bit more, so Trackd can be built around what you actually run.";
+  "Let's learn a bit more, so Trakabl can be built around what you actually run.";
 
 export function WelcomeEffectPicker() {
   const [index, setIndex] = useState(0);

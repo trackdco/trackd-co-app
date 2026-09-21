@@ -58,7 +58,7 @@ import { useFlow } from "../flow-context";
  * for something personal on screen one and did nothing with it. A question with
  * no consequence is the most expensive kind on a first-run screen.
  *
- * NO SUBTITLE EITHER. "So Trackd can greet you properly" explained a field
+ * NO SUBTITLE EITHER. "So Trakabl can greet you properly" explained a field
  * nobody needs explained, and the pattern repeated on all three screens made
  * housekeeping read as a form with help text. The question IS the screen.
  */
@@ -141,7 +141,7 @@ export function BirthdayScreen() {
       // to ask" was an apology for the one question on this flow that is not
       // optional, and apologising for an age gate invites the reader to treat
       // it as negotiable.
-      sub="Trackd Co is for adults only."
+      sub="Trakabl is for adults only."
       footer={
         <div className="space-y-3">
           {/* THE REFUSAL LIVES HERE, NOT UNDER THE FIELD (Adrian, 2026-08-05).
@@ -161,7 +161,7 @@ export function BirthdayScreen() {
               role="alert"
               className="text-center text-[0.8rem] leading-relaxed text-accent-destructive"
             >
-              Trackd is for adults 18 and over.
+              Trakabl is for adults 18 and over.
             </p>
           ) : null}
           {verdict === "future" ? (
@@ -452,7 +452,7 @@ export function GenderScreen() {
       // Short, and about THEM (Adrian, 2026-08-05). The old line listed the
       // mechanics — body maps, marker sets — which is true and is not what
       // anyone needs at the moment of answering.
-      sub="So Trackd can tailor your experience."
+      sub="So Trakabl can tailor your experience."
       footer={
         <FlowCta onClick={goNext} disabled={!canContinue}>
           Continue

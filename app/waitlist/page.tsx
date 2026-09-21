@@ -5,20 +5,20 @@ import Link from "next/link";
 import { WaitlistForm } from "@/components/waitlist/waitlist-form";
 
 export const metadata: Metadata = {
-  title: "Join the waitlist · Trackd Co",
+  title: "Join the waitlist · Trakabl",
   description:
-    "Trackd is the private app for tracking your whole protocol: gear, peptides, supps, bloodwork, outcomes. Join the waitlist for early access.",
+    "Trakabl is the private app for tracking your whole protocol: gear, peptides, supps, bloodwork, outcomes. Join the waitlist for early access.",
   openGraph: {
-    title: "Join the Trackd waitlist",
+    title: "Join the Trakabl waitlist",
     description:
       "The private app for tracking your whole protocol. Be first in when spots open.",
     type: "website",
     url: "https://trackdco.app/waitlist",
-    siteName: "Trackd Co",
+    siteName: "Trakabl",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Join the Trackd waitlist",
+    title: "Join the Trakabl waitlist",
     description: "The private app for tracking your whole protocol.",
   },
 };
@@ -55,7 +55,7 @@ export default async function WaitlistPage({
       <div className="relative z-10 w-full max-w-md animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out motion-reduce:animate-none">
         <Image
           src="/trackd-wordmark.png"
-          alt="trackd co"
+          alt="Trakabl"
           width={1049}
           height={200}
           priority

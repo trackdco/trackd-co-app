@@ -126,7 +126,7 @@ export function Dashboard({
         {/* ── Header ───────────────────────────────────────────────────── */}
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <p className={CARD_EYEBROW}>Trackd</p>
+            <p className={CARD_EYEBROW}>Trakabl</p>
             {worst && (
               <span className="flex items-center gap-1.5">
                 <span className={`size-1.5 rounded-full ${SEVERITY_DOT[worst]}`} />

@@ -70,7 +70,7 @@ export function RotationNotice() {
     >
       <p className="text-lg font-medium text-foreground">Turn your phone upright</p>
       <p className="max-w-xs text-sm leading-relaxed text-text-muted">
-        Trackd is built for portrait. Everything is where you left it.
+        Trakabl is built for portrait. Everything is where you left it.
       </p>
       <button
         type="button"

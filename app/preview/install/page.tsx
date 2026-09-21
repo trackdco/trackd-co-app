@@ -12,7 +12,7 @@ import { notFound } from "next/navigation";
 const SCREENS = [
   {
     href: "/preview/install/presell",
-    title: "This is where Trackd goes",
+    title: "This is where Trakabl goes",
     note: "The pre-sell. One action, no skip. Switch iPhone / Samsung / Pixel at the top. Each draws its own launcher.",
   },
   {

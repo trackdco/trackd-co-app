@@ -36,7 +36,7 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  title: "Trackd Co",
+  title: "Trakabl",
   description:
     "Track peptide, anabolic, supplement, and hormone-optimisation protocols in one place.",
   // PWA: link the manifest (app/manifest.ts) and tell iOS Safari this is a
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Trackd",
+    title: "Trakabl",
     statusBarStyle: "black-translucent",
   },
 };
@@ -66,7 +66,7 @@ export const viewport: Viewport = {
  * ## THE PHONE-ONLY GATE IS GONE (2026-09-10, Adrian's call)
  *
  * Until now this layout wrapped the app in `DesktopGate`: at >=1024px the whole
- * shell was hidden and a "grab your phone to use Trackd" interstitial stood in
+ * shell was hidden and a "grab your phone to use Trakabl" interstitial stood in
  * its place, for signed-in users too. That was the correct call while there was
  * no desktop design. There is one now (`app/desktop.css` + `components/desktop/`),
  * so the wall has nothing left to do and keeping it would mean shipping a laptop

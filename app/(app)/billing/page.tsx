@@ -26,7 +26,7 @@ import { CARD_EYEBROW, PAGE_TITLE, PRESS } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Billing · Trackd Co" };
+export const metadata: Metadata = { title: "Billing · Trakabl" };
 
 /**
  * Billing — what you're on, when it renews, and how to stop it.

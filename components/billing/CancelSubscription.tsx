@@ -515,7 +515,7 @@ export function CancelSubscription({
    * THE UNDO CONTROL. "Keep my Pro plan" (D22, resolved 15 Aug 2026).
    *
    * It read "Restart my trial" (meaningless: nothing had stopped), then
-   * "Keep Trackd after 19 Aug" — Adrian's objection to that one on 2026-08-14
+   * "Keep Trakabl after 19 Aug" — Adrian's objection to that one on 2026-08-14
    * was that the date is already directly above it in the summary and directly
    * below it in the explanation, so the screen said 19 Aug three times to
    * somebody re-reading it to be sure — and then the mirrored noun pair
@@ -1518,7 +1518,7 @@ function dialogCopy({
        */
       quiet: reminderQuietLine(remindersPromised),
       dismiss: null,
-      confirm: "Back to Trackd Co",
+      confirm: "Back to Trakabl",
     };
   }
 

@@ -123,7 +123,7 @@ function CycleRuleForm({
   const [colour, setColour] = useState<CycleColour>(cycle?.colour ?? DEFAULT_CYCLE_COLOUR)
   const [anchor, setAnchor] = useState(cycle?.anchor ?? todayKey())
 
-  // The three lengths on one Trackd pad (feel pass §3). Whole days, three
+  // The three lengths on one Trakabl pad (feel pass §3). Whole days, three
   // digits at most.
   const pad = usePadSession()
   const digits = (raw: string) => raw.replace(/\D/g, "").slice(0, 3)
