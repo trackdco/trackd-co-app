@@ -5790,3 +5790,55 @@ came back "partly" and hold only while the weight stays on the self-updating
 half: do not weaken either into a bare "built-in calculator" or a plain "tracks
 your stock", because Math Notes variables cover more of the static half than the
 old "Other apps" framing ever forced us to admit.
+
+## Kyle's art carries the Trakabl singlet (2026-09-21)
+
+Four new renders replaced the three that shipped in August, on the `rename`
+branch alongside the wider rebrand. They are a **placeholder**: Adrian has said
+the mascot's own branding changes again later, so the work went into making the
+swap repeatable rather than into the art.
+
+**One script owns every Kyle asset.** `scripts/brand/kyle.mjs` takes the four
+masters in `scripts/brand/kyle/` and writes the onboarding PNGs, the launch
+poster, all nine iOS launch images and all five app icons. `generate.mjs` kept
+only the wordmark. They used to both write `public/splash/`, and that is exactly
+how `apple-splash-1260-2736.png` (the iPhone Air) went stale in June — added by
+hand to the directory and to the `<link>` list, never to the script's size
+array, so every run silently skipped it. It had carried the old logo ever since.
+A drift guard now fails the run if `public/splash` holds a file the script did
+not just write.
+
+**The art is cropped to one shared box.** The old set spent ~37% of its height
+on empty transparent space, which is invisible but not free: it scaled with Kyle
+and pushed everything around him apart. Every pose is now cut to the union of
+all four alpha boxes — one box, so relative scale survives and a raised hand
+costs the others a little headroom instead of costing Kyle his size. Dead space
+is down to ~9%, which is the wave pose's headroom and nothing else.
+
+Because a tighter box renders bigger for the same `size` prop, all six call
+sites were scaled by 0.6761 so Kyle's on-screen size is UNCHANGED — Adrian's
+call, asked and answered: same size, tighter box. Verified by compositing old
+and new at their real call-site dimensions; Kyle matches, the reserved box
+collapses.
+
+**The feather mask is gone.** It masked a near-black backdrop that no longer
+exists. Its own comment claimed it was harmless on a transparent PNG, and that
+stopped being true once the art was cropped: it went clear at 78% of the radius,
+which on a tight crop is Kyle's fists.
+
+**The masters moved out of `public/`.** They were served — 60MB of renders no
+code references, downloadable by anyone who guessed the path. They now sit
+beside the script that reads them, which is the convention `generate.mjs`
+already set.
+
+**A fourth pose exists.** `kyle-wave.png` was already on disk but had never been
+wired into `KylePose`, so nothing could render it. It is a first-class pose now.
+Adrian wants it at the open of onboarding, which is the newly-added landing →
+onboarding step; no screen uses it yet.
+
+**`sw.js` cache prefixes are deliberately plural.** `SPLASH_CACHE_PREFIXES`
+keeps `"trackd-splash-"` alongside the new name. Devices installed before the
+rebrand hold a `trackd-splash-v2` cache; if the prune filter stops matching it,
+the old splash poster leaks on those phones permanently and invisibly. It has to
+outlive the domain move too, since an installed PWA stays scoped to the origin
+it was installed from.

@@ -22,8 +22,21 @@
  */
 
 // Bump the cache name to roll the splash asset. Old caches are pruned on activate
-// (bumped to v2 to drop the retired splash video from the precache).
-const SPLASH_CACHE = "trackd-splash-v2";
+// (v2 dropped the retired splash video; v3 rolls the Trakabl splash poster, so
+// a device holding the old Trackd one replaces it instead of showing it).
+const SPLASH_CACHE = "trakabl-splash-v3";
+
+// Every prefix we have EVER shipped a splash cache under, newest first.
+//
+// ⚠️ "trackd-splash-" MUST STAY, and a rename sweep must not "fix" it. Devices
+// installed before the rebrand still hold a trackd-splash-v2 cache. If this
+// stops matching theirs, that cache is never pruned and the OLD splash poster
+// leaks on those phones permanently — invisibly, because the only thing that
+// renders it is a cold launch on a device we cannot see. It also has to outlive
+// the domain move: an installed PWA stays scoped to the origin it was installed
+// from, so phones keep launching from the old origin long after the new one is
+// live. Deleting this string is not tidying up; it is stranding those installs.
+const SPLASH_CACHE_PREFIXES = ["trakabl-splash-", "trackd-splash-"];
 const SPLASH_ASSETS = ["/trackd-kyle-vial-splash-poster.jpg"];
 
 // Activate a new SW version immediately rather than waiting for all tabs to
@@ -44,11 +57,15 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      // Only ever prune OUR splash caches (e.g. a prior trackd-splash-v0) — never
-      // touch caches owned by anything else on the origin.
+      // Only ever prune OUR splash caches (any prefix we have shipped under) —
+      // never touch caches owned by anything else on the origin.
       await Promise.all(
         keys
-          .filter((k) => k.startsWith("trackd-splash-") && k !== SPLASH_CACHE)
+          .filter(
+            (k) =>
+              SPLASH_CACHE_PREFIXES.some((prefix) => k.startsWith(prefix)) &&
+              k !== SPLASH_CACHE,
+          )
           .map((k) => caches.delete(k)),
       );
       await self.clients.claim();
@@ -100,7 +117,7 @@ self.addEventListener("push", (event) => {
     data = {};
   }
 
-  const title = data.title || "Trackd";
+  const title = data.title || "Trakabl";
   const options = {
     body: data.body,
     icon: "/icon-192.png",

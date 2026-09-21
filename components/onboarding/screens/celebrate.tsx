@@ -112,7 +112,7 @@ export function CelebrateScreen() {
             ticks do not move. */}
         <ScrollPort>
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 py-2">
-          <Mascot pose="thumbs" size={330} short={190} className="-mb-4 shrink-0" />
+          <Mascot pose="thumbs" size={223} short={128} className="-mb-4 shrink-0" />
 
           {/* NOT a uniform `space-y`: the eyebrow holds still while the title
               and the ticks come UP to meet it (Adrian, 2026-08-27: "keep 'Good

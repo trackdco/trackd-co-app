@@ -3533,3 +3533,33 @@ from the suite. 341 tests pass and would not have caught any of them.
 `main` deploys straight to Vercel prod, so merge ONLY on his word. Before it:
 tsc, lint, `npm test` and `next build` all clean; decide whether the `/preview/*`
 demo pages ship; do not rewrite the migration files.
+
+## 🟠 KYLE / REBRAND ART — LANDED, THREE THINGS OPEN (2026-09-21)
+
+The four renders are in on `rename` and generated through
+`scripts/brand/kyle.mjs`. State and reasoning are in `progress-tracker.md`.
+
+### 1. The wave pose has no home yet (Adrian)
+`pose="wave"` renders and the art is generated, but no screen uses it. Adrian
+said it belongs at "the beginning of the onboarding, which I just made
+recently" — the new landing → onboarding step. That screen needs to be pointed
+at it.
+
+### 2. Celebrate and welcome were never rendered at their new sizes
+The rescale was verified by compositing the art at real call-site dimensions,
+and the paywall preview was rendered in the browser. Celebrate (330 → 223) and
+welcome (280 → 189) sit behind the auth'd onboarding flow and there is no
+preview route for them, so the only thing unseen is how the surrounding layout
+sits once Kyle's box stops reserving the empty space. The change gives the
+scroll port MORE room, which is the direction `fit.ts` was already fighting for,
+so the risk is cosmetic — but it is worth one look on a real phone.
+
+### 3. The wordmark is capitalised, and the old text mark is now orphaned
+The supplied file reads "Trakabl." — capital T, trailing dot. The header logo it
+replaces was lowercase "trackd co". It was installed as sent, at the same path.
+Worth a decision, because it changes the header's character.
+
+Separately, `scripts/brand/trackd-mark.src.png` is the old serif "Trackd" mark.
+Nothing reads it now that the splash belongs to `kyle.mjs`. It is a stale
+old-brand source sitting in the brand folder, which is the kind of file a later
+sweep picks up by mistake. Delete it or replace it.

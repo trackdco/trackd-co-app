@@ -65,7 +65,7 @@ export function WelcomeScreen() {
                 render carries transparent padding at the top, so centring the
                 group by its box left him sitting higher than he looks like he
                 should. `mt-6` moves the drawing, not the layout. */}
-            <Mascot pose="flex" size={280} short={220} className="mt-6 shrink-0" />
+            <Mascot pose="flex" size={189} short={149} className="mt-6 shrink-0" />
 
             <div className="shrink-0 space-y-3 text-center">
             {/* A 40px headline with a user-supplied name in it. The flow

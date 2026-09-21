@@ -3,15 +3,24 @@
  *
  * Sources (transparent PNG masters, kept alongside this script so regeneration
  * never depends on anyone's Downloads folder):
- *   - trackd-wordmark.src.png  → the long "trackd co" wordmark (header logo)
- *   - trackd-mark.src.png      → the short "Trackd" mark (launch/splash logo)
+ *   - trackd-wordmark.src.png  → the wordmark (header logo)
  *
  * Outputs (web-served from public/):
  *   - public/trackd-wordmark.png            → top-left header logo
- *   - public/splash/apple-splash-*.png      → iOS launch images (mark on #111110)
  *
- * The near-black canvas is --bg-base (#111110) — see app/globals.css. Keep these
- * in sync if that token ever changes.
+ * ## The splash images are NOT made here any more
+ *
+ * This script used to also composite a text mark onto the iOS launch images.
+ * They have shown Kyle since June, and they are now generated — along with the
+ * poster and every app icon — by `kyle.mjs`, which owns everything with the
+ * mascot in it.
+ *
+ * They were left in BOTH places for a while, and that is exactly how
+ * apple-splash-1260-2736.png (the iPhone Air) went stale: it was added by hand
+ * to public/splash and to the <link> list, but never to this script's size
+ * array, so every run quietly skipped it. Two scripts writing one directory is
+ * how a launch image keeps the old logo through a rebrand and nobody sees it,
+ * because only the one device that matches ever renders it. One owner now.
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,65 +30,19 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(dir, "../..");
 const pub = path.join(root, "public");
 
-const LONG_SRC = path.join(dir, "trackd-wordmark.src.png"); // "trackd co"
-const SHORT_SRC = path.join(dir, "trackd-mark.src.png"); // "Trackd"
+const LONG_SRC = path.join(dir, "trackd-wordmark.src.png");
 
-// --bg-base #111110, fully opaque.
-const BG = { r: 0x11, g: 0x11, b: 0x10, alpha: 1 };
-
-// iOS launch images iOS exact-matches on (physical px). Must mirror the list in
-// components/pwa/apple-splash-links.tsx.
-const SPLASHES = [
-  [750, 1334],
-  [828, 1792],
-  [1170, 2532],
-  [1179, 2556],
-  [1206, 2622],
-  [1284, 2778],
-  [1290, 2796],
-  [1320, 2868],
-];
-
-// The mark spans this fraction of the splash width (centred).
-const SPLASH_MARK_WIDTH_RATIO = 0.58;
 // Header wordmark export height (px). Displayed ~20px tall, so this is retina-safe.
 const HEADER_HEIGHT = 200;
 
 async function main() {
-  // 1) Header wordmark — trim transparent margins so it isn't lost in padding,
-  //    then cap the height (keeps the file tiny; next/image handles the rest).
-  const longTrimmed = await sharp(LONG_SRC).trim().png().toBuffer();
-  const headerBuf = await sharp(longTrimmed)
-    .resize({ height: HEADER_HEIGHT })
-    .png()
-    .toBuffer();
-  const headerMeta = await sharp(headerBuf).metadata();
-  await sharp(headerBuf).toFile(path.join(pub, "trackd-wordmark.png"));
-  console.log(
-    `header wordmark → public/trackd-wordmark.png (${headerMeta.width}x${headerMeta.height})`,
-  );
-
-  // 2) Splash images — short mark, trimmed, centred on the near-black canvas.
-  const shortTrimmed = await sharp(SHORT_SRC).trim().png().toBuffer();
-  for (const [w, h] of SPLASHES) {
-    const markW = Math.round(w * SPLASH_MARK_WIDTH_RATIO);
-    const mark = await sharp(shortTrimmed).resize({ width: markW }).png().toBuffer();
-    const markMeta = await sharp(mark).metadata();
-    const out = await sharp({
-      create: { width: w, height: h, channels: 4, background: BG },
-    })
-      .composite([
-        {
-          input: mark,
-          left: Math.round((w - markMeta.width) / 2),
-          top: Math.round((h - markMeta.height) / 2),
-        },
-      ])
-      .png()
-      .toBuffer();
-    await sharp(out).toFile(path.join(pub, "splash", `apple-splash-${w}-${h}.png`));
-  }
-  console.log(`splash → public/splash/apple-splash-*.png (${SPLASHES.length} sizes)`);
+  // Trim the transparent margins so the mark isn't lost inside its own padding,
+  // then cap the height (keeps the file tiny; next/image handles the rest).
+  const trimmed = await sharp(LONG_SRC).trim().png().toBuffer();
+  const buf = await sharp(trimmed).resize({ height: HEADER_HEIGHT }).png().toBuffer();
+  const meta = await sharp(buf).metadata();
+  await sharp(buf).toFile(path.join(pub, "trackd-wordmark.png"));
+  console.log(`header wordmark → public/trackd-wordmark.png (${meta.width}x${meta.height})`);
 }
 
 main().catch((err) => {

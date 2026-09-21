@@ -371,7 +371,7 @@ function BetaLaunchDialog({
             (globals.css:914), and `globals.css:968` already kills it under
             `prefers-reduced-motion`. Adrian asked for the float; it was there. */}
         <div className="relative mb-2 flex justify-center">
-          <Mascot pose="flex" size={96} />
+          <Mascot pose="flex" size={65} />
         </div>
 
         {/* ⚠️ APPROVED COPY, CHARACTER FOR CHARACTER (06 §3.6). A fix WITHHOLDS a

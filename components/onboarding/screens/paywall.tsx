@@ -349,7 +349,7 @@ export function PaywallScreen() {
       above={
         trial ? (
           <div className="flex shrink-0 justify-center pb-2">
-            <Mascot pose="flex" size={132} />
+            <Mascot pose="flex" size={89} />
           </div>
         ) : null
       }

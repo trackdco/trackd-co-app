@@ -908,7 +908,7 @@ export function CancelSubscription({
                 */}
               {shownPhase === "granted" ? (
                 <div className="mb-3 flex justify-center">
-                  <Mascot pose="thumbs" size={132} />
+                  <Mascot pose="thumbs" size={89} />
                 </div>
               ) : null}
               {/**
