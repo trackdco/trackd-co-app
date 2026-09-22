@@ -58,7 +58,7 @@ let failed = false;
 for (const s of SLIDES) {
   const res = await page.goto(BASE + s.route, {
     waitUntil: "domcontentloaded",
-    timeout: 60000,
+    timeout: 120000,
   });
   if (!res || res.status() !== 200) {
     console.error(`REFUSING ${s.route}: HTTP ${res ? res.status() : "no response"}`);
@@ -78,7 +78,33 @@ for (const s of SLIDES) {
       .filter((a) => a.effect?.getTiming?.().iterations !== Infinity);
     await Promise.all(finite.map((a) => a.finished.catch(() => {})));
   });
-  await page.waitForTimeout(400);
+  /**
+   * ⚠️ HIDE THE HARNESS CHROME. The /preview/* routes wrap the real screen in a
+   * header carrying a "Preview · <page>" pill. The originals were captured from
+   * the signed-in app (their top-right reads "Sign out"), so neither chrome is
+   * "correct" — but a marketing slide must not ship the word PREVIEW, and an
+   * empty top-right beside the wordmark reads better than a stray Sign out.
+   */
+  await page.evaluate(() => {
+    for (const el of document.querySelectorAll("header span")) {
+      if (/^preview\s/i.test(el.textContent || "")) el.style.visibility = "hidden";
+    }
+  });
+
+  await page.waitForTimeout(2500);
+
+  /**
+   * ⚠️ REFUSE A BLANK CAPTURE. /preview/protocol returned HTTP 200 and rendered
+   * an empty screen — its data arrives client-side after the route responds —
+   * and the result was a 14KB slab of pure background that would have shipped
+   * as an onboarding slide. A 200 is not evidence that a page drew anything.
+   */
+  const textLen = await page.evaluate(() => (document.body.innerText || "").trim().length);
+  if (textLen < 80) {
+    console.error(`REFUSING ${s.route}: page rendered only ${textLen} chars of text — blank or still loading`);
+    failed = true;
+    continue;
+  }
 
   const file = path.join(dest, s.file);
   await page.screenshot({ path: file, type: "png" });

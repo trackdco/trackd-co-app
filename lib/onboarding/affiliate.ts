@@ -47,7 +47,11 @@ export type CodeVerdict =
  * backend. D-6 default is applied: a code deepens the ANNUAL offer.
  */
 const KNOWN_CODES = new Map<string, { annualOnly: boolean }>([
-  ["TRACKD", { annualOnly: true }],
+  // ⚠️ RENAMED WHILE IT WAS STILL FREE TO. A code is typed by a person and
+  // lives on whatever was printed or posted; once any are in circulation,
+  // changing one breaks it for whoever holds it. None are, so this is the last
+  // cheap moment (Adrian, 2026-09-22).
+  ["TRAKABL", { annualOnly: true }],
   ["ANGUS", { annualOnly: true }],
 ]);
 

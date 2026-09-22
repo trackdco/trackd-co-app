@@ -96,10 +96,24 @@ export function isLocalHost(hostname: string): boolean {
 export function isOwnPreview(hostname: string): boolean {
   if (!hostname.endsWith(".vercel.app")) return false;
   const label = hostname.slice(0, -".vercel.app".length);
-  return label === PROJECT || label.startsWith(`${PROJECT}-`);
+  return PROJECTS.some((p) => label === p || label.startsWith(`${p}-`));
 }
 
-const PROJECT = "trackd-co-app";
+/**
+ * ⚠️ BOTH SLUGS, AND THE OLD ONE IS NOT DEAD WEIGHT.
+ *
+ * Vercel builds a preview hostname from the PROJECT name, so renaming the
+ * project changes every preview URL. If this held only the new slug, previews
+ * built before the rename would stop matching `isOwnPreview` and be handed the
+ * production origin as a Stripe return URL — a checkout started on a preview
+ * would return to production. If it held only the old one, the same happens to
+ * every preview after the rename.
+ *
+ * It cannot be widened to bare `.vercel.app`: that is every Vercel customer on
+ * earth, and this value is where a payment provider sends a signed-in user. A
+ * cold review found exactly that hole here once already.
+ */
+const PROJECTS = ["trakabl", "trackd-co-app"];
 
 /** The whole decision. */
 export function isAllowedHost(hostname: string): boolean {

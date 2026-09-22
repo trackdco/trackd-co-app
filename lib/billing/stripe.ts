@@ -1,6 +1,7 @@
 import "server-only";
 
 import Stripe from "stripe";
+import { BUSINESS_NAME, CANONICAL_ORIGIN } from "@/lib/brand";
 
 /**
  * The server-side Stripe client, and the guard that stops the mode mistake.
@@ -48,7 +49,7 @@ export function stripe(): Stripe {
      * the drift worth worrying about: a version bump there cannot change what
      * this client parses.
      */
-    appInfo: { name: "Trakabl", url: "https://trackdco.app" },
+    appInfo: { name: BUSINESS_NAME, url: CANONICAL_ORIGIN },
   });
   return client;
 }

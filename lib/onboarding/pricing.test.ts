@@ -241,7 +241,7 @@ describe("intervalSuffix", () => {
 
 describe("affiliate codes", () => {
   it("normalises case and whitespace", () => {
-    expect(normaliseCode("  trackd ")).toBe("TRACKD");
+    expect(normaliseCode("  trakabl ")).toBe("TRAKABL");
   });
 
   it("rejects a code that is not code-shaped", () => {
@@ -259,9 +259,9 @@ describe("affiliate codes", () => {
   });
 
   it("applies a known code", async () => {
-    await expect(validateCode("TRACKD")).resolves.toMatchObject({
+    await expect(validateCode("TRAKABL")).resolves.toMatchObject({
       status: "applied",
-      code: "TRACKD",
+      code: "TRAKABL",
     });
   });
 
