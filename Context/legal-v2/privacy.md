@@ -1,18 +1,18 @@
 Privacy Policy
-VERSION 2.1 · EFFECTIVE 5 September 2026
-Supersedes v2.0.
+VERSION 2.2 · EFFECTIVE 22 September 2026
+Supersedes v2.1.
 
-This Privacy Policy explains how Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia ("Trackd Co", "Trackd", "we", "us", "our"), collects, uses, stores, and shares your personal information when you use the Trackd Co application and the website at trackdco.app (the "Service"). It forms part of, and should be read with, our Terms of Service and Medical Disclaimer.
+This Privacy Policy explains how Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia, trading as Trakabl ("Trakabl", "we", "us", "our"), collects, uses, stores, and shares your personal information when you use the Trakabl application and the website at trackdco.app (the "Service"). It forms part of, and should be read with, our Terms of Service and Medical Disclaimer.
 
-Trackd is available to users worldwide. Depending on where you live, additional rights and protections may apply to you. See Sections 14 (EU and UK), 15 (United States), and 16 (Consumer Health Data).
+Trakabl is available to users worldwide. Depending on where you live, additional rights and protections may apply to you. See Sections 14 (EU and UK), 15 (United States), and 16 (Consumer Health Data).
 
-Two people operate Trackd, the two founders. Both have administrative access to our systems, within the limits described in Section 6.
+Two people operate Trakabl, the two founders. Both have administrative access to our systems, within the limits described in Section 6.
 
 ## 1. The sensitivity of your data, and your consent
 
-Trackd handles health-related information: the substances you track, your doses, the bloodwork images you upload, your body metrics, and your journal notes. Under Australia's Privacy Act 1988 (Cth) this is sensitive information, and in many other places it counts as "special category" or "consumer health" data that gets extra legal protection. We treat all of your protocol, bloodwork, body-metric, journal, and uploaded-image data as sensitive.
+Trakabl handles health-related information: the substances you track, your doses, the bloodwork images you upload, your body metrics, and your journal notes. Under Australia's Privacy Act 1988 (Cth) this is sensitive information, and in many other places it counts as "special category" or "consumer health" data that gets extra legal protection. We treat all of your protocol, bloodwork, body-metric, journal, and uploaded-image data as sensitive.
 
-The Service cannot work without processing this information, so when you create your account we ask for your explicit, specific consent through a separate consent step, distinct from accepting our Terms of Service. You give this consent by ticking a dedicated box that reads: "I explicitly consent to Trackd processing my health-related data (compounds, doses, bloodwork, body metrics, photos and journal entries) to provide the Service, as described in the Privacy Policy." We record the version of this policy you consented to, the date and time you did so, and the browser you used (its user agent). You can withdraw this consent at any time, as described in Section 10.
+The Service cannot work without processing this information, so when you create your account we ask for your explicit, specific consent through a separate consent step, distinct from accepting our Terms of Service. You give this consent by ticking a dedicated box that reads: "I explicitly consent to Trakabl processing my health-related data (compounds, doses, bloodwork, body metrics, photos and journal entries) to provide the Service, as described in the Privacy Policy." We record the version of this policy you consented to, the date and time you did so, and the browser you used (its user agent). You can withdraw this consent at any time, as described in Section 10.
 
 ## 2. Information we collect
 
@@ -103,7 +103,7 @@ These are our only active service providers. If we add another, including a diff
 
 Three other parties may receive limited information, but only because of a choice you make or because of how the checkout screen is built, and none of them processes your protocol or health data on our behalf:
 
-- **Google,** if you choose to sign in with your Google account. Google will know that you authenticated with Trackd, and passes us your email address and basic profile information.
+- **Google,** if you choose to sign in with your Google account. Google will know that you authenticated with Trakabl, and passes us your email address and basic profile information.
 - **The push service your browser uses** (Google, Apple, or Mozilla), if you turn on reminders. It relays notifications to your device as described in Section 2.
 
 - **Google Fonts,** on the payment screen only. Our payment form is provided by Stripe and displayed inside a frame from Stripe. To make it match the rest of the app, we ask Stripe to load one font from Google's font service, so on that screen your browser makes a request to Google. Google receives your IP address, your browser's user agent, and the fact that the request came from a payment form. It receives nothing else, and no billing or health data. The rest of the app does not contact Google for fonts.
@@ -112,11 +112,11 @@ Three other parties may receive limited information, but only because of a choic
 
 We do not sell or rent your personal information. We share it only: with the sub-processors listed above, so they can help us run the Service; where we are required to by law or valid legal process; or as part of a business transfer (such as a merger or sale). In a business transfer involving your sensitive health data, we will require the recipient to be bound by privacy protections at least as protective as this policy, and we will take reasonable steps to notify you. If we receive a request for your data from law enforcement or a government agency, we will check that the request is legally valid, disclose only what we are legally compelled to disclose, and, unless the law prohibits us from doing so, take reasonable steps to tell you about the request.
 
-**Who at Trackd can see your data.** Our systems are built so that your protocol, bloodwork, journal, body-metric, and photo data is readable only by you. Neither founder can read it through the app. There are three narrow exceptions, all limited to our two founder accounts: the feedback and refund requests you send us through the in-app form (which include your email address and whatever you write), waitlist sign-ups, and billing and subscription records, which we need in order to answer questions about charges. In an emergency, or where the law requires it, we may need direct database access to fix a fault or comply with a legal obligation.
+**Who at Trakabl can see your data.** Our systems are built so that your protocol, bloodwork, journal, body-metric, and photo data is readable only by you. Neither founder can read it through the app. There are three narrow exceptions, all limited to our two founder accounts: the feedback and refund requests you send us through the in-app form (which include your email address and whatever you write), waitlist sign-ups, and billing and subscription records, which we need in order to answer questions about charges. In an emergency, or where the law requires it, we may need direct database access to fix a fault or comply with a legal obligation.
 
 ## 7. Data on your own device
 
-Trackd stores a working copy of your data in your browser on the device you use, so the app stays fast and keeps working when you are offline. This copy includes real health information: the compounds in your protocol, your schedules, the doses you have logged, one-off logs, custom compounds you create, and your onboarding answers, which include your date of birth and sex.
+Trakabl stores a working copy of your data in your browser on the device you use, so the app stays fast and keeps working when you are offline. This copy includes real health information: the compounds in your protocol, your schedules, the doses you have logged, one-off logs, custom compounds you create, and your onboarding answers, which include your date of birth and sex.
 
 Three things about that copy matter, and we would rather you know them than not:
 
@@ -178,7 +178,7 @@ Your account and health data are stored in Australia, in Supabase's Sydney regio
 
 ## 12. Children
 
-Trackd is for adults only. The Service is not directed to anyone under 18, and we do not knowingly collect personal information from minors. If we learn we have, we will delete it.
+Trakabl is for adults only. The Service is not directed to anyone under 18, and we do not knowingly collect personal information from minors. If we learn we have, we will delete it.
 
 ## 13. Cookies and browser storage
 
@@ -199,7 +199,7 @@ If you are in the European Economic Area or the United Kingdom, the GDPR and UK 
 
 ## 15. United States users (including California)
 
-Trackd is a consumer self-tracking app. We are not a HIPAA-covered entity or business associate, and HIPAA protections do not apply to the information you enter. Your information is instead protected by this policy and by the consumer-privacy laws that apply to you.
+Trakabl is a consumer self-tracking app. We are not a HIPAA-covered entity or business associate, and HIPAA protections do not apply to the information you enter. Your information is instead protected by this policy and by the consumer-privacy laws that apply to you.
 
 If you are a resident of California or another US state with applicable consumer-privacy laws, you may have rights to know what personal information we collect and how we use it, to access and delete it, to correct it, to limit the use and disclosure of sensitive personal information, and to not be discriminated against for exercising these rights. We do not sell or share your personal information (including as those terms are defined under the CCPA and CPRA), and we do not use your sensitive health-related information for any purpose other than providing the Service to you. To exercise any state-law right, contact us at support@trackdco.app; we will verify your request and respond as the law requires.
 
@@ -218,7 +218,7 @@ Some US states have consumer-health-data laws, including Washington's My Health 
 
 **Where it comes from.** Directly from you, and from the files you choose to upload. We do not buy consumer health data, obtain it from data brokers, or infer it from anything else.
 
-**Why we collect it.** Only to provide the Service to you: to record, organise, compute, and display your own data back to you, and to send the reminders you turn on. We do not read or interpret your bloodwork, we do not assess your protocol, and no one at Trackd reviews what you log.
+**Why we collect it.** Only to provide the Service to you: to record, organise, compute, and display your own data back to you, and to send the reminders you turn on. We do not read or interpret your bloodwork, we do not assess your protocol, and no one at Trakabl reviews what you log.
 
 **How it is shared.** We do not sell your consumer health data. We do not share it for advertising, and we show no advertising in the Service. We disclose it only to the service providers who help us operate the Service, listed in Section 5 of the Privacy Policy, and where we are required to by law (Section 6 of the Privacy Policy). Our payment processor does not receive it, and we do not use an analytics provider.
 
@@ -244,7 +244,7 @@ You will never be charged a different price, or given a worse service, for exerc
 
 We may update this Privacy Policy from time to time. If we make material changes, including any change that expands how we collect, use, or share your sensitive data, or that adds a new service provider handling your data, we will take reasonable steps to notify you in advance, in the app and through any other channel we have, and we will update the effective date at the top of this document.
 
-By continuing to use Trackd after we have given you clear notice, you agree to the updated policy.
+By continuing to use Trakabl after we have given you clear notice, you agree to the updated policy.
 
 There is one exception, and it is deliberate. Where a change would expand how we use your health-related data, we will ask for your fresh consent by a specific, affirmative step before it applies to you. Continued use is never treated as consent to a new or expanded use of your health data.
 

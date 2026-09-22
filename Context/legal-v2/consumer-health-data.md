@@ -1,7 +1,7 @@
 Consumer Health Data Privacy Policy
-VERSION 2.1 · EFFECTIVE 5 September 2026
+VERSION 2.2 · EFFECTIVE 22 September 2026
 
-This is the consumer health data notice for Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), covering the Trackd Co application and the website at trackdco.app. It is published separately so that you can find it easily, and the same text appears as Section 16 of our Privacy Policy. Read it alongside the full Privacy Policy, which describes everything else we do with your information.
+This is the consumer health data notice for Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), trading as Trakabl, covering the Trakabl application and the website at trackdco.app. It is published separately so that you can find it easily, and the same text appears as Section 16 of our Privacy Policy. Read it alongside the full Privacy Policy, which describes everything else we do with your information.
 
 Some US states have consumer-health-data laws, including Washington's My Health My Data Act, Nevada's SB 370, and the Connecticut Data Privacy Act. Where one of those laws applies to you, this notice is our consumer health data privacy policy.
 
@@ -16,7 +16,7 @@ Some US states have consumer-health-data laws, including Washington's My Health 
 
 **Where it comes from.** Directly from you, and from the files you choose to upload. We do not buy consumer health data, obtain it from data brokers, or infer it from anything else.
 
-**Why we collect it.** Only to provide the Service to you: to record, organise, compute, and display your own data back to you, and to send the reminders you turn on. We do not read or interpret your bloodwork, we do not assess your protocol, and no one at Trackd reviews what you log.
+**Why we collect it.** Only to provide the Service to you: to record, organise, compute, and display your own data back to you, and to send the reminders you turn on. We do not read or interpret your bloodwork, we do not assess your protocol, and no one at Trakabl reviews what you log.
 
 **How it is shared.** We do not sell your consumer health data. We do not share it for advertising, and we show no advertising in the Service. We disclose it only to the service providers who help us operate the Service, listed in Section 5 of the Privacy Policy, and where we are required to by law (Section 6 of the Privacy Policy). Our payment processor does not receive it, and we do not use an analytics provider.
 

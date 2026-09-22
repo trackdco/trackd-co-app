@@ -30,13 +30,52 @@
  */
 
 /**
- * ⚠️ VERBATIM, character for character, from what `/welcome` has always shown.
- * It is NOT retyped and NOT reworded: the 81 existing rows were granted against
- * these words, and changing them is a re-signing, not an edit.
+ * ⚠️ THE WORDING PRE-RENAME, KEPT AS THE RECORD — NOT SHOWN TO ANYBODY.
+ *
+ * 81 `consent_records` rows were granted against exactly these words, when the
+ * product was called Trackd. Those rows are not re-granted by the rename and
+ * their meaning does not change, so the sentence they were granted against has
+ * to remain legible somewhere. This is that somewhere.
+ *
+ * ⚠️ DO NOT RENDER IT and do not "fix" the old name in it. A consent record is
+ * a record of words a person actually read; editing those words after the fact
+ * would make every pre-rename row a claim about a sentence nobody was shown.
+ */
+export const HEALTH_CONSENT_PRE_RENAME = {
+  before:
+    "I explicitly consent to Trackd processing my health-related data " +
+    "(compounds, doses, bloodwork, body metrics, photos and journal entries) " +
+    "to provide the Service, as described in the ",
+  linkLabel: "Privacy Policy",
+  linkHref: "/privacy",
+  after: ".",
+} as const;
+
+/**
+ * ⚠️ THE LIVE TICK. Re-signed for the rename (Adrian, 2026-09-22), and the word
+ * "re-signed" is used deliberately.
+ *
+ * This sentence used to be pinned as unchangeable, for a good reason: the rows
+ * already granted against it must not be rewritten. That reason is intact, and
+ * it is why {@link HEALTH_CONSENT_PRE_RENAME} exists above rather than this
+ * text simply being edited over.
+ *
+ * But it could not stay as it was either. The product is called Trakabl now, so
+ * a NEW user ticking this box would be consenting to processing by "Trackd" — a
+ * name that appears nowhere else in the app they are looking at. An Article 9
+ * consent has to name the controller in terms the person can recognise, and the
+ * Privacy Policy quotes this sentence verbatim (§1), so the two would also have
+ * disagreed on the page that defines the consent.
+ *
+ * So: forward-looking consents are granted against these words, historical ones
+ * against the words above, and neither rewrites the other. That is what
+ * versioning a consent means, and it is the same shape as the second grace
+ * sentence in `noticeCopy.ts` — a new sentence beside the old, never an edit
+ * through it.
  */
 export const HEALTH_CONSENT = {
   before:
-    "I explicitly consent to Trackd processing my health-related data " +
+    "I explicitly consent to Trakabl processing my health-related data " +
     "(compounds, doses, bloodwork, body metrics, photos and journal entries) " +
     "to provide the Service, as described in the ",
   linkLabel: "Privacy Policy",

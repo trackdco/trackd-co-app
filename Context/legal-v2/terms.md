@@ -1,42 +1,42 @@
 Terms of Service
-VERSION 2.1 · EFFECTIVE 5 September 2026
-Supersedes v2.0.
+VERSION 2.2 · EFFECTIVE 22 September 2026
+Supersedes v2.1.
 
-These Terms of Service ("Terms") are a legal agreement between you ("you" or "User") and Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia ("Trackd Co", "Trackd", "we", "us" or "our"). They govern your access to and use of the Trackd Co application, the website at trackdco.app, and all related features and services (together, the "Service").
+These Terms of Service ("Terms") are a legal agreement between you ("you" or "User") and Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia, trading as Trakabl ("Trakabl", "we", "us" or "our"). They govern your access to and use of the Trakabl application, the website at trackdco.app, and all related features and services (together, the "Service").
 
 When you create an account, we ask you to confirm three things through separate, affirmative steps: that you agree to these Terms and our Privacy Policy; that you have read and agree to our Medical Disclaimer; and that you explicitly consent to our processing of your health-related data (see the Privacy Policy). The Privacy Policy and Medical Disclaimer are incorporated into these Terms by reference. We record which version of each document you accepted, and when. If you do not agree, do not use the Service.
 
-## 1. Who can use Trackd (eligibility)
+## 1. Who can use Trakabl (eligibility)
 
-You may use Trackd only if you are at least 18 years old and have the legal capacity to enter into a binding contract. During signup you must provide your date of birth, which we check to confirm you are at least 18; we record your confirmation. We may suspend or close any account where we reasonably believe this is untrue.
+You may use Trakabl only if you are at least 18 years old and have the legal capacity to enter into a binding contract. During signup you must provide your date of birth, which we check to confirm you are at least 18; we record your confirmation. We may suspend or close any account where we reasonably believe this is untrue.
 
 You are responsible for ensuring your use of the Service is lawful where you live and where you access it. See Section 4.
 
-## 2. What Trackd is, and what it is not
+## 2. What Trakabl is, and what it is not
 
-Trackd is an information and self-tracking tool for informed adults. It lets you record, organise, and review your own protocols (anabolic compounds, peptides, SARMs, hormones, ancillaries, and supplements) along with doses, inventory, images of bloodwork you upload, body metrics, progress photos, and journal notes, and it computes your own figures back to you (such as remaining inventory, doses remaining, and how consistently you have logged).
+Trakabl is an information and self-tracking tool for informed adults. It lets you record, organise, and review your own protocols (anabolic compounds, peptides, SARMs, hormones, ancillaries, and supplements) along with doses, inventory, images of bloodwork you upload, body metrics, progress photos, and journal notes, and it computes your own figures back to you (such as remaining inventory, doses remaining, and how consistently you have logged).
 
-Trackd does not read, interpret, or assess anything you upload. Bloodwork you add is stored as a dated image for you to look back on; we do not extract the values from it, compare them to any reference range, or tell you what they mean. The markers you record in your journal are your own self-ratings, presented back to you as you entered them.
+Trakabl does not read, interpret, or assess anything you upload. Bloodwork you add is stored as a dated image for you to look back on; we do not extract the values from it, compare them to any reference range, or tell you what they mean. The markers you record in your journal are your own self-ratings, presented back to you as you entered them.
 
-Trackd is NOT a medical device, a pharmacy, a laboratory, a telehealth or healthcare provider, a source of medical advice, or a means to obtain, buy, sell, or source any substance. We do not supply, prescribe, recommend, dose, diagnose, titrate, or advise. The Service informs and records; it does not make decisions for you.
+Trakabl is NOT a medical device, a pharmacy, a laboratory, a telehealth or healthcare provider, a source of medical advice, or a means to obtain, buy, sell, or source any substance. We do not supply, prescribe, recommend, dose, diagnose, titrate, or advise. The Service informs and records; it does not make decisions for you.
 
-Paying for a subscription does not change any of this. A paid plan buys access to software features. It does not buy medical advice, clinical supervision, monitoring, or any form of oversight of what you are doing, and nobody at Trackd reviews your protocol.
+Paying for a subscription does not change any of this. A paid plan buys access to software features. It does not buy medical advice, clinical supervision, monitoring, or any form of oversight of what you are doing, and nobody at Trakabl reviews your protocol.
 
 ## 3. No medical advice
 
 Nothing in the Service is medical advice and nothing in it should be relied on as a substitute for advice from a qualified healthcare professional. Always consult a suitably qualified professional before starting, stopping, or changing any substance, medication, or protocol. This is set out in full in our Medical Disclaimer, which forms part of these Terms.
 
-Computed values are not instructions. Reconstitution, concentration, remaining-inventory, and similar figures shown in the Service are calculated solely from the information you enter. They are arithmetic performed on your own inputs, not dosing instructions, recommendations, or verified results. Trackd does not measure, prepare, or administer any dose; you do that yourself, outside the app. You must independently verify any calculation before relying on it, particularly before preparing or administering any substance, and you must not rely on a computed value that appears incorrect or inconsistent with your own records.
+Computed values are not instructions. Reconstitution, concentration, remaining-inventory, and similar figures shown in the Service are calculated solely from the information you enter. They are arithmetic performed on your own inputs, not dosing instructions, recommendations, or verified results. Trakabl does not measure, prepare, or administer any dose; you do that yourself, outside the app. You must independently verify any calculation before relying on it, particularly before preparing or administering any substance, and you must not rely on a computed value that appears incorrect or inconsistent with your own records.
 
-Reminders are a convenience, not a safety system. If you turn on reminders, they depend on your browser, your device, your operating system, and a push service we do not control, any of which can delay or drop a message. Reminders also stop when your account becomes read only (see Section 12). Do not use Trackd as your only safeguard against a missed, doubled, or mistimed dose.
+Reminders are a convenience, not a safety system. If you turn on reminders, they depend on your browser, your device, your operating system, and a push service we do not control, any of which can delay or drop a message. Reminders also stop when your account becomes read only (see Section 12). Do not use Trakabl as your only safeguard against a missed, doubled, or mistimed dose.
 
 ## 4. Substances, legality, and harm reduction
 
-Many substances you may choose to track with Trackd, including anabolic androgenic steroids, certain peptides, SARMs, hormones, and other compounds, are controlled, prescription-only, or otherwise regulated in many countries, and may be illegal to possess, use, import, or supply without authorisation.
+Many substances you may choose to track with Trakabl, including anabolic androgenic steroids, certain peptides, SARMs, hormones, and other compounds, are controlled, prescription-only, or otherwise regulated in many countries, and may be illegal to possess, use, import, or supply without authorisation.
 
-Trackd is a record-keeping tool only. It does not sell, supply, source, promote, facilitate, or enable the acquisition or use of any substance. Recording a substance in Trackd is not a statement that it is safe, legal, effective, or appropriate for you. The built-in compound catalogue exists solely so that you can identify, label, and organise your own records; the inclusion of a substance in the catalogue is not a recommendation, promotion, advertisement, or offer to supply that substance, and the catalogue contains no information about how to obtain any substance. You alone are responsible for understanding and complying with every law that applies to you.
+Trakabl is a record-keeping tool only. It does not sell, supply, source, promote, facilitate, or enable the acquisition or use of any substance. Recording a substance in Trakabl is not a statement that it is safe, legal, effective, or appropriate for you. The built-in compound catalogue exists solely so that you can identify, label, and organise your own records; the inclusion of a substance in the catalogue is not a recommendation, promotion, advertisement, or offer to supply that substance, and the catalogue contains no information about how to obtain any substance. You alone are responsible for understanding and complying with every law that applies to you.
 
-Trackd is built on a harm-reduction principle: adults who have already chosen to use these compounds are safer keeping accurate records than keeping none. Providing a tool to record those choices is not an endorsement of them.
+Trakabl is built on a harm-reduction principle: adults who have already chosen to use these compounds are safer keeping accurate records than keeping none. Providing a tool to record those choices is not an endorsement of them.
 
 You pay us for access to record-keeping software. You are not paying us for any substance, for access to any substance, or for anything to do with obtaining one.
 
@@ -56,7 +56,7 @@ You agree that you will not:
 - use the Service to advertise, solicit, offer, buy, sell, source, or otherwise facilitate the supply of any substance, or to share sourcing information (including vendor names, links, prices, or contact details) with any other person;
 - create more than one account in order to obtain more than one free trial, or otherwise attempt to obtain paid access without paying for it;
 - infringe our intellectual property or anyone else's; or
-- present yourself, using Trackd, as a medical professional or as giving medical advice to others.
+- present yourself, using Trakabl, as a medical professional or as giving medical advice to others.
 
 ## 7. Your content and data
 
@@ -68,7 +68,7 @@ We do not delete, hide, hold back, or restrict access to anything you have logge
 
 ## 8. Service availability and changes
 
-Trackd is under active development. Features change, are added, and are sometimes removed, and we may not always get it right.
+Trakabl is under active development. Features change, are added, and are sometimes removed, and we may not always get it right.
 
 Except for your Non-Excludable Rights (Section 20), which continue to apply in full, we do not guarantee any particular level of uptime, that the Service will be uninterrupted or error-free, or that it will always be available.
 
@@ -78,7 +78,7 @@ If you give us feedback, ideas, or suggestions about the Service, you agree that
 
 ## 9. Plans, prices, and payment
 
-Trackd offers a paid subscription, your Pro plan, in three billing periods:
+Trakabl offers a paid subscription, your Pro plan, in three billing periods:
 
 - USD $69.99 per year
 - USD $11.99 per month
@@ -125,7 +125,7 @@ After a paid period or a free trial ends without renewal, your account becomes r
 - You can still delete your own data, change your settings, and close your account.
 - You can subscribe again at any time and your records will be there.
 
-We do not withhold your data to make you pay. Read-only access is how the free tier of Trackd works, not a lever.
+We do not withhold your data to make you pay. Read-only access is how the free tier of Trakabl works, not a lever.
 
 ## 13. Retention offer
 
@@ -157,7 +157,7 @@ If you dispute a charge with your bank or card issuer (a chargeback), we may sus
 
 ## 17. Consumers in the EU and UK
 
-If you are a consumer in the EU or UK, you have a statutory right to withdraw from a purchase within 14 days. Because Trackd is supplied digitally, by subscribing and starting to use a paid feature within that period you expressly request that we begin supplying the Service immediately and acknowledge that you lose the right of withdrawal once the Service has been fully supplied; where the Service has only been partially supplied, you remain entitled to withdraw in respect of the part not yet supplied.
+If you are a consumer in the EU or UK, you have a statutory right to withdraw from a purchase within 14 days. Because Trakabl is supplied digitally, by subscribing and starting to use a paid feature within that period you expressly request that we begin supplying the Service immediately and acknowledge that you lose the right of withdrawal once the Service has been fully supplied; where the Service has only been partially supplied, you remain entitled to withdraw in respect of the part not yet supplied.
 
 ## 18. Consumers in California
 
@@ -205,7 +205,7 @@ We may update these Terms from time to time.
 
 **How we tell you.** For minor or operational changes, we update the document and its version number. For material changes, including any change to fees, to the Medical Disclaimer, to our liability to you, or to how we process your data, we give you notice in advance, in the app and through any other channel we have, before the change takes effect.
 
-**How you accept.** By continuing to use Trackd after we have given you clear notice of updated terms, you agree to the updated Terms of Service and Privacy Policy. If you do not agree to a change, stop using the Service and, if you wish, close your account. Your access to read what you have already logged, and your ability to delete your data, are not affected by declining a change.
+**How you accept.** By continuing to use Trakabl after we have given you clear notice of updated terms, you agree to the updated Terms of Service and Privacy Policy. If you do not agree to a change, stop using the Service and, if you wish, close your account. Your access to read what you have already logged, and your ability to delete your data, are not affected by declining a change.
 
 We record which version of each document you accepted, and when you accepted it.
 

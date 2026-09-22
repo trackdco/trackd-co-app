@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { HEALTH_CONSENT, healthConsentSentence } from "./consentCopy";
+import {
+  HEALTH_CONSENT,
+  HEALTH_CONSENT_PRE_RENAME,
+  healthConsentSentence,
+} from "./consentCopy";
 
 /**
  * ⚠️ THE HEALTH SENTENCE IS THE ONE A `consent_records` ROW IS A RECORD OF, so it
@@ -8,12 +12,47 @@ import { HEALTH_CONSENT, healthConsentSentence } from "./consentCopy";
  * `app/welcome/gate-form.tsx` where no test could reach it.
  */
 describe("⚠️ the health-data consent sentence", () => {
-  it("rejoins to exactly the sentence /welcome has always shown", () => {
+  it("rejoins to exactly the sentence /welcome shows today", () => {
     expect(healthConsentSentence()).toBe(
+      "I explicitly consent to Trakabl processing my health-related data " +
+        "(compounds, doses, bloodwork, body metrics, photos and journal entries) " +
+        "to provide the Service, as described in the Privacy Policy.",
+    );
+  });
+
+  /**
+   * ⚠️ THE PRE-RENAME WORDING IS PINNED TOO, AND PINNING IT IS THE POINT.
+   *
+   * 81 rows were granted against these exact words when the product was called
+   * Trackd. The rename re-signed the LIVE sentence (an app called Trakabl
+   * cannot show a box naming Trackd) but it did not, and could not, re-grant
+   * those rows. So the historical sentence stays legible, unedited, and pinned
+   * — otherwise a later sweep "fixes" the old name in it and every pre-rename
+   * consent row silently becomes a claim about a sentence nobody ever read.
+   */
+  it("⚠️ preserves the pre-rename wording exactly, for the rows granted against it", () => {
+    const historical =
+      HEALTH_CONSENT_PRE_RENAME.before +
+      HEALTH_CONSENT_PRE_RENAME.linkLabel +
+      HEALTH_CONSENT_PRE_RENAME.after;
+    expect(historical).toBe(
       "I explicitly consent to Trackd processing my health-related data " +
         "(compounds, doses, bloodwork, body metrics, photos and journal entries) " +
         "to provide the Service, as described in the Privacy Policy.",
     );
+  });
+
+  /**
+   * The two must differ by the NAME AND NOTHING ELSE. A re-signing that also
+   * quietly reworded the scope of the consent would be a different consent
+   * wearing the rename as cover.
+   */
+  it("⚠️ differs from the pre-rename wording only in the product name", () => {
+    const historical =
+      HEALTH_CONSENT_PRE_RENAME.before +
+      HEALTH_CONSENT_PRE_RENAME.linkLabel +
+      HEALTH_CONSENT_PRE_RENAME.after;
+    expect(healthConsentSentence().replace("Trakabl", "Trackd")).toBe(historical);
   });
 
   /** The split must be lossless, or the rendered sentence is not the pinned one. */
