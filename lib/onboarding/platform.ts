@@ -26,6 +26,8 @@
  * Safari, which is exactly the bug this file exists to fix.
  */
 
+import { CANONICAL_HOST } from "@/lib/brand";
+
 /**
  * `desktop` was added 2026-09-10, when Trakabl stopped being phone-only.
  *
@@ -144,7 +146,7 @@ export function installSteps({ platform, browser }: DeviceGuess): InstallStep[] 
   if (platform === "desktop") {
     return [
       { icon: null, text: "Trakabl runs right here in this browser" },
-      { icon: null, text: "To carry it in your pocket, open trackdco.app on your phone" },
+      { icon: null, text: `To carry it in your pocket, open ${CANONICAL_HOST} on your phone` },
       { icon: "plus", text: "Then add it to your home screen there" },
     ];
   }

@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+import { CANONICAL_ORIGIN, PRODUCTION_HOST } from "./lib/brand";
+
 /**
  * Content-Security-Policy, shipped in REPORT-ONLY mode (Audit 2026-09, M-1/L-8).
  *
@@ -192,7 +194,68 @@ const nextConfig: NextConfig = {
    * a slower one.)
    */
   async redirects() {
+    /**
+     * ⚠️ THE MARKETING ROUTES MOVE TO trakabl.app. THE APP DOES NOT.
+     *
+     * Every rule below is scoped with `has: host === trackdco.app`, so it fires
+     * only on the legacy domain and never on the canonical one — an unscoped
+     * rule would redirect trakabl.app to itself forever.
+     *
+     * ⚠️ WHAT IS DELIBERATELY ABSENT IS THE IMPORTANT PART. There is no rule for
+     * /dashboard, /protocol, /auth/*, /login, /reset-password, /sw.js or
+     * /manifest.webmanifest, and adding one would be the single most damaging
+     * change available in this file:
+     *
+     *   · An installed PWA is scoped to the origin it was installed from.
+     *     Redirect its start_url and iOS drops it out of standalone into
+     *     Safari — the app stops behaving like an app for everyone who already
+     *     has it.
+     *   · The service worker and manifest must keep being served by the origin
+     *     that registered them, or the installed app stops updating and its
+     *     push subscriptions die with the registration.
+     *   · /auth/* and /reset-password are landed on from EMAIL links carrying
+     *     one-time tokens. A redirect mid-flow drops the session and can burn
+     *     the token, so somebody resetting a password gets an error instead.
+     *
+     * The legal pages are also deliberately not redirected: they are linked from
+     * inside the app, which existing users reach on the legacy origin, and they
+     * get cited and bookmarked. They resolve on both hosts, permanently.
+     */
+    const fromLegacy = [{ type: "host", value: PRODUCTION_HOST }] as const;
+
     return [
+      /**
+       * The front door. Carries `?from=` so `components/landing/ArrivalNotice.tsx`
+       * can tell a redirected visitor from a direct one and explain the rename
+       * to the first but not the second. It is the ONLY signal that exists for
+       * that — Referer is stripped on a typed navigation, which is precisely
+       * this visitor.
+       */
+      {
+        source: "/",
+        has: [...fromLegacy],
+        destination: `${CANONICAL_ORIGIN}/?from=${PRODUCTION_HOST}`,
+        permanent: true,
+      },
+      /**
+       * The two SEO surfaces with earned ranking. Permanent, so the ranking
+       * transfers rather than splitting across two hosts. No `?from=` — someone
+       * who searched for a reconstitution calculator wants the calculator, not
+       * a note about a rename.
+       */
+      {
+        source: "/reconstitution-calculator",
+        has: [...fromLegacy],
+        destination: `${CANONICAL_ORIGIN}/reconstitution-calculator`,
+        permanent: true,
+      },
+      {
+        source: "/waitlist",
+        has: [...fromLegacy],
+        destination: `${CANONICAL_ORIGIN}/waitlist`,
+        permanent: true,
+      },
+
       // The flow itself. Carries `?step=` through untouched, which is what makes
       // a pre-move Stripe `return_url` and a shared deep link still land right.
       { source: "/onboarding", destination: "/start", permanent: true },

@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { WaitlistForm } from "@/components/waitlist/waitlist-form";
+import { CANONICAL_ORIGIN } from "@/lib/brand";
 
 export const metadata: Metadata = {
   title: "Join the waitlist · Trakabl",
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
     description:
       "The private app for tracking your whole protocol. Be first in when spots open.",
     type: "website",
-    url: "https://trackdco.app/waitlist",
+    url: `${CANONICAL_ORIGIN}/waitlist`,
     siteName: "Trakabl",
   },
   twitter: {

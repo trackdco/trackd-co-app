@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 
-import { NEW_HOST_PENDING, PRODUCTION_HOST } from "@/lib/brand";
+import { CANONICAL_HOST, PRODUCTION_HOST } from "@/lib/brand";
 
 /**
  * "trackdco.app is now trakabl.app" — shown ONLY to somebody who typed the old
@@ -100,7 +100,7 @@ export function ArrivalNotice() {
       */}
       <span className="truncate">
         <b className="font-normal text-foreground">{PRODUCTION_HOST}</b> is now{" "}
-        <b className="font-normal text-foreground">{NEW_HOST_PENDING}</b>
+        <b className="font-normal text-foreground">{CANONICAL_HOST}</b>
       </span>
       <button
         type="button"

@@ -2,14 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { InstagramLogo, TiktokLogo } from "@/components/icons";
-import {
-  ACN,
-  BUSINESS_NAME,
-  LEGAL_ENTITY,
-  PRODUCT_NAME,
-  SOCIAL_LINKS,
-  SUPPORT_EMAIL,
-} from "@/lib/brand";
+import { ACN, BUSINESS_NAME, CANONICAL_HOST, LEGAL_ENTITY, PRODUCT_NAME, SOCIAL_LINKS, SUPPORT_EMAIL } from "@/lib/brand";
 
 import { LOGIN_HREF, START_HREF } from "./cta";
 import { CALCULATOR_HREF } from "./site-header";
@@ -50,7 +43,7 @@ export function SiteFooter({ legal }: { legal: readonly LegalLink[] }) {
         <div className="md:pr-8">
           <Image src="/trackd-wordmark.png" alt={BUSINESS_NAME} width={1044} height={200} className="h-4 w-auto" />
           <p className="mt-5 max-w-[20rem] text-xs leading-relaxed text-text-secondary">
-            trackdco.app is operated by {LEGAL_ENTITY},{" "}
+            {CANONICAL_HOST} is operated by {LEGAL_ENTITY},{" "}
             <span className="whitespace-nowrap">ACN {ACN}</span>.
           </p>
           <p className="mt-2 text-xs">

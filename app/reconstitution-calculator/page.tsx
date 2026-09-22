@@ -4,7 +4,7 @@ import { StartButton, TRIAL_LINE } from "@/components/landing/cta";
 import { PublicCalculator } from "@/components/landing/public-calculator";
 import { SiteFooter, type LegalLink } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
-import { BUSINESS_NAME, PRODUCT_NAME } from "@/lib/brand";
+import { BUSINESS_NAME, CANONICAL_ORIGIN, PRODUCT_NAME } from "@/lib/brand";
 import { showTestimonials } from "@/lib/landing/testimonials";
 import { CARD_EYEBROW, LANDING_DISPLAY, LANDING_SUB, LANDING_TITLE } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
@@ -34,12 +34,12 @@ export const metadata: Metadata = {
   title: `${TITLE} · ${PRODUCT_NAME}`,
   description:
     "A free reconstitution calculator. Enter the powder, the bacteriostatic water and your dose, and see the units to draw on a U-100 insulin syringe. No account needed.",
-  alternates: { canonical: "https://trackdco.app/reconstitution-calculator" },
+  alternates: { canonical: `${CANONICAL_ORIGIN}/reconstitution-calculator` },
   openGraph: {
     title: `Free ${TITLE.toLowerCase()} · ${PRODUCT_NAME}`,
     description: "Powder, water and dose in. Units on the syringe out. No account needed.",
     type: "website",
-    url: "https://trackdco.app/reconstitution-calculator",
+    url: `${CANONICAL_ORIGIN}/reconstitution-calculator`,
     siteName: BUSINESS_NAME,
   },
 };

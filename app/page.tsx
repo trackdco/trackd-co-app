@@ -12,7 +12,7 @@ import { TodayScreen } from "@/components/landing/screens/today";
 import { SiteFooter, type LegalLink } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { Testimonials } from "@/components/landing/testimonials";
-import { BUSINESS_NAME, PRODUCT_NAME, SUPPORT_EMAIL } from "@/lib/brand";
+import { BUSINESS_NAME, CANONICAL_ORIGIN, PRODUCT_NAME, SUPPORT_EMAIL } from "@/lib/brand";
 import type { CompoundCategory } from "@/lib/compound-categories";
 import { COMPOUNDS } from "@/lib/compounds-catalogue";
 import { showTestimonials } from "@/lib/landing/testimonials";
@@ -85,12 +85,12 @@ export const metadata: Metadata = {
   title: `${PRODUCT_NAME} · Track the whole protocol`,
   description:
     "Every compound, dose and site in one place. Built by people who run real protocols.",
-  alternates: { canonical: "https://trackdco.app" },
+  alternates: { canonical: CANONICAL_ORIGIN },
   openGraph: {
     title: `${PRODUCT_NAME} · Track the whole protocol`,
     description: "Your whole protocol in one place.",
     type: "website",
-    url: "https://trackdco.app",
+    url: CANONICAL_ORIGIN,
     siteName: BUSINESS_NAME,
   },
 };

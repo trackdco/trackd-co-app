@@ -3,6 +3,7 @@
 import { QRCodeSVG } from "qrcode.react"
 
 import { SHEET_TITLE } from "@/lib/ui-presets"
+import { CANONICAL_HOST, CANONICAL_ORIGIN } from "@/lib/brand";
 
 /**
  * The one part of the retired desktop interstitial worth keeping.
@@ -17,7 +18,7 @@ import { SHEET_TITLE } from "@/lib/ui-presets"
  */
 
 /** The URL the code encodes. The only place this string lives. */
-const APP_URL = "https://trackdco.app"
+const APP_URL = CANONICAL_ORIGIN
 
 export function PhoneHandoffPrompt() {
   return (
@@ -49,7 +50,7 @@ export function PhoneHandoffPrompt() {
         </div>
 
         <p className="mt-5 text-center font-mono text-xs tracking-[0.08em] text-text-muted">
-          trackdco.app
+          {CANONICAL_HOST}
         </p>
       </div>
     </div>

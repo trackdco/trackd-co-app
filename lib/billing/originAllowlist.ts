@@ -49,7 +49,7 @@
  * The name is kept so this file's callers do not move; only the source of
  * truth does.
  */
-import { PRODUCTION_HOST, PRODUCTION_ORIGIN } from "@/lib/brand";
+import { CANONICAL_HOST, PRODUCTION_HOST, PRODUCTION_ORIGIN } from "@/lib/brand";
 
 /**
  * ⚠️ IMPORTED AND RE-EXPORTED, not `export ... from`, because this file also
@@ -109,6 +109,13 @@ export function isAllowedHost(hostname: string): boolean {
     // half of the same defect as the duplicated PRODUCTION_ORIGIN above.
     // `www.` is spelled out because it is a genuinely separate host, not a
     // variant of the same string.
+    // ⚠️ BOTH ORIGINS, because both serve the app. trakabl.app is canonical
+    // and is where new visitors land; trackdco.app keeps serving the people
+    // whose PWA is installed against it. A checkout started on either has to
+    // be handed an origin the browser will actually return to, so refusing the
+    // legacy host would break payment for every existing install.
+    hostname === CANONICAL_HOST ||
+    hostname === `www.${CANONICAL_HOST}` ||
     hostname === PRODUCTION_HOST ||
     hostname === `www.${PRODUCTION_HOST}` ||
     isOwnPreview(hostname) ||

@@ -90,41 +90,54 @@ export const ACN = "698 405 462";
 export const TRADING_AS = `${BUSINESS_NAME} is a business name of ${LEGAL_ENTITY} (ACN ${ACN})`;
 
 /**
- * THE DOMAIN, AND WHY IT STILL SAYS trackdco.app.
+ * TWO ORIGINS, AND THE APP IS NOT MOVING OFF THE OLD ONE.
  *
- * The new domain is being purchased and has not been named yet (Adrian,
- * 2026-09-21), so every reference resolves from this one constant and the swap
- * is a one-line change rather than another sweep of 120-odd strings.
+ * trakabl.app is registered (Adrian, 2026-09-22). trackdco.app is NOT retired,
+ * and the reason is not sentiment:
  *
- * ⚠️ WHEN THE NEW DOMAIN ARRIVES, THIS IS NOT A REPLACE. The old origin has to
- * keep serving the app, because an installed PWA is scoped to the origin it was
- * installed from: point trackdco.app wholesale at a new domain and every
- * existing home-screen install drops out of standalone and every push
- * subscription dies with the service-worker registration. The plan is both
- * origins served, the new one canonical, and only the marketing routes
- * redirected — so expect this to become a canonical origin PLUS a list of
- * additional served origins, not a single swapped string.
+ *   · An installed PWA is scoped to the ORIGIN IT WAS INSTALLED FROM. Point
+ *     trackdco.app at the new domain and every existing home-screen install
+ *     navigates out of scope — iOS drops it out of standalone into Safari, and
+ *     the app someone installed stops behaving like an app.
+ *   · Push subscriptions are issued against an origin and a service-worker
+ *     registration. A new origin means every existing subscription is dead and
+ *     every user has to grant notification permission again — on iOS, a
+ *     permission most people grant exactly once.
+ *   · Auth cookies are origin-scoped, so moving the app signs everyone out.
+ *
+ * So BOTH origins serve the whole app. The new one is canonical for search and
+ * is where new visitors land; the old one keeps working indefinitely for the
+ * people already on it. Only the MARKETING routes redirect across — see the
+ * host-scoped rules in `next.config.ts`.
+ */
+
+/**
+ * Where the app is SERVED and where existing installs live.
+ *
+ * ⚠️ NOT the canonical address, and not a thing to "update" to the new domain.
+ * This is what `originFromHost` falls back to and what Stripe is handed as a
+ * return origin, so it has to name an origin that actually serves the app to
+ * the person in front of it. Both do; this is the conservative one.
  */
 export const PRODUCTION_ORIGIN = "https://trackdco.app";
 
-/** The bare host, for copy that says the address out loud rather than links it. */
+/** The bare legacy host, for copy that says the old address out loud. */
 export const PRODUCTION_HOST = "trackdco.app";
 
 /**
- * THE NEW HOST, AND IT IS NOT BOUGHT YET.
+ * THE CANONICAL ORIGIN — what search engines should index and what a shared
+ * link should say.
  *
- * ⚠️ NOTHING MAY ROUTE, REDIRECT OR LINK TO THIS. It exists so the one surface
- * that has to SAY the new address out loud — the arrival notice in the landing
- * header — reads it from here instead of typing it, which is `brand.ts`'s own
- * rule and the rule "Trackd.co" broke by being typed inline in several places
- * and shipping.
- *
- * Until the domain is registered this is a claim about the future. Anything
- * that would BREAK if it were wrong (an origin allowlist, a redirect target, a
- * canonical URL) must keep using { PRODUCTION_ORIGIN}, which names the
- * domain that actually exists.
+ * Used for `alternates.canonical` and the openGraph URLs, and as the target of
+ * the marketing-route redirects. Deliberately separate from
+ * {@link PRODUCTION_ORIGIN}: one answers "where is this served", the other
+ * "what is this called", and during a rename those are different questions.
  */
-export const NEW_HOST_PENDING = "trakabl.app";
+export const CANONICAL_ORIGIN = "https://trakabl.app";
+
+/** The bare canonical host, for copy that says the new address out loud. */
+export const CANONICAL_HOST = "trakabl.app";
+
 
 /**
  * Where a visitor writes to. Also the address in the legal documents.
