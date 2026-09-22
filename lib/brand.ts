@@ -111,6 +111,22 @@ export const PRODUCTION_ORIGIN = "https://trackdco.app";
 export const PRODUCTION_HOST = "trackdco.app";
 
 /**
+ * THE NEW HOST, AND IT IS NOT BOUGHT YET.
+ *
+ * ⚠️ NOTHING MAY ROUTE, REDIRECT OR LINK TO THIS. It exists so the one surface
+ * that has to SAY the new address out loud — the arrival notice in the landing
+ * header — reads it from here instead of typing it, which is `brand.ts`'s own
+ * rule and the rule "Trackd.co" broke by being typed inline in several places
+ * and shipping.
+ *
+ * Until the domain is registered this is a claim about the future. Anything
+ * that would BREAK if it were wrong (an origin allowlist, a redirect target, a
+ * canonical URL) must keep using { PRODUCTION_ORIGIN}, which names the
+ * domain that actually exists.
+ */
+export const NEW_HOST_PENDING = "trakabl.app";
+
+/**
  * Where a visitor writes to. Also the address in the legal documents.
  *
  * Still on the old domain deliberately: mail has to keep arriving, and it will

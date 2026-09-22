@@ -117,7 +117,7 @@ export interface NumberPadProps {
 }
 
 /**
- * THE TRACKD NUMBER PAD (feel pass §3, the approved "Focus" layout).
+ * THE TRAKABL NUMBER PAD (feel pass §3, the approved "Focus" layout).
  *
  * It replaces the iPhone keypad for NUMBER fields. The system keypad for
  * decimals has no Return key, so a form of several numbers dropped the keyboard

@@ -6,7 +6,10 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 
 import { recordDocumentAcceptance } from "@/app/(app)/legal-acceptance";
-import { markRebrandNoticeSeen } from "@/lib/rebrand/rebrandNotice";
+import {
+  markRebrandNoticeSeen,
+  shouldRecordAcceptance,
+} from "@/lib/rebrand/rebrandNotice";
 import { ACN, LEGAL_ENTITY, PRODUCT_NAME } from "@/lib/brand";
 
 /**
@@ -65,12 +68,17 @@ export function RebrandNotice({ userId }: { userId: string }) {
     setOpen(false);
     markRebrandNoticeSeen(userId);
     /**
-     * ⚠️ DELIBERATELY NOT AWAITED, and a failure here is silent by design.
+     * ⚠️ NOT AWAITED, and a failure here is silent by design.
      * `recordDocumentAcceptance` returns quietly on every error path: a database
      * problem must never stop somebody dismissing a notice, and it must never
      * leave a row claiming an acceptance we could not actually write.
+     *
+     * ⚠️ AND IT IS GUARDED, because it takes NO userId — it resolves the
+     * account from the session, so the preview harness mounting this with a
+     * fake id would still write REAL consent rows against whoever is signed in.
+     * See `shouldRecordAcceptance`.
      */
-    void recordDocumentAcceptance();
+    if (shouldRecordAcceptance(userId)) void recordDocumentAcceptance();
   }, [userId]);
 
   useEffect(() => {
@@ -111,6 +119,10 @@ export function RebrandNotice({ userId }: { userId: string }) {
             <Image
               src="/legacy-wordmark.png"
               alt=""
+              // ⚠️ 1049, NOT 1044, and that is not a typo. The two marks are
+              // genuinely different widths: the retired serif is 1049x200 and
+              // the new sans is 1044x200. This is the only place both appear,
+              // so it is the only place the numbers must disagree.
               width={1049}
               height={200}
               className="h-6 w-auto"
@@ -121,7 +133,7 @@ export function RebrandNotice({ userId }: { userId: string }) {
             <Image
               src="/trackd-wordmark.png"
               alt=""
-              width={1049}
+              width={1044}
               height={200}
               className="h-6 w-auto"
               priority

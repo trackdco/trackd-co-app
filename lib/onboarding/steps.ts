@@ -142,7 +142,7 @@ export const STEP_ORDER: readonly StepMeta[] = [
    * trial length, the amount, the charge date and the auto-renewal notice sit
    * beside the button by construction.
    *
-   * Still inside TRACKD — the spec's rule is that the user never reaches a
+   * Still inside TRAKABL — the spec's rule is that the user never reaches a
    * stripe.com domain, not that payment shares a screen with the price list.
    */
   { id: "start", phase: "authed" },

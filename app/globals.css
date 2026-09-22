@@ -7,7 +7,7 @@
 /* ---------------------------------------------------------------------------
    Design tokens — the single source of truth for colour. No hardcoded hex
    may appear anywhere else (see Context/code-standards.md). Names match
-   Context/ui-context.md exactly. Trackd is dark-only, so tokens live at
+   Context/ui-context.md exactly. Trakabl is dark-only, so tokens live at
    :root with no light theme.
    --------------------------------------------------------------------------- */
 :root {
@@ -247,7 +247,7 @@
      is still the thing being filled in (feel pass §3). */
   --pad-scrim: rgba(0, 0, 0, 0.42);
 
-  /* ---- shadcn/ui semantic aliases → mapped onto the Trackd palette ---- */
+  /* ---- shadcn/ui semantic aliases → mapped onto the Trakabl palette ---- */
   --background: var(--bg-base);
   --foreground: var(--text-primary);
   --card: var(--bg-surface);
@@ -287,7 +287,7 @@
    against the tokens above (and the next/font variables on <html>) at runtime.
    --------------------------------------------------------------------------- */
 @theme inline {
-  /* Trackd palette → utilities (bg-surface, text-muted, border-strong, …) */
+  /* Trakabl palette → utilities (bg-surface, text-muted, border-strong, …) */
   --color-bg-base: var(--bg-base);
   --color-bg-surface: var(--bg-surface);
   --color-bg-surface-raised: var(--bg-surface-raised);
@@ -1462,7 +1462,7 @@ svg ::-moz-selection {
    rise, so the line changes without snapping. */
 /* The cost screen's falling money. A dollar sign lifts off the top of a bar,
    drifts, and falls away to nothing. One per unit of spend, so the expensive
-   bar sheds a shower and Trackd sheds one. */
+   bar sheds a shower and Trakabl sheds one. */
 @keyframes dollar-fall {
   0% {
     opacity: 0;
@@ -2747,7 +2747,7 @@ body[data-inline-edit="true"] .shortcuts-layer {
 
    Everything below is scoped by its `lp-` prefix to the two public marketing
    pages and must not appear inside the app. Spec 3-03 loosened the LAYOUT
-   vocabulary for these pages on purpose ("it doesn't need to be exactly Trackd
+   vocabulary for these pages on purpose ("it doesn't need to be exactly Trakabl
    UI, the same way Pep AI's website isn't the same as their app"); the palette
    and the type did not loosen, so every colour here is still mixed FROM a
    token and no hex appears below.

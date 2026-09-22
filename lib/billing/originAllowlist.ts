@@ -34,8 +34,29 @@
  * folded into it. Carried in `next-tasks.md`.
  */
 
-/** Production, and the fallback for anything not on the list. */
-export const PRODUCTION_ORIGIN = "https://trackdco.app";
+/**
+ * Production, and the fallback for anything not on the list.
+ *
+ * ⚠️ RE-EXPORTED FROM `lib/brand.ts` RATHER THAN TYPED AGAIN.
+ *
+ * The rename added a `PRODUCTION_ORIGIN` there with a commit message claiming
+ * the domain move was "one line rather than 122". That was FALSE while this
+ * file held a second constant of the same name and the same value: changing
+ * brand.ts alone would have left checkout origin validation pinned to the old
+ * origin, which is a billing-path failure, and two identically-named exports
+ * are built to drift.
+ *
+ * The name is kept so this file's callers do not move; only the source of
+ * truth does.
+ */
+import { PRODUCTION_HOST, PRODUCTION_ORIGIN } from "@/lib/brand";
+
+/**
+ * ⚠️ IMPORTED AND RE-EXPORTED, not `export ... from`, because this file also
+ * USES it (in `originFromHost` below). A bare re-export forwards the name to
+ * callers without binding it locally, which typechecks as "Cannot find name".
+ */
+export { PRODUCTION_ORIGIN };
 
 /**
  * A LAN address, matched as an IP rather than as a string that starts like one.
@@ -83,8 +104,13 @@ const PROJECT = "trackd-co-app";
 /** The whole decision. */
 export function isAllowedHost(hostname: string): boolean {
   return (
-    hostname === "trackdco.app" ||
-    hostname === "www.trackdco.app" ||
+    // ⚠️ DERIVED FROM THE ONE CONSTANT, so the domain move cannot leave the
+    // allowlist behind. These were two hardcoded literals, which is the second
+    // half of the same defect as the duplicated PRODUCTION_ORIGIN above.
+    // `www.` is spelled out because it is a genuinely separate host, not a
+    // variant of the same string.
+    hostname === PRODUCTION_HOST ||
+    hostname === `www.${PRODUCTION_HOST}` ||
     isOwnPreview(hostname) ||
     isLocalHost(hostname)
   );

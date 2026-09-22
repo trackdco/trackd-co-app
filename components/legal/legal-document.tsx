@@ -144,7 +144,7 @@ export async function LegalDocument({
         <Image
           src="/trackd-wordmark.png"
           alt="Trakabl"
-          width={1049}
+          width={1044}
           height={200}
           className="h-4 w-auto"
         />

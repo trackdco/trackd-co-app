@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PREVIEW_USER_ID,
   REBRAND_NOTICE_COOKIE,
   RENAME_SHIPPED_AT,
   rebrandNoticeSeen,
+  shouldRecordAcceptance,
   shouldShowRebrandNotice,
 } from "./rebrandNotice";
 
@@ -77,4 +79,35 @@ describe("who is shown the rebrand notice", () => {
   it("uses the new brand in its own cookie name", () => {
     expect(REBRAND_NOTICE_COOKIE).toBe("trakabl_rebrand_notice_seen");
   });
+});
+
+/**
+ * ⚠️ THIS GUARD IS A LEGAL CONTROL, NOT A TIDINESS ONE.
+ *
+ * `recordDocumentAcceptance` takes no arguments — it resolves the account from
+ * the session — so the preview harness handing the notice a fake id does NOT
+ * stop it writing real `consent_records` rows against whoever is signed in.
+ * Without this, a reviewer tapping OK on /preview/rebrand manufactures the
+ * exact artefact legal-acceptance.ts exists to prevent.
+ */
+describe("whether dismissing writes a legal acceptance row", () => {
+  it("does not record for the preview sentinel", () => {
+    expect(shouldRecordAcceptance(PREVIEW_USER_ID)).toBe(false);
+  });
+
+  it("records for a real account", () => {
+    expect(shouldRecordAcceptance("8f14e45f-ceea-467a-9a3e-1b2c3d4e5f60")).toBe(true);
+  });
+
+  /**
+   * The failure direction matters: silently NOT recording a real acceptance
+   * would make Terms §25 ("we record which version you accepted") false, and
+   * the write is already idempotent and already fails quietly.
+   */
+  it.each(["", "anything-else", "preview", "not-a-real-account"])(
+    "records for %p, because only the exact sentinel is exempt",
+    (id) => {
+      expect(shouldRecordAcceptance(id)).toBe(true);
+    },
+  );
 });

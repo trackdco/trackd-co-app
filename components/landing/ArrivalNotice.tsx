@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 
-import { PRODUCTION_HOST } from "@/lib/brand";
+import { NEW_HOST_PENDING, PRODUCTION_HOST } from "@/lib/brand";
 
 /**
  * "trackdco.app is now trakabl.app" — shown ONLY to somebody who typed the old
@@ -89,10 +89,18 @@ export function ArrivalNotice() {
   if (!eligible || dismissed) return null;
 
   return (
-    <span className="lp-arrival ml-auto mr-3 hidden items-center gap-2 rounded-full border border-border-default bg-bg-surface-raised py-1.5 pl-3.5 pr-1.5 text-[0.7rem] text-text-muted sm:inline-flex">
-      <span className="whitespace-nowrap">
+    <span className="lp-arrival ml-auto mr-2 inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border-default bg-bg-surface-raised py-1.5 pl-3 pr-1.5 text-[0.62rem] text-text-muted sm:mr-3 sm:gap-2 sm:pl-3.5 sm:text-[0.7rem]">
+      {/*
+        ⚠️ `truncate` RATHER THAN A BREAKPOINT. This was `hidden sm:inline-flex`,
+        which hid the notice below 640px — i.e. from phone visitors, who are the
+        majority and the ones most likely to have typed the old address from
+        memory. The explanation was invisible to exactly the people it is for.
+        It now shrinks and, in the worst case on a very narrow phone, ellipsises,
+        which still shows both hosts rather than nothing.
+      */}
+      <span className="truncate">
         <b className="font-normal text-foreground">{PRODUCTION_HOST}</b> is now{" "}
-        <b className="font-normal text-foreground">trakabl.app</b>
+        <b className="font-normal text-foreground">{NEW_HOST_PENDING}</b>
       </span>
       <button
         type="button"

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { RebrandNotice } from "@/components/rebrand/RebrandNotice";
+import { PREVIEW_USER_ID } from "@/lib/rebrand/rebrandNotice";
 
 export const metadata: Metadata = {
   title: "Rebrand notice preview · Trakabl",
@@ -27,10 +28,16 @@ export const metadata: Metadata = {
  * the animation timing and the fine print — so a copy change lands in both
  * places or neither.
  *
- * ⚠️ DISMISSING IT HERE WRITES THE REAL COOKIE for the fake id below. That is
- * deliberate: it makes the dismissal path checkable. The id is not a real
- * account, so no user's notice is consumed. Clear
- * `trakabl_rebrand_notice_seen` if you want to re-drive the button.
+ * ⚠️ DISMISSING IT HERE WRITES THE REAL COOKIE for the sentinel id below, and
+ * that is deliberate: it makes the dismissal path checkable without consuming
+ * any real account's notice. Clear `trakabl_rebrand_notice_seen` to re-drive it.
+ *
+ * ⚠️ IT DOES NOT WRITE A LEGAL ACCEPTANCE ROW, and that took a guard rather
+ * than a fake id. `recordDocumentAcceptance` takes no arguments — it resolves
+ * the account from the SESSION — so before `shouldRecordAcceptance` existed, a
+ * signed-in reviewer tapping OK here upserted real `consent_records` rows
+ * against their own account. An earlier version of this comment asserted the
+ * sentinel made that safe. It did not; it only made the COOKIE safe.
  *
  * Gated on `VERCEL_ENV` rather than `NODE_ENV`, matching `preview/grace-notice`
  * and `preview/paywall`: a Vercel preview deploy IS a production build, so a
@@ -51,7 +58,7 @@ export default function RebrandNoticePreviewPage() {
       <p className="mx-auto max-w-md px-5 pt-6 text-[11px] uppercase tracking-[0.18em] text-text-subtle">
         Rebrand notice · reload to replay
       </p>
-      <RebrandNotice userId="preview-not-a-real-account" />
+      <RebrandNotice userId={PREVIEW_USER_ID} />
     </main>
   );
 }

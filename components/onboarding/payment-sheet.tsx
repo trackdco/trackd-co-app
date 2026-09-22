@@ -35,7 +35,7 @@ type ApplePayOption = NonNullable<StripeExpressCheckoutElementOptions["applePay"
  * The payment surface, mounted INSIDE the paywall (Spec w2b-15).
  *
  * Not Stripe Hosted Checkout and not Embedded Checkout: **the user must never be
- * redirected to a stripe.com domain.** This is TRACKD's own screen with Stripe's
+ * redirected to a stripe.com domain.** This is TRAKABL's own screen with Stripe's
  * fields on it.
  *
  * Onboarding-scoped, like `chrome.tsx` — nothing outside this flow imports it,

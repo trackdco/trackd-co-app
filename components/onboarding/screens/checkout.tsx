@@ -53,7 +53,7 @@ import { TrialHold } from "../trial-hold";
  * length, the amount, the charge date and the auto-renewal notice sit beside the
  * button by construction rather than by luck.
  *
- * **Still inside TRACKD.** The spec's rule is that the user never reaches a
+ * **Still inside TRAKABL.** The spec's rule is that the user never reaches a
  * stripe.com domain — not that payment has to share a screen with the price
  * list. Apple Pay and Google Pay render above the card fields exactly as before.
  */

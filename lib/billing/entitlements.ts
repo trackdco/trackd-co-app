@@ -24,7 +24,7 @@ import {
  * ## It never asks Stripe, and that is the point of the whole spec
  *
  * It reads `entitlements`. Stripe writes that table through the webhook; Apple
- * and Google will write the same table through RevenueCat when TRACKD reaches
+ * and Google will write the same table through RevenueCat when TRAKABL reaches
  * the App Store, and **not one line of this file changes**. If any access check
  * anywhere reads a Stripe subscription status, a `stripe_` column, or the
  * `subscriptions` table, the spec has failed regardless of whether payments

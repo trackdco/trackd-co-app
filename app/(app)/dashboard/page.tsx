@@ -416,6 +416,10 @@ export default async function DashboardPage() {
     launchSeen: betaNoticeSeen(cookieStore.get(BETA_NOTICE_COOKIE)?.value, user.id),
   });
 
+  // Set by the auth callback on a fresh sign-in / sign-up — drives the one-time
+  // (per-login) "Add to Home Screen" popup below.
+  const freshSignIn = cookieStore.get("trackd-install-hint")?.value === "1";
+
   /**
    * THE REBRAND NOTICE, AND WHY IT YIELDS TO EVERY BILLING NOTICE.
    *
@@ -431,6 +435,15 @@ export default async function DashboardPage() {
    */
   const showRebrand =
     notice === "none" &&
+    // ⚠️ AND IT YIELDS TO THE INSTALL SHEET TOO, for the same reason.
+    // `InstallHomeScreenPopup` renders on any fresh sign-in, and a pre-rename
+    // account returning for the first time after the rename satisfies BOTH.
+    // They are separate portals at z-[60] and z-50, so both paint, two
+    // backdrops compose, and Radix traps focus in the sheet while marking
+    // everything outside it aria-hidden — leaving a keyboard or screen-reader
+    // user a visible dialog they cannot reach. The notice is not lost: its
+    // cookie is untouched, so it shows on the next load.
+    !freshSignIn &&
     shouldShowRebrandNotice({
       seen: rebrandNoticeSeen(
         cookieStore.get(REBRAND_NOTICE_COOKIE)?.value,
@@ -438,10 +451,6 @@ export default async function DashboardPage() {
       ),
       accountCreatedAt: user.created_at,
     });
-
-  // Set by the auth callback on a fresh sign-in / sign-up — drives the one-time
-  // (per-login) "Add to Home Screen" popup below.
-  const freshSignIn = cookieStore.get("trackd-install-hint")?.value === "1";
 
   /**
    * The name for the greeting. THE USER'S OWN ANSWER WINS over Google's.

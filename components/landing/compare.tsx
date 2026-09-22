@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
  *
  * ## ⚠️ THE COLUMN USED TO SAY "OTHER APPS", AND THAT IS WHY IT DOES NOT
  *
- * Every row here is true OF TRACKD. What made the old column a problem was not
+ * Every row here is true OF TRAKABL. What made the old column a problem was not
  * the wording of the rows, it was the cross beside them: "Other apps" turned
  * each line into a factual claim about competitors, and a market survey found
  * five of the seven falsified by rivals' own marketing. My TRT App sells "11
@@ -140,7 +140,7 @@ export function CompareTable() {
                 <Image
                   src="/trackd-wordmark.png"
                   alt=""
-                  width={1049}
+                  width={1044}
                   height={200}
                   className="mx-auto h-2 w-auto max-w-full object-contain md:h-4"
                 />

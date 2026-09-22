@@ -32,7 +32,7 @@
  * Glass material, Samsung's and Google's launchers) to exact metrics. Those
  * numbers are the content — an icon corner radius is 22.37% of the tile, not
  * `rounded-xl` — and expressing them as arbitrary-value utilities would bury
- * the specification in the markup. Trackd's OWN surfaces on these screens
+ * the specification in the markup. Trakabl's OWN surfaces on these screens
  * still use the design-system tokens and Tailwind, as everywhere else.
  *
  * Every class is prefixed `im-` so nothing here can reach the real app.

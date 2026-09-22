@@ -90,3 +90,45 @@ export function rebrandNoticeSeen(
 export function markRebrandNoticeSeen(userId: string): void {
   markNoticeSeen(REBRAND_NOTICE_COOKIE, userId);
 }
+
+/**
+ * ⚠️ THE SENTINEL ID THE PREVIEW HARNESS MOUNTS THE NOTICE WITH, AND THE REASON
+ * IT HAS TO BE CHECKED RATHER THAN MERELY LOOKED AT.
+ *
+ * `/preview/rebrand` renders the REAL component so a copy change cannot land in
+ * one place and not the other. Dismissing it there does two things, and only
+ * one of them respects the fake id it was handed:
+ *
+ *   · `markRebrandNoticeSeen(userId)` writes the sentinel into a cookie. Honest
+ *     — no real account's notice is consumed.
+ *   · `recordDocumentAcceptance()` takes NO ARGUMENTS. It resolves the account
+ *     from the session, so a signed-in reviewer tapping OK to check the button
+ *     upserts real `consent_records` rows for `tos` and `privacy`, at the live
+ *     versions, against their own account — attributed to a click on a harness.
+ *
+ * That is the exact artefact `legal-acceptance.ts` exists to prevent:
+ * "recording an acceptance the user was never told they were giving". And it is
+ * a REPEAT — commit 768b967 ("The preview harness was writing its fixture into
+ * the signed-in account") is the same bug class, and cost three rows in a
+ * founder's production protocol.
+ *
+ * ⚠️ The guard lives HERE, beside the notice, rather than in the preview page,
+ * because the page cannot enforce it: the write happens inside the component.
+ * A future preview surface that mounts this notice gets the protection for
+ * free, which is the half 768b967's fix could not cover — `sessionClaim.ts`
+ * checks a user id, and `recordDocumentAcceptance` has none to check.
+ */
+export const PREVIEW_USER_ID = "preview-not-a-real-account";
+
+/**
+ * Should dismissing the notice write a legal acceptance row?
+ *
+ * False only for the preview sentinel. Everything else — including an empty or
+ * malformed id — returns true, because the failure direction that matters is
+ * the opposite one: silently NOT recording a real user's acceptance would make
+ * Terms §25's "we record which version you accepted" false, and the write is
+ * already idempotent and already fails quietly.
+ */
+export function shouldRecordAcceptance(userId: string): boolean {
+  return userId !== PREVIEW_USER_ID;
+}

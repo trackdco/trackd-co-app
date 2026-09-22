@@ -48,7 +48,7 @@ export function SiteFooter({ legal }: { legal: readonly LegalLink[] }) {
     <footer className="border-t-[0.5px] border-border-default pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-[calc(7rem+env(safe-area-inset-bottom))]">
       <div className="lp-wide grid gap-10 pt-12 md:grid-cols-3 md:gap-0 md:pt-14">
         <div className="md:pr-8">
-          <Image src="/trackd-wordmark.png" alt={BUSINESS_NAME} width={1049} height={200} className="h-4 w-auto" />
+          <Image src="/trackd-wordmark.png" alt={BUSINESS_NAME} width={1044} height={200} className="h-4 w-auto" />
           <p className="mt-5 max-w-[20rem] text-xs leading-relaxed text-text-secondary">
             trackdco.app is operated by {LEGAL_ENTITY},{" "}
             <span className="whitespace-nowrap">ACN {ACN}</span>.

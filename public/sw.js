@@ -107,7 +107,7 @@ async function serveSplash(request, pathname) {
 
 // A push arrived. The server (send-push) sends a JSON body
 // { title, body, url?, tag? }. Show a notification; if the body is missing or
-// unparseable, fall back to a generic Trackd notification rather than throwing
+// unparseable, fall back to a generic Trakabl notification rather than throwing
 // (a thrown push handler can show the browser's default "site updated" message).
 self.addEventListener("push", (event) => {
   let data = {};

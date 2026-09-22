@@ -385,7 +385,7 @@ export async function applyCancelFlag(
  * does all of this at once:
  *
  *   1. erases `billing_customers` — **the only mapping from a Stripe customer
- *      back to a TRACKD user**;
+ *      back to a TRAKABL user**;
  *   2. leaves the Stripe subscription LIVE and still billing;
  *   3. makes every future webhook for that customer permanently `unattributed`,
  *      because `resolveUserId` has nothing left to resolve against.

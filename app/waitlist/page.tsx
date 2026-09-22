@@ -56,7 +56,7 @@ export default async function WaitlistPage({
         <Image
           src="/trackd-wordmark.png"
           alt="Trakabl"
-          width={1049}
+          width={1044}
           height={200}
           priority
           className="mx-auto h-5 w-auto"

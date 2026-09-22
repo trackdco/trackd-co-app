@@ -441,7 +441,7 @@ export function manageActionFor(
   /**
    * ⚠️ AND THE SAME IS TRUE OF AN APP STORE SOURCE, FOR THE SAME REASON.
    *
-   * RevenueCat will write `apple` / `google` rows when TRACKD reaches the App
+   * RevenueCat will write `apple` / `google` rows when TRAKABL reaches the App
    * Store, and that subscription really cannot be cancelled from here — the only
    * honest control for IT is a pointer at the right place. But this branch used
    * to run before the subscription was consulted at all, so an Apple entitlement

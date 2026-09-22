@@ -43,7 +43,7 @@ export default async function WelcomePage({
       <Image
         src="/trackd-wordmark.png"
         alt="Trakabl"
-        width={1049}
+        width={1044}
         height={200}
         priority
         className="h-4 w-auto"

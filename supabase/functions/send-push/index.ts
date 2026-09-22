@@ -107,7 +107,7 @@ Deno.serve(async (req: Request) => {
   if (!userId) return json({ error: "missing userId" }, 400);
 
   const payload: Payload = {
-    title: body.payload?.title ?? "Trackd",
+    title: body.payload?.title ?? "Trakabl",
     body: body.payload?.body ?? "",
     url: body.payload?.url ?? "/dashboard",
     tag: body.payload?.tag,

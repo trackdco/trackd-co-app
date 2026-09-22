@@ -55,7 +55,7 @@ function ts(seconds: number | null | undefined): string | null {
 }
 
 /**
- * Which TRACKD user a Stripe customer belongs to.
+ * Which TRAKABL user a Stripe customer belongs to.
  *
  * `billing_customers` is the mapping, and it is authoritative. The subscription
  * metadata carries `user_id` too and is used as a fallback — an event can arrive

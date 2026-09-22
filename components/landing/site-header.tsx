@@ -141,7 +141,7 @@ export function SiteHeader({
           <Image
             src="/trackd-wordmark.png"
             alt={BUSINESS_NAME}
-            width={1049}
+            width={1044}
             height={200}
             priority
             className="h-[1.05rem] w-auto md:h-[1.15rem]"

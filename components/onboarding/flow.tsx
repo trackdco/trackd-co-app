@@ -78,7 +78,7 @@ function Wordmark() {
     <Image
       src="/trackd-wordmark.png"
       alt="Trakabl"
-      width={1049}
+      width={1044}
       height={200}
       className="h-3 w-auto opacity-70"
     />
