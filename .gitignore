@@ -184,6 +184,15 @@ condensed_GLBX-*
 !/scratchpad/final/
 !/scratchpad/base-mig-probe.mjs
 
+# ⚠️ THE INSTALL-WALKTHROUGH SOURCE. `lib/onboarding/platform.ts` tells a
+# maintainer to re-render the 23 frames in `public/onboarding/install/` from
+# this file, and for the whole of the rename it was not in the repo — so a
+# cold reviewer reasonably concluded no generator existed and the only
+# remediation was recapturing on five devices. It is the source of the
+# frames AND of their captions; it has to travel with them.
+!/scratchpad/icon-harness/
+!/scratchpad/icon-harness/install-build.html
+
 # ⚠️ BUT NEVER THE SINK'S KEY MATERIAL. `PushSink` self-signs a certificate for
 # 127.0.0.1 on first run and caches it here. It is regenerated on demand, it is
 # worthless to anybody, and a private key does not go in a repository regardless.
