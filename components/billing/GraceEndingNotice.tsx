@@ -9,6 +9,7 @@ import {
 } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 
 import { recordDocumentAcceptance } from "@/app/(app)/legal-acceptance";
@@ -76,6 +77,7 @@ export function GraceEndingNotice({
   countFrom: number;
 }) {
   const [open, setOpen] = useState(true);
+  const router = useRouter();
 
   /**
    * ⚠️ IF IT CANNOT NAME THE DATE, IT DOES NOT RENDER, and the fallback is
@@ -128,8 +130,19 @@ export function GraceEndingNotice({
      */
     void recordDocumentAcceptance();
     markGraceNoticeSeen(userId);
+    /**
+     * ⚠️ THE COOKIE ALONE DOES NOT STOP IT COMING BACK. `staleTimes.dynamic` in
+     * `next.config.ts` keeps this route's RSC payload in the CLIENT router cache
+     * for five minutes, and that payload was rendered before the cookie existed
+     * — with this notice inside it. A soft navigation back to this route replays
+     * the cached tree and the notice returns, over and over, until the window
+     * expires. A hard reload bypasses the cache and looks correct, which is what
+     * hides it. `router.refresh()` re-fetches from the server, which now sees
+     * the cookie.
+     */
+    router.refresh();
     setOpen(false);
-  }, [userId]);
+  }, [userId, router]);
 
   /**
    * ⚠️ `/plans`, AND IT DISMISSES FIRST.

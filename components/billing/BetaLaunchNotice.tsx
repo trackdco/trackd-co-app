@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 
 import { Confetti } from "@/components/onboarding/confetti";
@@ -72,6 +73,7 @@ export function BetaLaunchNotice({
   isComp: boolean;
 }) {
   const [open, setOpen] = useState(true);
+  const router = useRouter();
 
   /**
    * ⚠️ IF IT CANNOT NAME THE DATE, IT DOES NOT RENDER. The fallback is DELETED,
@@ -142,7 +144,18 @@ export function BetaLaunchNotice({
     void recordDocumentAcceptance();
     markBetaNoticeSeen(userId);
     setOpen(false);
-  }, [userId]);
+    /**
+     * ⚠️ THE COOKIE ALONE DOES NOT STOP IT COMING BACK. `staleTimes.dynamic` in
+     * `next.config.ts` keeps this route's RSC payload in the CLIENT router cache
+     * for five minutes, and that payload was rendered before the cookie existed
+     * — with this notice inside it. A soft navigation back to this route replays
+     * the cached tree and the notice returns, over and over, until the window
+     * expires. A hard reload bypasses the cache and looks correct, which is what
+     * hides it. `router.refresh()` re-fetches from the server, which now sees
+     * the cookie.
+     */
+    router.refresh();
+  }, [userId, router]);
 
   /**
    * D31's second control, and Q84's destination: the PRICE LIST.

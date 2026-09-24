@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 
 import { recordDocumentAcceptance } from "@/app/(app)/legal-acceptance";
@@ -55,6 +56,7 @@ const subscribeNever = () => () => {};
 
 export function RebrandNotice({ userId }: { userId: string }) {
   const [open, setOpen] = useState(true);
+  const router = useRouter();
 
   /**
    * "Is there a browser yet?" — `useSyncExternalStore` rather than `useState`
@@ -68,6 +70,25 @@ export function RebrandNotice({ userId }: { userId: string }) {
     setOpen(false);
     markRebrandNoticeSeen(userId);
     /**
+     * ⚠️ THE COOKIE ALONE DOES NOT STOP IT COMING BACK.
+     *
+     * `next.config.ts` sets `staleTimes.dynamic = 300`, so this route's RSC
+     * payload stays in the CLIENT router cache for five minutes. The payload was
+     * rendered when the cookie was absent, and it carries this notice inside it.
+     * Writing the cookie changes what the SERVER would say; it does nothing to
+     * the copy the client already holds. Move to another tab and back within
+     * that window and the cached tree — notice included — is replayed, so a
+     * notice that is shown "once, ever" reappears on every soft navigation until
+     * the cache expires. A hard reload skips the cache and looks fine, which is
+     * what makes this easy to miss.
+     *
+     * `router.refresh()` re-fetches this route from the server, which now sees
+     * the cookie. The staleTimes comment says the cache is cleared by the
+     * `revalidatePath` in every server action behind a figure — dismissing a
+     * notice is not one of those, so it has to ask for itself.
+     */
+    router.refresh();
+    /**
      * ⚠️ NOT AWAITED, and a failure here is silent by design.
      * `recordDocumentAcceptance` returns quietly on every error path: a database
      * problem must never stop somebody dismissing a notice, and it must never
@@ -79,7 +100,7 @@ export function RebrandNotice({ userId }: { userId: string }) {
      * See `shouldRecordAcceptance`.
      */
     if (shouldRecordAcceptance(userId)) void recordDocumentAcceptance();
-  }, [userId]);
+  }, [userId, router]);
 
   useEffect(() => {
     if (!open) return;
