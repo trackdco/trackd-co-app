@@ -172,7 +172,7 @@ export function RebrandNotice({ userId }: { userId: string }) {
         </h2>
 
         <p className="mt-2 text-center text-sm leading-relaxed text-pretty text-text-muted">
-          You&apos;re now using {PRODUCT_NAME} — same app, same account, same
+          You&apos;re now using {PRODUCT_NAME}. Same app, same account, same
           everything you&apos;ve logged.
         </p>
 

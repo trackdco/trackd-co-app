@@ -1,7 +1,10 @@
 -- ============================================================
 --  Legal documents: who operates Trakabl (Adrian, 2026-09-24).
 --
---  ⚠️ NOT APPLIED. Adrian runs this by hand in the Supabase SQL Editor.
+--  APPLIED to production 2026-09-24 (22:46 AEST) at Adrian's word, and
+--  verified: terms 2.3, privacy 2.3, consumer_health_data 2.3,
+--  medical_disclaimer 2.2, all effective 24 September 2026, predecessors kept
+--  as history.
 --
 --  Publishes the NEXT version of all four documents. Each new body is built
 --  from the body in force at the moment this runs, by `replace()`, so nothing

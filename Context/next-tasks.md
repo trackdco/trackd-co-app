@@ -1,22 +1,18 @@
 # Next Tasks
 
-## 🟡 WHO OPERATES TRAKABL — ON `brand/operator-line`, NOT MERGED (2026-09-24)
+## 🟢 WHO OPERATES TRAKABL — MERGED AND APPLIED (2026-09-24)
 
-Details in `progress-tracker.md`.
+Details in `progress-tracker.md`. Legal docs are live at terms/privacy/CHD 2.3
+and disclaimer 2.2. The PostHog Privacy/CHD update is now 2.4, not 2.3.
 
-### 1. Read and apply `supabase/legal/018_legal_operated_by.sql` (Adrian)
-It takes the next version of each document (2.3 / 2.3 / 2.3 / 2.2 if nothing
-else is published first), then purge the Vercel cache tag `legal-documents`.
-The PostHog Privacy/CHD update planned as "v2.3" becomes 2.4 if it lands after.
+### 1. Purge the Vercel cache tag `legal-documents` (Adrian)
+Until then `/terms`, `/privacy`, `/medical-disclaimer` and
+`/consumer-health-data` keep showing the previous version. `/terms/2.3` etc.
+already show the new text.
 
-### 2. Merge the branch (Adrian)
-The footer and rebrand notice change with it. `rename-final-steps` (017, the
-support address) touches the same `Context/legal-v2` files on other lines.
-
-### 3. Open calls (Adrian)
-- `lib/billing/signed/grace-ending.txt` still thanks users for making "Trackd Co".
-  It is signed and carries no operator wording, so it was left alone.
-- The rebrand notice says "You're now using Trakabl — same app": an em dash.
+### 2. One open call (Adrian)
+`lib/billing/signed/grace-ending.txt` still thanks users for making "Trackd Co".
+It is signed and carries no operator wording, so it was left alone.
 
 ## 🟢 LANDING PAGE — LIVE AND CURRENT (2026-09-19)
 

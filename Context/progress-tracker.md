@@ -5845,7 +5845,7 @@ it was installed from.
 
 ## Who operates Trakabl, in one sentence (2026-09-24)
 
-On branch `brand/operator-line`, not merged. Adrian's wording, exactly:
+Merged to `main` and applied, 2026-09-24. Adrian's wording, exactly:
 "Trakabl is operated by Trackd Co Pty Ltd (ABN 35 698 405 462)."
 
 - `OPERATED_BY` in `lib/brand.ts` holds it (plus `ABN`), pinned in
@@ -5856,8 +5856,11 @@ On branch `brand/operator-line`, not merged. Adrian's wording, exactly:
 - `supabase/legal/018_legal_operated_by.sql` publishes the next version of all
   four legal documents with that sentence in the preamble and ", trading as
   Trakabl" removed; the contracting party and its defined terms are unchanged.
-  NOT APPLIED. Tested against a local copy of the live rows (pglite): only the
-  intended lines change, and a second run refuses.
+  Tested first against a local copy of the live rows (pglite): only the
+  intended lines change, and a second run refuses. Applied to production the
+  same night: terms, privacy and CHD 2.3, disclaimer 2.2.
+- The rebrand notice lost its em dash: "You're now using Trakabl. Same app,
+  same account, same everything you've logged."
 - Checked first: a new current version makes nobody re-accept and costs nobody
   access. The only gate is `is_18_plus AND tos_accepted_at`; nothing compares a
   user's accepted version with the current one.
