@@ -184,12 +184,12 @@ export const YEARLY_PER_WEEK = Math.round((PLANS.yearly.amount / WEEKS_PER_YEAR)
  * both. Kept here rather than in the footer because a handle change is the same
  * kind of edit as a name change: one line, found in one place.
  *
- * ⚠️ STILL THE OLD HANDLES. @trackdcoapp on both platforms — renaming a TikTok
- * or Instagram handle is an account action Adrian has to take, not a code
- * change, and a link to a handle that has not been renamed yet is a dead link.
- * Update these in the same sitting as the handles themselves.
+ * ⚠️ THE TWO PLATFORMS TOOK DIFFERENT HANDLES, and neither is a typo for the
+ * other: Instagram is bare `trakabl`, TikTok is `Trakabl.app`. Do not
+ * normalise one to match the other — both were verified to resolve when they
+ * were set (Adrian, 2026-09-24, in the same sitting as the accounts).
  */
 export const SOCIAL_LINKS = {
-  tiktok: "https://www.tiktok.com/@trackdcoapp",
-  instagram: "https://www.instagram.com/trackdcoapp/",
+  tiktok: "https://www.tiktok.com/@Trakabl.app",
+  instagram: "https://www.instagram.com/trakabl/",
 } as const;
