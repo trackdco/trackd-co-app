@@ -12,7 +12,7 @@ import { CARD_EYEBROW } from "@/lib/ui-presets"
  */
 export function EmptyLogCard() {
   return (
-    <section className="rounded-2xl bg-bg-surface p-5">
+    <section className="flow-card rounded-2xl bg-bg-surface p-5">
       <h2 className={CARD_EYEBROW}>Start your log</h2>
       <p className="mt-2 text-sm text-text-muted">
         Here&apos;s how it works:

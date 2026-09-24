@@ -159,7 +159,7 @@ export function ConsistencyGraph({
   const chartHeight = compact ? CHART_HEIGHT_COMPACT : CHART_HEIGHT;
 
   return (
-    <section className={cn("flex flex-col rounded-2xl bg-bg-surface p-5")}>
+    <section className={cn("flow-card flex flex-col rounded-2xl bg-bg-surface p-5")}>
       <p className={CARD_EYEBROW}>Consistency</p>
       {overall != null ? (
         <div className="mt-3 flex items-baseline gap-1.5">

@@ -356,7 +356,7 @@ export function ReconCalculator() {
               are labelled, and it belongs to "Draw" above. ---- */}
       <section
         data-area="calc-figures"
-        className="animate-home-up grid grid-cols-3 divide-x divide-border-default rounded-2xl bg-bg-surface py-3"
+        className="flow-card animate-home-up grid grid-cols-3 divide-x divide-border-default rounded-2xl bg-bg-surface py-3"
         style={{ animationDelay: "55ms" }}
       >
         <Figure
@@ -413,7 +413,7 @@ export function ReconCalculator() {
       {/* ---- The working, collapsed by default ---- */}
       <section
         data-area="calc-working"
-        className="animate-home-up overflow-hidden rounded-2xl bg-bg-surface"
+        className="flow-card animate-home-up overflow-hidden rounded-2xl bg-bg-surface"
         style={{ animationDelay: "165ms" }}
       >
         <button

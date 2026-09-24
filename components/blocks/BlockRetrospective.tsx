@@ -162,7 +162,7 @@ export function BlockRetrospective({
       {/* Duration — the one figure that always exists, for every block there
           will ever be. A live block reads "so far" rather than claiming the
           whole span it was planned for. */}
-      <section className="rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card rounded-2xl bg-bg-surface p-5">
         <p className={CARD_EYEBROW}>{live ? "Running for" : "Ran for"}</p>
         <p className="mt-1.5 flex items-baseline gap-2">
           <span className={METRIC_VALUE}>{formatDuration(retro.window.days)}</span>
@@ -192,7 +192,7 @@ export function BlockRetrospective({
         <button
           type="button"
           onClick={() => setWeightOpen(true)}
-          className={cn(PRESS.card, "w-full rounded-2xl bg-bg-surface p-5 text-left")}
+          className={cn(PRESS.card, "flow-card w-full rounded-2xl bg-bg-surface p-5 text-left")}
         >
           <div className="flex items-center justify-between gap-2">
             <p className={CARD_EYEBROW}>Weight</p>
@@ -252,7 +252,7 @@ export function BlockRetrospective({
         <button
           type="button"
           onClick={() => setPhotosOpen(true)}
-          className={cn(PRESS.card, "w-full rounded-2xl bg-bg-surface p-5 text-left")}
+          className={cn(PRESS.card, "flow-card w-full rounded-2xl bg-bg-surface p-5 text-left")}
         >
           <div className="flex items-center justify-between gap-2">
             <p className={CARD_EYEBROW}>Photos</p>
@@ -292,7 +292,7 @@ export function BlockRetrospective({
 
       {/* What you ran — the thing Adrian described wanting to look back on. */}
       {retro.compounds.length > 0 && (
-        <section className="rounded-2xl bg-bg-surface p-5">
+        <section className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>What you ran</p>
           <ul className="mt-3 space-y-1.5">
             {retro.compounds.map((c) => (
@@ -330,7 +330,7 @@ export function BlockRetrospective({
           the tracked figures stay the tracked figures and the off-plan ones are
           still on the page, which is the whole point of showing them. */}
       {oneOffs.length > 0 && (
-        <section className="rounded-2xl bg-bg-surface p-5">
+        <section className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>Also taken</p>
           <ul className="mt-3 space-y-1.5">
             {oneOffs.map((o) => (
@@ -366,7 +366,7 @@ export function BlockRetrospective({
       {/* Consistency — behavioural, not a health reading, which is why it is
           allowed to be a percentage at all. */}
       {retro.consistency.pct != null && (
-        <section className="rounded-2xl bg-bg-surface p-5">
+        <section className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>Consistency</p>
           <p className="mt-1.5 flex items-baseline gap-2">
             <span className={METRIC_VALUE}>{retro.consistency.pct}</span>
@@ -392,7 +392,7 @@ export function BlockRetrospective({
 
       {/* Bloods — panels taken during the window. */}
       {retro.bloods.length > 0 && (
-        <section className="rounded-2xl bg-bg-surface p-5">
+        <section className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>Bloods</p>
           <p className="mt-1.5 text-sm text-text-muted">
             {retro.bloods.length} {retro.bloods.length === 1 ? "panel" : "panels"} inside
@@ -422,7 +422,7 @@ export function BlockRetrospective({
           about how often something was written down. Nothing here reports a
           marker's severity or ranks one as worse than another. */}
       {retro.journal.entries > 0 && (
-        <section className="rounded-2xl bg-bg-surface p-5">
+        <section className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className={CARD_EYEBROW}>Journal</p>
           <p className="mt-1.5 flex items-baseline gap-2">
             <span className={METRIC_VALUE}>{retro.journal.entries}</span>

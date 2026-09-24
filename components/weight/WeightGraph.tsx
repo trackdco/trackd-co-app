@@ -167,7 +167,7 @@ export function WeightGraph({
   const [switched, setSwitched] = useState(false);
 
   return (
-    <section className={cn("rounded-2xl bg-bg-surface p-5", className)} style={style}>
+    <section className={cn("flow-card rounded-2xl bg-bg-surface p-5", className)} style={style}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className={CARD_EYEBROW}>{mode === "trend" ? "Trend" : "Scale"}</p>

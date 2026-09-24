@@ -25,7 +25,7 @@ function RowSk() {
 export function HomeSkeletonBlocks() {
   return (
     <>
-      <section className="rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card rounded-2xl bg-bg-surface p-5">
         <Sk w="62%" h={26} />
         <Sk w="72px" h={9} className="mt-4" />
         <div className="mt-4">
@@ -39,12 +39,12 @@ export function HomeSkeletonBlocks() {
       </section>
 
       <div className="grid grid-cols-2 gap-3">
-        <section className="flex flex-col items-center rounded-2xl bg-bg-surface p-5">
+        <section className="flow-card flex flex-col items-center rounded-2xl bg-bg-surface p-5">
           <Sk w="40%" h={9} className="self-start" />
           <Sk w="96px" h={96} round className="mt-4" />
           <Sk w="56%" h={8} className="mt-3" />
         </section>
-        <section className="flex flex-col items-center rounded-2xl bg-bg-surface p-5">
+        <section className="flow-card flex flex-col items-center rounded-2xl bg-bg-surface p-5">
           <Sk w="60%" h={9} className="self-start" />
           <Sk w="40px" h={56} className="mt-4 rounded-lg" />
           <Sk w="70%" h={12} className="mt-3" />
@@ -52,7 +52,7 @@ export function HomeSkeletonBlocks() {
         </section>
       </div>
 
-      <section className="rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card rounded-2xl bg-bg-surface p-5">
         <div className="flex items-center justify-between">
           <Sk w="96px" h={9} />
           <Sk w="84px" h={24} round />
@@ -63,7 +63,7 @@ export function HomeSkeletonBlocks() {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card rounded-2xl bg-bg-surface p-5">
         <Sk w="56px" h={9} />
         <Sk h={44} className="mt-3 rounded-xl" />
       </section>

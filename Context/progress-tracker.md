@@ -19,6 +19,24 @@ Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
     morning and 50 mg evening is one regimen, not a change twice a day. A run that has
     lapsed (no dose for 3 half-lives) restarts at the next dose due; with none due,
     Steady has no value.
+- **Phase 2, tokens and surfaces:** the "+1" contrast step is in `globals.css` (base
+  #0E0E0D, surface #212120, raised #2A2A28, borders #333331 / #45453F, muted #8A8982,
+  subtle #54544F), with `--blend-1..3` (Sorbet), `--bg-inset` / `--bg-inset-deep` and
+  `.inset-surface` / `.inset-graph`. The lit canvas is `.flow-canvas-fixed` on the
+  `(app)` shell (a fixed layer, so a long page does not stretch it), and `flow-card` is
+  on all 76 in-app cards. Sheets and dialogs are unchanged. Decisions taken in the build:
+  - The public site (`/`, `/reconstitution-calculator`) keeps the shipped values, pinned
+    by `:root:has(.lp-site)`: it was measured for AA against them and the brief says not
+    to touch landing. Deleting that block moves it to the new step.
+  - The step's "page #0B0B0A" is the design artifact's own background (identical at "as
+    shipped" and "+1"), so it maps to no app token.
+  - "Pushed" needed no code: `containerColour` already gives a vial its category hue, and
+    the stack colour only where a caller passes it.
+  Checked at 390x844 in Chromium and WebKit on the Home, Protocol and Progress previews;
+  `npm run check` (2191 tests) and `next build` (65 pages) pass.
+- **Verification limit:** creating a QA account on the live database was refused by the
+  session's auto-mode guard, so screens are checked on the dev-only `/preview/*` pages
+  (mock data, no database), not signed in.
 
 ## 🎨 HALF-LIFE + LOGGING DESIGN — DECIDED, NOT BUILT (2026-09-24)
 

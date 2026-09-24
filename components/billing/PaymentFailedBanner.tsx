@@ -42,7 +42,7 @@ import { CaretRight, Warning } from "@/components/icons";
  */
 export function PaymentFailedBanner({ line }: { line: string }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-2xl bg-bg-surface py-3 pl-3.5 pr-3">
+    <div className="flow-card flex items-center gap-2.5 rounded-2xl bg-bg-surface py-3 pl-3.5 pr-3">
       {/* Warning, not Hourglass (Adrian, 2026-08-25). An hourglass says "this is
           taking a while", which is the wrong sentence for a failed payment:
           nothing is in progress, something has gone wrong and needs them.

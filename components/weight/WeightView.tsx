@@ -235,7 +235,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
       {/* ── Track your weight ─────────────────────────────────────── */}
       <section
-        className="animate-home-up relative rounded-2xl bg-bg-surface p-5"
+        className="flow-card animate-home-up relative rounded-2xl bg-bg-surface p-5"
         style={{ animationDelay: "0ms" }}
       >
         <h2 className={CARD_EYEBROW}>Track your weight</h2>
@@ -345,7 +345,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
       {/* ── Entry log ─────────────────────────────────────────────── */}
       <section
-        className="animate-home-up rounded-2xl bg-bg-surface p-5"
+        className="flow-card animate-home-up rounded-2xl bg-bg-surface p-5"
         style={{ animationDelay: "110ms" }}
       >
         <h2 className={CARD_EYEBROW}>Entry log</h2>

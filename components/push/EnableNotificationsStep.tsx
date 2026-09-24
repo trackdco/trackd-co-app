@@ -37,7 +37,7 @@ export function EnableNotificationsStep({
 
   return (
     <div className="animate-home-up" style={{ animationDelay: "100ms" }}>
-      <div className="flex items-center gap-3 rounded-2xl bg-bg-surface p-4">
+      <div className="flow-card flex items-center gap-3 rounded-2xl bg-bg-surface p-4">
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center text-text-muted"
           aria-hidden="true"

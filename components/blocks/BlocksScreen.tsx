@@ -303,7 +303,7 @@ function LiveBlockCard({
   return (
     <Link
       href={`/blocks?block=${block.id}`}
-      className={cn(PRESS.card, "block rounded-2xl bg-bg-surface p-5")}
+      className={cn(PRESS.card, "flow-card block rounded-2xl bg-bg-surface p-5")}
     >
       <div className="flex items-center gap-3">
         <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Running now</span>
@@ -363,7 +363,7 @@ function PastBlockRow({ block, todayKey }: { block: Block; todayKey: string }) {
   return (
     <Link
       href={`/blocks?block=${block.id}`}
-      className="flex items-center gap-3 rounded-2xl bg-bg-surface px-5 py-4 transition-colors hover:bg-bg-surface-raised/40"
+      className="flow-card flex items-center gap-3 rounded-2xl bg-bg-surface px-5 py-4 transition-colors hover:bg-bg-surface-raised/40"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm text-foreground">{block.name}</span>

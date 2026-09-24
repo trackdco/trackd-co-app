@@ -60,7 +60,7 @@ export function TrialEndingBanner({
   if (dismissed) return null;
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-bg-surface py-3 pl-4 pr-2">
+    <div className="flow-card flex items-center gap-3 rounded-2xl bg-bg-surface py-3 pl-4 pr-2">
       <Hourglass className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
       <Link
         href="/billing"

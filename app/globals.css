@@ -11,22 +11,32 @@
    :root with no light theme.
    --------------------------------------------------------------------------- */
 :root {
-  /* Surfaces */
-  --bg-base: #111110;
-  --bg-surface: #1c1c1a;
-  --bg-surface-raised: #242422;
+  /* Surfaces — the "+1" contrast step (Adrian, 2026-09-24, ui-context →
+     Surface treatment): the ground drops and the card surface lifts at the same
+     time, so separation grows from both sides. Shipped values were base #111110,
+     surface #1c1c1a, raised #242422, borders #2e2e2c / #3e3e3a, muted #7a7a74,
+     subtle #4a4a46; the public site keeps them (see `:root:has(.lp-site)`). */
+  --bg-base: #0e0e0d;
+  --bg-surface: #212120;
+  --bg-surface-raised: #2a2a28;
   --bg-input: #2a2a28;
+  /* An INSET: a graph inside a card, and the panel a log tile opens into. They
+     sit IN the card rather than on it (ui-context → Surface treatment), so they
+     are darker than it; `.inset-surface` / `.inset-graph` add the shading. */
+  --bg-inset: #1a1a19;
+  --bg-inset-deep: #171716;
 
   /* Text */
   --text-primary: #f0efe9;
-  --text-muted: #7a7a74;
-  --text-subtle: #4a4a46;
+  --text-muted: #8a8982;
+  --text-subtle: #54544f;
 
   /**
    * THE AA-SAFE MUTED, for surfaces that must MEASURE rather than merely look
    * right (spec 3-02, the public landing page).
    *
-   * `--text-muted` measures 4.38:1 on `--bg-base` and 3.95:1 on `--bg-surface`.
+   * `--text-muted` measures 4.38:1 on `--bg-base` and 3.95:1 on `--bg-surface`
+   * (the shipped values, which the public site keeps: `:root:has(.lp-site)`).
    * Both are under the 4.5:1 floor WCAG AA sets for body text, and the landing
    * page's spec requires AA, so its secondary prose cannot use it. Mixed a
    * quarter of the way toward `--text-primary`: measured 6.45:1 on `--bg-base`
@@ -49,8 +59,8 @@
   --accent-green: #4ade80;
 
   /* Borders */
-  --border-default: #2e2e2c;
-  --border-strong: #3e3e3a;
+  --border-default: #333331;
+  --border-strong: #45453f;
 
   /* Injection-site muscle regions (Spec 19) — a step lighter than the body
      (--bg-input), so each injectable muscle reads as a distinct selectable site. */
@@ -76,6 +86,14 @@
   --cat-thyroid: #c77da0;
   --cat-supplement: #6fae6f;
   --cat-stimulant: #cb7a5c;
+
+  /* Blend component lines ("Sorbet", ui-context → the colour level is "Pushed").
+     One per component of a blend (Wolverine, Glow, KLOW), told apart by dash AND
+     colour. The only palette tried that passes the dataviz validator on a dark
+     card on every check; colour tops out at three, a fourth goes by dash alone. */
+  --blend-1: #4682cc;
+  --blend-2: #ac942f;
+  --blend-3: #c35890;
 
   /* User palette — twelve approved colours a user picks from for a CYCLE
      (Spec 06) or a STACK (Spec 05). Deep rather than pastel, none implying good
@@ -280,6 +298,21 @@
   --sidebar-accent-foreground: var(--bg-base);
   --sidebar-border: var(--border-default);
   --sidebar-ring: var(--accent-amber);
+}
+
+/* THE PUBLIC SITE KEEPS THE SHIPPED CONTRAST. The +1 step above is the app's
+   (ui-context → Surface treatment); `/` and `/reconstitution-calculator` were
+   measured for AA against these values (see `--text-secondary`) and are not part
+   of the half-life build. Pinned here rather than edited there, so moving the
+   public site to the new step later is deleting this block. */
+:root:has(.lp-site) {
+  --bg-base: #111110;
+  --bg-surface: #1c1c1a;
+  --bg-surface-raised: #242422;
+  --text-muted: #7a7a74;
+  --text-subtle: #4a4a46;
+  --border-default: #2e2e2c;
+  --border-strong: #3e3e3a;
 }
 
 /* ---------------------------------------------------------------------------
@@ -913,7 +946,8 @@ svg ::-moz-selection {
 /* The canvas. A very slight lift at the top falling to the flat page colour,
    so a full-screen dark surface reads as lit rather than as a void. The stop
    colour is mixed FROM the tokens, so a palette retune carries it. */
-.flow-canvas {
+.flow-canvas,
+.flow-canvas-fixed::before {
   background:
     radial-gradient(
       120% 70% at 50% 0%,
@@ -921,6 +955,20 @@ svg ::-moz-selection {
       var(--bg-base) 62%
     ),
     var(--bg-base);
+}
+
+/* THE APP'S CANVAS (rolled out app-wide, Adrian 2026-09-24). The same lift,
+   painted on a layer FIXED to the viewport behind the whole shell. On an element
+   the gradient scales with the element, so a long page stretched the lift down
+   its full height; fixed, it stays at the top of the screen while the page
+   scrolls, which is how the prototype's phone reads. `position: fixed` rather
+   than `background-attachment: fixed`, which iOS Safari ignores. */
+.flow-canvas-fixed::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* The height a flow screen is laid out against.
@@ -1062,6 +1110,25 @@ svg ::-moz-selection {
   box-shadow:
     inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 5%, transparent),
     0 10px 30px -18px rgb(0 0 0 / 0.85);
+}
+
+/* THE INSET, the opposite of `.flow-card` (ui-context → Surface treatment,
+   Adrian 2026-09-24). A darker fill, an inner shadow along the top and a 4%
+   highlight along the bottom edge. A darker box WITHOUT the shadow read as
+   "lazy"; the shadow is what makes it read as pressed into the card. The graph
+   version runs darker at the top, where the shadow falls. */
+.inset-surface,
+.inset-graph {
+  background: var(--bg-inset);
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.45),
+    inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+.inset-graph {
+  background: linear-gradient(180deg, var(--bg-inset-deep), var(--bg-inset));
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.5),
+    inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent);
 }
 
 /* SCROLL PORTS FADE AT THEIR EDGES INSTEAD OF GUILLOTINING (Adrian, on his

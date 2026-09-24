@@ -42,7 +42,7 @@ export function JournalCard({
         type="button"
         onClick={onOpen}
         aria-label="Open journal"
-        className="flex flex-col rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+        className="flow-card flex flex-col rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
       >
         <span className={`block ${CARD_EYEBROW}`}>Journal</span>
         {latest ? (
@@ -92,7 +92,7 @@ export function JournalCard({
       type="button"
       onClick={onOpen}
       aria-label="Open journal"
-      className="flex w-full items-start gap-3.5 rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+      className="flow-card flex w-full items-start gap-3.5 rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
     >
       <span className="min-w-0 flex-1">
         <span className={`block ${CARD_EYEBROW}`}>Journal</span>

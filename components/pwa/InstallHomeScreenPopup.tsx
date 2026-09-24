@@ -116,7 +116,7 @@ export function InstallHomeScreenPopup({
 
         {platform === "android" ? (
           <>
-            <div className="rounded-2xl bg-bg-surface p-5">
+            <div className="flow-card rounded-2xl bg-bg-surface p-5">
               <p className="text-lg font-light tracking-[-0.02em] text-foreground">
                 Add Trakabl to your Home Screen
               </p>

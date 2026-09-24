@@ -173,7 +173,7 @@ export default async function BillingPage() {
 
       <section className="animate-home-up mt-6" style={rise(0)}>
         <p className={`mb-3 ${CARD_EYEBROW}`}>Plan</p>
-        <div className="overflow-hidden rounded-2xl bg-bg-surface">
+        <div className="flow-card overflow-hidden rounded-2xl bg-bg-surface">
           <Row
             label="Access"
             value={accessValue(entitlement, subscription, tz)}
@@ -462,7 +462,7 @@ export default async function BillingPage() {
           <div
             className={
               action.kind === "resume"
-                ? "overflow-hidden rounded-2xl bg-bg-surface px-4 py-1"
+                ? "flow-card overflow-hidden rounded-2xl bg-bg-surface px-4 py-1"
                 : ""
             }
           >

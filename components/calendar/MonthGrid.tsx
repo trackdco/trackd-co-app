@@ -49,7 +49,7 @@ export function MonthGrid({
   cycleBands,
 }: MonthGridProps) {
   return (
-    <section className="rounded-2xl bg-bg-surface px-3 pt-4 pb-3">
+    <section className="flow-card rounded-2xl bg-bg-surface px-3 pt-4 pb-3">
       {/* Weekday header (Mon-first). */}
       <div className="grid grid-cols-7 pb-2">
         {WEEKDAY_INITIALS.map((d, i) => (

@@ -307,7 +307,7 @@ export function CalculatorInputs({
     // `ScheduleGrid`, so the calculator's sections read like the rest of the app.
     <section className="space-y-3">
       <h2 className={cn(CARD_EYEBROW, "px-1")}>Inputs</h2>
-      <div className="space-y-4 rounded-2xl bg-bg-surface p-5">
+      <div className="flow-card space-y-4 rounded-2xl bg-bg-surface p-5">
         <div>
           <span className={FIELD_LABEL}>Syringe</span>
           <div className="mt-1.5">

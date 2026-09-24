@@ -69,7 +69,7 @@ export function InjectionSitesGlanceCard({
   const sitesForRoute = recentSites.filter((s) => s.route === route).slice(0, 3)
 
   return (
-    <div className="rounded-2xl bg-bg-surface">
+    <div className="flow-card rounded-2xl bg-bg-surface">
       {/* Header — label + the IM / Sub-Q toggle. */}
       <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-1.5">
         <div className="flex min-w-0 items-center">

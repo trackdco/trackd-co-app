@@ -274,7 +274,7 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
             rather than six things fading at slightly different times. */}
         <div
           className={cn(
-            "overflow-hidden rounded-2xl bg-bg-surface transition-opacity duration-300 ease-out motion-reduce:transition-none",
+            "flow-card overflow-hidden rounded-2xl bg-bg-surface transition-opacity duration-300 ease-out motion-reduce:transition-none",
             // "Slightly dimmed" (spec 09). 60% was not slight: composited, it
             // dragged the row labels to 2.2:1 against the card, well under the
             // 4.5:1 AA floor for 14px text, and the labels are what this spec

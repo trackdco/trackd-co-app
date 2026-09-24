@@ -118,7 +118,7 @@ export function ProfileScreen({
       {/* ── App ───────────────────────────────────────────────────── */}
       <div className="animate-home-up" style={{ animationDelay: "110ms" }}>
         <p className={`mb-3 ${CARD_EYEBROW}`}>App</p>
-        <div className="overflow-hidden rounded-2xl bg-bg-surface">
+        <div className="flow-card overflow-hidden rounded-2xl bg-bg-surface">
           {/* Billing HAS a destination now (2026-08-12): `/billing` states the
               plan, the dates, and carries the cancel control. It was an
               `InfoRow` going nowhere for as long as there was nothing to

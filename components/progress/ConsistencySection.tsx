@@ -73,7 +73,7 @@ export function ConsistencySection({
       <section
         aria-busy="true"
         aria-label="Loading consistency"
-        className="animate-shortcut-fade flex flex-col rounded-2xl bg-bg-surface p-5"
+        className="flow-card animate-shortcut-fade flex flex-col rounded-2xl bg-bg-surface p-5"
       >
         <Sk w="60%" h={9} />
         <Sk w="46%" h={26} className="mt-3" />

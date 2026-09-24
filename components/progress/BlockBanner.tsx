@@ -204,7 +204,7 @@ export function BlockBanner({
     <div className="relative">
       <Link
         href="/blocks"
-        className="block rounded-2xl bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised/40"
+        className="flow-card block rounded-2xl bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised/40"
       >
         <div className="flex items-center gap-3">
           <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Block</span>

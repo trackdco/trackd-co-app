@@ -45,7 +45,7 @@ export function NotificationsToggle({
   }
 
   return (
-    <section className="rounded-2xl bg-bg-surface p-5">
+    <section className="flow-card rounded-2xl bg-bg-surface p-5">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className={CARD_EYEBROW}>Notifications</p>

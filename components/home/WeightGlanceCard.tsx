@@ -100,7 +100,7 @@ export function WeightGlanceCard({
 
   if (compact) {
     return (
-      <div className="flex flex-col rounded-2xl bg-bg-surface p-5">
+      <div className="flow-card flex flex-col rounded-2xl bg-bg-surface p-5">
         <p className={cn(CARD_EYEBROW, "truncate")}>Weight</p>
         {empty ? (
           // Tappable in the EMPTY state too. It used to be a bare paragraph, so
@@ -193,7 +193,7 @@ export function WeightGlanceCard({
   }
 
   return (
-    <div className="rounded-2xl bg-bg-surface">
+    <div className="flow-card rounded-2xl bg-bg-surface">
       {/* Header — label + the Trend/Scale toggle. */}
       <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-1.5">
         <div className="flex min-w-0 items-center">

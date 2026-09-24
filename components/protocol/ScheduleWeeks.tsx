@@ -199,7 +199,7 @@ export function ScheduleWeeks({
       /* An empty week is a fact, not an error. Someone who logged one dose three
          years ago earns every week between then and now, and most of them look
          like this. */
-        <div className="rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card rounded-2xl bg-bg-surface p-5">
           <p className="text-sm text-text-muted">Nothing was running this week.</p>
         </div>
       )}

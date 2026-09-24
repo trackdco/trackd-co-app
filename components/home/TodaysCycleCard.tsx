@@ -795,7 +795,7 @@ export function TodaysCycleCard({
     .filter((d): d is DueDose => Boolean(d))
 
   return (
-    <section className="rounded-2xl bg-bg-surface p-5">
+    <section className="flow-card rounded-2xl bg-bg-surface p-5">
       {greeting}
       <h2 className={cn(CARD_EYEBROW, greeting && "mt-3")}>{title}</h2>
 

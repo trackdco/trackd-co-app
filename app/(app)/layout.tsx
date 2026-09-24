@@ -104,7 +104,7 @@ export default async function AppLayout({
       JavaScript in the path, which is why there is no hydration flash and no
       second render tree to keep in step. See `app/desktop.css`.
     */}
-    <div data-desktop-shell className="flex min-h-dvh flex-col">
+    <div data-desktop-shell className="flow-canvas-fixed flex min-h-dvh flex-col">
       {/* Desktop only. `hidden` is its phone state and the desktop stylesheet
           gives it `display: flex`, so on a phone it draws nothing and announces
           nothing: there is never a second nav in the accessibility tree. */}

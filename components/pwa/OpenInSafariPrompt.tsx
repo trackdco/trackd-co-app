@@ -38,7 +38,7 @@ export function OpenInSafariPrompt() {
   }
 
   return (
-    <div className="rounded-2xl bg-bg-surface p-5">
+    <div className="flow-card rounded-2xl bg-bg-surface p-5">
       <p className={SHEET_TITLE}>Open in Safari to install</p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
         Adding Trakabl to your Home Screen only works in Safari on iPhone, not this

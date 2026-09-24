@@ -234,7 +234,7 @@ function StackCard({
     <button
       type="button"
       onClick={onOpen}
-      className={cn(PRESS.card, "w-full rounded-2xl bg-bg-surface p-5 text-left")}
+      className={cn(PRESS.card, "flow-card w-full rounded-2xl bg-bg-surface p-5 text-left")}
     >
       <div className="flex items-center justify-between gap-3">
         <p className={CARD_EYEBROW}>{stack.name}</p>

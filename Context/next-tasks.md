@@ -99,8 +99,8 @@ pages"). What he asked for next:
 The phases the builder runs are in `build-brief-half-life.md` §6; state is at the
 top of `progress-tracker.md`.
 0. ~~The curve model above, with its tests.~~ DONE: `lib/halflife/model.ts`.
-1. Tokens: the contrast step, `--blend-1..3`, and `.flow-card` / `.flow-canvas`
-   on every tab screen, with the inset surface.
+1. ~~Tokens: the contrast step, `--blend-1..3`, and `.flow-card` / `.flow-canvas`
+   on every tab screen, with the inset surface.~~ DONE (Phase 2).
 2. The half-life card on Protocol, per ui-context (tracer, scrub, figure tiles,
    rows card, up arrow).
 3. Today's Log Flow B: the two-tap tick, tiles in place, the stock cards, the

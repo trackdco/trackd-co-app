@@ -51,7 +51,7 @@ export function CycleCard({
       onClick={onEdit}
       disabled={!onEdit}
       // The press system skips a disabled card on its own.
-      className={cn(PRESS.card, "w-full rounded-2xl bg-bg-surface p-5 text-left")}
+      className={cn(PRESS.card, "flow-card w-full rounded-2xl bg-bg-surface p-5 text-left")}
     >
       <div className="flex items-center gap-4">
         <Container

@@ -229,7 +229,7 @@ export default async function ManagePage() {
          * rewritten, reordered or dropped, only weighted differently.
          */
         <div
-          className="animate-home-up mt-3 rounded-2xl bg-bg-surface"
+          className="flow-card animate-home-up mt-3 rounded-2xl bg-bg-surface"
           style={{ animationDelay: "0ms" }}
         >
           <div className="px-4 pt-3.5 pb-3">
@@ -280,7 +280,7 @@ export default async function ManagePage() {
 
       <section className="animate-home-up mt-6" style={rise(0)}>
         <p className={`mb-3 ${CARD_EYEBROW}`}>Payment</p>
-        <div className="overflow-hidden rounded-2xl bg-bg-surface">
+        <div className="flow-card overflow-hidden rounded-2xl bg-bg-surface">
           {/**
             * ⚠️ THE SPLIT §3.3 ASKS FOR, AND IT IS ONE COMPONENT.
             *

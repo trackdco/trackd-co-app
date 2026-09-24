@@ -58,7 +58,7 @@ export function ProgressPhotoCard({
         type="button"
         onClick={onOpen}
         aria-label="Open progress photos"
-        className="flex w-full items-center gap-3.5 rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+        className="flow-card flex w-full items-center gap-3.5 rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
       >
         <span className="min-w-0 flex-1">
           <span className={`block ${CARD_EYEBROW}`}>Progress photos</span>
@@ -72,7 +72,7 @@ export function ProgressPhotoCard({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-bg-surface">
+    <div className="flow-card overflow-hidden rounded-2xl bg-bg-surface">
       <button
         type="button"
         onClick={onOpen}

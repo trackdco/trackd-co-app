@@ -128,7 +128,7 @@ export function CompoundStorageCard({
       className={cn(
         CARD_W,
         CARD_H,
-        "flex shrink-0 flex-col items-center gap-2 rounded-2xl bg-bg-surface p-4"
+        "flow-card flex shrink-0 flex-col items-center gap-2 rounded-2xl bg-bg-surface p-4"
       )}
     >
       <button

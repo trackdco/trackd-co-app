@@ -58,7 +58,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
 
   if (!editing) {
     return (
-      <section className="rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card rounded-2xl bg-bg-surface p-5">
         <p className={CARD_EYEBROW}>Your note</p>
         {block.reflection ? (
           <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
@@ -85,7 +85,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
   }
 
   return (
-    <section className="rounded-2xl bg-bg-surface p-5">
+    <section className="flow-card rounded-2xl bg-bg-surface p-5">
       <p className={CARD_EYEBROW}>Your note</p>
       <Textarea
         value={draft}

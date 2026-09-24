@@ -22,18 +22,18 @@ tokens — **no hardcoded hex values** outside `globals.css`.
 
 | Role             | CSS Variable           | Value                    |
 | ---------------- | ---------------------- | ------------------------ |
-| Page background  | `--bg-base`            | `#111110`                |
-| Surface          | `--bg-surface`         | `#1C1C1A`                |
-| Surface elevated | `--bg-surface-raised`  | `#242422`                |
+| Page background  | `--bg-base`            | `#0E0E0D`                |
+| Surface          | `--bg-surface`         | `#212120`                |
+| Surface elevated | `--bg-surface-raised`  | `#2A2A28`                |
 | Surface input    | `--bg-input`           | `#2A2A28`                |
 | Primary text     | `--text-primary`       | `#F0EFE9`                |
-| Muted text       | `--text-muted`         | `#7A7A74`                |
-| Subtle text      | `--text-subtle`        | `#4A4A46`                |
+| Muted text       | `--text-muted`         | `#8A8982`                |
+| Subtle text      | `--text-subtle`        | `#54544F`                |
 | Primary accent   | `--accent-primary`     | `#FFFFFF`                |
 | Amber accent     | `--accent-amber`       | `#C8861A`                |
 | Green accent     | `--accent-green`       | `#4ADE80`                |
-| Border default   | `--border-default`     | `#2E2E2C`                |
-| Border strong    | `--border-strong`      | `#3E3E3A`                |
+| Border default   | `--border-default`     | `#333331`                |
+| Border strong    | `--border-strong`      | `#45453F`                |
 | Chart line (raw) | `--chart-line`         | `#6B7FD4`                |
 | Chart fill       | `--chart-fill`         | `rgba(107,127,212,0.15)` |
 | Chart trend      | `--chart-trend`        | `#4FB3A6`                |
@@ -48,9 +48,20 @@ tokens — **no hardcoded hex values** outside `globals.css`.
 | Pad scrim        | `--pad-scrim`          | `rgba(0,0,0,0.42)`       |
 | Picker body      | `--pick-body`          | `#31312e`                |
 | Picker region    | `--pick-region`        | `#46463f`                |
+| Inset            | `--bg-inset`           | `#1A1A19`                |
+| Inset, deep      | `--bg-inset-deep`      | `#171716`                |
+| Blend line 1–3   | `--blend-1..3`         | `#4682CC` `#AC942F` `#C35890` |
 
-The last five are the feel pass's (2026-09-17): the two picker tones are the
+The five from `--skeleton` to `--pick-region` are the feel pass's (2026-09-17): the two picker tones are the
 Log dose map's body on a raised surface (see the Spec 19 ramp below).
+
+**The surface, text and border values are the "+1" contrast step (built
+2026-09-24, see Surface treatment).** The public site (`/`,
+`/reconstitution-calculator`) keeps the shipped values (base `#111110`, surface
+`#1C1C1A`, raised `#242422`, muted `#7A7A74`, subtle `#4A4A46`, borders
+`#2E2E2C` / `#3E3E3A`), pinned by `:root:has(.lp-site)` in `globals.css`, because
+its AA measurements were taken against them and it is not part of this build.
+The insets and blend lines are the half-life build's.
 
 ### Rule: state colours are for system/UI feedback ONLY
 
@@ -469,11 +480,20 @@ paler. The target values, chosen on the button-icons artifact's contrast dial
 subtle `#54544F`. They replace the token values in `globals.css`; no component
 takes a hex.
 
+**As built (2026-09-24).** The canvas is `.flow-canvas-fixed` on the `(app)`
+shell: the same lift painted on a layer FIXED to the viewport, because on a long
+page an element's gradient stretched down its whole height; it stays at the top
+of the screen while the page scrolls, as in the prototype. Every in-app card
+(`rounded-2xl bg-bg-surface`) carries `flow-card`; sheets and dialogs do not,
+and a bordered card keeps its outline instead. A new card adds `flow-card`.
+
 **Inset surfaces are the opposite of `.flow-card`.** A graph inside a card, and
 the panel a log tile opens into, sit IN the card rather than on it: a darker
 fill (`#1A1A19`/`#171716`), an inner shadow at the top and a 4% highlight
 along the bottom edge. A darker card with no inner shadow read as "lazy" to
-Adrian; the shadow is what makes it read as indented.
+Adrian; the shadow is what makes it read as indented. Built as `.inset-surface` (flat `--bg-inset`, the
+log panels) and `.inset-graph` (`--bg-inset-deep` falling to `--bg-inset`, the
+graphs).
 
 ### Rule: a full-screen flow is PINNED, and sized in `svh`, never `dvh`
 
