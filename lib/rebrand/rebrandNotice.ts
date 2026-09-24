@@ -39,7 +39,9 @@ import { betaNoticeSeen, markNoticeSeen } from "@/lib/billing/betaNoticeStore";
 export const REBRAND_NOTICE_COOKIE = "trakabl_rebrand_notice_seen";
 
 /**
- * ⚠️ SET THIS TO THE ACTUAL DEPLOY TIMESTAMP BEFORE MERGING.
+ * ⚠️ SET AT MERGE, 2026-09-24. DO NOT MOVE IT AFTERWARDS — it is the record of
+ * when the rename actually shipped, and editing it later either re-shows the
+ * notice to accounts that already dismissed it or silently withholds it.
  *
  * Accounts created at or after this instant never see the notice. It is a
  * constant rather than a lookup because it is a fact about one deploy, and a
@@ -52,7 +54,7 @@ export const REBRAND_NOTICE_COOKIE = "trakabl_rebrand_notice_seen";
  * see. Getting it LATE is the bad direction — it announces a rename to people
  * who only ever knew the new name.
  */
-export const RENAME_SHIPPED_AT = Date.parse("2026-09-22T00:00:00Z");
+export const RENAME_SHIPPED_AT = Date.parse("2026-09-24T02:28:00Z");
 
 /**
  * Should this account be shown the rebrand notice?
