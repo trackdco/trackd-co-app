@@ -1,7 +1,7 @@
 Medical Disclaimer
-VERSION 2.1 · EFFECTIVE 22 September 2026
-Supersedes v2.0.
-This document forms part of the Trakabl Terms of Service (Trackd Co Pty Ltd, ACN 698 405 462).
+VERSION 2.2 · EFFECTIVE 24 September 2026
+Supersedes v2.1.
+This document forms part of the Trakabl Terms of Service. Trakabl is operated by Trackd Co Pty Ltd (ABN 35 698 405 462).
 
 Please read this Medical Disclaimer carefully. It forms part of the Trakabl Terms of Service, and you also accept it as a separate, specific acknowledgement when you create your account. By using Trakabl, you confirm that you have read and understood everything set out below.
 

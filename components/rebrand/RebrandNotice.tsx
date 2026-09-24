@@ -11,7 +11,7 @@ import {
   markRebrandNoticeSeen,
   shouldRecordAcceptance,
 } from "@/lib/rebrand/rebrandNotice";
-import { ACN, LEGAL_ENTITY, PRODUCT_NAME } from "@/lib/brand";
+import { OPERATED_BY_PARTS, PRODUCT_NAME } from "@/lib/brand";
 
 /**
  * THE ONE TIME ANYBODY IS TOLD THE NAME CHANGED.
@@ -46,10 +46,11 @@ import { ACN, LEGAL_ENTITY, PRODUCT_NAME } from "@/lib/brand";
  * either, because recording an acceptance nobody was told they were giving is
  * the defect that whole file exists to close.
  *
- * It also states the trading relationship. Trakabl is a BUSINESS NAME; the
- * company is still Trackd Co Pty Ltd, and a user who sees that entity on a card
- * statement after the app renamed itself needs the connection made somewhere
- * they actually saw it. This modal is the one place everybody sees.
+ * It also says who operates the product, in `OPERATED_BY`'s exact words. Trakabl
+ * is a BUSINESS NAME; the company is still Trackd Co Pty Ltd, and a user who sees
+ * that entity on a card statement after the app renamed itself needs the
+ * connection made somewhere they actually saw it. This modal is the one place
+ * everybody sees.
  */
 /** Never changes, so the store never notifies. */
 const subscribeNever = () => () => {};
@@ -190,8 +191,8 @@ export function RebrandNotice({ userId }: { userId: string }) {
           >
             Privacy Policy
           </Link>
-          . {PRODUCT_NAME} is a business name of {LEGAL_ENTITY} (ACN {ACN}),
-          which remains the company behind the app.
+          . {OPERATED_BY_PARTS[0]}{" "}
+          <span className="whitespace-nowrap">{OPERATED_BY_PARTS[1]}</span>
         </p>
 
         <button

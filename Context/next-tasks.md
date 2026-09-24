@@ -1,5 +1,23 @@
 # Next Tasks
 
+## 🟡 WHO OPERATES TRAKABL — ON `brand/operator-line`, NOT MERGED (2026-09-24)
+
+Details in `progress-tracker.md`.
+
+### 1. Read and apply `supabase/legal/018_legal_operated_by.sql` (Adrian)
+It takes the next version of each document (2.3 / 2.3 / 2.3 / 2.2 if nothing
+else is published first), then purge the Vercel cache tag `legal-documents`.
+The PostHog Privacy/CHD update planned as "v2.3" becomes 2.4 if it lands after.
+
+### 2. Merge the branch (Adrian)
+The footer and rebrand notice change with it. `rename-final-steps` (017, the
+support address) touches the same `Context/legal-v2` files on other lines.
+
+### 3. Open calls (Adrian)
+- `lib/billing/signed/grace-ending.txt` still thanks users for making "Trackd Co".
+  It is signed and carries no operator wording, so it was left alone.
+- The rebrand notice says "You're now using Trakabl — same app": an em dash.
+
 ## 🟢 LANDING PAGE — LIVE AND CURRENT (2026-09-19)
 
 Four rounds of Adrian's copy review are on trackdco.app. The reviews section is

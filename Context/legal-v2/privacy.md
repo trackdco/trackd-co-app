@@ -1,8 +1,8 @@
 Privacy Policy
-VERSION 2.2 · EFFECTIVE 22 September 2026
-Supersedes v2.1.
+VERSION 2.3 · EFFECTIVE 24 September 2026
+Supersedes v2.2.
 
-This Privacy Policy explains how Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia, trading as Trakabl ("Trakabl", "we", "us", "our"), collects, uses, stores, and shares your personal information when you use the Trakabl application and the website at trackdco.app (the "Service"). It forms part of, and should be read with, our Terms of Service and Medical Disclaimer.
+Trakabl is operated by Trackd Co Pty Ltd (ABN 35 698 405 462). This Privacy Policy explains how Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia ("Trakabl", "we", "us", "our"), collects, uses, stores, and shares your personal information when you use the Trakabl application and the website at trackdco.app (the "Service"). It forms part of, and should be read with, our Terms of Service and Medical Disclaimer.
 
 Trakabl is available to users worldwide. Depending on where you live, additional rights and protections may apply to you. See Sections 14 (EU and UK), 15 (United States), and 16 (Consumer Health Data).
 

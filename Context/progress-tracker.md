@@ -5842,3 +5842,24 @@ rebrand hold a `trackd-splash-v2` cache; if the prune filter stops matching it,
 the old splash poster leaks on those phones permanently and invisibly. It has to
 outlive the domain move too, since an installed PWA stays scoped to the origin
 it was installed from.
+
+## Who operates Trakabl, in one sentence (2026-09-24)
+
+On branch `brand/operator-line`, not merged. Adrian's wording, exactly:
+"Trakabl is operated by Trackd Co Pty Ltd (ABN 35 698 405 462)."
+
+- `OPERATED_BY` in `lib/brand.ts` holds it (plus `ABN`), pinned in
+  `brand.test.ts`. The landing footer and the rebrand notice render it; it
+  replaced "trakabl.app is operated by ... ACN ..." and "Trakabl is a business
+  name of ... (ACN ...), which remains the company behind the app". The unused
+  `TRADING_AS` is gone.
+- `supabase/legal/018_legal_operated_by.sql` publishes the next version of all
+  four legal documents with that sentence in the preamble and ", trading as
+  Trakabl" removed; the contracting party and its defined terms are unchanged.
+  NOT APPLIED. Tested against a local copy of the live rows (pglite): only the
+  intended lines change, and a second run refuses.
+- Checked first: a new current version makes nobody re-accept and costs nobody
+  access. The only gate is `is_18_plus AND tos_accepted_at`; nothing compares a
+  user's accepted version with the current one.
+- No brand mention was spelled "Trakable" or "Trackable". No signed string
+  carried the operator wording, so no pin moved.

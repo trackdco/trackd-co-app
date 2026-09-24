@@ -1,8 +1,8 @@
 Terms of Service
-VERSION 2.2 · EFFECTIVE 22 September 2026
-Supersedes v2.1.
+VERSION 2.3 · EFFECTIVE 24 September 2026
+Supersedes v2.2.
 
-These Terms of Service ("Terms") are a legal agreement between you ("you" or "User") and Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia, trading as Trakabl ("Trakabl", "we", "us" or "our"). They govern your access to and use of the Trakabl application, the website at trackdco.app, and all related features and services (together, the "Service").
+Trakabl is operated by Trackd Co Pty Ltd (ABN 35 698 405 462). These Terms of Service ("Terms") are a legal agreement between you ("you" or "User") and Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), an Australian private company based in the Australian Capital Territory, Australia ("Trakabl", "we", "us" or "our"). They govern your access to and use of the Trakabl application, the website at trackdco.app, and all related features and services (together, the "Service").
 
 When you create an account, we ask you to confirm three things through separate, affirmative steps: that you agree to these Terms and our Privacy Policy; that you have read and agree to our Medical Disclaimer; and that you explicitly consent to our processing of your health-related data (see the Privacy Policy). The Privacy Policy and Medical Disclaimer are incorporated into these Terms by reference. We record which version of each document you accepted, and when. If you do not agree, do not use the Service.
 
