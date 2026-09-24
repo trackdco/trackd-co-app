@@ -35,8 +35,10 @@ export interface Dose {
 
 /** "Clears in" is when the last dose falls below this share of itself. */
 export const CLEAR_FRACTION = 0.03
-/** A gap longer than this many half-lives ends a run (for "Steady"). */
+/** A gap longer than this many half-lives ends a run (for "Steady")… */
 export const RUN_GAP_HALF_LIVES = 3
+/** …when it is also this much longer than the usual interval between doses. */
+export const RUN_GAP_INTERVALS = 1.75
 /** A run is steady this many half-lives after it began. */
 export const STEADY_HALF_LIVES = 5
 /** The absorption half-time for anything not injected, in hours. */
@@ -169,19 +171,39 @@ export function curvePoints(
 }
 
 /**
+ * How long a gap between doses must be to count as a BREAK: more than
+ * {@link RUN_GAP_HALF_LIVES} half-lives, and also more than
+ * {@link RUN_GAP_INTERVALS} times the usual interval (the median of the gaps so
+ * far).
+ *
+ * The second test is the build's (2026-09-24). With the half-lives alone, a
+ * 4-hour peptide taken daily breaks its run at EVERY dose (24 h is more than
+ * 12 h), so "Steady" would count down after each dose and never settle. Such a
+ * compound clears between doses and repeats the same curve, which is exactly
+ * a steady state. For a long half-life, 3 half-lives is the larger number and
+ * the rule is the spec's own. A missed dose is still a break.
+ */
+function breakGap(past: readonly Dose[], halfLifeH: number): number {
+  const gaps: number[] = []
+  for (let i = 1; i < past.length; i++) gaps.push(past[i].atH - past[i - 1].atH)
+  gaps.sort((a, b) => a - b)
+  const usual = gaps.length ? gaps[Math.floor((gaps.length - 1) / 2)] : 0
+  return Math.max(RUN_GAP_HALF_LIVES * halfLifeH, RUN_GAP_INTERVALS * usual)
+}
+
+/**
  * Where the CURRENT run began: the dose that opened the unbroken stretch
  * ending at the last dose on or before `nowH`, or null with none yet.
  *
- * A run breaks at a gap of more than {@link RUN_GAP_HALF_LIVES} half-lives,
- * and at a change of amount. Titrating is normal, and a new amount has its own
- * steady level to reach. The amount is compared with the previous dose in the
- * SAME slot, so a different morning and evening amount is one regimen, not a
- * change twice a day.
+ * A run breaks at a gap (see {@link breakGap}) and at a change of amount.
+ * Titrating is normal, and a new amount has its own steady level to reach. The
+ * amount is compared with the previous dose in the SAME slot, so a different
+ * morning and evening amount is one regimen, not a change twice a day.
  */
 export function runStartH(doses: readonly Dose[], nowH: number, halfLifeH: number): number | null {
   const past = doses.filter((d) => d.atH <= nowH).sort((a, b) => a.atH - b.atH)
   if (past.length === 0) return null
-  const gap = RUN_GAP_HALF_LIVES * halfLifeH
+  const gap = breakGap(past, halfLifeH)
   const lastBySlot = new Map<number, number>()
   let start = past[0].atH
   let prev = past[0].atH
@@ -209,8 +231,8 @@ export type Steady =
 /**
  * When the current run is steady: {@link STEADY_HALF_LIVES} half-lives (of the
  * slower half-time) after it began. A run that has already lapsed (no dose for
- * more than {@link RUN_GAP_HALF_LIVES} half-lives) restarts at the next dose
- * due; with no next dose there is nothing to be steady at.
+ * longer than a break, {@link breakGap}) restarts at the next dose due; with no
+ * next dose there is nothing to be steady at.
  */
 export function steadyAt(
   doses: readonly Dose[],
@@ -220,9 +242,9 @@ export function steadyAt(
   nextDoseAtH: number | null,
 ): Steady {
   const span = STEADY_HALF_LIVES * Math.max(halfLifeH, absHalfH(halfLifeH, route))
-  const past = doses.filter((d) => d.atH <= nowH)
-  const lastH = past.length ? Math.max(...past.map((d) => d.atH)) : null
-  const lapsed = lastH === null || nowH - lastH > RUN_GAP_HALF_LIVES * halfLifeH
+  const past = doses.filter((d) => d.atH <= nowH).sort((a, b) => a.atH - b.atH)
+  const lastH = past.length ? past[past.length - 1].atH : null
+  const lapsed = lastH === null || nowH - lastH > breakGap(past, halfLifeH)
   const start = lapsed ? nextDoseAtH : runStartH(doses, nowH, halfLifeH)
   if (start === null) return { kind: "none" }
   const at = start + span

@@ -250,6 +250,19 @@ describe("steady, anchored to the current run", () => {
     expect(runStartH(doses, at(20), 24)).toBe(at(12))
   })
 
+  it("does not restart a fast peptide at every daily dose", () => {
+    // 24 h between doses is more than 3 × 4 h, but it is the usual interval:
+    // the compound clears and repeats the same curve, which is steady.
+    const daily4h = daily(0, 20, 250)
+    expect(runStartH(daily4h, at(20) + 14, 4)).toBe(at(0))
+    expect(steadyAt(daily4h, at(20) + 14, 4, "injection", at(21))).toEqual({ kind: "reached" })
+  })
+
+  it("still restarts a fast peptide after a missed day", () => {
+    const missed = [...daily(0, 10, 250), ...daily(13, 20, 250)]
+    expect(runStartH(missed, at(20), 4)).toBe(at(13))
+  })
+
   it("does not restart for a different evening amount in its own slot", () => {
     const doses: Dose[] = []
     for (let d = 0; d <= 10; d++) {

@@ -79,6 +79,33 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLog
   // A PAUSED compound, so the grid's pause glyph has something to draw. Paused
   // for the whole of last week and still paused, which is the shape that reads
   // as a row of pause bars rather than a gap.
+  // Half-life build: a weekly-ish injection and a blend, so both half-life
+  // cards have a real curve to draw.
+  stack.push(
+    {
+      id: "pv-reta",
+      name: "Retatrutide",
+      category: "peptide",
+      method: "subq",
+      dose: 2,
+      unit: "mg",
+      schedule: { cadence: { type: "daysOfWeek", days: [1, 4] }, timeOfDay: "08:00", startDate: dayOffset(-28) },
+      rotationSites: ["sq-abdo-l", "sq-abdo-r"],
+      rotationIndex: 0,
+    },
+    {
+      id: "pv-glow",
+      name: "Glow (BPC-157 + TB-500 + GHK-Cu)",
+      category: "peptide",
+      method: "subq",
+      dose: 1750,
+      unit: "mcg",
+      schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: dayOffset(-21) },
+      rotationSites: ["sq-abdo-l", "sq-abdo-r"],
+      rotationIndex: 0,
+    },
+  )
+
   stack.push({
     id: "pv-nandrolone",
     name: "Nandrolone",
@@ -217,6 +244,10 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLog
     if (d % 2 === 0 && d % 11 !== 0) day["pv-test-e"] = dose("250", "mg", "09:00")
     if (d % 9 !== 0) day["pv-ipa"] = dose("200", "mcg", "07:00")
     if (d > 16 && d % 2 === 0) day["pv-trestolone"] = dose("50", "mg", "09:00")
+    const dow = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - d).getDay()
+    if (d <= 28 && d > 0 && (dow === 1 || dow === 4)) day["pv-reta"] = dose("2", "mg", "08:00")
+    if (d <= 70 && d > 0 && (dow === 1 || dow === 4)) day["pv-anastrozole"] = dose("0.5", "mg", "20:00")
+    if (d <= 21 && d > 0) day["pv-glow"] = dose("1750", "mcg", "08:00")
     if (Object.keys(day).length > 0) logs[key] = day
   }
 

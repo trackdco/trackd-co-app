@@ -65,6 +65,31 @@ Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
   - Found, not changed: two readable lines in `--text-subtle` that predate this build
     (the custom form's "Saved to your account" footer and `PadInput`'s word
     placeholder).
+- **Phase 4, the Protocol half-life card:** `components/halflife/` (`HalfLifeCard`,
+  `BlendsCard`, `HalfLifeGraph`) over `lib/halflife/compoundCurve.ts` (the model's
+  inputs from the stack and logs: catalogue or custom half-life, units, untimed doses at
+  their slot time, doses still to come, next dose, blend components). Rows open in place
+  with the O2 unfold, the others condense, the up arrow spins in; the inset graph draws in
+  with the feel-pass tracer and scrubs; tinted figure tiles, a raised rows card, "est." on
+  BPC-157 / TB-500 / GHK-Cu. Blends: Sorbet lines with dashes, tabs on the sliding thumb,
+  F1 tiles on "All". Order on Protocol: compounds row, Half-life, Blends, Schedule. The
+  preview (`/preview/protocol`) gains Retatrutide and Glow with logs.
+  Checked at 390x844 and 375x548 (Chromium) and 390x844 (WebKit); motion recorded per
+  frame in-page: Chromium 60fps (median 17ms) through the open, unfold and tracer, with one
+  dev-mode commit frame at the tap. Headless WebKit renders at ~30fps on this Mac for every
+  screen, so iOS smoothness needs the phone. `npm run check` (2223) and `next build` pass.
+  Decisions taken in the build (also in ui-context):
+  - **`--bg-input` moved to #30302E.** The +1 dial never set it, and left at #2A2A28 it
+    sat level with the new raised: every sliding thumb in the app vanished into its
+    track. It now stays one step above raised, as before.
+  - **"Steady" breaks a run only on a gap longer than 3 half-lives AND 1.75x the usual
+    interval.** The spec's half-lives alone restarted a daily 4-hour peptide at every
+    dose, so Steady never settled. Weekly injections are unaffected.
+  - The graph draws the model's samples as a path, and the tracer uses the feel pass's
+    1470ms (ui-context wins over the prototype's 1100ms).
+  - The foot tiles (Stacks / Cycles / Stock) come with their pages in Phase 7, so no build
+    links to a page that does not exist yet; the Stacks and Cycles sections stay until
+    then.
 - **Verification limit:** creating a QA account on the live database was refused by the
   session's auto-mode guard, so screens are checked on the dev-only `/preview/*` pages
   (mock data, no database), not signed in.

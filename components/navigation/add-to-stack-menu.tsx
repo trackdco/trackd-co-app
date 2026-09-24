@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { PRESS } from "@/lib/ui-presets"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { NumberPad, PadInput } from "@/components/feel/NumberPad"
+import { customCompoundsKey } from "@/lib/home/customCompounds"
 import { Input } from "@/components/ui/input"
 import {
   Sheet,
@@ -110,7 +111,8 @@ const DISMISS_THRESHOLD = 0.3
 const useIsoLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect
 
-const storageKey = (userId: string) => `trackd.customCompounds.${userId}`
+// The key is shared with the half-life card's reader (`lib/home/customCompounds.ts`).
+const storageKey = customCompoundsKey
 
 // Normalise one stored/cloud record so a corrupt / legacy / hand-edited entry
 // can't crash the list (e.g. a missing `aliases` would throw in the search

@@ -101,8 +101,8 @@ top of `progress-tracker.md`.
 0. ~~The curve model above, with its tests.~~ DONE: `lib/halflife/model.ts`.
 1. ~~Tokens: the contrast step, `--blend-1..3`, and `.flow-card` / `.flow-canvas`
    on every tab screen, with the inset surface.~~ DONE (Phase 2).
-2. The half-life card on Protocol, per ui-context (tracer, scrub, figure tiles,
-   rows card, up arrow).
+2. ~~The half-life card on Protocol, per ui-context (tracer, scrub, figure tiles,
+   rows card, up arrow).~~ DONE (Phase 4), with Blends; the foot tiles are Phase 7.
 3. Today's Log Flow B: the two-tap tick, tiles in place, the stock cards, the
    border fill and the E4 finish, and the darker logged card.
 4. Scroll settle, app-wide ("Lighter").

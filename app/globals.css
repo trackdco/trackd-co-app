@@ -19,7 +19,11 @@
   --bg-base: #0e0e0d;
   --bg-surface: #212120;
   --bg-surface-raised: #2a2a28;
-  --bg-input: #2a2a28;
+  /* Lifted with the step so it keeps its place ABOVE raised (it was #2a2a28
+     over a #242422 raised). The dial never set it, and leaving it put it level
+     with raised: every sliding thumb (`bg-bg-surface-raised` on a
+     `bg-bg-input` track) vanished into its track. */
+  --bg-input: #30302e;
   /* An INSET: a graph inside a card, and the panel a log tile opens into. They
      sit IN the card rather than on it (ui-context → Surface treatment), so they
      are darker than it; `.inset-surface` / `.inset-graph` add the shading. */
@@ -1129,6 +1133,174 @@ svg ::-moz-selection {
   box-shadow:
     inset 0 2px 6px rgb(0 0 0 / 0.5),
     inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   THE HALF-LIFE CARD'S ROWS (ui-context → "The half-life card and Today's Log",
+   motion from the preview, https://claude.ai/artifact/6TdUNo2Mq56JnNARqnZ7Cw, and
+   the open from Picks & Motion round two, O2 "Unfold").
+   Tap a header to open its row and again to close it. Open is springy and
+   slower, close is fast and flat, and the rows you are not reading CONDENSE:
+   a smaller container, a dimmed name, no detail line, the sparkline shrunk but
+   kept. No blur on these surfaces: blur on a large surface is what made the
+   first builds choppy. The contents tip down from the header like a flap.
+   --------------------------------------------------------------------------- */
+:root {
+  --hl-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --hl-close: cubic-bezier(0.4, 0, 0.2, 1);
+  --hl-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --hl-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.hl-row {
+  transition: opacity 300ms ease;
+}
+.hl-row[data-mini="true"] {
+  opacity: 0.72;
+}
+.hl-head {
+  min-height: 56px;
+  padding-block: 11px;
+  transition:
+    min-height 420ms var(--hl-ease),
+    padding 420ms var(--hl-ease);
+}
+.hl-row[data-mini="true"] .hl-head {
+  min-height: 34px;
+  padding-block: 4px;
+}
+.hl-cont {
+  width: 18px;
+  height: 30px;
+  transition:
+    width 420ms var(--hl-ease),
+    height 420ms var(--hl-ease);
+}
+.hl-row[data-mini="true"] .hl-cont {
+  width: 11px;
+  height: 18px;
+}
+.hl-name {
+  font-size: 14px;
+  transition:
+    font-size 420ms var(--hl-ease),
+    color 300ms ease;
+}
+.hl-row[data-mini="true"] .hl-name {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.hl-meta {
+  max-height: 15px;
+  overflow: hidden;
+  transition:
+    max-height 420ms var(--hl-ease),
+    opacity 250ms ease;
+}
+.hl-row[data-mini="true"] .hl-meta {
+  max-height: 0;
+  opacity: 0;
+}
+.hl-spark {
+  transform-origin: right center;
+  transition:
+    opacity 250ms ease,
+    transform 420ms var(--hl-ease);
+}
+.hl-row[data-open="true"] .hl-spark {
+  opacity: 0;
+}
+.hl-row[data-mini="true"] .hl-spark {
+  opacity: 0.55;
+  transform: scale(0.72);
+}
+.hl-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms var(--hl-close);
+}
+.hl-row[data-open="true"] .hl-body {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 500ms var(--hl-ease);
+}
+.hl-body > div {
+  overflow: hidden;
+  min-height: 0;
+}
+.hl-row[data-open="true"] .hl-pad {
+  animation: hl-unfold 550ms var(--hl-settle) both;
+  transform-origin: top center;
+}
+@keyframes hl-unfold {
+  from {
+    transform: perspective(700px) rotateX(-16deg);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+/* The one close control every card shares: the up arrow fades and spins in
+   while its card is open (preview v2, "all up-arrows spin in the same way"). */
+.hl-up {
+  opacity: 0;
+  transform: rotate(-180deg) scale(0.6);
+  transition:
+    opacity 300ms ease 50ms,
+    transform 550ms var(--hl-spring);
+}
+.hl-row[data-open="true"] .hl-up {
+  opacity: 1;
+  transform: none;
+}
+/* A swapped block of figures (a blend's tabs) rises 3px as it lands. */
+.animate-hl-swap {
+  animation: hl-swap 260ms var(--hl-settle) both;
+}
+@keyframes hl-swap {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* The figure tiles: the compound's hue at 12%, brightening slightly toward
+   the bottom (round 13), and the figure in the hue lifted toward white. */
+.hl-tile {
+  background: linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--hue) 21%, var(--bg-surface-raised)) 0%,
+    color-mix(in srgb, var(--hue) 12%, var(--bg-surface-raised)) 70%
+  );
+}
+.hl-tile-flat {
+  background: color-mix(in srgb, var(--hue) 12%, var(--bg-surface-raised));
+}
+.hl-tile-none {
+  background: color-mix(in srgb, var(--hue) 4%, var(--bg-surface-raised));
+}
+.hl-figure {
+  color: color-mix(in srgb, var(--hue) 70%, var(--accent-primary));
+}
+/* A raised grey card of rows, lifted off the card it sits in. */
+.lifted-card {
+  background: var(--bg-surface-raised);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 6%, transparent),
+    0 10px 22px -14px rgb(0 0 0 / 0.9);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hl-row,
+  .hl-row * {
+    transition: none !important;
+    animation: none !important;
+  }
+  .animate-hl-swap {
+    animation: none;
+  }
 }
 
 /* SCROLL PORTS FADE AT THEIR EDGES INSTEAD OF GUILLOTINING (Adrian, on his

@@ -25,7 +25,7 @@ tokens — **no hardcoded hex values** outside `globals.css`.
 | Page background  | `--bg-base`            | `#0E0E0D`                |
 | Surface          | `--bg-surface`         | `#212120`                |
 | Surface elevated | `--bg-surface-raised`  | `#2A2A28`                |
-| Surface input    | `--bg-input`           | `#2A2A28`                |
+| Surface input    | `--bg-input`           | `#30302E`                |
 | Primary text     | `--text-primary`       | `#F0EFE9`                |
 | Muted text       | `--text-muted`         | `#8A8982`                |
 | Subtle text      | `--text-subtle`        | `#54544F`                |
@@ -61,7 +61,10 @@ Log dose map's body on a raised surface (see the Spec 19 ramp below).
 `#1C1C1A`, raised `#242422`, muted `#7A7A74`, subtle `#4A4A46`, borders
 `#2E2E2C` / `#3E3E3A`), pinned by `:root:has(.lp-site)` in `globals.css`, because
 its AA measurements were taken against them and it is not part of this build.
-The insets and blend lines are the half-life build's.
+The insets and blend lines are the half-life build's. `--bg-input` is not on the
+dial; it moved one step with the others (`#2A2A28` → `#30302E`) so it stays ABOVE
+raised, as it was. Left level with raised, every sliding thumb vanished into its
+track (found building the blend tabs, 2026-09-24).
 
 ### Rule: state colours are for system/UI feedback ONLY
 
@@ -971,7 +974,7 @@ Inline styles set longhands only (`animationDelay`, `transitionDelay`, custom
 properties), never an `animation` or `transition` shorthand, which would
 outrank the reduced-motion block.
 
-### The half-life card and Today's Log (decided 2026-09-24, NOT YET BUILT)
+### The half-life card and Today's Log (decided 2026-09-24; the Protocol card BUILT 2026-09-24)
 
 Settled across fifteen rounds of the motion-set artifact
 (https://claude.ai/artifact/LWtVifACjuM66UtLdHEqJy; Adrian's verdicts are in its
@@ -1009,6 +1012,24 @@ open the artifact to see each piece moving.
      and `CompoundDetailSheet` is reached from elsewhere.
 - Blends: one line per component (Sorbet, with dash). Tabs above the graph (All
   · BPC · TB · GHK) isolate one line with the `ThumbGroup` thumb.
+
+**As built on Protocol (2026-09-24).** `components/halflife/`: `HalfLifeCard` (single
+compounds) and `BlendsCard`, between the compounds row and the Schedule. The motion is the
+`.hl-*` block in `globals.css` (open 500ms springy, close 280ms flat, O2 unfold 550ms, the
+up arrow spinning in from -180°). Settled in the build:
+- The graph draws the MODEL's own samples (dense, exact at every dose and peak) as a path,
+  not a spline: the kink where a dose starts absorbing is real. It keeps the chart style's
+  2.5px line and tapered fill.
+- The draw-in is the feel-pass tracer's values (1470ms quintic, 7px ring out over 320ms,
+  fill in over 520ms), started 380ms after the tap, on EVERY open. The prototype used
+  1100ms; ui-context (the feel-pass tracer) wins.
+- Windows: the graph shows about 14 half-lives back (at least 2 days, at most 16) and half
+  that ahead (at most 8 days); the sparkline the same history, capped at 12 days.
+- A blend's row is called by its short name ("Glow"), its parts on the line beneath.
+- A component with a half-life but no dose yet reads "No dose yet" on its tile; one with no
+  half-life reads "No half-life data" and has no tab.
+- "Steady": a gap is a break only when it is longer than 3 half-lives AND 1.75x the usual
+  interval. With the half-lives alone, a daily 4-hour peptide restarted its run every dose.
 
 **Today's Log, and logging a dose (Flow B).**
 - The card carries an outside border that FILLS amber as doses are logged, a

@@ -30,6 +30,7 @@ import { containersOf } from "@/lib/protocol/stockView"
 import { cn } from "@/lib/utils"
 import { PRESS } from "@/lib/ui-presets"
 import { runsDryInDays } from "@/lib/protocol/runsDry"
+import { BlendsCard, HalfLifeCard } from "@/components/halflife/HalfLifeCards"
 import { remainingLabel } from "@/lib/containers/labels"
 import { subscribeDoseSynced } from "@/lib/home/doseLog"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
@@ -314,7 +315,17 @@ export function ProtocolScreen({
         )}
       </div>
 
-      <div data-area="schedule" className="animate-home-up" style={delay(55)}>
+      {/* The half-life card, then blends, then the Schedule UNDER them
+          (ui-context → "Stock, Stacks and Cycles pages"). Each is absent when
+          it has nothing to draw, so the wrapper hides with it. */}
+      <div data-area="halflife" className="animate-home-up empty:hidden" style={delay(55)}>
+        <HalfLifeCard compounds={active} logs={logs} userId={userId} />
+      </div>
+      <div data-area="blends" className="animate-home-up empty:hidden" style={delay(110)}>
+        <BlendsCard compounds={active} logs={logs} userId={userId} />
+      </div>
+
+      <div data-area="schedule" className="animate-home-up" style={delay(165)}>
         {/* The FULL stack, not `active`. A past week needs the compounds that
             are no longer current, and `compoundsInWeek` dates them from the
             `stopped` version Delete writes rather than the undated `archived`
@@ -322,7 +333,7 @@ export function ProtocolScreen({
         <ScheduleWeeks compounds={compounds} logs={logs} todayKey={todayKey} />
       </div>
 
-      <div data-area="stacks" className="animate-home-up" style={delay(110)}>
+      <div data-area="stacks" className="animate-home-up" style={delay(220)}>
         <StacksView
           userId={userId}
           previewCompounds={previewCompounds}
@@ -330,7 +341,7 @@ export function ProtocolScreen({
         />
       </div>
 
-      <div data-area="cycles" className="animate-home-up" style={delay(165)}>
+      <div data-area="cycles" className="animate-home-up" style={delay(275)}>
         <CyclesView userId={userId} previewStack={previewCompounds} />
       </div>
       </SkeletonSwap>
