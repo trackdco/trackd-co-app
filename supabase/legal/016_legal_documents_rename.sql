@@ -1,5 +1,5 @@
 -- ============================================================
---  Legal documents, the rename - effective 22 September 2026 (Adrian, 2026-09-22).
+--  Legal documents, the rename - effective 24 September 2026 (Adrian, 2026-09-22).
 --
 --  The product is called Trakabl. This makes the renamed Terms, Privacy Policy,
 --  Medical Disclaimer and Consumer Health Data notice LIVE, and demotes their
