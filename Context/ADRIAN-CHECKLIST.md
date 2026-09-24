@@ -50,7 +50,7 @@ is the document a disputed charge gets judged against.
 
 **The shape you chose:**
 
-- They **request by email** to support@trackdco.app. No self-serve refund button.
+- They **request by email** to support@trakabl.app. No self-serve refund button.
 - **We reply, and refund if the reason is valid**, issued through Stripe to the
   original payment method.
 - **Refunds are issued manually in the Stripe dashboard.** No code, no admin

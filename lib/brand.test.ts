@@ -25,8 +25,8 @@ describe("brand", () => {
     expect(ACN).toBe("698 405 462");
   });
 
-  it("carries a support address on the domain the entity operates", () => {
-    expect(SUPPORT_EMAIL).toMatch(/@trackdco\.app$/);
+  it("carries a support address on the product's own domain", () => {
+    expect(SUPPORT_EMAIL).toMatch(/@trakabl\.app$/);
   });
 
   it("states a currency, because $69.99 means two different things", () => {

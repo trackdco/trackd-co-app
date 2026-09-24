@@ -140,12 +140,14 @@ export const CANONICAL_HOST = "trakabl.app";
 
 
 /**
- * Where a visitor writes to. Also the address in the legal documents.
+ * Where a visitor writes to.
  *
- * Still on the old domain deliberately: mail has to keep arriving, and it will
- * until the new domain's MX records exist. Moves with `PRODUCTION_ORIGIN`.
+ * Moved to trakabl.app once its mail landed in the same Google inbox as the
+ * old address (2026-09-24). support@trackdco.app still arrives there and stays
+ * live for good: the legal documents (v2.2) still name it, and so does every
+ * email anyone has already sent. Do not retire the old domain.
  */
-export const SUPPORT_EMAIL = "support@trackdco.app";
+export const SUPPORT_EMAIL = "support@trakabl.app";
 
 export interface BrandPlan {
   /** Charged amount in whole currency units, for display. */

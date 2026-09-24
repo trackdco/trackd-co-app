@@ -672,7 +672,7 @@ export function manageSummaryFor(f: SummaryFacts): string | null {
     case "dispute-cancelled":
       return (
         "Your subscription was cancelled because a payment was disputed with your bank. " +
-        "Email support@trackdco.app if that wasn't you, or choose a plan below whenever you're ready."
+        "Email support@trakabl.app if that wasn't you, or choose a plan below whenever you're ready."
       );
 
     case "lapsed":

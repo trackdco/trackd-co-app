@@ -53,7 +53,7 @@ const points = (s: string) => [...s].map((c) => c.codePointAt(0)!).join(",");
 /** ⚠️ 2.4's sentence, character for character. */
 const SETTLED =
   "Your subscription was cancelled because a payment was disputed with your bank. " +
-  "Email support@trackdco.app if that wasn't you, or choose a plan below whenever you're ready.";
+  "Email support@trakabl.app if that wasn't you, or choose a plan below whenever you're ready.";
 
 async function paid(tag: string) {
   const email = `qa-rv-${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@trackd-qa.invalid`;

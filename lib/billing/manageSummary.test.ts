@@ -672,7 +672,7 @@ describe("⚠️ suspended: access revoked while the subscription is still billi
     expect(summaryStateFor(settled)).toBe("dispute-cancelled");
     expect(manageSummaryFor(settled)).toBe(
       "Your subscription was cancelled because a payment was disputed with your bank. " +
-        "Email support@trackdco.app if that wasn't you, or choose a plan below whenever you're ready.",
+        "Email support@trakabl.app if that wasn't you, or choose a plan below whenever you're ready.",
     );
     // It names no price and no date: the subscription is gone, so no amount is
     // still true and nothing happens on any day.

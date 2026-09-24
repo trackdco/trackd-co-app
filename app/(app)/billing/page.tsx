@@ -21,6 +21,7 @@ import {
 import { loadBillingFacts } from "@/lib/billing/screenFacts";
 import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import { STOPPABLE_NOW } from "@/lib/billing/manage";
+import { SUPPORT_EMAIL } from "@/lib/brand";
 import { formatPrice } from "@/lib/onboarding/pricing";
 import { CARD_EYEBROW, PAGE_TITLE, PRESS } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
@@ -657,8 +658,8 @@ export default async function BillingPage() {
           style={rise(1)}
         >
           This one can&apos;t be changed from here. Email{" "}
-          <a className="text-foreground" href="mailto:support@trackdco.app">
-            support@trackdco.app
+          <a className="text-foreground" href={`mailto:${SUPPORT_EMAIL}`}>
+            {SUPPORT_EMAIL}
           </a>{" "}
           and we&apos;ll sort it out.
         </p>
