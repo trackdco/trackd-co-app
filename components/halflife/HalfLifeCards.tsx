@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from "react"
+import { useId, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react"
 
 import { Container } from "@/components/containers"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
@@ -36,26 +36,41 @@ import { HalfLifeGraph, type GraphLine } from "./HalfLifeGraph"
 
 /* ------------------------------------------------------------------ time */
 
-/** "Now", refreshed each minute, so "Next dose 19h" does not go stale on an
- *  open screen. Figures read it; nothing is stored. */
-function useMinuteNow(): Date {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 60_000)
-    return () => window.clearInterval(id)
-  }, [])
-  return now
+/**
+ * "Now", refreshed each minute, so "Next dose 19h" does not go stale on an
+ * open screen. Figures read it; nothing is stored.
+ *
+ * NULL until mounted: the server's "now" is not the phone's, and a curve drawn
+ * from one and hydrated with the other does not match. The doses are device
+ * data anyway, so there is nothing to draw on the server.
+ */
+export function useMinuteNow(): Date | null {
+  const minute = useSyncExternalStore(subscribeMinute, currentMinute, serverMinute)
+  return useMemo(() => (minute == null ? null : new Date(minute * 60_000)), [minute])
 }
+
+/** The clock as a store: checked every 15s and on return to the app, and only
+ *  a new MINUTE re-renders, because the snapshot is the minute number. */
+function subscribeMinute(onChange: () => void): () => void {
+  const id = window.setInterval(onChange, 15_000)
+  document.addEventListener("visibilitychange", onChange)
+  return () => {
+    window.clearInterval(id)
+    document.removeEventListener("visibilitychange", onChange)
+  }
+}
+const currentMinute = () => Math.floor(Date.now() / 60_000)
+const serverMinute = () => null
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
 /** How much history a curve shows, in hours: about fourteen half-lives, at
  *  least two days and at most sixteen (the prototype's 16 days back for a
  *  weekly injection, and about 2.3 days for a 4-hour peptide). */
-const graphBack = (hl: number) => clamp(14 * hl, 48, 384)
+export const graphBack = (hl: number) => clamp(14 * hl, 48, 384)
 const sparkBack = (hl: number) => clamp(14 * hl, 48, 288)
 /** Ahead of today: half the history, at most eight days. */
-const graphAhead = (hl: number) => Math.min(graphBack(hl) / 2, 192)
+export const graphAhead = (hl: number) => Math.min(graphBack(hl) / 2, 192)
 
 /* ---------------------------------------------------------------- pieces */
 
@@ -73,9 +88,23 @@ function Swatch({ hue, dash, width = 12 }: { hue: string; dash?: string; width?:
 }
 
 /** The collapsed row's sparkline: the past only, no today marker, no figure. */
-function Sparkline({ lines, nowH, width = 64 }: { lines: GraphLine[]; nowH: number; width?: number }) {
+export function Sparkline({
+  lines,
+  nowH,
+  width = 64,
+  height = 24,
+  stroke = 1.6,
+  className,
+}: {
+  lines: GraphLine[]
+  nowH: number
+  width?: number
+  height?: number
+  stroke?: number
+  className?: string
+}) {
   const uid = useId().replace(/:/g, "")
-  const H = 24
+  const H = height
   const pad = 3
   const drawn = useMemo(() => {
     const back = Math.max(...lines.map((l) => sparkBack(l.source.halfLifeH)))
@@ -88,9 +117,9 @@ function Sparkline({ lines, nowH, width = 64 }: { lines: GraphLine[]; nowH: numb
         .join("")
       return { line: d, area: d ? `${d}L${width} ${H - pad}L0 ${H - pad}Z` : "" }
     })
-  }, [lines, nowH, width])
+  }, [lines, nowH, width, H])
   return (
-    <svg viewBox={`0 0 ${width} ${H}`} width={width} height={H} aria-hidden className="block overflow-visible">
+    <svg viewBox={`0 0 ${width} ${H}`} width={width} height={H} aria-hidden className={cn("block overflow-visible", className)}>
       <defs>
         <linearGradient id={`${uid}s`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: lines[0]?.hue }} stopOpacity="0.32" />
@@ -105,7 +134,7 @@ function Sparkline({ lines, nowH, width = 64 }: { lines: GraphLine[]; nowH: numb
             d={d.line}
             fill="none"
             stroke={lines[i].hue}
-            strokeWidth="1.6"
+            strokeWidth={stroke}
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeDasharray={lines[i].dash}
@@ -140,7 +169,7 @@ function FigureTiles({ hue, figures, unit }: { hue: string; figures: HalfLifeFig
 }
 
 /** The raised grey card of rows: Half-life, Next dose, Steady, Clears in. */
-function FigureRows({ source, figures }: { source: HalfLifeSource; figures: HalfLifeFigures }) {
+export function FigureRows({ source, figures }: { source: HalfLifeSource; figures: HalfLifeFigures }) {
   const rows: [string, ReactNode][] = [
     [
       "Half-life",
@@ -167,15 +196,21 @@ function FigureRows({ source, figures }: { source: HalfLifeSource; figures: Half
 
 /* ------------------------------------------------------------------ rows */
 
+export function UpArrowIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+      <path d="M2.5 7.5L6 4l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function UpArrow() {
   return (
     <span
       aria-hidden
       className="hl-up absolute top-1/2 right-[-4px] -mt-[15px] flex h-[30px] w-[30px] items-center justify-center rounded-full bg-bg-surface-raised text-foreground"
     >
-      <svg width="12" height="12" viewBox="0 0 12 12">
-        <path d="M2.5 7.5L6 4l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <UpArrowIcon />
     </span>
   )
 }
@@ -255,7 +290,7 @@ function useOpenRow() {
 
 /* ----------------------------------------------------------------- model */
 
-interface SingleModel {
+export interface SingleModel {
   compound: StackCompound
   hue: string
   line: CurveLine & { source: HalfLifeSource }
@@ -275,9 +310,15 @@ interface BlendModel {
   figures: (HalfLifeFigures | null)[]
 }
 
-function useModels(compounds: readonly StackCompound[], logs: DayLogs, userId: string, now: Date) {
-  const customs = useMemo(() => customHalfLives(userId), [userId])
+export function useHalfLifeModels(
+  compounds: readonly StackCompound[],
+  logs: DayLogs,
+  userId: string,
+  now: Date | null,
+) {
+  const customs = useMemo(() => (now ? customHalfLives(userId) : new Map<string, number>()), [userId, now])
   return useMemo(() => {
+    if (!now) return { singles: [] as SingleModel[], blends: [] as BlendModel[], nowH: 0 }
     const nowH = hoursOf(now)
     const singles: SingleModel[] = []
     const blends: BlendModel[] = []
@@ -337,7 +378,7 @@ export function HalfLifeCard({
   userId: string
 }) {
   const now = useMinuteNow()
-  const { singles, nowH } = useModels(compounds, logs, userId, now)
+  const { singles, nowH } = useHalfLifeModels(compounds, logs, userId, now)
   const { openId, draws, toggle } = useOpenRow()
   if (singles.length === 0) return null
   return (
@@ -392,7 +433,7 @@ export function BlendsCard({
   userId: string
 }) {
   const now = useMinuteNow()
-  const { blends, nowH } = useModels(compounds, logs, userId, now)
+  const { blends, nowH } = useHalfLifeModels(compounds, logs, userId, now)
   const { openId, draws, toggle } = useOpenRow()
   const [selected, setSelected] = useState<Record<string, number | null>>({})
   if (blends.length === 0) return null

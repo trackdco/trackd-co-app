@@ -1133,7 +1133,9 @@ Circulating and Of last dose left, a sparkline, a pager of short bars, and no
 dots beside names). Tapping a half-hidden card scrolls it to the centre;
 tapping the card NEAREST the centre opens its inset graph and the rows card
 (a card is never exactly centred, so an exact test left the first one dead). The figures
-are not repeated. Artifact: https://claude.ai/artifact/4jc9EG2QuUcSUaDgRwMPaJ.
+are not repeated. Artifact: https://claude.ai/artifact/4jc9EG2QuUcSUaDgRwMPaJ. BUILT 2026-09-24 as
+`HalfLifeGlance`, under Today's Log; single compounds only (a blend's parts are on
+Protocol's Blends card).
 
 **Scroll.** The edge bounce is iOS-native (Medium). On top of it, every card
 SETTLES on its own spring, a beat behind the scroll, softer the further it is

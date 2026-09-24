@@ -1285,6 +1285,102 @@ svg ::-moz-selection {
 .hl-figure {
   color: color-mix(in srgb, var(--hue) 70%, var(--accent-primary));
 }
+/* HOME'S HALF-LIFE GLANCE (H5): a card per compound that you swipe through.
+   The card nearest the centre opens IN PLACE: its sparkline grows into the
+   graph, the rows slide in under the figures, and the up arrow spins in. */
+.hl-swipe {
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.hl-swipe::-webkit-scrollbar {
+  display: none;
+}
+.hl-glance-card {
+  flex: 0 0 calc(100% - 26px);
+  scroll-snap-align: center;
+  background: color-mix(in srgb, var(--hue) 9%, var(--bg-surface-raised));
+}
+.hl-glance-graph {
+  height: 40px;
+  transition: height 500ms var(--hl-ease);
+}
+.hl-glance-card[data-open="true"] .hl-glance-graph {
+  height: var(--open-h, 124px);
+}
+.hl-glance-spark,
+.hl-glance-full {
+  transition: opacity 280ms ease;
+}
+.hl-glance-full {
+  opacity: 0;
+}
+.hl-glance-card[data-open="true"] .hl-glance-spark {
+  opacity: 0;
+}
+.hl-glance-card[data-open="true"] .hl-glance-full {
+  opacity: 1;
+}
+.hl-glance-more {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms var(--hl-close);
+}
+.hl-glance-card[data-open="true"] .hl-glance-more {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 500ms var(--hl-ease) 50ms;
+}
+.hl-glance-more > div {
+  overflow: hidden;
+  min-height: 0;
+}
+.hl-glance-more > div > * {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 150ms ease,
+    transform 200ms ease;
+}
+.hl-glance-card[data-open="true"] .hl-glance-more > div > * {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 300ms ease 180ms,
+    transform 450ms var(--hl-settle) 180ms;
+}
+.hl-glance-up {
+  background: rgb(0 0 0 / 0.28);
+  opacity: 0;
+  transform: rotate(-180deg) scale(0.6);
+  pointer-events: none;
+  transition:
+    opacity 300ms ease 50ms,
+    transform 550ms var(--hl-spring);
+}
+.hl-glance-card[data-open="true"] .hl-glance-up {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+/* The pager: short bars, the current one longer and white. */
+.hl-pager-bar {
+  width: 14px;
+  background: var(--border-strong);
+  transition:
+    background-color 300ms ease,
+    width 300ms ease;
+}
+.hl-pager-bar[data-on="true"] {
+  width: 22px;
+  background: var(--text-primary);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hl-glance-card *,
+  .hl-pager-bar {
+    transition: none !important;
+  }
+}
+
 /* A raised grey card of rows, lifted off the card it sits in. */
 .lifted-card {
   background: var(--bg-surface-raised);

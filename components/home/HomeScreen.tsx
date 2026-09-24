@@ -70,6 +70,7 @@ import {
   archiveInStack,
   getStackSnapshot,
   isDueOnFor,
+  isRunning,
   loadStack,
   majorityInjectionRoute,
   nextStartingCompound,
@@ -104,6 +105,7 @@ import { resolveDrawSources, type DrawSourcesResult } from "@/lib/home/protocolS
 import { remainingLabel } from "@/lib/containers/labels"
 import { siteDaysSince } from "@/lib/home/siteRecency"
 import { setSelectedDay } from "@/lib/home/selectedDay"
+import { HalfLifeGlance } from "@/components/halflife/HalfLifeGlance"
 
 const WEEKDAYS = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
@@ -292,6 +294,11 @@ export function HomeScreen({
     () => EMPTY_LOGS
   )
   const logs = previewLogs ?? liveLogs
+  // What is running TODAY (not the strip's selected day): the half-life glance.
+  const runningNow = useMemo(
+    () => stack.filter((c) => isRunning(c, todayKey)),
+    [stack, todayKey]
+  )
   const oneOffsToday = useMemo(
     () => oneOffsOn(oneOffDays, selectedKey),
     [oneOffDays, selectedKey]
@@ -1071,6 +1078,12 @@ export function HomeScreen({
               }}
             />
           )}
+        </div>
+
+        {/* The half-life glance (H5): always NOW, whichever day the strip shows,
+            because a level in the body is a fact about this moment. */}
+        <div data-area="halflife" className="animate-home-up empty:hidden" style={{ animationDelay: "30ms" }}>
+          <HalfLifeGlance compounds={runningNow} logs={logs} userId={userId} />
         </div>
 
         {/* */}

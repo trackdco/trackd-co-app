@@ -67,6 +67,11 @@ export default async function PreviewHomePage({
     daily("c-bpc", "BPC-157", "peptide", "subq", 250, "mcg", "08:00"),
     daily("c-tb", "TB-500", "peptide", "subq", 2, "mg", "08:00"),
     daily("c-anas", "Anastrozole", "ancillary", "po", 0.5, "mg", "20:00"),
+    // Half-life build: a twice-weekly injection, so the glance has a long curve.
+    {
+      ...daily("c-reta", "Retatrutide", "peptide", "subq", 2, "mg", "08:00"),
+      schedule: { cadence: { type: "daysOfWeek", days: [1, 4] }, timeOfDay: "08:00", startDate: "2026-01-01" },
+    },
     // On a 7-on / 7-off cycle — off-cycle days vanish from the log entirely.
     {
       ...daily("c-mk", "MK-677", "sarm", "po", 12.5, "mg", "22:00"),
@@ -157,6 +162,18 @@ export default async function PreviewHomePage({
     siteId,
     time24: "08:00",
   });
+  // Three weeks of history behind the sample days below, so the half-life
+  // glance has curves to draw (the days below overwrite these where they meet).
+  const history: DayLogs = {}
+  for (let n = 21; n >= 1; n--) {
+    const key = daysAgo(n)
+    const dow = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - n).getDay()
+    history[key] = {
+      "c-bpc": site("sq-abdo-l", "250", "mcg"),
+      "c-anas": { amount: "0.5", unit: "mg", siteId: null, time24: "20:00" },
+      ...(dow === 1 || dow === 4 ? { "c-reta": site("sq-abdo-r", "2", "mg") } : {}),
+    }
+  }
   const sampleLogs: DayLogs = {
     [daysAgo(1)]: { "c-bpc": site("sq-abdo-l", "250", "mcg"), "c-test": site("im-delt-l", "250", "mg") },
     [daysAgo(2)]: { "c-bpc": site("sq-glute-l", "250", "mcg"), "c-tb": site("sq-abdo-r", "2", "mg") },
@@ -181,6 +198,10 @@ export default async function PreviewHomePage({
   };
 
 
+
+  for (const [key, day] of Object.entries(history)) {
+    sampleLogs[key] = { ...day, ...(sampleLogs[key] ?? {}) }
+  }
 
   return (
     <div className="flow-canvas-fixed flex min-h-dvh flex-col pb-[calc(4rem+env(safe-area-inset-bottom)+4.5rem)]">

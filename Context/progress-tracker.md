@@ -90,6 +90,18 @@ Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
   - The foot tiles (Stacks / Cycles / Stock) come with their pages in Phase 7, so no build
     links to a page that does not exist yet; the Stacks and Cycles sections stay until
     then.
+- **Phase 5, Home's half-life glance (H5):** `components/halflife/HalfLifeGlance.tsx`, under
+  Today's Log, always NOW whatever day the strip shows. A tinted card per running compound
+  with Circulating and Of last dose left over a sparkline, and a pager of short bars.
+  Tapping a half-hidden card centres it; tapping the one nearest the centre opens it in
+  place (the sparkline grows into the graph, the rows slide in, the up arrow spins in, the
+  page scrolls it into view); swiping it away closes it. It reads the same model and
+  pieces as the Protocol card, so the two cannot disagree. Checked at 390x844 in Chromium
+  and WebKit; per-frame recording 60fps (median 17ms). Decisions taken in the build:
+  - Single compounds only. A blend has a curve per part and two figures cannot say
+    which part; blends are on Protocol's Blends card.
+  - The cards draw only once mounted (the clock is a `useSyncExternalStore` minute),
+    because the server's "now" is not the phone's and the curves did not hydrate.
 - **Verification limit:** creating a QA account on the live database was refused by the
   session's auto-mode guard, so screens are checked on the dev-only `/preview/*` pages
   (mock data, no database), not signed in.
