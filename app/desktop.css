@@ -237,16 +237,36 @@
     grid-column: 2;
   }
 
+  /* The Track bar (Today's Log, Flow B) is fixed to the viewport's foot. On a
+     laptop it belongs to the main column, not across the sidebar and the rail,
+     so it spans only the column its row is in. */
+  [data-desktop-shell] [data-track-bar] {
+    left: var(--desktop-sidebar);
+    right: var(--desktop-rail);
+  }
+
   /* --- Protocol ----------------------------------------------------------
-     The schedule grid is the screen that gains most from a laptop: twelve weeks
-     across and every compound down, all at once, instead of a strip you scrub.
-     It takes the full width and the two lists sit beneath it. */
+     (Adrian, 2026-09-24) The compounds row keeps the full width; the half-life
+     card (and Blends under it) sits beside the Schedule; the three foot tiles
+     run under both. Stock, Stacks and Cycles are their own pages, in the main
+     column. */
   [data-screen="protocol"] {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    /* Dense, so the Schedule (second in source order after two left-column
+       cards) moves up beside the half-life card instead of below it. */
+    grid-auto-flow: row dense;
   }
   [data-screen="protocol"] [data-area="compounds"],
-  [data-screen="protocol"] [data-area="schedule"] {
+  [data-screen="protocol"] [data-area="foot"] {
     grid-column: 1 / -1;
+  }
+  [data-screen="protocol"] [data-area="halflife"],
+  [data-screen="protocol"] [data-area="blends"] {
+    grid-column: 1;
+  }
+  [data-screen="protocol"] [data-area="schedule"] {
+    grid-column: 2;
+    grid-row: span 2;
   }
   /* The schedule's compound-name column is `w-[38%]`, which is right on a phone
      (38% of 400px is about 150px, and the names just fit) and wrong given a
@@ -257,12 +277,6 @@
     width: 13rem;
   }
 
-  [data-screen="protocol"] [data-area="stacks"] {
-    grid-column: 1;
-  }
-  [data-screen="protocol"] [data-area="cycles"] {
-    grid-column: 2;
-  }
 
   /* --- Progress ----------------------------------------------------------
      The photo card is the constraint here, and it is not obvious until you see

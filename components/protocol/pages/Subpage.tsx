@@ -28,7 +28,7 @@ export function SubpageShell({
   return (
     <div
       data-screen={screen}
-      data-desktop-layout="wide"
+      data-desktop-layout="column"
       className="mx-auto w-full max-w-md space-y-4 px-5 pt-4 pb-5"
     >
       <div className="animate-home-up">

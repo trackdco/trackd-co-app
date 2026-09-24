@@ -167,6 +167,11 @@ Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
   shell (and the Home / Protocol previews). Recorded per frame on a mobile context: cards
   lag 1 to 4px, softest mid-screen, and are back within ~100ms of the scroll stopping, at
   60fps; the title never moves. Phones only, off under reduced motion.
+- **Phase 9, laptop:** Protocol's grid keeps the compounds row full width, puts the
+  half-life card (with Blends under it) beside the Schedule, and runs the three foot tiles
+  under both (`grid-auto-flow: dense` in `app/desktop.css`, so the Schedule rises beside the
+  half-life card). Stock, Stacks and Cycles take the 640px main column. On Home the Track bar
+  spans only the main column, not the sidebar and rail. Checked at 1440x900 in Chromium.
 - **Verification limit:** creating a QA account on the live database was refused by the
   session's auto-mode guard, so screens are checked on the dev-only `/preview/*` pages
   (mock data, no database), not signed in.

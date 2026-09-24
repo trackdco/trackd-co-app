@@ -1134,7 +1134,9 @@ its own page. Back is the existing "‹ Protocol" link. Rows open in place with 
   entry point in the app.
 - Laptop: a rough view is on the preview. Protocol keeps the compounds row full width, with the
   half-life card and Schedule side by side and the three foot tiles under them. Stock, Stacks
-  and Cycles open in the main column.
+  and Cycles open in the main column. BUILT 2026-09-24 in `app/desktop.css` (Blends sits under
+  the half-life card; the pages use the 640px `column` measure; the Track bar spans the main
+  column only).
 
 **As built (2026-09-24).** `components/protocol/FootTiles.tsx` (B2: 128px tall, 22px radius,
 46px Glass icons in `--blend-1` / `--blend-3` / `--blend-2`) and `components/protocol/pages/`.

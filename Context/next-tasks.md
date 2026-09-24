@@ -87,10 +87,10 @@ Every call on https://claude.ai/artifact/VAmWRCJ5rHhf2DTa7q7YXi is answered (rec
 ui-context, "Motion and the five"). Stock, Stacks and Cycles are designed and answered (ui-context, "Stock, Stacks and Cycles
 pages"). What he asked for next:
 1. ~~Logging a stack~~: SETTLED. The one-tap tick stays.
-2. **Laptop view:** a rough one is on the preview; waiting on his reaction.
+2. **Laptop view:** BUILT (Phase 9) as the preview placed it; Adrian to look on a laptop.
 3. ~~Editing a compound from Home~~: SETTLED, A (the ⋯ on each row). See ui-context.
 4. ~~"Ends when the vial runs out"~~: SETTLED. A chosen vial, defaulting to the one logged from.
-5. **For the build:** the critic found these data-model gaps. Unmixed
+5. ~~For the build~~ DONE in Phase 3 (migrations `025`/`026` await approval): the critic found these data-model gaps. Unmixed
    vials can't be stored today (the CHECK needs bac_water_ml). acquired_on defaults to today.
    The view counts unmixed powder as doses. vialOnDate picks the newest vial. listStock returns
    [] on any error. addStockItem archives every other row. There is no drop unit.
