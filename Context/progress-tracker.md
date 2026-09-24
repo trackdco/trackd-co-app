@@ -163,6 +163,10 @@ Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
     be a control that silently does nothing, which the code forbids. `cycle_end_item_id` is in
     `026` for when that producer exists.
   - The Home log's dropper dose still steps like any dose (not in mL steps yet).
+- **Phase 8, the scroll settle ("Lighter"):** `components/feel/ScrollSettle.tsx` in the `(app)`
+  shell (and the Home / Protocol previews). Recorded per frame on a mobile context: cards
+  lag 1 to 4px, softest mid-screen, and are back within ~100ms of the scroll stopping, at
+  60fps; the title never moves. Phones only, off under reduced motion.
 - **Verification limit:** creating a QA account on the live database was refused by the
   session's auto-mode guard, so screens are checked on the dev-only `/preview/*` pages
   (mock data, no database), not signed in.

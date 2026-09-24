@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
+import { ScrollSettle } from "@/components/feel/ScrollSettle";
 import { PreviewHome } from "./PreviewHome";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import type { StackCompound } from "@/lib/home/stack";
@@ -275,6 +276,7 @@ export default async function PreviewHomePage({
         />
       </main>
 
+      <ScrollSettle />
       <BottomNav />
       <QuickActionsFab userId="preview-local" unit="kg" bodySex="male" lastWeightKg={84.6} />
     </div>

@@ -1159,6 +1159,14 @@ SETTLES on its own spring, a beat behind the scroll, softer the further it is
 from the finger. The strength is "Lighter": 0.6 of the Light setting. This is
 app-wide. It keeps native scrolling, because the cards are nudged from the
 scroll position and nothing replaces the scroller.
+As built (2026-09-24): `components/feel/ScrollSettle.tsx`, mounted once in the `(app)` shell.
+The preview's constants are already Lighter: a nudge of scroll delta × (0.03 + 0.09 ×
+distance from mid-screen ÷ screen height), clamped at ±16px, back on a spring (w 0.032/ms,
+z 0.82). The cards are a screen's top-level `data-area` blocks (or a page's direct children
+when it has none); the title, anything sticky or fixed, and anything holding a fixed layer are
+left alone. It writes the CSS `translate` property so it composes with a card's own
+animations. Phones only (coarse pointer), never under reduced motion. Mark an element
+`data-no-settle` to keep a card still.
 
 ### Rule: new screens reuse the system
 

@@ -6,6 +6,7 @@ import Image from "next/image"
 import { BottomNav } from "@/components/navigation/bottom-nav"
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab"
 import { useMounted } from "@/components/home/useMounted"
+import { ScrollSettle } from "@/components/feel/ScrollSettle"
 import { ProtocolScreen } from "@/components/protocol/ProtocolScreen"
 import { StockScreen } from "@/components/protocol/pages/StockScreen"
 import { StacksScreen } from "@/components/protocol/pages/StacksScreen"
@@ -352,6 +353,7 @@ export function ProtocolPreview({ page }: { page?: "stock" | "stacks" | "cycles"
         )}
       </main>
 
+      <ScrollSettle />
       <BottomNav />
       <QuickActionsFab userId={USER} unit="kg" bodySex="male" />
     </div>

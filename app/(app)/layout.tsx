@@ -12,6 +12,7 @@ import { RotationNotice } from "@/components/layout/RotationNotice";
 import { DesktopSidebar } from "@/components/desktop/DesktopSidebar";
 import { DesktopRail } from "@/components/desktop/DesktopRail";
 import { DesktopKeyboard } from "@/components/desktop/DesktopKeyboard";
+import { ScrollSettle } from "@/components/feel/ScrollSettle";
 import { getSessionContext } from "@/lib/auth";
 import {
   gateWithDestination,
@@ -138,6 +139,8 @@ export default async function AppLayout({
       <main className="flex-1 pb-[calc(4rem+env(safe-area-inset-bottom)+4.5rem)]">
         {children}
       </main>
+      {/* Cards settle a beat behind the scroll, app-wide ("Lighter"). */}
+      <ScrollSettle />
 
       {/* The rail: today's actionable state, and the column every bottom sheet
           docks into on desktop (`data-desktop="rail"`). Desktop only. */}

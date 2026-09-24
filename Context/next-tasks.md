@@ -110,7 +110,7 @@ top of `progress-tracker.md`.
    Mix and Open~~ DONE (Phase 7). Still owed: a cycle ending on a chosen vial
    (`VIAL_END_SUPPORTED`) needs a "vial ran dry on" producer threaded into `isDueOnFor`
    first; see progress-tracker.
-4. Scroll settle, app-wide ("Lighter").
+4. ~~Scroll settle, app-wide ("Lighter").~~ DONE (Phase 8).
 5. Data: the blend `components` field, the dropper type, dry vials and bulk
    quantity (today each inventory row is one vial).
    BUILT on the data side (Phase 3); migrations `025` + `026` await Adrian's approval.
