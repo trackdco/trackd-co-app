@@ -1,6 +1,6 @@
 # Progress Tracker
 
-## 🔨 HALF-LIFE + LOGGING BUILD — IN PROGRESS (from 2026-09-24)
+## 🔨 HALF-LIFE + LOGGING BUILD — BUILT, NOT MERGED (2026-09-24/25)
 
 Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
 `../trackd-halflife-wt`. Nothing is pushed; merging is Adrian's.
@@ -172,6 +172,26 @@ Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
   under both (`grid-auto-flow: dense` in `app/desktop.css`, so the Schedule rises beside the
   half-life card). Stock, Stacks and Cycles take the 640px main column. On Home the Track bar
   spans only the main column, not the sidebar and rail. Checked at 1440x900 in Chromium.
+- **Phase 10, cold review:** a fresh reviewer read the whole branch against `main` and found
+  2 HIGH, 3 MEDIUM, 5 LOW. Fixed:
+  - Refill replaces the vial again. `addStockItem` no longer archives by default (so two
+    containers can be open), which had quietly made Protocol's Refill ("A new vial replaces
+    this one") keep the binned vial active and charge doses to it. It now takes
+    `replace: { id }` for a refill and `replace: "others"` for the add-compound flow, which is
+    exactly what every add did on `main`.
+  - A custom compound set to Dropper still syncs before `025`: the write retries without
+    `inventory_form` on 22P02 instead of dropping the compound and every dose logged to it.
+  - A closing row's late stock read can no longer set the vial on the row opened after it.
+  - A back-dated row offers only the container in use that day (as the Log sheet did), and a
+    spare is never started with a past date.
+  - The rest of a box starts full; the "how much is in it" estimate is the first one's.
+  - Track is blocked while a spare starts, so a double tap logs once (checked); Save's
+    confirm closes only its own row.
+  - The before-`026` message names what is waiting (spare / unmixed vials, droppers).
+  - The row panel refetches the site list when the server's read came back empty; a closed
+    tile panel is `inert`; a spare group on the Stock page has "Discard one".
+  Left as is: a compound holding ONLY spares shows "Add stock" on Protocol's card (the Stock
+  page shows it correctly); spares are new, so nothing regressed.
 - **Verification limit:** creating a QA account on the live database was refused by the
   session's auto-mode guard, so screens are checked on the dev-only `/preview/*` pages
   (mock data, no database), not signed in.

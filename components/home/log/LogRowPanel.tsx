@@ -32,7 +32,13 @@ const TRACK_BAR_CLEAR_PX = 104
 type StockState =
   | { kind: "loading" }
   | { kind: "failed" }
-  | { kind: "ready"; open: StockItem[]; spares: StockItem[] }
+  | {
+      kind: "ready"
+      open: StockItem[]
+      spares: StockItem[]
+      /** A back-dated day: the container in use THEN (null = none), and only it. */
+      dateVialId?: string | null
+    }
 
 /* ------------------------------------------------------------------ icons */
 
@@ -120,6 +126,10 @@ export function LogRowPanel({
   const [water, setWater] = useState<string | null>(null)
   const [mixing, setMixing] = useState(false)
   const [mixTick, setMixTick] = useState(0)
+  // The site list when the server's read came back empty: fetched here, as the
+  // Log sheet did, so one failed read does not cost every dose its site.
+  const [fetchedCatalogue, setFetchedCatalogue] = useState<InjectionSiteRow[] | null>(null)
+  const needCatalogue = injectable && catalogue.length === 0 && !previewStock
   const onToday = dateKey === todayKey
   const draftRef = useRef(draft)
   useEffect(() => {
@@ -128,18 +138,25 @@ export function LogRowPanel({
   useEffect(() => {
     let alive = true
     const reading = previewStock
-      ? Promise.resolve({ stock: previewStock, dateVialId: undefined })
-      : readDoseSheet(compound.id, dateKey, { draw: false, stock: true, dateVial: !onToday, catalogue: false })
+      ? Promise.resolve({ stock: previewStock, dateVialId: undefined, catalogue: null })
+      : readDoseSheet(compound.id, dateKey, { draw: false, stock: true, dateVial: !onToday, catalogue: needCatalogue })
     reading
       .then((read) => {
         if (!alive) return
+        if (read.catalogue && read.catalogue.length > 0) setFetchedCatalogue(read.catalogue)
         if (!read.stock?.ok) {
           setStock({ kind: "failed" })
           return
         }
         const { open, spares } = containersOf(read.stock.items, compound.id)
         const fit = (v: StockItem) => unitFamilyOk(v.baseUnit, compound.unit)
-        const next = { kind: "ready" as const, open: open.filter(fit), spares: spares.filter(fit) }
+        // A back-dated day offers only the container in use THEN, as the Log
+        // sheet did: one started later would be dropped by the server, and a
+        // spare started on a past day would take every later dose.
+        const dateVialId = read.dateVialId ?? null
+        const next = onToday
+          ? { kind: "ready" as const, open: open.filter(fit), spares: spares.filter(fit) }
+          : { kind: "ready" as const, open: open.filter((v) => v.id === dateVialId), spares: [], dateVialId }
         setStock(next)
         // Undecided stays undecided unless there is an obvious answer: today,
         // the container in use; a back-dated day, the one in use then.
@@ -244,7 +261,8 @@ export function LogRowPanel({
 
   /* ---- site ---- */
   const route = compound.method === "im" ? "im" : "subq"
-  const sites = sitesForSex(catalogue.filter((s) => s.route === route), bodySex)
+  const cat = catalogue.length > 0 ? catalogue : (fetchedCatalogue ?? catalogue)
+  const sites = sitesForSex(cat.filter((s) => s.route === route), bodySex)
   const siteIds = new Set(sites.map((s) => s.id))
   const history: Record<string, number> = {}
   let freshest: { id: string; days: number } | null = null
@@ -253,10 +271,13 @@ export function LogRowPanel({
     history[id] = days
     if (!freshest || days < freshest.days) freshest = { id, days }
   }
-  const siteName = (id: string) => catalogue.find((s) => s.id === id)?.label ?? siteLabel(id)
+  const siteName = (id: string) => cat.find((s) => s.id === id)?.label ?? siteLabel(id)
 
   /* ---- stock ---- */
-  const noStock = stock.kind === "ready" && stock.open.length === 0 && stock.spares.length === 0
+  /** A past day whose container in use then is no longer held: a card for it. */
+  const pastOnly = stock.kind === "ready" && !onToday && stock.open.length === 0
+  const noStock =
+    stock.kind === "ready" && stock.open.length === 0 && stock.spares.length === 0 && !(pastOnly && stock.dateVialId)
   const notCounted = draft.inventoryItemId === null
   const picked =
     stock.kind === "ready" ? [...stock.open, ...stock.spares].find((v) => v.id === draft.inventoryItemId) : undefined
@@ -331,6 +352,40 @@ export function LogRowPanel({
     }
     if (stock.kind === "failed") {
       return <p className="py-6 text-center text-sm text-text-muted">Couldn&apos;t load your stock.</p>
+    }
+    if (pastOnly) {
+      // A past day: the container in use then, if it has since been finished
+      // and put away, or none at all.
+      const thenId = stock.dateVialId
+      return thenId ? (
+        <div>
+          <button
+            type="button"
+            aria-pressed={!notCounted}
+            onClick={() => onDraft({ inventoryItemId: thenId })}
+            className={cn(
+              "log-vcard mx-auto flex w-[calc(50%-4px)] flex-col items-center gap-1.5 rounded-xl border bg-bg-surface px-2 pt-3 pb-2.5 text-[12.5px] text-foreground",
+              notCounted ? "border-transparent opacity-30" : "border-text-primary",
+            )}
+          >
+            <Container name={compound.name} inventoryType={inventoryType} category={compound.category} size={52} />
+            In use then
+          </button>
+          <button
+            type="button"
+            onClick={() => onDraft({ inventoryItemId: notCounted ? thenId : null })}
+            className={cn(
+              PRESS.text,
+              "mx-auto mt-3 block rounded-full px-2.5 py-1.5 text-[12.5px] transition-colors",
+              notCounted ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
+            )}
+          >
+            {notCounted ? "Count it" : "Don’t count this dose"}
+          </button>
+        </div>
+      ) : (
+        <p className="py-6 text-center text-sm text-text-muted">No {compound.name} container was in use that day.</p>
+      )
     }
     if (noStock) {
       return (
@@ -450,7 +505,7 @@ export function LogRowPanel({
           type="button"
           onClick={() => {
             if (notCounted) {
-              onDraft({ inventoryItemId: stock.open[0]?.id })
+              onDraft({ inventoryItemId: onToday ? stock.open[0]?.id : (stock.dateVialId ?? undefined) })
             } else {
               onDraft({ inventoryItemId: null })
               onSpare(null)
@@ -531,7 +586,9 @@ export function LogRowPanel({
         ))}
       </div>
 
-      <div className="log-panel" data-open={tile ? "true" : "false"}>
+      {/* Closed, the panel keeps its last content drawn while it folds away;
+          inert, so none of it can still be tabbed to or read out. */}
+      <div className="log-panel" data-open={tile ? "true" : "false"} inert={!tile}>
         <div>
           <div ref={wrapRef} className="inset-surface relative mt-2.5 overflow-hidden rounded-[14px] px-3 pt-11 pb-3">
             {tile ? (

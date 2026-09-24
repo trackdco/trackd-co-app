@@ -50,6 +50,7 @@ export function TrackBar({
   up,
   label,
   confirming,
+  busy = false,
   onTrack,
 }: {
   /** A row is open with a dose to track. */
@@ -57,6 +58,8 @@ export function TrackBar({
   label: string
   /** Save was tapped: the label gives way to the tick, then the bar drops. */
   confirming: boolean
+  /** Track is already running: a second tap must not log it twice. */
+  busy?: boolean
   onTrack: () => void
 }) {
   const barRef = useRef<HTMLDivElement>(null)
@@ -131,7 +134,7 @@ export function TrackBar({
         <button
           type="button"
           onClick={onTrack}
-          disabled={!up || confirming}
+          disabled={!up || confirming || busy}
           className={cn(
             PRESS.button,
             "relative h-[46px] w-full overflow-hidden rounded-full bg-accent-primary text-sm font-medium text-bg-base",

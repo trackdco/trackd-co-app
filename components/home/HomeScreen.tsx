@@ -866,6 +866,9 @@ export function HomeScreen({
   const [closingRow, setClosingRow] = useState<OpenRow | null>(null)
   const [rowPanelOpen, setRowPanelOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  // Track is running (a spare being started first): the bar stays disabled, so
+  // a second tap cannot log the dose twice.
+  const [tracking, setTracking] = useState(false)
   const [stockSheetFor, setStockSheetFor] = useState<StackCompound | null>(null)
   const [stockReadKey, setStockReadKey] = useState(0)
   /** An unopened spare picked in the Stock panel: Track starts it first. */
@@ -873,12 +876,21 @@ export function HomeScreen({
   const closeTimer = useRef<number | undefined>(undefined)
   // A row belongs to the day it was opened on; the strip moving closes it.
   const liveRow = openRow && openRow.day === selectedKey ? openRow : null
+  // The open row as it is NOW, for work that finishes later (Save's confirm,
+  // Track after a spare starts): a closure holds the row as it was.
+  const openRowRef = useRef<OpenRow | null>(null)
+  useEffect(() => {
+    openRowRef.current = openRow
+  }, [openRow])
+  const sameRow = (a: OpenRow | null, b: OpenRow | null) =>
+    Boolean(a && b && a.dose.id === b.dose.id && a.slot === b.slot && a.day === b.day)
 
   const isOpenRow = (id: string, slot: number) => liveRow?.dose.id === id && liveRow.slot === slot
 
   function closeLogRow() {
-    if (!openRow) return
-    setClosingRow(openRow)
+    const cur = openRowRef.current ?? openRow
+    if (!cur) return
+    setClosingRow(cur)
     setOpenRow(null)
     setRowPanelOpen(false)
     setConfirming(false)
@@ -899,23 +911,34 @@ export function HomeScreen({
   }
 
   async function trackOpenRow() {
-    const row = liveRow
-    if (!row || row.draft.amount <= 0 || confirming) return
+    const tapped = liveRow
+    if (!tapped || tapped.draft.amount <= 0 || confirming || tracking) return
     // The same door as the tick: a read-only account meets the pop-up here.
     if (!guard(() => {})) return
     const spare = spareRef.current
-    if (spare) {
+    // Only today: a spare started on a past day would become the oldest open
+    // container and take every later dose (cold review, 2026-09-25).
+    if (spare && tapped.day === todayKey) {
       // Picking a spare is the moment it goes into use (build brief §5): start
       // it BEFORE the dose links to it, or the link is dropped as not started.
-      await openStockItem(spare, row.day).catch(() => ({ ok: false }))
+      setTracking(true)
+      await openStockItem(spare, tapped.day).catch(() => ({ ok: false }))
+      setTracking(false)
     }
+    // The row as it is now: an edit made while the spare started still counts,
+    // and a row closed meanwhile is not logged.
+    const row = openRowRef.current
+    if (!row || !sameRow(row, tapped) || row.draft.amount <= 0) return
     const log = draftToLog(row.dose, row.draft, row.day, todayKey, row.slot, new Date())
     if (row.existing) {
       // Edit mode: Save confirms with a calm tick, then the bar drops.
       setConfirming(true)
       window.setTimeout(() => {
         handleTracked(row.dose.id, log, row.day, row.day, row.slot)
-        closeLogRow()
+        // Close it only if it is still the open row: another may have been
+        // opened during the confirm.
+        if (sameRow(openRowRef.current, row)) closeLogRow()
+        else setConfirming(false)
         playTrackedPop()
       }, SAVE_CONFIRM_MS)
       return
@@ -971,7 +994,9 @@ export function HomeScreen({
           todayKey={todayKey}
           draft={row.draft}
           onDraft={(patch) =>
-            live && setOpenRow((r) => (r ? { ...r, draft: { ...r.draft, ...patch } } : r))
+            // Only onto THIS row: a closing row's late stock read must not
+            // land on the row opened after it.
+            live && setOpenRow((r) => (r && sameRow(r, row) ? { ...r, draft: { ...r.draft, ...patch } } : r))
           }
           catalogue={injectionCatalogue}
           siteLastUsedDays={siteLastUsedDays}
@@ -1326,6 +1351,7 @@ export function HomeScreen({
         up={liveRow !== null && liveRow.draft.amount > 0}
         label={liveRow ? trackLabel(liveRow.draft, trackSiteName, Boolean(liveRow.existing)) : ""}
         confirming={confirming}
+        busy={tracking}
         onTrack={() => void trackOpenRow()}
       />
 

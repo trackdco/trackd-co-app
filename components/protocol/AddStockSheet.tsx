@@ -150,6 +150,7 @@ export function AddStockSheet({
   preselectFor,
   refillType,
   editItem,
+  replaceItemId,
   onAdded,
 }: {
   open: boolean
@@ -174,6 +175,8 @@ export function AddStockSheet({
   /** When set, edit THIS vial's amounts in place (correct a mistake) rather than
    *  add a new one. The compound is locked; the row id is preserved. */
   editItem?: StockItem | null
+  /** A refill: the container the new one replaces, put away once it is in. */
+  replaceItemId?: string | null
   onAdded: () => void
 }) {
   /** Set once a NEW item saves, which swaps the form for its confirmation. Null
@@ -210,6 +213,7 @@ export function AddStockSheet({
               preselectFor={preselectFor ?? null}
               refillType={refillType ?? null}
               editItem={editItem ?? null}
+              replaceItemId={replaceItemId ?? null}
               onClose={() => onOpenChange(false)}
               onAdded={onAdded}
               onConfirmed={setAdded}
@@ -266,6 +270,7 @@ function AddStockForm({
   preselectFor,
   refillType,
   editItem,
+  replaceItemId,
   onClose,
   onAdded,
   onConfirmed,
@@ -275,6 +280,7 @@ function AddStockForm({
   preselectFor: string | null
   refillType: InventoryType | null
   editItem: StockItem | null
+  replaceItemId: string | null
   onClose: () => void
   onAdded: () => void
   /** Hand the confirmation up instead of closing. Only a NEW item gets one. */
@@ -773,7 +779,11 @@ function AddStockForm({
       // The add-compound sheet already used the returned id; this path did not.
       const r = await addStockItem(
         pcId ? { ...insert, protocol_compound_id: pcId } : insert,
-        { count: boxCount, restAsSpares: true },
+        {
+          count: boxCount,
+          restAsSpares: true,
+          ...(refillFor != null && replaceItemId ? { replace: { id: replaceItemId } } : {}),
+        },
       )
       if (!r.ok) {
         // A form the database cannot hold until `014`/`016` are applied gets its
@@ -785,7 +795,14 @@ function AddStockForm({
           r.refusal === "read-only"
             ? "Trakabl is read only until you subscribe."
             : r.pendingMigration
-            ? "This container type isn’t available yet. Try Reconstituted, Pre-mixed or Oral for now."
+            ? // Spares of a powder, an unmixed vial and the dropper wait on an
+              // update to the database (`025`/`026`); say what to do meanwhile
+              // rather than suggesting the type already chosen.
+              type === "dropper"
+              ? "Droppers aren’t available yet. Add it as Pre-mixed or Oral for now."
+              : type === "reconstituted" && (boxCount > 1 || unmixed)
+                ? "Spare and unmixed vials aren’t available yet. Add one vial, mixed, for now."
+                : "This container type isn’t available yet. Try Reconstituted, Pre-mixed or Oral for now."
             : r.rejectedShape
               ? // A constraint said no, so "try again" would be a lie — the same
                 // input fails identically every time. The form now prevents every

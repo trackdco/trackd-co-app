@@ -120,6 +120,22 @@ export async function upsertProtocolCompound(
       .upsert({ ...row, user_id: ctx.userId }, { onConflict: "id" })
       .select("*")
       .single()
+    if (error && error.code === "22P02" && row.inventory_form === "dropper") {
+      // A database without `025` has no 'dropper' form yet (22P02, invalid
+      // enum input). Keep the compound, without its form, rather than losing
+      // it and every dose logged against it; the device store keeps the form,
+      // and a save after `025` writes it (cold review, 2026-09-25).
+      const { inventory_form: _form, ...formless } = row
+      void _form
+      const retry = await ctx.supabase
+        .from("protocol_compounds")
+        .upsert({ ...formless, user_id: ctx.userId }, { onConflict: "id" })
+        .select("*")
+        .single()
+      if (!retry.error) return retry.data as ProtocolCompound
+      console.error("upsertProtocolCompound failed", retry.error)
+      return null
+    }
     if (error) {
       // The 006 cycle columns or 023's inventory_form may not exist yet. Retry
       // without them rather than losing the whole write — the device store keeps

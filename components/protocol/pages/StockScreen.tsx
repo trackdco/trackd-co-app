@@ -392,6 +392,28 @@ function StockRow({
             Open one
           </WhitePill>
         </div>
+      ) : null}
+      {/* A spare group can lose one too: a box counted one too many is put
+          right here, the newest spare first. */}
+      {(current.kind === "mix" && dry.length > 0) || (current.kind === "open" && sealed.length > 0) ? (
+        <QButtons
+          key={current.kind}
+          actions={[
+            {
+              label: "Discard one",
+              destructive: true,
+              onClick: () => {
+                const group = current.kind === "mix" ? dry : sealed
+                const newest = group[group.length - 1]
+                if (!newest) return
+                void setStockArchived(newest.id, true).then(() => {
+                  if (group.length === 1) setPick(null)
+                  onChanged()
+                })
+              },
+            },
+          ]}
+        />
       ) : (
         <QButtons
           actions={[

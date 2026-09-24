@@ -1186,11 +1186,13 @@ function AddCompoundBody({
           // for a non-uuid client id) so the inventory FK always resolves.
           const r = await pushProtocolCompound(saved)
           if (!r.ok || !r.protocolCompoundId) return { ok: false }
-          return await addStockItem({
-            ...stock,
-            id: newId(),
-            protocol_compound_id: r.protocolCompoundId,
-          })
+          // "others": a compound added (or re-added) with its stock has
+          // THIS as its container; any old row left active is put away, as
+          // every add did before containers could be held side by side.
+          return await addStockItem(
+            { ...stock, id: newId(), protocol_compound_id: r.protocolCompoundId },
+            { replace: "others" },
+          )
         })()
       )
     }

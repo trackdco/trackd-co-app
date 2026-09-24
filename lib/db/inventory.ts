@@ -408,7 +408,18 @@ function compoundsFromItems(items: StockItem[]): CompoundStock[] {
  */
 export async function addStockItem(
   row: StockInsert,
-  opts: { count?: number; restAsSpares?: boolean } = {},
+  opts: {
+    count?: number
+    restAsSpares?: boolean
+    /**
+     * What this add REPLACES, archived once it is in. A refill replaces the
+     * one container refilled ("A new vial replaces this one"); the add-compound
+     * flow replaces every other active row, as every add did before containers
+     * could be held side by side. Omitted: nothing is archived, so a second
+     * container stays open beside the first (Adrian, 2026-09-24).
+     */
+    replace?: "others" | { id: string }
+  } = {},
 ): Promise<{
   ok: boolean
   pendingMigration?: boolean
@@ -429,8 +440,12 @@ export async function addStockItem(
       r.inventory_type === "reconstituted"
         ? { ...r, acquired_on: null, reconstituted_on: null, bac_water_ml: null }
         : { ...r, acquired_on: null }
+    // Every container after the first starts FULL: the "how much is in it"
+    // estimate is about the one in hand, not the rest of the box.
     const rows: StockInsert[] = Array.from({ length: count }, (_, i) =>
-      i === 0 ? row : { ...(opts.restAsSpares ? spare(row) : row), id: crypto.randomUUID() },
+      i === 0
+        ? row
+        : { ...(opts.restAsSpares ? spare(row) : row), id: crypto.randomUUID(), prior_used_base: null },
     )
     const payload = rows.map((r) => ({ ...r, user_id: ctx.userId }))
     let { error } = await ctx.supabase.from("inventory_items").insert(payload)
@@ -455,6 +470,22 @@ export async function addStockItem(
       // failure because retrying identical input cannot help, and telling the
       // user to "try again" sends them round a loop that never ends.
       return { ok: false, rejectedShape: error.code === "23514" }
+    }
+    if (opts.replace) {
+      // Best-effort, as it always was: the new stock is already in, so a
+      // failure here leaves one container too many rather than none.
+      let q = ctx.supabase
+        .from("inventory_items")
+        .update({ is_active: false })
+        .eq("user_id", ctx.userId)
+        .eq("protocol_compound_id", row.protocol_compound_id)
+        .eq("is_active", true)
+      q =
+        opts.replace === "others"
+          ? q.not("id", "in", `(${rows.map((r) => r.id).join(",")})`)
+          : q.eq("id", opts.replace.id)
+      const { error: archiveError } = await q
+      if (archiveError) console.error("addStockItem replace failed", archiveError)
     }
     return { ok: true }
   } catch (e) {

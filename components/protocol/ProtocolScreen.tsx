@@ -446,6 +446,11 @@ export function ProtocolScreen({
                 : null)
         }
         editItem={stockEditItem}
+        // A refill replaces the container refilled ("A new vial replaces this
+        // one"); adding to a compound that holds none replaces nothing.
+        replaceItemId={
+          !stockEditItem && stockTarget ? (stockByCompound?.get(stockTarget.id)?.id ?? null) : null
+        }
         userId={userId}
         onOpenChange={(o) => {
           if (!o) {
