@@ -1,5 +1,113 @@
 # Next Tasks
 
+## 🎨 HALF-LIFE + LOGGING — BUILD TRACK (branch `design/half-life-motion`)
+
+The design is settled; the rules are in `ui-context.md` under "The half-life
+card and Today's Log". Adrian's standing decisions from the brief, not to be
+re-asked:
+- Accumulation curves, and Option A.
+- The "Pushed" colour level.
+- The app-wide `.flow-card` / `.flow-canvas` rollout plus one contrast step.
+- Protocol keeps its scrolling page with NO segmented control. Stacks / Cycles /
+  Stock are centred icon cards at the foot: grey cards, coloured icons drawn
+  from the app's own objects (grouped vials, five-on-two-off, vials at
+  different levels).
+- The nav stays monochrome.
+- Blends get a `components` field.
+- Liquid orals get a 4th inventory type: a dropper, a CHECK migration, and an
+  mL unit family.
+- Dry vials are drawn with a Mix action, and do not count toward doses
+  remaining.
+- ~~Progress is four tiles that expand.~~ WITHDRAWN 2026-09-24: Progress stays as the
+  app has it (a tile opens its page). The rounded-squares history strip has no
+  home now and is not being built.
+
+### Still owed from Adrian's list (design, before building those parts)
+1. ~~Home half-life alternates~~: DONE, H5 (see ui-context, "Home half-life glance").
+2. **Foot button icons**: concepts PICKED (https://claude.ai/artifact/NMfJbkH2qwD7noHyE3qtqG).
+   Stacks = a rack of three vials, Cycles = a vial inside a loop of seven arcs (five lit,
+   two dim), Stock = three vials at different levels, in Sorbet (#4682CC / #C35890 /
+   #AC942F), on grey cards. All three are drawn from ONE vial at one size and baseline.
+   Pack = GLASS. Button shape = B2 TALL TILES: portrait, rounder, the icon a little larger
+   (`icons/shape`).
+3. ~~Half-life research~~: DONE, in `compounds.csv` on this branch (both catalogue
+   files regenerated). The approval page is https://claude.ai/artifact/B8zwEk47HTJabqPzV16bpJ
+   (db `research/decisions`).
+   - **Set:** Thymosin Alpha-1 2, SS-31 3.5, Kisspeptin (= KP-10) 0.07, a NEW row
+     Kisspeptin-54 0.5, Melanotan I 1.2, Cagrilintide 180, Survodutide 144, Mazdutide
+     192, hMG 30 (the FSH component), Synephrine 2.5.
+   - **GHK-Cu 4:** Adrian's call, taken from another tracker's data. There is no
+     published in-vivo PK behind it.
+   - **Held null (no credible number):** KPV, MOTS-c, NAD+, Selank, Semax, DSIP,
+     IGF-1 DES, MGF, PEG-MGF, LL-37, Cerebrolysin, RAD-150, LGD-3303, ACP-105,
+     GW-0742.
+   - **Still to do:** Natural Desiccated Thyroid needs the `components` field (T4 168 h +
+     T3 24 h). Re-check Survodutide against Jungnik 2023, Table S2, which is paywalled.
+     Custom compounds GET an optional half-life (Adrian, 2026-09-24; `add-to-stack-menu.tsx`
+     hardcodes `halfLifeHours: null` today). Apply the regenerated `002_seed_catalogues.sql`
+     to the live database at merge.
+
+### The curve model (verified 2026-09-24; build this first, everything reads it)
+The maths was checked three ways: an independent rebuild matching to 8 decimal places,
+published PK for the weekly injections, and a skeptic. The Bateman sum is right. What was
+wrong was a 1.5 h minimum absorption half-time in the prototype. It made fast peptides fade
+2-3x slower than their half-life and put "Of last dose left" out of step with the line.
+Before/after: https://claude.ai/artifact/Vwvq67fraBr5qSSYk3TV8B (db `curve/answers`).
+
+One module, `lib/halflife/model.ts`, pure and unit-tested. The line, the scrub, the
+tiles, the rows and Home all read it; nothing computes a figure on its own.
+- **Curve:** superposed one-compartment first-order absorption (Bateman), amount in
+  the body. `ke = ln2 / halfLifeH`, `kr = ln2 / absHalfH`; use `kr*h*exp(-ke*h)` when
+  `|kr-ke| < 1e-6`. Name the parameter `absHalfH`, never `ka`.
+- **Absorption half-time:** `0.09 * halfLifeH` for injections (sub-Q and IM), 0.35 h
+  for oral. NO floor. The route comes from the compound.
+- **Of last dose left** = depot + circulating for the last dose alone:
+  `exp(-kr*h) + Bateman(h)` for a unit dose, capped at 1. Not `0.5^(h/hl)`.
+- **Clears in** = the first h at which that fraction falls below 3%, minus the hours
+  since the last dose. Step `max(hl, absHalfH) / 50`, stop at `60 * hl`. At or below
+  zero, show "Cleared".
+- **Peak time:** `ln(kr/ke) / (kr-ke)`. The chart samples uniformly PLUS every dose
+  time (just before and at) and every dose peak, or short half-lives lose their peaks.
+- **Steady:** anchored to the current run. A dose change or a gap of more than
+  3 half-lives starts a new run; titrating is normal.
+- **Durations:** under 1 h in minutes, under 48 h in hours, else days.
+- **Test fixtures** are the preview figures (now = 13:12 on day 28 of the schedule):
+  Retatrutide 2 mg Mon/Thu, hl 144, sub-Q: peak 49.5 h, 4.58 mg, 84%, clears in ~29 days.
+  Test E 125 mg Mon/Thu, hl 108, IM: peak 37.1 h, 220 mg, 78%. Anastrozole 0.5 mg every
+  3 days, hl 48, oral: peak 2.5 h, 47%. BPC-157 250 mcg daily, hl 4: 112 mcg, 44%, clears
+  in ~16 h. TB-500 250 mcg daily, hl 2: 44.1 mcg, 18%. Plus an equal-rates case, a
+  no-doses case and a future-dose case.
+- **Decided (Adrian, 2026-09-24):** the label stays "Circulating". BPC-157, TB-500 and
+  GHK-Cu (no human PK data) get a small "est." after the Half-life value, in sans
+  --text-muted; nowhere else. Needs a `half_life_estimated` flag in `compounds.csv` and
+  the catalogue, not a hardcoded list.
+
+### Design still owed (after the calls page, 2026-09-24)
+Every call on https://claude.ai/artifact/VAmWRCJ5rHhf2DTa7q7YXi is answered (recorded in
+ui-context, "Motion and the five"). What he asked for next, in its general note:
+1. **Stock as its own page**, the whole stock feature in one place.
+2. **The Stacks page and the Cycles page.** These are where the Protocol foot tiles go.
+
+### Build order (once the owed design is in)
+0. The curve model above, with its tests.
+1. Tokens: the contrast step, `--blend-1..3`, and `.flow-card` / `.flow-canvas`
+   on every tab screen, with the inset surface.
+2. The half-life card on Protocol, per ui-context (tracer, scrub, figure tiles,
+   rows card, up arrow).
+3. Today's Log Flow B: the two-tap tick, tiles in place, the stock cards, the
+   border fill and the E4 finish, and the darker logged card.
+4. Scroll settle, app-wide ("Lighter").
+5. Data: the blend `components` field, the dropper type, dry vials and bulk
+   quantity (today each inventory row is one vial).
+
+### Build notes from the last round (Adrian, 2026-09-24)
+- Make the faded no-stock vial slightly brighter, so it reads on the card.
+- Switching between Site / Stock / Note must be smooth: cross-fade inside a
+  panel that stays open, never a re-mount.
+- "Add stock" leaves the log for the add-stock flow. Where it returns to is
+  undecided.
+
+
 ## 🟢 LANDING PAGE — LIVE AND CURRENT (2026-09-19)
 
 Four rounds of Adrian's copy review are on trackdco.app. The reviews section is

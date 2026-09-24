@@ -269,7 +269,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": null
+    "halfLifeHours": 180
   },
   {
     "name": "Calcium",
@@ -737,7 +737,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": null
+    "halfLifeHours": 4
   },
   {
     "name": "GHRP-2",
@@ -914,7 +914,7 @@ export const COMPOUNDS: Compound[] = [
         "inventoryType": "reconstituted"
       }
     ],
-    "halfLifeHours": null
+    "halfLifeHours": 30
   },
   {
     "name": "IGF-1 DES",
@@ -1006,7 +1006,19 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mcg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": null
+    "halfLifeHours": 0.07
+  },
+  {
+    "name": "Kisspeptin-54",
+    "category": "peptide",
+    "aliases": [
+      "KP-54",
+      "Metastin"
+    ],
+    "defaultUnit": "mcg",
+    "defaultRoute": "subq",
+    "defaultInventoryType": "reconstituted",
+    "halfLifeHours": 0.5
   },
   {
     "name": "KLOW (BPC-157 + TB-500 + GHK-Cu + KPV)",
@@ -1233,7 +1245,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": null
+    "halfLifeHours": 192
   },
   {
     "name": "Melanotan I",
@@ -1246,7 +1258,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": null
+    "halfLifeHours": 1.2
   },
   {
     "name": "Melanotan II",
@@ -1926,7 +1938,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": null
+    "halfLifeHours": 3.5
   },
   {
     "name": "Stanozolol (injectable)",
@@ -1975,7 +1987,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": null
+    "halfLifeHours": 144
   },
   {
     "name": "Sustanon 250",
@@ -2010,7 +2022,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "po",
     "defaultInventoryType": "oral_solid",
-    "halfLifeHours": null
+    "halfLifeHours": 2.5
   },
   {
     "name": "Tadalafil",
@@ -2234,7 +2246,7 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": null
+    "halfLifeHours": 2
   },
   {
     "name": "Tirzepatide",

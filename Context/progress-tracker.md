@@ -1,5 +1,49 @@
 # Progress Tracker
 
+## 🎨 HALF-LIFE + LOGGING DESIGN — DECIDED, NOT BUILT (2026-09-24)
+
+**Calls answered (2026-09-24).** Progress stays as it is (tiles open pages), so the
+expanding tiles are withdrawn. The dropper covers liquids and drops. Two open vials can
+both be logged from, with no mix warning, and unmixed vials read "Unreconstituted".
+Spares are grouped and only count once started. The "Added" card stays and there is no
+Refill. Custom compounds get an optional half-life. Next: the Stock, Stacks and Cycles pages.
+
+**Curves verified (2026-09-24).** The Bateman maths is right; the prototype's 1.5 h
+absorption floor was wrong and is gone (0.09 x half-life for injections, 0.35 h oral).
+"Of last dose left" and "Clears in" now come from the curve itself. Adrian kept
+"Circulating" and wants "est." on BPC-157, TB-500 and GHK-Cu. Before/after:
+https://claude.ai/artifact/Vwvq67fraBr5qSSYk3TV8B. The spec is in next-tasks.
+
+Branch `design/half-life-motion` in the worktree `../trackd-halflife-wt`, cut
+from `origin/main` at 72dba59. So far it holds only these context updates, and
+nothing is built. The shared checkout was left alone because it has uncommitted
+admin work on `deletion/steps-1-2`.
+
+Design was settled in artifacts rather than in code. Adrian's verdicts live in
+their dbs, so read those rather than re-deriving anything:
+- Decision sheet: https://claude.ai/artifact/Q1d3r5FWjdpDprQvk5erLV (`decisions`)
+- Half-life v1 / v2: https://claude.ai/artifact/5u8QgwmcMJxBvxCKu11AR1,
+  https://claude.ai/artifact/Mxrup6uMMH1YSRYFYXuwL7
+- Button icons: https://claude.ai/artifact/M89L2yeiZd9Zm5ooxSLmfW (`icons/choices`).
+  These picks PREDATE the ruling that the icons are built from vials; see
+  next-tasks.
+- Containers (closed): https://claude.ai/artifact/5ox8a4jXsypSaYXHQb7kib
+- **Motion set, 15 rounds, closed:** https://claude.ai/artifact/LWtVifACjuM66UtLdHEqJy
+  (collection `motion`, docs `r2-*` to `r15-*`)
+
+What is settled is written into `ui-context.md`:
+- Surface treatment: the depth rollout, the +1 contrast step, and insets.
+- The "Pushed" colour rule and the Sorbet blend palette.
+- The half-life card and Today's Log (Flow B), and scroll settle.
+
+Found along the way:
+- `compounds.csv` has half-lives for 91 of 205 rows.
+- GHK-Cu and KPV are blank, so Glow and KLOW cannot draw every component yet.
+- The chart-token trio fails the dataviz validator on a dark card.
+- The app has no compound page; `CompoundDetailSheet` is the only compound
+  detail surface.
+
+
 ## ✅ THE FEEL PASS — MERGED TO `main` (2026-09-18)
 
 The brief is `Context/Feature Specs/wave 3/feel-pass.md` (6 prototype rounds,

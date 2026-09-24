@@ -67,9 +67,9 @@ CJC-1295 + Ipamorelin,peptide,mcg,subq,reconstituted,"CJC/Ipa, CJC Ipamorelin, C
 Wolverine (BPC-157 + TB-500),peptide,mcg,subq,reconstituted,"Wolverine, Wolverine Stack, BPC-157 TB-500, BPC TB500",
 Glow (BPC-157 + TB-500 + GHK-Cu),peptide,mcg,subq,reconstituted,"Glow, Glow Blend, Glow Stack, GHK-Cu BPC TB500",
 KLOW (BPC-157 + TB-500 + GHK-Cu + KPV),peptide,mcg,subq,reconstituted,"KLOW, KLOW Blend, KLOW Stack, KPV GHK-Cu BPC TB500",
-GHK-Cu,peptide,mg,subq,reconstituted,"Copper Peptide, GHK Copper, Copper Tripeptide",
+GHK-Cu,peptide,mg,subq,reconstituted,"Copper Peptide, GHK Copper, Copper Tripeptide",4
 KPV,peptide,mcg,subq,reconstituted,Lysine-Proline-Valine,
-Thymosin Alpha-1,peptide,mg,subq,reconstituted,"TA-1, Zadaxin",
+Thymosin Alpha-1,peptide,mg,subq,reconstituted,"TA-1, Zadaxin",2
 MOTS-c,peptide,mg,subq,reconstituted,"MOTSc, MOTS c",
 NAD+,peptide,mg,subq,reconstituted,"NAD, Nicotinamide Adenine Dinucleotide",,im
 Selank,peptide,mcg,subq,reconstituted,,,nasal
@@ -78,15 +78,16 @@ DSIP,peptide,mcg,subq,reconstituted,Delta Sleep-Inducing Peptide,
 IGF-1 DES,peptide,mcg,subq,reconstituted,"IGF DES, DES IGF-1",
 MGF,peptide,mcg,subq,reconstituted,"Mechano Growth Factor, IGF-1 Ec",
 PEG-MGF,peptide,mcg,subq,reconstituted,"PEG MGF, Pegylated MGF",
-SS-31,peptide,mg,subq,reconstituted,"Elamipretide, MTP-131, SS31",
+SS-31,peptide,mg,subq,reconstituted,"Elamipretide, MTP-131, SS31",3.5
 LL-37,peptide,mcg,subq,reconstituted,"Cathelicidin, LL37",
-Kisspeptin,peptide,mcg,subq,reconstituted,"Kisspeptin-10, KP-10",
+Kisspeptin,peptide,mcg,subq,reconstituted,"Kisspeptin-10, KP-10",0.07
+Kisspeptin-54,peptide,mcg,subq,reconstituted,"KP-54, Metastin",0.5
 Cerebrolysin,peptide,mg,im,preconcentrated,,
-Melanotan I,peptide,mg,subq,reconstituted,"MT-1, MT1, Afamelanotide",
-Cagrilintide,peptide,mg,subq,reconstituted,Cagri,
+Melanotan I,peptide,mg,subq,reconstituted,"MT-1, MT1, Afamelanotide",1.2
+Cagrilintide,peptide,mg,subq,reconstituted,Cagri,180
 Liraglutide,peptide,mg,subq,reconstituted,"Victoza, Saxenda",13,,Saxenda
-Survodutide,peptide,mg,subq,reconstituted,,
-Mazdutide,peptide,mg,subq,reconstituted,"Mazd, IBI362",
+Survodutide,peptide,mg,subq,reconstituted,,144
+Mazdutide,peptide,mg,subq,reconstituted,"Mazd, IBI362",192
 Anastrozole,ancillary,mg,po,oral_solid,"Arimidex, Adex, Anas",48,,Arimidex
 Exemestane,ancillary,mg,po,oral_solid,"Aromasin, Aro",24,,Aromasin
 Letrozole,ancillary,mg,po,oral_solid,"Femara, Letro",48,,Femara
@@ -105,7 +106,7 @@ Tadalafil,ancillary,mg,po,oral_solid,"Cialis, Tada",36,,Cialis
 Sildenafil,ancillary,mg,po,oral_solid,Viagra,4,,Viagra
 Telmisartan,ancillary,mg,po,oral_solid,Micardis,24
 Isotretinoin,ancillary,mg,po,oral_solid,"Accutane, Roaccutane",21,,Accutane
-hMG,ancillary,iu,subq,reconstituted,"Menotropin, Menopur",,im
+hMG,ancillary,iu,subq,reconstituted,"Menotropin, Menopur",30,im
 Bromocriptine,ancillary,mg,po,oral_solid,"Parlodel, Bromo",12
 Metformin,ancillary,mg,po,oral_solid,Glucophage,6
 Liothyronine (T3),thyroid,mcg,po,oral_solid,"T3, Cytomel, Lio, Tiromel",24
@@ -119,7 +120,7 @@ DNP,stimulant,mg,po,oral_solid,"2,4-Dinitrophenol, Dinitrophenol",36
 Modafinil,stimulant,mg,po,oral_solid,"Provigil, Modalert",15
 Armodafinil,stimulant,mg,po,oral_solid,"Nuvigil, Waklert",15
 Phentermine,stimulant,mg,po,oral_solid,Adipex,20
-Synephrine,stimulant,mg,po,oral_solid,"Bitter Orange, Citrus Aurantium",
+Synephrine,stimulant,mg,po,oral_solid,"Bitter Orange, Citrus Aurantium",2.5
 Vitamin A,supplement,iu,po,oral_solid,Retinol,
 Vitamin C,supplement,mg,po,oral_solid,Ascorbic Acid,,subq:preconcentrated
 Vitamin D3,supplement,iu,po,oral_solid,"Vit D, Cholecalciferol",

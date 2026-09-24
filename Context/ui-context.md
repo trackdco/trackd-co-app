@@ -134,6 +134,30 @@ legend** — they label a compound's *type*, not a health value — so they sit 
 the "categorical, never evaluative" rule above (which governs biomarker/marker
 **readings**). The hues are deliberately restrained and non-alarming (no pure red).
 
+### Rule: the colour level is "Pushed" (Adrian, 2026-09-24)
+
+Chosen over "as documented" and "further" on the half-life decision sheet.
+**Category hues go on containers AND on half-life curves**: a compound's vial
+liquid, its sparkline and its full curve all take its `--cat-*` hue, and the
+expanded half-life card's two figure tiles take a 12% wash of it. This is a
+deliberate departure from "severely restrained" above. It is written here so
+that a later session does not revert it as drift. It stays inside the
+categorical rule: a hue says WHICH compound, never whether a level is good.
+
+What is NOT pushed: the tab bar stays monochrome, cards stay grey, and the
+Protocol foot cards (Stacks / Cycles / Stock) are GREY cards with the ICON in
+colour. Adrian corrected a full-colour card on 2026-09-24.
+
+**Blend lines get their own palette.** A blend (Wolverine, Glow, CJC +
+Ipamorelin) draws one line per component, told apart by dash pattern AND
+colour. The colours are "Sorbet": `#4682cc`, `#ac942f`, `#c35890`, to be
+added as `--blend-1..3`. It is the only palette of the four tried that passes
+the dataviz validator on the dark card on every check: the lightness band
+0.48-0.67, the chroma floor, colour-blind separation for every pair (worst
+delta E 9.9) and the normal-vision floor. The periwinkle / teal / tan trio from
+the chart tokens FAILS the band and chroma checks there. Colour tops out at
+three. A fourth component (KLOW) is told apart by dash and label alone.
+
 ### Injection-site recency ramp (Spec 19 — a sanctioned amber exception)
 
 The injection-site **rotation view** shades each site **amber** by how recently it
@@ -432,9 +456,24 @@ that file and a palette retune carries them:
 
 The restraint is the point. This is one hairline and one shadow, not a glass
 morphism kit: the moment surfaces start glowing it reads as generated rather
-than designed. **Applies to `/onboarding` only for now.** Rolling it through
-the app is its own deliberate pass, not something to sprinkle screen by screen
-(that is how a design system ends up with four slightly different cards).
+than designed.
+
+**Rolled out app-wide (Adrian, 2026-09-24).** This is the deliberate pass the
+line above used to reserve: every tab screen gets `.flow-canvas` and every card
+gets `.flow-card`, in one change, not screen by screen. It ships together with
+**one contrast step**: the card surface lifts and the page ground drops at the
+same time, so separation grows from both sides rather than everything going
+paler. The target values, chosen on the button-icons artifact's contrast dial
+(step "+1"): page `#0B0B0A`, base `#0E0E0D`, surface `#212120`, raised
+`#2A2A28`, border `#333331`, border-strong `#45453F`, muted `#8A8982`,
+subtle `#54544F`. They replace the token values in `globals.css`; no component
+takes a hex.
+
+**Inset surfaces are the opposite of `.flow-card`.** A graph inside a card, and
+the panel a log tile opens into, sit IN the card rather than on it: a darker
+fill (`#1A1A19`/`#171716`), an inner shadow at the top and a 4% highlight
+along the bottom edge. A darker card with no inner shadow read as "lazy" to
+Adrian; the shadow is what makes it read as indented.
 
 ### Rule: a full-screen flow is PINNED, and sized in `svh`, never `dvh`
 
@@ -911,6 +950,122 @@ sanctioned list:
 Inline styles set longhands only (`animationDelay`, `transitionDelay`, custom
 properties), never an `animation` or `transition` shorthand, which would
 outrank the reduced-motion block.
+
+### The half-life card and Today's Log (decided 2026-09-24, NOT YET BUILT)
+
+Settled across fifteen rounds of the motion-set artifact
+(https://claude.ai/artifact/LWtVifACjuM66UtLdHEqJy; Adrian's verdicts are in its
+db, collection `motion`, docs `r2-*` … `r15-*`). Build from this section, and
+open the artifact to see each piece moving.
+
+**Protocol half-life card (Option A: per-compound rows, tap to expand).**
+- The curve is ACCUMULATION: doses stack, with a first-order absorption ramp.
+  It is not single-dose decay.
+- Collapsed row: container, name, `t½ 6.0D`, sparkline. No figure on the
+  collapsed row.
+- Tap the header to open it and tap it again to close it (D2). While one row
+  is open, the others CONDENSE: a smaller container, the name dimmed, no detail
+  line, and the sparkline shrunk but kept. Open is springy and slower; close is
+  fast and flat. The contents arrive in a 45ms stagger, un-blurring as they
+  land.
+- Expanded, top to bottom:
+  1. The graph in an INSET (see Surface treatment). It draws in with the
+     feel-pass tracer, has faint gridlines and a TODAY marker, and has no
+     last-dose or next-dose dot. It scrubs like Weight: press and drag shows
+     "5d ago · 254 mg".
+  2. Two centred figure tiles in the compound hue at 12%, the same opacity for
+     both, with a slight brightening from the bottom. **Circulating** (mg now,
+     from every dose) and **Of last dose left** (%, Adrian 2026-09-24; the
+     pharmacology term is "fraction remaining" of the last dose). Labels go below the figures, in
+     sentence case.
+  3. A raised grey card of rows: **Half-life** ("4.5 days"; a compound with no
+     human PK data adds a small "est." in sans --text-muted, Adrian 2026-09-24), **Next dose**
+     ("19h", with no "In"), **Steady** ("Yes" / "7 days"), and **Clears in**
+     ("~21 days": when the last dose, depot included, falls below 3%; the
+     model is in next-tasks, not five half-lives). The label is "Steady",
+     not Plateau or Stable; that is Adrian's call.
+  4. A small UP-ARROW button in the header's top-right corner, visible only
+     while expanded. There is no "Details" link. The app has no compound page,
+     and `CompoundDetailSheet` is reached from elsewhere.
+- Blends: one line per component (Sorbet, with dash). Tabs above the graph (All
+  · BPC · TB · GHK) isolate one line with the `ThumbGroup` thumb.
+
+**Today's Log, and logging a dose (Flow B).**
+- The card carries an outside border that FILLS amber as doses are logged, a
+  third per dose (for three due). When the last dose lands, the border holds
+  bold, then exhales thin (E4: 2px → 3.5px, held, → 0.75px over ~3s,
+  `cubic-bezier(.45,0,.25,1)`). The card then settles DARKER (`#1B1B1A`) and
+  stays darker, because the day is logged. It does not lift, and the border
+  stays amber rather than turning white. Measure the border on every resize
+  AND once fonts load; measuring once drew it short of the card.
+- A row's descriptor line shows the DRAW ("20 UNITS", or "1 TABLET"), in place
+  of route and time. The Draw row is gone.
+- The tick circle: the first tap OPENS the row, and a second tap logs it. A tap
+  on a LOGGED dose's tick un-logs it (the tick only). Tapping the name, or
+  anything else, opens the row; on a logged dose that is edit mode.
+- Open row: **Dose** (a stepper; Adrian chose it over the pad here), **Time**
+  ("Today · 9:41 AM", opening the date/time picker), then three tiles: **Site**
+  (figure icon, dot always amber), **Stock** (the real vial drawing) and
+  **Note**. A tile opens its panel IN PLACE, in the inset. The tapped tile
+  LIFTS a few pixels and the other two fade back (K3, Adrian 2026-09-24); the
+  other rows condense. Switching tiles swaps the content inside a panel that
+  stays open: the old content drops away, the new settles in from above (S4,
+  "drop and rise"), and the panel eases to its new height. Never a re-mount.
+- Misclick guard: a panel stays open until you tap the UP ARROW in its top-right
+  corner, the same spinning arrow that closes every card (D2). Give it room at
+  the top so it never crowds the content. Nothing is logged until Track.
+- Site panel: the body map, lifted off the inset (base `#383834`, regions
+  `#4F4F49`), with front/back on the thumb. Picking a site marks it; the panel
+  stays open until the up arrow closes it (the misclick guard above). There is no prompt text;
+  Adrian rejected that.
+- Stock panel: vial cards, two across, that swipe. Dry vials are dimmed and say
+  "Mix first". "Don't count this dose" is centred and not underlined. Tapping
+  it dims the cards and becomes "Count it", and the tile shows the real vial,
+  half full in the compound hue, with a RED line drawn through it. The red is a
+  UI state, so the state-colour rule allows it. With no stock at all, the tile
+  shows the same vial faded (a touch brighter than the prototype) and the panel
+  offers "Add stock", which leaves to the add-stock flow.
+- The bar (the track button, A1): it rises from the edge on a spring when a
+  row opens with a valid dose, reads "Track 2 mg · Abdomen L", and on Track it
+  simply DROPS while the row takes the tick. It drops early only when an
+  essential field (the dose) is emptied. In edit mode it reads "Save" and
+  confirms with a calm circled tick before dropping.
+
+**Motion and the five never-designed parts (Adrian, 2026-09-24).**
+Artifacts: https://claude.ai/artifact/EiHW96Dez9cQSM1eFjqZRX (db `picks`) and
+https://claude.ai/artifact/3MKAPLNdwawkUFk5cPuLBr (db `five/answers`).
+- Opening a card: O2 UNFOLD, the contents tip down from the header like a flap.
+- Blend figures on "All": F1, a small tile per component, TINTED in its Sorbet
+  colour (L1).
+- Dropper: B, the dose steps in mL. Cap = a screw collar and rubber bulb (it
+  opens, so no flip-off disc). It serves BOTH research liquids (mL steps, mg
+  shown) and vitamin drops (per drop).
+- Unmixed vials: 2, tap the vial, then Mix. They are labelled
+  "Unreconstituted" (Adrian: "unconstituted or whatever it's called").
+- Mixing a new vial while one is open: BOTH stay open and either can be logged
+  from; the old one is used first. No "runs dry, mix one" warning; people mix
+  when they choose to.
+- Bulk stock: in the Stock panel, spares GROUPED into one card ("9 · Mix
+  first"). Spares count toward doses left only once started.
+- Add stock from the log: A, a sheet over the open row. Keep the centred
+  "Added" card. No "Refill" offer.
+- Progress: UNCHANGED (Adrian, calls page). Keep it as the app has it today,
+  where a tile opens its own page. The "four tiles that expand" decision and
+  its animation rounds are withdrawn.
+- Answers: https://claude.ai/artifact/VAmWRCJ5rHhf2DTa7q7YXi (db `calls/answers`).
+
+**Home half-life glance.** H5: a swipeable card per compound (container, name,
+Circulating and Of last dose left, a sparkline, a pager of short bars, and no
+dots beside names). Tapping a half-hidden card scrolls it to the centre;
+tapping the card NEAREST the centre opens its inset graph and the rows card
+(a card is never exactly centred, so an exact test left the first one dead). The figures
+are not repeated. Artifact: https://claude.ai/artifact/4jc9EG2QuUcSUaDgRwMPaJ.
+
+**Scroll.** The edge bounce is iOS-native (Medium). On top of it, every card
+SETTLES on its own spring, a beat behind the scroll, softer the further it is
+from the finger. The strength is "Lighter": 0.6 of the Light setting. This is
+app-wide. It keeps native scrolling, because the cards are nudged from the
+scroll position and nothing replaces the scroller.
 
 ### Rule: new screens reuse the system
 
