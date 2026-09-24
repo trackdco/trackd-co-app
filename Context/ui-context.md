@@ -1054,6 +1054,39 @@ https://claude.ai/artifact/3MKAPLNdwawkUFk5cPuLBr (db `five/answers`).
   its animation rounds are withdrawn.
 - Answers: https://claude.ai/artifact/VAmWRCJ5rHhf2DTa7q7YXi (db `calls/answers`).
 
+**Stock, Stacks and Cycles pages (Adrian, 2026-09-24).** Preview:
+https://claude.ai/artifact/ELsAnLtjny8JQCo3CY6HKj (db `ssc/answers`). Each foot tile pushes
+its own page. Back is the existing "‹ Protocol" link. Rows open in place with the up arrow.
+- Protocol KEEPS its Compounds row with stock, exactly as today ("the stock should still be
+  visible on the Protocol page as is"). The Schedule sits UNDER the half-life card.
+- On the Stacks and Cycles pages, vials take the STACK's or CYCLE's colour (it beats Pushed
+  there). Stacks and cycles keep their colour pickers.
+- Stock page: every add is for ONE compound. Its type is known, so the sheet never asks, and
+  the paired fields sit side by side (Powder | BAC water, Volume | Strength). There is no
+  multi-compound picker and no foot "Add stock" button. Compounds without stock sit in a
+  "No stock" card.
+- A spare that needs no mixing is "Unopened", grouped, and started the same way as Mix: tap it,
+  then Open.
+- An ended compound's stock stays hidden, as today.
+- Cycles: an ENDED cycle just ends and is hidden. No "Ended" card. Figure tiles must never wrap
+  (e.g. "1 of 3" over "Round", not "Round 1 of 3").
+- Home stack row: the stack's tick STAYS one tap and logs every member (reversed his first
+  pick, 2026-09-24: "people can add sites if they really want to"). A second tap un-logs.
+  Opening the stack lets you add a site, stock or note to any member afterwards, and unticking
+  a member first leaves it out. The single-dose rows keep Flow B (first tap opens).
+- A cycle can end when a CHOSEN vial runs out. It defaults to the vial being logged from, and
+  the user can pick another ("maybe you can select the vial"). This un-withholds
+  VIAL_END_SUPPORTED, per container.
+- Editing a compound from Home: A, THE ⋯ ON EACH ROW (Adrian, 2026-09-24). It is the one exception
+  to "anything else opens the row". It opens the compound sheet WITHOUT its Log/Edit button
+  (the open row does that): header, Started and Schedule tiles, Next, a filled "Edit dose &
+  schedule", Skip this dose (only when nothing is logged), Pause, Stock, and Delete. It sits on
+  every row, multi-dose parent rows and stack members included. Skip and Pause have no other
+  entry point in the app.
+- Laptop: a rough view is on the preview. Protocol keeps the compounds row full width, with the
+  half-life card and Schedule side by side and the three foot tiles under them. Stock, Stacks
+  and Cycles open in the main column.
+
 **Home half-life glance.** H5: a swipeable card per compound (container, name,
 Circulating and Of last dose left, a sparkline, a pager of short bars, and no
 dots beside names). Tapping a half-hidden card scrolls it to the centre;
