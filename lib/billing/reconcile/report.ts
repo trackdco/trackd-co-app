@@ -186,7 +186,7 @@ export function renderReport(report: ReconcileReport): string {
   const lines: string[] = [];
   const mode = report.mode.toUpperCase();
 
-  lines.push("TRACKD CO — RECONCILIATION");
+  lines.push("TRAKABL — RECONCILIATION");
   lines.push(`${mode} MODE · ran ${report.ranAt}`);
   /**
    * ⚠️ THE MODE IS STATED BEFORE THE VERDICT, ALWAYS. §3.2: "a test-mode run is

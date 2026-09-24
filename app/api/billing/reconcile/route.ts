@@ -94,7 +94,7 @@ export async function POST(req: Request) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[reconcile] run failed:", message);
     return new NextResponse(
-      `TRACKD CO — RECONCILIATION\n\n⚠️ THE RUN FAILED AND PROVED NOTHING.\n\n${message}\n`,
+      `TRAKABL — RECONCILIATION\n\n⚠️ THE RUN FAILED AND PROVED NOTHING.\n\n${message}\n`,
       { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
     );
   }
