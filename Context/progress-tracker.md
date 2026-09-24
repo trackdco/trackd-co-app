@@ -1,5 +1,25 @@
 # Progress Tracker
 
+## 🔨 HALF-LIFE + LOGGING BUILD — IN PROGRESS (from 2026-09-24)
+
+Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
+`../trackd-halflife-wt`. Nothing is pushed; merging is Adrian's.
+
+- **Phase 0, setup:** `node_modules` and `.env.local` symlinked from the main
+  checkout. Baseline `npm run check` green (2161 tests, 114 files). 4,224 files in the
+  shared `node_modules` are iCloud placeholders, all in PostHog and core-js, which this
+  branch does not use, so the gates run from the worktree.
+- **Phase 1, the curve model:** `lib/halflife/model.ts`, pure, with 30 tests pinned to
+  the preview's figures (Retatrutide 49.5 h / 4.58 mg / 84% / ~29 days, Test E 220 mg /
+  78%, Anastrozole 2.5 h / 47%, BPC-157 112 mcg / 44% / ~16h, TB-500 44.1 mcg / 18%)
+  plus equal rates, no doses and a future dose. Decisions taken in the build:
+  - Nasal has no spec and no catalogue compound, so it takes the oral 0.35 h
+    absorption (it is fast and not injected).
+  - "Steady" compares a dose with the previous dose in the SAME slot, so a 100 mg
+    morning and 50 mg evening is one regimen, not a change twice a day. A run that has
+    lapsed (no dose for 3 half-lives) restarts at the next dose due; with none due,
+    Steady has no value.
+
 ## 🎨 HALF-LIFE + LOGGING DESIGN — DECIDED, NOT BUILT (2026-09-24)
 
 **Calls answered (2026-09-24).** Progress stays as it is (tiles open pages), so the

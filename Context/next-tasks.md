@@ -96,7 +96,9 @@ pages"). What he asked for next:
    [] on any error. addStockItem archives every other row. There is no drop unit.
 
 ### Build order (once the owed design is in)
-0. The curve model above, with its tests.
+The phases the builder runs are in `build-brief-half-life.md` §6; state is at the
+top of `progress-tracker.md`.
+0. ~~The curve model above, with its tests.~~ DONE: `lib/halflife/model.ts`.
 1. Tokens: the contrast step, `--blend-1..3`, and `.flow-card` / `.flow-canvas`
    on every tab screen, with the inset surface.
 2. The half-life card on Protocol, per ui-context (tracer, scrub, figure tiles,
