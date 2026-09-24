@@ -103,8 +103,9 @@ top of `progress-tracker.md`.
    on every tab screen, with the inset surface.~~ DONE (Phase 2).
 2. ~~The half-life card on Protocol, per ui-context (tracer, scrub, figure tiles,
    rows card, up arrow).~~ DONE (Phase 4), with Blends; the foot tiles are Phase 7.
-3. Today's Log Flow B: the two-tap tick, tiles in place, the stock cards, the
-   border fill and the E4 finish, and the darker logged card.
+3. ~~Today's Log Flow B: the two-tap tick, tiles in place, the stock cards, the
+   border fill and the E4 finish, and the darker logged card.~~ DONE (Phase 6), with
+   the ⋯ sheet (Skip, Pause), the grouped spares and Add stock over the row.
 4. Scroll settle, app-wide ("Lighter").
 5. Data: the blend `components` field, the dropper type, dry vials and bulk
    quantity (today each inventory row is one vial).

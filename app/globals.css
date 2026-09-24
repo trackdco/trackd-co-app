@@ -264,6 +264,12 @@
      the glance card keep the defaults (feel pass §5). */
   --pick-body: #31312e;
   --pick-region: #46463f;
+  /* The log row's map sits in an INSET, darker than a card, so it is lifted
+     further off it to read (Adrian, round 9): `.body-map-lifted`. */
+  --pick-body-lift: #383834;
+  --pick-region-lift: #4f4f49;
+  /* A finished Today's Log settles darker and stays (E4 / D1, round 12). */
+  --bg-surface-done: #1b1b1a;
 
   /* The number pad's scrim: lighter than a sheet's, because the form behind it
      is still the thing being filled in (feel pass §3). */
@@ -1378,6 +1384,218 @@ svg ::-moz-selection {
   .hl-glance-card *,
   .hl-pager-bar {
     transition: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   TODAY'S LOG, FLOW B (ui-context → "Today's Log, and logging a dose").
+   A row opens in place; its tiles LIFT (K3) and open one panel in the inset,
+   which swaps its contents (S4) and closes only by its up arrow (D2).
+   --------------------------------------------------------------------------- */
+.log-row .log-head {
+  transition: padding 500ms var(--hl-settle);
+}
+.log-row .log-name {
+  transition:
+    font-size 500ms var(--hl-settle),
+    color 300ms ease;
+}
+.log-row .log-desc {
+  max-height: 16px;
+  overflow: hidden;
+  transition:
+    max-height 500ms var(--hl-settle),
+    opacity 250ms ease;
+}
+.log-row .log-tick {
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease,
+    transform 400ms var(--hl-ease);
+}
+.log-row[data-mini="true"] .log-head {
+  padding-block: 5px;
+}
+.log-row[data-mini="true"] .log-name {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.log-row[data-mini="true"] .log-desc {
+  max-height: 0;
+  opacity: 0;
+}
+.log-row[data-mini="true"] .log-tick {
+  transform: scale(0.8);
+}
+/* The due ring: amber on an open row's tick until it is logged. */
+.log-row[data-open="true"] .log-tick:not([data-logged]) {
+  border-color: var(--accent-amber);
+}
+/* A row is open: the + steps aside, as it does for an inline edit, so it never
+   sits on the row's tiles. The Track bar is the action now. */
+body[data-log-open="true"] .shortcuts-layer {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+.log-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 450ms var(--hl-ease);
+}
+.log-row[data-open="true"] .log-body {
+  grid-template-rows: 1fr;
+}
+.log-body > div {
+  overflow: hidden;
+  min-height: 0;
+}
+.log-tile {
+  transition:
+    transform 450ms cubic-bezier(0.34, 1.5, 0.64, 1),
+    opacity 300ms ease,
+    box-shadow 300ms ease,
+    color 300ms ease;
+}
+.log-tiles[data-focus="true"] .log-tile:not([data-on="true"]) {
+  opacity: 0.5;
+}
+.log-tile[data-on="true"] {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 24px -12px rgb(0 0 0);
+}
+.log-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 600ms var(--hl-ease);
+}
+.log-panel[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.log-panel > div {
+  overflow: hidden;
+  min-height: 0;
+}
+.log-panel:not([data-open="true"]) .inset-surface > div {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.log-panel[data-open="true"] .inset-surface > div {
+  transition: opacity 300ms ease 80ms;
+}
+.log-panel-close {
+  animation: log-spin-in 550ms var(--hl-spring) 120ms both;
+}
+@keyframes log-spin-in {
+  from {
+    opacity: 0;
+    transform: rotate(-180deg) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.log-vcards {
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.log-vcards::-webkit-scrollbar {
+  display: none;
+}
+.log-vcard {
+  scroll-snap-align: start;
+  transition:
+    border-color 350ms ease,
+    opacity 350ms ease,
+    transform 500ms var(--hl-spring);
+}
+.log-vcard[aria-pressed="false"] {
+  transform: scale(0.97);
+}
+.log-vcards-off .log-vcard {
+  opacity: 0.3;
+}
+/* "Don't count this dose": a red line draws through the vial (a UI state). */
+.animate-strike {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: log-strike 500ms cubic-bezier(0.65, 0, 0.35, 1) 80ms forwards;
+}
+@keyframes log-strike {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.track-bar-ground {
+  background: color-mix(in srgb, var(--bg-base) 94%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.animate-track-confirm {
+  animation: track-confirm 220ms var(--hl-settle) 80ms both;
+}
+@keyframes track-confirm {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* The Log card's edge: a hairline track, filled amber a dose at a time (L1). */
+.log-edge {
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  pointer-events: none;
+  overflow: visible;
+}
+.log-edge rect {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+.log-edge .log-edge-track {
+  stroke: var(--border-default);
+  stroke-width: 1;
+  transition: stroke 600ms ease 700ms;
+}
+.log-edge .log-edge-fill {
+  stroke: var(--accent-amber);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 100 100;
+  transition:
+    stroke-dashoffset 800ms var(--hl-settle),
+    opacity 300ms ease;
+}
+[data-log-done="true"] .log-edge .log-edge-track {
+  stroke: transparent;
+}
+[data-log-done="true"] .log-edge .log-edge-fill {
+  stroke-width: 0.75;
+}
+[data-log-done="true"] {
+  background-color: var(--bg-surface-done);
+}
+@media (prefers-reduced-motion: reduce) {
+  .log-row *,
+  .log-tile,
+  .log-panel,
+  .log-vcard,
+  .log-edge * {
+    transition: none !important;
+  }
+  .log-panel-close,
+  .animate-track-confirm {
+    animation: none;
+  }
+  .animate-strike {
+    animation: none;
+    stroke-dashoffset: 0;
   }
 }
 
@@ -4065,6 +4283,10 @@ body[data-inline-edit="true"] .shortcuts-layer {
 .body-map-raised {
   --body-base: var(--pick-body);
   --muscle-region: var(--pick-region);
+}
+.body-map-lifted {
+  --body-base: var(--pick-body-lift);
+  --muscle-region: var(--pick-region-lift);
 }
 .body-map-arrive {
   animation: shortcut-fade var(--motion-base) ease-out 330ms both;

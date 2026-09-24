@@ -25,6 +25,13 @@ import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
 import { HomeGreeting } from "@/components/home/HomeGreeting"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
+import { LogFlowContext, rowKey, type LogFlow } from "@/components/home/log/LogFlow"
+import { LogRowPanel } from "@/components/home/log/LogRowPanel"
+import { SAVE_CONFIRM_MS, TrackBar } from "@/components/home/log/TrackBar"
+import { AddStockSheet } from "@/components/protocol/AddStockSheet"
+import { draftToLog, initialDraft, trackLabel, type RowDraft } from "@/lib/home/logDraft"
+import { openStockItem, type StockRead } from "@/lib/db/inventory"
+import { siteLabel } from "@/lib/home/siteCatalog"
 import {
   getOneOffsSnapshot,
   oneOffsOn,
@@ -165,6 +172,7 @@ export function HomeScreen({
   previewStacks,
   previewLogs,
   previewLogKnown,
+  previewStock,
 }: {
   todayKey: DateKey
   /** Scopes the device-local stack in localStorage. */
@@ -192,6 +200,8 @@ export function HomeScreen({
   previewLogs?: DayLogs
   /** Dev-preview-only: hold the loading skeleton (false) to review it. */
   previewLogKnown?: boolean
+  /** Dev-preview-only: the stock an open row's Stock panel shows. */
+  previewStock?: StockRead
 }) {
   const router = useRouter()
   /**
@@ -838,6 +848,150 @@ export function HomeScreen({
     popTimer.current = window.setTimeout(() => setPopKey(null), 700)
   }
 
+  /* ------------------------------------------------ Today's Log, Flow B */
+
+  /**
+   * The row open in Today's Log, and the one still folding shut after it closed
+   * (so its contents stay drawn while it collapses). Nothing is logged until
+   * Track (ui-context → "Today's Log, and logging a dose").
+   */
+  interface OpenRow {
+    dose: StackCompound
+    slot: number
+    existing: DoseLog | null
+    day: DateKey
+    draft: RowDraft
+  }
+  const [openRow, setOpenRow] = useState<OpenRow | null>(null)
+  const [closingRow, setClosingRow] = useState<OpenRow | null>(null)
+  const [rowPanelOpen, setRowPanelOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [stockSheetFor, setStockSheetFor] = useState<StackCompound | null>(null)
+  const [stockReadKey, setStockReadKey] = useState(0)
+  /** An unopened spare picked in the Stock panel: Track starts it first. */
+  const spareRef = useRef<string | null>(null)
+  const closeTimer = useRef<number | undefined>(undefined)
+  // A row belongs to the day it was opened on; the strip moving closes it.
+  const liveRow = openRow && openRow.day === selectedKey ? openRow : null
+
+  const isOpenRow = (id: string, slot: number) => liveRow?.dose.id === id && liveRow.slot === slot
+
+  function closeLogRow() {
+    if (!openRow) return
+    setClosingRow(openRow)
+    setOpenRow(null)
+    setRowPanelOpen(false)
+    setConfirming(false)
+    spareRef.current = null
+    window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => setClosingRow(null), 520)
+  }
+
+  function openLogRow(dose: StackCompound, slot: number) {
+    const existing = logs[selectedKey]?.[slotKey(dose.id, slot)] ?? null
+    if (openRow) setClosingRow(openRow)
+    window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => setClosingRow(null), 520)
+    setOpenRow({ dose, slot, existing, day: selectedKey, draft: initialDraft(dose, selectedKey, slot, existing) })
+    setRowPanelOpen(false)
+    setConfirming(false)
+    spareRef.current = null
+  }
+
+  async function trackOpenRow() {
+    const row = liveRow
+    if (!row || row.draft.amount <= 0 || confirming) return
+    // The same door as the tick: a read-only account meets the pop-up here.
+    if (!guard(() => {})) return
+    const spare = spareRef.current
+    if (spare) {
+      // Picking a spare is the moment it goes into use (build brief §5): start
+      // it BEFORE the dose links to it, or the link is dropped as not started.
+      await openStockItem(spare, row.day).catch(() => ({ ok: false }))
+    }
+    const log = draftToLog(row.dose, row.draft, row.day, todayKey, row.slot, new Date())
+    if (row.existing) {
+      // Edit mode: Save confirms with a calm tick, then the bar drops.
+      setConfirming(true)
+      window.setTimeout(() => {
+        handleTracked(row.dose.id, log, row.day, row.day, row.slot)
+        closeLogRow()
+        playTrackedPop()
+      }, SAVE_CONFIRM_MS)
+      return
+    }
+    handleTracked(row.dose.id, log, row.day, row.day, row.slot)
+    closeLogRow()
+    playTrackedPop()
+  }
+
+  const logFlow: LogFlow = {
+    openKey: liveRow ? rowKey(liveRow.dose.id, liveRow.slot) : null,
+    closingKey: closingRow ? rowKey(closingRow.dose.id, closingRow.slot) : null,
+    condensed: liveRow !== null && rowPanelOpen,
+    draft: liveRow?.draft ?? null,
+    onTick: (dose, slot) => {
+      const log = logs[selectedKey]?.[slotKey(dose.id, slot)]
+      // A LOGGED dose's tick un-logs it (the tick only).
+      if (log) {
+        if (isOpenRow(dose.id, slot)) closeLogRow()
+        handleRemove(dose.id, selectedKey, slot)
+        return
+      }
+      // The first tap opens the row, the second logs it.
+      if (isOpenRow(dose.id, slot)) {
+        void trackOpenRow()
+        return
+      }
+      guard(() => openLogRow(dose, slot))
+    },
+    onOpen: (dose, slot) => {
+      if (isOpenRow(dose.id, slot)) {
+        closeLogRow()
+        return
+      }
+      const logged = Boolean(logs[selectedKey]?.[slotKey(dose.id, slot)])
+      // Editing a logged dose writes only on Save, which is guarded there.
+      if (logged) openLogRow(dose, slot)
+      else guard(() => openLogRow(dose, slot))
+    },
+    renderPanel: (dose, slot) => {
+      const row = isOpenRow(dose.id, slot)
+        ? liveRow
+        : closingRow?.dose.id === dose.id && closingRow.slot === slot
+          ? closingRow
+          : null
+      if (!row) return null
+      const live = row === liveRow
+      return (
+        <LogRowPanel
+          key={rowKey(dose.id, slot)}
+          compound={row.dose}
+          dateKey={row.day}
+          todayKey={todayKey}
+          draft={row.draft}
+          onDraft={(patch) =>
+            live && setOpenRow((r) => (r ? { ...r, draft: { ...r.draft, ...patch } } : r))
+          }
+          catalogue={injectionCatalogue}
+          siteLastUsedDays={siteLastUsedDays}
+          bodySex={bodySex}
+          onTileChange={(o) => live && setRowPanelOpen(o)}
+          onAddStock={() => setStockSheetFor(row.dose)}
+          onSpare={(id) => {
+            spareRef.current = id
+          }}
+          readKey={stockReadKey}
+          previewStock={previewStock}
+        />
+      )
+    },
+  }
+  const trackSiteName =
+    liveRow?.draft.siteId
+      ? (injectionCatalogue.find((s) => s.id === liveRow.draft.siteId)?.label ?? siteLabel(liveRow.draft.siteId))
+      : null
+
   /**
    * Undo a logged dose — on the day the SHEET was showing, which the sheet
    * passes in.
@@ -967,7 +1121,11 @@ export function HomeScreen({
               <EmptyLogCard />
             </div>
           ) : (
+            // Flow B: the rows open in place, the tick logs on its second tap,
+            // and the Track bar below is the open row's action.
+            <LogFlowContext.Provider value={logFlow}>
             <TodaysCycleCard
+              progress={{ logged: selectedLogged, due: dayDots.length }}
               greeting={<HomeGreeting firstName={firstName} />}
               title={cycleTitle}
               dueDoses={dueDoses}
@@ -1077,6 +1235,7 @@ export function HomeScreen({
                 for (const t of targets) handleRemove(t.compound.id, selectedKey, t.slot)
               }}
             />
+            </LogFlowContext.Provider>
           )}
         </div>
 
@@ -1162,6 +1321,33 @@ export function HomeScreen({
         </SkeletonSwap>
       </div>
 
+      {/* The open row's action (A1). */}
+      <TrackBar
+        up={liveRow !== null && liveRow.draft.amount > 0}
+        label={liveRow ? trackLabel(liveRow.draft, trackSiteName, Boolean(liveRow.existing)) : ""}
+        confirming={confirming}
+        onTrack={() => void trackOpenRow()}
+      />
+
+      {/* Add stock from a log row: a sheet OVER the open row, ending on the
+          "Added" card, with no Refill offer (Adrian, 2026-09-24). The row reads
+          its stock again once it lands. */}
+      <AddStockSheet
+        open={stockSheetFor !== null}
+        onOpenChange={(o) => {
+          if (!o) setStockSheetFor(null)
+        }}
+        userId={userId}
+        refillFor={null}
+        preselectFor={stockSheetFor?.id ?? null}
+        refillType={null}
+        editItem={null}
+        onAdded={() => {
+          setStockSheetFor(null)
+          setStockReadKey((k) => k + 1)
+        }}
+      />
+
       <LogDoseSheet
         open={logTarget !== null}
         compound={logTarget?.compound ?? null}
@@ -1213,6 +1399,8 @@ export function HomeScreen({
       <CompoundDetailSheet
         open={detailTarget !== null}
         compound={detailTarget}
+        // The ⋯ on a Flow B row: the row itself logs, so no Log button here.
+        context="row"
         isToday={isToday}
         dateKey={selectedKey}
         onOpenChange={(open) => {

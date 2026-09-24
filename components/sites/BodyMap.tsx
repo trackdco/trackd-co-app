@@ -68,7 +68,7 @@ interface BodyMapProps {
   /** Arrive in sequence once a sheet has landed: body, then sites, then chips. */
   arrive?: boolean
   /** The log sheet draws the map on the raised surface, which needs its own paint. */
-  tone?: "default" | "raised"
+  tone?: "default" | "raised" | "lifted"
 }
 
 const ASPECTS: { key: InjectionSiteAspect; label: string }[] = [
@@ -116,6 +116,7 @@ export function BodyMap({
       className={cn(
         arrive && "body-map-arrive",
         tone === "raised" && "body-map-raised",
+        tone === "lifted" && "body-map-lifted",
       )}
     >
       {/* Front / Back pills on the shared sliding thumb (feel pass §6). Only the

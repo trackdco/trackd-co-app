@@ -10,6 +10,7 @@ import type { Stack } from "@/lib/home/stacks";
 import type { DayLogs } from "@/lib/home/doseLog";
 import { IM_SITES, SUBQ_SITES } from "@/lib/home/siteCatalog";
 import type { InjectionSiteRow } from "@/lib/db/types";
+import type { StockItem, StockRead } from "@/lib/db/inventory";
 
 /** The static site list standing in for the catalogue read (as /preview/sites). */
 function previewCatalogue(): InjectionSiteRow[] {
@@ -25,6 +26,40 @@ function previewCatalogue(): InjectionSiteRow[] {
       sort_order: i,
     })) as InjectionSiteRow[];
   return [...rows(IM_SITES, "im"), ...rows(SUBQ_SITES, "subq")];
+}
+
+/**
+ * Stock for the open row's Stock panel: Retatrutide holds two OPEN vials (the
+ * older is used first) and three unmixed spares; Testosterone E one open vial
+ * and two sealed spares. The rest hold nothing, so "Add stock" shows too.
+ */
+function previewStock(started: string): StockRead {
+  const item = (over: Partial<StockItem> & Pick<StockItem, "id" | "protocolCompoundId" | "compoundName">): StockItem => ({
+    createdAt: null, category: "peptide", inventoryType: "reconstituted", baseUnit: "mg",
+    acquiredOn: started, reconstitutedOn: started, totalAmount: 10, totalAmountUnit: "mg",
+    bacWaterMl: 2, concentrationMgPerMl: 5, strengthPerUnit: null, servingSizeG: null,
+    priorUsedBase: null, remainingDisplay: 1.2, dosesRemaining: 3, estEmptyDate: null,
+    daysToEmpty: 10, mlPerDose: 0.4, unitsPerDoseOral: null, concentrationPerMl: 5,
+    remainingBase: 6, totalBase: 10, ...over,
+  });
+  const spare = (id: string, pc: string, name: string, over: Partial<StockItem> = {}) =>
+    item({ id, protocolCompoundId: pc, compoundName: name, acquiredOn: null, reconstitutedOn: null,
+      bacWaterMl: null, concentrationMgPerMl: null, remainingDisplay: null, dosesRemaining: null,
+      daysToEmpty: null, mlPerDose: null, concentrationPerMl: null, remainingBase: null, ...over });
+  const items: StockItem[] = [
+    item({ id: "v-reta-1", protocolCompoundId: "c-reta", compoundName: "Retatrutide" }),
+    item({ id: "v-reta-2", protocolCompoundId: "c-reta", compoundName: "Retatrutide", createdAt: "2026-09-20T00:00:00Z",
+      remainingBase: 10, dosesRemaining: 5, remainingDisplay: 2 }),
+    spare("s-reta-1", "c-reta", "Retatrutide"),
+    spare("s-reta-2", "c-reta", "Retatrutide"),
+    spare("s-reta-3", "c-reta", "Retatrutide"),
+    item({ id: "v-test-1", protocolCompoundId: "c-test", compoundName: "Testosterone E", category: "anabolic",
+      inventoryType: "preconcentrated", totalAmount: 10, totalAmountUnit: "ml", bacWaterMl: null,
+      reconstitutedOn: null, concentrationMgPerMl: 250, remainingBase: 1500, totalBase: 2500, dosesRemaining: 6 }),
+    spare("s-test-1", "c-test", "Testosterone E", { category: "anabolic", inventoryType: "preconcentrated", totalAmountUnit: "ml", totalBase: 2500 }),
+    spare("s-test-2", "c-test", "Testosterone E", { category: "anabolic", inventoryType: "preconcentrated", totalAmountUnit: "ml", totalBase: 2500 }),
+  ];
+  return { ok: true, items, compounds: [] };
 }
 
 /** A day `n` days before today, as a key. */
@@ -231,6 +266,7 @@ export default async function PreviewHomePage({
           previewStack={sampleCompounds}
           previewStacks={sampleStacks}
           previewLogs={sampleLogs}
+          previewStock={previewStock(daysAgo(9))}
           todayKey={todayKey}
           userId="preview-local"
           firstName="Adrian"

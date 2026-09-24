@@ -30,7 +30,8 @@ import type { OneOffLog } from "@/lib/home/oneOffLogs"
 import { paletteColourVar } from "@/lib/palette"
 import { DATA_MONO } from "@/lib/ui-presets"
 import { formatPhotoDateShort } from "@/lib/progress/photos"
-import { useRef, useState, type ReactNode } from "react"
+import { useContext, useRef, useState, type ReactNode } from "react"
+import { LogEdge, LogFlowContext, rowKey, type LogFlow } from "@/components/home/log/LogFlow"
 
 /**
  * One paused thing on the dashboard — a compound, or a whole stack collapsed to
@@ -249,6 +250,13 @@ interface TodaysCycleCardProps {
    * make it re-derive that and get it subtly wrong.
    */
   onUnlogStack?: (targets: { compound: StackCompound; slot: number }[]) => void
+  /**
+   * The day's doses logged and due, for the card's edge (Flow B, L1): it fills
+   * amber a share per dose and the finished day settles darker. The SAME counts
+   * the status ring reads, so the edge and the ring cannot disagree. Absent =
+   * no edge (anywhere but Home).
+   */
+  progress?: { logged: number; due: number }
 }
 
 function formatDose(dose: number): string {
@@ -455,6 +463,7 @@ function MultiDoseRow({
   onAddStock: (dose: StackCompound) => void
   popFor?: (id: string, slot: number) => string | null
 }) {
+  const flow = useContext(LogFlowContext)
   const taken = dose.slots.filter((s) => s.log != null).length
   const done = taken >= dose.slots.length
 
@@ -490,6 +499,23 @@ function MultiDoseRow({
       <ul className="mt-0.5 pl-4">
         {dose.slots.map((s) => {
           const log = s.log
+          if (flow) {
+            return (
+              <FlowSlotRow
+                key={s.slot}
+                flow={flow}
+                dose={dose}
+                slot={s.slot}
+                log={log}
+                plannedAmount={s.dose}
+                plannedTime={s.time24}
+                drawSource={drawSource}
+                onOpenDetail={onOpenDetail}
+                pop={log && log.status !== "skipped" ? (popFor?.(dose.id, s.slot) ?? null) : null}
+                nested
+              />
+            )
+          }
           // The PLANNED amount for this slot, not the compound's — they differ
           // when a per-slot dose is set (100 mg AM, 50 mg PM,
           // `supabase/protocol/021`). A logged dose still shows what was
@@ -550,6 +576,121 @@ function MultiDoseRow({
   )
 }
 
+/**
+ * One dose slot as a Flow B row (ui-context → "Today's Log, and logging a
+ * dose"). The tick: a first tap OPENS the row, a second tap logs it, and on a
+ * logged dose it un-logs. The name or its line opens the row (edit mode once
+ * logged). The ⋯ opens the compound sheet. The line under the name shows the
+ * DRAW ("20 UNITS"), with the amount railed on the right.
+ */
+function FlowSlotRow({
+  flow,
+  dose,
+  slot,
+  log,
+  plannedAmount,
+  plannedTime,
+  drawSource,
+  onOpenDetail,
+  pop,
+  nested = false,
+}: {
+  flow: LogFlow
+  dose: DueDose
+  slot: number
+  log: DoseLog | null
+  plannedAmount: number
+  plannedTime: string
+  drawSource: DrawSource | undefined
+  onOpenDetail: (dose: StackCompound) => void
+  pop: string | null
+  /** A slot of a multi-dose row: no ⋯ of its own, the parent has it. */
+  nested?: boolean
+}) {
+  const key = rowKey(dose.id, slot)
+  const open = flow.openKey === key
+  const drawn = open || flow.closingKey === key
+  const mini = flow.condensed && !open
+  const skipped = log?.status === "skipped"
+  // What the row SHOWS: the draft while it is open, the log once logged, else
+  // the plan. The draw is priced against the same amount, so the two agree.
+  const amount = open && flow.draft ? flow.draft.amount : log ? shownAmount(dose, log) : plannedAmount
+  const unit = (open && flow.draft ? flow.draft.unit : log?.unit ?? dose.unit) || dose.unit
+  const draw = amount == null || skipped ? null : formatDraw(amount, unit, drawSource ?? null)
+  const desc = skipped
+    ? "Skipped"
+    : draw
+      ? draw.kind === "volume"
+        ? `${draw.units} units`
+        : draw.label
+      : formatTimeLabel(log ? log.time24 : plannedTime)
+
+  return (
+    <li
+      className={cn("log-row -mx-2 rounded-xl px-2", log && !open && "opacity-60")}
+      data-open={open ? "true" : "false"}
+      data-mini={mini ? "true" : "false"}
+    >
+      <div className="log-head flex items-center gap-3 py-2">
+        <button
+          type="button"
+          onClick={() => flow.onTick(dose, slot)}
+          aria-label={
+            log
+              ? `Untick ${dose.name}`
+              : open
+                ? `Log ${dose.name}`
+                : `Open ${dose.name}`
+          }
+          data-logged={log ? "" : undefined}
+          className={cn(
+            PRESS.tick,
+            "log-tick relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border",
+            pop && "animate-home-tick-pop",
+            skipped
+              ? "border-border-strong text-text-muted"
+              : log
+                ? "border-accent-primary bg-accent-primary text-bg-base"
+                : "border-border-strong text-transparent",
+          )}
+        >
+          {skipped ? <Minus className="h-3.5 w-3.5" aria-hidden /> : <Check className="h-3.5 w-3.5" aria-hidden />}
+          {pop ? <TickRing key={pop} /> : null}
+        </button>
+        <button
+          type="button"
+          onClick={() => flow.onOpen(dose, slot)}
+          aria-expanded={open}
+          className={cn(PRESS.rowPart, "min-w-0 flex-1 text-left")}
+        >
+          <span className={cn("log-name block truncate font-medium", nested ? "text-[13px]" : "text-sm", log && !open ? "text-text-muted" : "text-foreground")}>
+            {nested ? `Dose ${slot + 1}` : dose.name}
+          </span>
+          <span className="log-desc block truncate font-mono text-[11px] tracking-[0.08em] text-text-muted uppercase">
+            {desc}
+          </span>
+        </button>
+        <span className={cn(DATA_MONO, "shrink-0 tracking-[0.06em] uppercase")}>
+          {amount == null || skipped ? "" : `${formatDose(amount)} ${unit}`}
+        </span>
+        {nested ? null : (
+          <button
+            type="button"
+            onClick={() => onOpenDetail(dose)}
+            aria-label={`Edit ${dose.name}`}
+            className={cn(PRESS.rowPart, "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-text-primary")}
+          >
+            <DotsThree className="h-5 w-5" aria-hidden />
+          </button>
+        )}
+      </div>
+      <div className="log-body" aria-hidden={!open}>
+        <div>{drawn ? flow.renderPanel(dose, slot) : null}</div>
+      </div>
+    </li>
+  )
+}
+
 function DoseRow({
   dose,
   onLog,
@@ -569,6 +710,7 @@ function DoseRow({
   onAddStock: (dose: StackCompound) => void
   popFor?: (id: string, slot: number) => string | null
 }) {
+  const flow = useContext(LogFlowContext)
   // PAUSED (a stack member only — see `DueDose.paused`). Blacked out and
   // untickable: nothing is due, so a tick would be a control for an action that
   // does not exist. It stays in place rather than moving, so the stack keeps
@@ -625,6 +767,21 @@ function DoseRow({
   }
   const log = dose.log
   const pop = log && log.status !== "skipped" ? (popFor?.(dose.id, 0) ?? null) : null
+  if (flow) {
+    return (
+      <FlowSlotRow
+        flow={flow}
+        dose={dose}
+        slot={0}
+        log={log}
+        plannedAmount={dose.slots[0]?.dose ?? dose.dose}
+        plannedTime={dose.slots[0]?.time24 ?? dose.schedule.timeOfDay}
+        drawSource={drawSource}
+        onOpenDetail={onOpenDetail}
+        pop={pop}
+      />
+    )
+  }
   const amount = shownAmount(dose, log)
   // The unit the shown amount is IN: for a logged dose that's the unit it was
   // recorded in, not whatever the compound's unit happens to be now — otherwise
@@ -770,6 +927,7 @@ export function TodaysCycleCard({
   onLogStack,
   onUnlogStack,
   greeting,
+  progress,
 }: TodaysCycleCardProps) {
   /** Is this slot the dose that was just tracked, on the day being shown? */
   const popFor = (id: string, slot: number): string | null => {
@@ -795,7 +953,11 @@ export function TodaysCycleCard({
     .filter((d): d is DueDose => Boolean(d))
 
   return (
-    <section className="flow-card rounded-2xl bg-bg-surface p-5">
+    <section
+      className="flow-card relative rounded-2xl bg-bg-surface p-5"
+      data-log-done={progress && progress.due > 0 && progress.logged >= progress.due ? "true" : undefined}
+    >
+      {progress ? <LogEdge logged={progress.logged} due={progress.due} /> : null}
       {greeting}
       <h2 className={cn(CARD_EYEBROW, greeting && "mt-3")}>{title}</h2>
 

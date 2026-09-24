@@ -1071,6 +1071,14 @@ up arrow spinning in from -180°). Settled in the build:
   simply DROPS while the row takes the tick. It drops early only when an
   essential field (the dose) is emptied. In edit mode it reads "Save" and
   confirms with a calm circled tick before dropping.
+- **As built (2026-09-24).** Rows: `FlowSlotRow` in `TodaysCycleCard`, driven through
+  `LogFlowContext`; the open row is `components/home/log/LogRowPanel.tsx`, the bar
+  `TrackBar.tsx` (spring w .021 z .72 sampled to WAAPI, 230ms drop, z 48: over the nav
+  and the +, under a sheet), the edge `LogEdge`. The + hides while the bar is up
+  (`body[data-log-open]`). An open row keeps itself 104px clear of the bar. Spares in
+  the Stock panel are one card per kind: "N · Mix first" (dimmed, not pickable) and
+  "N · Unopened" (picks the oldest, which Track opens). The E4 card colours are read as
+  computed values, because a `var()` inside WAAPI keyframes snaps in Safari.
 
 **Motion and the five never-designed parts (Adrian, 2026-09-24).**
 Artifacts: https://claude.ai/artifact/EiHW96Dez9cQSM1eFjqZRX (db `picks`) and

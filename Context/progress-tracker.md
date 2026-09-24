@@ -102,6 +102,35 @@ Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
     which part; blends are on Protocol's Blends card.
   - The cards draw only once mounted (the clock is a `useSyncExternalStore` minute),
     because the server's "now" is not the phone's and the curves did not hydrate.
+- **Phase 6, Today's Log Flow B:** the log rows are `FlowSlotRow` (in
+  `TodaysCycleCard`) driven by Home through `LogFlowContext`
+  (`components/home/log/LogFlow.tsx`); without the context the card behaves as before.
+  First tick tap opens the row (the ring turns amber), a second logs, a logged tick
+  un-logs; the name opens (edit mode, "Save", when logged); ⋯ opens the compound sheet
+  in its "row" context (filled "Edit dose & schedule", Skip, Pause, Stock, Delete).
+  The open row (`LogRowPanel.tsx`): Dose stepper (`stepFor`), Time (the phone's own
+  time picker), Site / Stock / Note tiles with the K3 lift, the S4 swap (130ms out, then
+  the height, then the new content), and the D2 up arrow as the only close. The draft
+  (`lib/home/logDraft.ts`, 9 tests) becomes the same `DoseLog` the Log sheet writes,
+  through the same commit path. The Track bar (`TrackBar.tsx`) springs up over the tab
+  bar, reads "Track 2 mg · Outer Thigh – Lower Right", drops on Track, and confirms Save
+  with the circled tick; the + hides while it is up. The card's edge fills per dose and
+  plays E4 (2 → 3.5 → 0.75px) with the D1 darker card when the day completes, only at
+  that moment. Stock panel: open containers oldest first, spares grouped ("3 · Mix
+  first" / "2 · Unopened"; picking unopened spares opens the oldest on Track), "Don't
+  count this dose" / "Count it" with the red line on the tile, and "Add stock" as a sheet
+  over the row. The stack tick stays one tap. Checked at 390x844 in Chromium and WebKit
+  and 375x548, with a stock fixture on `/preview/home` (dev-only prop). Per frame: the bar
+  rises with a slight overshoot, the edge exhale and darkening run at 58fps in Chromium;
+  one ~120ms frame at the tap that opens a row is dev-mode React (the preview 404s in a
+  production build, so it can only be re-measured on the phone). `npm run check` (2232)
+  and `next build` pass. Decisions taken in the build:
+  - Where the brief says the Track label "gathers into a circled tick", ui-context says
+    Track simply drops and only Save shows the tick. Built as ui-context.
+  - The descriptor uses the app's existing draw wording ("20 UNITS", "1 TAB"), or the
+    slot's time when there is no draw.
+  - Found, not changed: a finished multi-dose row dims twice (the row at 60% and each
+    logged slot at 60%), which predates this build.
 - **Verification limit:** creating a QA account on the live database was refused by the
   session's auto-mode guard, so screens are checked on the dev-only `/preview/*` pages
   (mock data, no database), not signed in.

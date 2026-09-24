@@ -42,7 +42,9 @@ interface CompoundDetailSheetProps {
   /** Where the sheet is opened from. "plan" (the Protocol builder) has no day-logging,
    *  so the primary action becomes "Edit dose & schedule" and the redundant "today's
    *  dose" path is dropped. Defaults to the dashboard behaviour. */
-  context?: "dashboard" | "plan"
+  /** "row" is the ⋯ on a Today's Log row (Flow B): the open row logs, so
+   *  the filled button edits the dose and schedule instead. */
+  context?: "dashboard" | "plan" | "row"
   /** Whether the day being viewed is today — drives the primary action's label.
    *  Dashboard only. */
   isToday?: boolean
@@ -176,7 +178,7 @@ function DetailBody({
 }: {
   compound: StackCompound
   onClose: () => void
-  context: "dashboard" | "plan"
+  context: "dashboard" | "plan" | "row"
   isToday: boolean
   dateKey?: string
   onEditTodaysDose?: (compound: StackCompound) => void
@@ -214,7 +216,7 @@ function DetailBody({
    */
   const taken = todaysLog != null && todaysLog.status !== "skipped"
   const primaryLabel =
-    context === "plan"
+    context === "plan" || context === "row"
       ? "Edit dose & schedule"
       : taken
         ? isToday
@@ -313,7 +315,7 @@ function DetailBody({
           </div>
 
           {upcoming.length > 0 && (
-            <p className="px-1 text-xs text-text-subtle">
+            <p className="px-1 text-xs text-text-muted">
               Next:{" "}
               <span className="font-mono text-text-muted">
                 {upcoming.map(formatDateKeyShort).join(", ")}
@@ -338,7 +340,7 @@ function DetailBody({
           <button
             type="button"
             onClick={() =>
-              context === "plan" ? onEdit(compound) : onEditTodaysDose?.(compound)
+              context === "plan" || context === "row" ? onEdit(compound) : onEditTodaysDose?.(compound)
             }
             className={cn(
               PRESS.button,
@@ -374,7 +376,7 @@ function DetailBody({
                 written from the code rather than from the task (Adrian,
                 2026-08-07). Hidden in the plan context, where the filled button
                 above already is it. */}
-            {context !== "plan" && (
+            {context === "dashboard" && (
               <ActionRow
                 // A PENCIL, not a calendar: this row edits the dose as well as the
                 // schedule, and a calendar named only half of it.
