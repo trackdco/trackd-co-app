@@ -139,3 +139,23 @@ export const BOTTLE_FILL_SPAN = BOTTLE_FILL_BOTTOM - BOTTLE_FILL_TOP
 export function bottleFillSurface(fill: number): number {
   return BOTTLE_FILL_BOTTOM - BOTTLE_FILL_SPAN * clampFill(fill)
 }
+
+/* --------------------------------------------------------------- dropper */
+
+/** Liquid surface at a full dropper, in the artwork's `0 0 60 96` viewBox: the
+ *  top of the body, just under its shoulder (the prototype's `88 - 46`). */
+export const DROPPER_FILL_TOP = 42
+/** Dropper floor — the liquid surface at empty. */
+export const DROPPER_FILL_BOTTOM = 88
+export const DROPPER_FILL_SPAN = DROPPER_FILL_BOTTOM - DROPPER_FILL_TOP
+
+/** The dropper's liquid for a given fill: the vial's rule on the dropper's
+ *  shorter body (the neck and shoulder hold no liquid). */
+export function dropperLiquid(fill: number): VialLiquid {
+  const height = DROPPER_FILL_SPAN * clampFill(fill)
+  return {
+    y: DROPPER_FILL_BOTTOM - height,
+    height,
+    meniscusHeight: Math.min(VIAL_MENISCUS_HEIGHT, height),
+  }
+}

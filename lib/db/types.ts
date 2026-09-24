@@ -51,6 +51,9 @@ export type InventoryType =
   | "preconcentrated"
   | "oral_solid"
   | "bulk_powder"
+  /** The container for liquid orals (`supabase/protocol/025`/`026`): mL at a
+   *  stated strength, or drops (with or without a strength per drop). */
+  | "dropper"
 
 /** `log_status` enum. */
 export type LogStatus = "taken" | "skipped"

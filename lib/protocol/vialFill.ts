@@ -65,7 +65,9 @@ export function vialBasis(type: InventoryType, v: VialAmounts): VialBasis | null
     if (v.powder <= 0 || v.bacWater <= 0) return null
     return { totalBase: v.powder, perNative: v.powder / v.bacWater, fullNative: v.bacWater }
   }
-  if (type === "preconcentrated") {
+  // A dropper held in mL at a stated strength is a pre-mixed vial's maths; one
+  // counted by the drop falls through to the count below, like an oral.
+  if (type === "preconcentrated" || (type === "dropper" && v.oilMl > 0)) {
     if (v.oilMl <= 0 || v.concentration <= 0) return null
     return { totalBase: v.oilMl * v.concentration, perNative: v.concentration, fullNative: v.oilMl }
   }

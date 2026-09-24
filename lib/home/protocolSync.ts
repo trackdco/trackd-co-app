@@ -685,6 +685,7 @@ function baseUnitsForDose(doseUnit: string): string[] {
   if (doseUnit === "g") return ["g"]
   if (doseUnit === "tab") return ["tab"]
   if (doseUnit === "capsule") return ["capsule"]
+  if (doseUnit === "drop") return ["drop"]
   return []
 }
 
@@ -709,12 +710,18 @@ function acquiredOnCutoff(dateKey: string): string {
  * THE vial-on-a-date rule, in one place (both the write path and the log sheet's
  * read use it, so they can't drift).
  *
- * Which vial a compound was drawing from on `dateKey` = the newest one already
- * acquired by then. `addStockItem` archives the compound's prior vials on every
- * add/refill, so exactly one vial is in use at a time and "newest acquired on or
- * before D" is precisely that one. Deliberately NOT filtered on `is_active`: the
- * vial a back-dated dose came from has often been used up and archived since, and
- * it's still the right one to draw down.
+ * Which vial a compound was drawing from on `dateKey`: **the OLDEST open one**
+ * (Adrian, 2026-09-24). Two containers can be open at once and both can be
+ * logged from; the old one is used first. So the rule is, in order:
+ *
+ *  1. the oldest ACTIVE container started by then that still has something left;
+ *  2. otherwise the newest one started by then, active or not — the rule before
+ *     several could be open, kept as the fallback because the vial a back-dated
+ *     dose came from has often been used up and archived since, and it is still
+ *     the right one to draw down.
+ *
+ * A spare (`acquired_on` NULL) is never picked: it fails the date test, which is
+ * right, since nothing is drawn from a vial nobody has started.
  *
  * The `lte` is what makes back-dating honest — a dose logged for last Tuesday can
  * never draw down a vial that wasn't acquired until Friday. It leaves live logging
@@ -744,6 +751,47 @@ async function vialOnDateResult(
 ): Promise<VialLookup> {
   const bases = baseUnitsForDose(doseUnit)
   if (bases.length === 0) return { ok: true, vial: null } // no vial can ever match — a real answer
+  // 1. The oldest open container with something left.
+  const open = await supabase
+    .from("inventory_items")
+    .select("id, total_amount_unit")
+    .eq("protocol_compound_id", pcId)
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .in("base_unit", bases)
+    .lte("acquired_on", acquiredOnCutoff(dateKey))
+    .order("acquired_on", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(12)
+  if (open.error) {
+    console.error("vialOnDate failed", open.error)
+    return { ok: false }
+  }
+  const openRows = (open.data ?? []) as { id: string; total_amount_unit: string | null }[]
+  if (openRows.length > 0) {
+    const left = await supabase
+      .from("v_inventory_math")
+      .select("inventory_item_id, remaining_base")
+      .in("inventory_item_id", openRows.map((r) => r.id))
+    if (left.error) {
+      console.error("vialOnDate failed", left.error)
+      return { ok: false }
+    }
+    const remaining = new Map(
+      ((left.data ?? []) as { inventory_item_id: string; remaining_base: unknown }[]).map((r) => [
+        r.inventory_item_id,
+        r.remaining_base == null ? null : Number(r.remaining_base),
+      ]),
+    )
+    const inUse = openRows.find((r) => {
+      const n = remaining.get(r.id)
+      return n == null || n > 0
+    })
+    if (inUse) {
+      return { ok: true, vial: { id: inUse.id, totalAmountUnit: inUse.total_amount_unit ?? null } }
+    }
+  }
+  // 2. Nothing open has anything left: the newest started by then (see above).
   const { data, error } = await supabase
     .from("inventory_items")
     // `total_amount_unit` rides along for the draw's tab/cap wording (Spec 21). The

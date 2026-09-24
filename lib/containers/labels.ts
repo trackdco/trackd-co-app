@@ -106,13 +106,20 @@ export interface RemainingInput {
  *  - a BOTTLE is counted, in the unit it was STORED as. Using the stored
  *    `tab`/`capsule` rather than assuming tablets is what stops 60 capsules of
  *    NAC reading as "60 tabs left".
- *  - a VIAL is measured in millilitres.
+ *  - a VIAL is measured in millilitres, and so is a DROPPER held in mL; one
+ *    counted by the drop reads in drops.
  */
 export function remainingLabel(stock: RemainingInput | null | undefined): string | null {
   const n = stock?.remainingDisplay
   if (stock == null || n == null) return null
 
   if (stock.inventoryType === "bulk_powder") return `${formatGrams(n)} left`
+
+  // A dropper counted by the drop reads in drops; one held in mL falls through
+  // to the vial's wording below.
+  if (stock.inventoryType === "dropper" && stock.totalAmountUnit === "drop") {
+    return `${n} ${n === 1 ? "drop" : "drops"} left`
+  }
 
   if (stock.inventoryType === "oral_solid") {
     const one = n === 1

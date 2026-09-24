@@ -10,8 +10,9 @@
  * Pure types + pure helpers; no React, no side effects (code-standards.md).
  */
 
-/** Mirrors the `dose_unit` enum in `supabase/trackd_schema_v0_4_2.sql`. */
-export type DoseUnit = "mg" | "mcg" | "iu" | "ml" | "tab" | "capsule" | "g"
+/** Mirrors the `dose_unit` enum in `supabase/trackd_schema_v0_4_2.sql`, with
+ *  `g` (`014`) and `drop` (`025`, a dropper counted by the drop). */
+export type DoseUnit = "mg" | "mcg" | "iu" | "ml" | "tab" | "capsule" | "g" | "drop"
 
 export const DOSE_UNITS: readonly DoseUnit[] = [
   "mg",
@@ -21,12 +22,13 @@ export const DOSE_UNITS: readonly DoseUnit[] = [
   "tab",
   "capsule",
   "g",
+  "drop",
 ]
 
 /**
  * Can a container measured in `base` supply a dose measured in `dose`?
  *
- * **The TS mirror of `unit_family_compatible` (`supabase/protocol/016`)**, and
+ * **The TS mirror of `unit_family_compatible` (`supabase/protocol/026`)**, and
  * it must list every family the database does — a pairing rejected here is a
  * dose written with NO vial link, so the container never depletes, which is the
  * entire point of 014/015.
@@ -45,7 +47,9 @@ export function unitFamilyOk(base: string, dose: string): boolean {
     (base === "iu" && dose === "iu") ||
     (base === "g" && (dose === "g" || dose === "mg")) ||
     (base === "tab" && dose === "tab") ||
-    (base === "capsule" && dose === "capsule")
+    (base === "capsule" && dose === "capsule") ||
+    // A dropper counted by the drop with no stated strength (`026`).
+    (base === "drop" && dose === "drop")
   )
 }
 

@@ -41,6 +41,7 @@ import type {
   InjectionSiteRoute,
   InjectionSiteRow,
 } from "@/lib/db/types"
+import { containersOf } from "@/lib/protocol/stockView"
 
 interface LogDoseSheetProps {
   open: boolean
@@ -446,7 +447,7 @@ function LogDoseBody({
 
   // Vials of THIS compound the dose can draw from, so its "stock left" decrements.
   // Only family-compatible ones (mg-tracked vial ↔ mg/mcg dose; iu ↔ iu) — the DB
-  // enforces the same. A fresh log ON TODAY defaults to the most-recent vial;
+  // enforces the same. A fresh log ON TODAY defaults to the OLDEST open one;
   // editing keeps the dose's existing link. setState runs after the await (not in
   // the effect body).
   //
@@ -514,17 +515,21 @@ function LogDoseBody({
             setInventoryItemId((cur) => (cur === undefined ? v : cur))
           }
         }
-        const all = read.stock ?? []
+        // A FAILED stock read settles like the offline path below: nothing known,
+        // so no card, rather than the claim that this compound has no stock.
+        const all = read.stock?.ok ? read.stock.items : []
         // The SAME unit-family rule the server links by (`unitFamilyOk` /
         // `unit_family_compatible`, `supabase/protocol/016`). This listed only
         // the mg and iu families, so a TUB (`g`) and a strengthless bottle
         // (`tab`/`capsule`) never matched — their stock card never appeared, and
         // the user could neither see the figure nor opt this dose out of coming
         // off it, while the server linked and decremented it anyway.
-        const mine = all.filter(
-          (v) =>
-            v.protocolCompoundId === compound.id &&
-            unitFamilyOk(v.baseUnit, compound.unit)
+        //
+        // OPEN containers only, oldest first: the old one is used first and both
+        // can be logged from (Adrian, 2026-09-24). A spare is not offered here;
+        // starting one is the Stock panel's job.
+        const mine = containersOf(all, compound.id).open.filter((v) =>
+          unitFamilyOk(v.baseUnit, compound.unit)
         )
         setVials(mine)
         if (existing == null && onToday && mine.length > 0) {

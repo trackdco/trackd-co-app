@@ -10,10 +10,13 @@
  * TS). Writes store raw inputs only. Refill = a NEW row (never mutate a vial);
  * archive = `is_active = false` (never hard-delete).
  *
- * ONE ACTIVE VIAL PER COMPOUND: adding/refilling stock archives the compound's
- * prior active vial(s) so only the newest is active. This keeps the Stock view to
- * one card per compound (no duplicates from repeated refills or form changes) while
- * preserving history — old vials become archived rows; their logged doses survive.
+ * ONE ROW PER CONTAINER, AND SEVERAL MAY BE OPEN (Adrian, 2026-09-24). Adding
+ * stock no longer archives the compound's other containers: two open vials can
+ * both be logged from, the OLDER first, and spares (`acquired_on` NULL, not yet
+ * mixed or opened) are held beside them. What a compound HOLDS is read per
+ * compound from `v_compound_stock` (`supabase/protocol/026`); which container is
+ * in use is the pure rule in `lib/protocol/stockView.ts`. A container leaves the
+ * list when it is discarded (archived) — history is never deleted.
  */
 import { createClient } from "@/lib/supabase/server"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
@@ -28,19 +31,28 @@ import { refuseWrite, type WriteRefusalKind } from "@/lib/billing/gate"
  * nested `compounds` join is null) — coalesced when the row is mapped.
  */
 const ITEM_COLUMNS_POST_016 =
-  "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit, serving_size_g, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
+  "id, created_at, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit, serving_size_g, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
 
 /** The same list before `016` renamed the strength column and `014` added the
  *  serving size — the retry list, so the app still runs against a database that
  *  has had neither applied. */
 const ITEM_COLUMNS_PRE_016 =
-  "id, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
+  "id, created_at, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
 
 /** The math view's columns as they exist before `supabase/protocol/010`. */
 const MATH_COLUMNS =
   "inventory_item_id, remaining_display, doses_remaining, est_empty_date, ml_per_dose, units_per_dose_oral, concentration_per_ml, remaining_base, total_base"
 /** …and with 010's timezone-free runway. */
 const MATH_COLUMNS_WITH_DAYS = `${MATH_COLUMNS}, days_to_empty`
+
+/** The per-compound read (`supabase/protocol/026`). */
+const COMPOUND_STOCK_COLUMNS = "protocol_compound_id, doses_ready, open_count, spares_held"
+
+/** "That relation doesn't exist" — `026` (which creates `v_compound_stock`) is
+ *  not applied yet. `42P01` from Postgres, `PGRST205` from PostgREST's cache. */
+function isMissingRelation(error: { code?: string } | null): boolean {
+  return error?.code === "42P01" || error?.code === "PGRST205"
+}
 
 /** "That column doesn't exist" — 010 is not applied yet. `42703` from Postgres,
  *  `PGRST204` from PostgREST's own schema cache. Mirrors `protocolSync.ts`. */
@@ -123,11 +135,16 @@ async function sessionCtx() {
  *  DERIVED figures from `v_inventory_math`. The maths fields are read-only. */
 export interface StockItem {
   id: string
+  /** When the row was written — the tie-break after `acquiredOn` for which of
+   *  two containers started the same day is older. */
+  createdAt: string | null
   protocolCompoundId: string
   compoundName: string
   category: string
   inventoryType: InventoryType
   baseUnit: string
+  /** The day this container was started (mixed or opened). NULL = a SPARE, held
+   *  but not started (`supabase/protocol/026`); a spare counts no doses. */
   acquiredOn: string | null
   reconstitutedOn: string | null
   // raw inputs — for pre-filling the edit form (NOT used for any maths):
@@ -183,82 +200,104 @@ export interface StockInsert {
   /** `bulk_powder` only — the CHECK rejects it on anything else. */
   serving_size_g?: number | null
   reconstituted_on?: string | null
+  /**
+   * The day the container was started. OMITTED = the column default, today (a
+   * container in use, which is what every caller before `026` meant). `null` =
+   * a SPARE, held but not started; an unmixed vial must also have no water and
+   * no mix date (`inv_type_fields`, `026`).
+   */
+  acquired_on?: string | null
   /** Base-unit amount already gone when added part-used (NULL/0 = a full vial). */
   prior_used_base?: number | null
 }
 
+/** What one compound HOLDS, from `v_compound_stock` (`026`). Never recomputed. */
+export interface CompoundStock {
+  protocolCompoundId: string
+  /** Doses in every OPEN container. Null when none is open or none can say. */
+  dosesReady: number | null
+  /** Containers started and not discarded. */
+  openCount: number
+  /** Containers held but not started (spares). */
+  sparesHeld: number
+}
+
 /**
- * Active stock for the user, each item joined to its compound name + category and
- * its `v_inventory_math` figures (stitched by id — no maths recomputed). Empty
- * array (never throws) when signed out / on error.
+ * A stock read. A FAILED read is its own answer, never an empty list: an empty
+ * list is the claim "you hold nothing", which is exactly what every card used to
+ * say ("Add stock") when the read merely broke (build brief §5, item 6).
  */
-export async function listStock(): Promise<StockItem[]> {
+export type StockRead =
+  | { ok: true; items: StockItem[]; compounds: CompoundStock[] }
+  | { ok: false }
+
+/**
+ * Active stock for the user: every container not discarded, each joined to its
+ * compound name + category and its `v_inventory_math` figures (stitched by id —
+ * no maths recomputed), plus what each COMPOUND holds from `v_compound_stock`.
+ *
+ * `{ ok: false }` on any failure, and signed out. Never an empty list standing
+ * in for an error: see {@link StockRead}.
+ */
+export async function listStock(): Promise<StockRead> {
   try {
     const ctx = await sessionCtx()
-    if (!ctx) return []
-    const [itemsRes, mathRes] = await Promise.all([
+    if (!ctx) return { ok: false }
+    const itemsQuery = (columns: string) =>
       ctx.supabase
         .from("inventory_items")
         // `protocol_compounds!inner` + the is_active filter below makes Stock a
         // strict subset of the user's ACTIVE compounds: archiving or removing a
         // compound on Home (which sets/clears its protocol_compounds row) drops its
-        // vial from Stock too, so Stock can never show a compound Home doesn't.
+        // stock too, so Stock can never show a compound Home doesn't.
         // custom_name/custom_category cover a CUSTOM compound (compound_id NULL,
         // so the nested `compounds` join is null) — coalesced below.
-        .select(ITEM_COLUMNS_POST_016)
+        .select(columns)
         .eq("user_id", ctx.userId)
         .eq("is_active", true)
         .eq("protocol_compounds.is_active", true)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+    const [itemsRes, mathRes, compoundRes] = await Promise.all([
+      itemsQuery(ITEM_COLUMNS_POST_016),
       // `days_to_empty` arrives with `supabase/protocol/010`. Asked for
-      // optimistically and retried without it below, exactly as the schedule
-      // versions handle their own pending migration: the app must run against a
+      // optimistically and retried without it below: the app must run against a
       // database that has not had 010 applied yet.
       ctx.supabase.from("v_inventory_math").select(MATH_COLUMNS_WITH_DAYS),
+      ctx.supabase.from("v_compound_stock").select(COMPOUND_STOCK_COLUMNS),
     ])
-    let itemRows = itemsRes.data as Record<string, unknown>[] | null
+    // The column list is a variable (the pre-016 retry reuses the query), so the
+    // client cannot type the rows from it; they are read field by field below.
+    let itemRows = itemsRes.data as unknown as Record<string, unknown>[] | null
     if (itemsRes.error) {
       // Pre-016: `strength_per_unit` and `serving_size_g` do not exist yet. Retry
-      // on the old column list rather than showing the user an empty Stock tab,
-      // and alias the old name into the new one below so nothing downstream has
-      // to know which shape it came back in.
-      if (isUndefinedColumn(itemsRes.error)) {
-        const retry = await ctx.supabase
-          .from("inventory_items")
-          .select(ITEM_COLUMNS_PRE_016)
-          .eq("user_id", ctx.userId)
-          .eq("is_active", true)
-          .eq("protocol_compounds.is_active", true)
-          .order("created_at", { ascending: false })
-        if (retry.error) {
-          console.error("listStock items failed", retry.error)
-          return []
-        }
-        itemRows = retry.data as Record<string, unknown>[] | null
-      } else {
+      // on the old column list, and alias the old name into the new one below.
+      if (!isUndefinedColumn(itemsRes.error)) {
         console.error("listStock items failed", itemsRes.error)
-        return []
+        return { ok: false }
       }
+      const retry = await itemsQuery(ITEM_COLUMNS_PRE_016)
+      if (retry.error) {
+        console.error("listStock items failed", retry.error)
+        return { ok: false }
+      }
+      itemRows = retry.data as unknown as Record<string, unknown>[] | null
     }
     let mathRows: Record<string, unknown>[] | null =
       (mathRes.data as Record<string, unknown>[] | null) ?? null
     if (mathRes.error) {
       // Pre-010: the column does not exist yet. Read the rest rather than fail,
       // and the runway falls back to `est_empty_date` below.
-      if (isUndefinedColumn(mathRes.error)) {
-        const retry = await ctx.supabase
-          .from("v_inventory_math")
-          .select(MATH_COLUMNS)
-        if (retry.error) {
-          console.error("listStock math failed", retry.error)
-          return []
-        }
-        mathRows = (retry.data as Record<string, unknown>[] | null) ?? null
-      } else {
+      if (!isUndefinedColumn(mathRes.error)) {
         // A failed math read would otherwise show items with null runway as if valid.
         console.error("listStock math failed", mathRes.error)
-        return []
+        return { ok: false }
       }
+      const retry = await ctx.supabase.from("v_inventory_math").select(MATH_COLUMNS)
+      if (retry.error) {
+        console.error("listStock math failed", retry.error)
+        return { ok: false }
+      }
+      mathRows = (retry.data as Record<string, unknown>[] | null) ?? null
     }
     const math = new Map<string, Record<string, unknown>>()
     for (const m of mathRows ?? []) {
@@ -266,7 +305,7 @@ export async function listStock(): Promise<StockItem[]> {
     }
     const num = (v: unknown): number | null => (v == null ? null : Number(v))
 
-    return (itemRows ?? []).map((row) => {
+    const items: StockItem[] = (itemRows ?? []).map((row) => {
       const r = row as Record<string, unknown>
       const pc = r.protocol_compounds as {
         custom_name?: string | null
@@ -277,6 +316,7 @@ export async function listStock(): Promise<StockItem[]> {
       const m = math.get(r.id as string) ?? {}
       return {
         id: r.id as string,
+        createdAt: (r.created_at as string | null) ?? null,
         protocolCompoundId: r.protocol_compound_id as string,
         // Catalogue name/category, else the custom row's own — a custom vial shows
         // the user's compound name in Stock, not a "Compound" placeholder.
@@ -306,21 +346,69 @@ export async function listStock(): Promise<StockItem[]> {
         totalBase: num(m.total_base),
       }
     })
+
+    let compounds: CompoundStock[]
+    if (!compoundRes.error) {
+      compounds = ((compoundRes.data as Record<string, unknown>[] | null) ?? []).map((r) => ({
+        protocolCompoundId: r.protocol_compound_id as string,
+        dosesReady: num(r.doses_ready),
+        openCount: Number(r.open_count ?? 0),
+        sparesHeld: Number(r.spares_held ?? 0),
+      }))
+    } else if (isMissingRelation(compoundRes.error)) {
+      // Pre-026 there is no per-compound view, and no spares either: every row
+      // `main` writes is started, and `addStockItem` archived all but one. So the
+      // compound holds exactly its rows' doses. Summed here only until `026` is
+      // applied; after that the view answers and this branch is dead.
+      compounds = compoundsFromItems(items)
+    } else {
+      console.error("listStock compound read failed", compoundRes.error)
+      return { ok: false }
+    }
+    return { ok: true, items, compounds }
   } catch (e) {
     console.error("listStock failed", e)
-    return []
+    return { ok: false }
   }
 }
 
+/** The pre-`026` stand-in for `v_compound_stock`. See its caller. */
+function compoundsFromItems(items: StockItem[]): CompoundStock[] {
+  const by = new Map<string, CompoundStock>()
+  for (const it of items) {
+    const c = by.get(it.protocolCompoundId) ?? {
+      protocolCompoundId: it.protocolCompoundId,
+      dosesReady: null,
+      openCount: 0,
+      sparesHeld: 0,
+    }
+    if (it.acquiredOn == null) c.sparesHeld += 1
+    else {
+      c.openCount += 1
+      if (it.dosesRemaining != null) c.dosesReady = (c.dosesReady ?? 0) + it.dosesRemaining
+    }
+    by.set(it.protocolCompoundId, c)
+  }
+  return [...by.values()]
+}
+
 /**
- * Add a new inventory item. Used for both first stock AND refill (a new row — never
- * mutate an existing vial; consumption history is the moat). Enforces ONE active
- * vial per compound: the new row goes in first, then the compound's OTHER active
- * vials are archived (`is_active = false`). Insert-first ordering means a failed
- * archive never leaves the compound with zero active stock. Returns ok.
+ * Add stock: ONE row per container. `count` > 1 adds that many identical
+ * containers ("a box of ten"), the first with `row.id` and the rest with fresh
+ * ids, in ONE insert so a box is never half-added. Used for first stock and for
+ * more stock alike: a new container is always a new row (consumption history is
+ * the moat), and the compound's other containers are LEFT OPEN. Two open vials
+ * can both be logged from, the older first (Adrian, 2026-09-24). This used to
+ * archive every other active row, which is what made "one vial at a time" true.
+ *
+ * Spares: pass `acquired_on: null` for a container held but not started. The
+ * box's first container can be started at once (mixed or opened, with today's
+ * date) while the rest are spares; the caller shapes each row, so pass
+ * `restAsSpares` for that.
  */
 export async function addStockItem(
-  row: StockInsert
+  row: StockInsert,
+  opts: { count?: number; restAsSpares?: boolean } = {},
 ): Promise<{
   ok: boolean
   pendingMigration?: boolean
@@ -335,23 +423,31 @@ export async function addStockItem(
   try {
     const ctx = await sessionCtx()
     if (!ctx) return { ok: false }
-    let { error } = await ctx.supabase
-      .from("inventory_items")
-      .insert({ ...row, user_id: ctx.userId })
+    // A box of up to 50; a count outside that is a typo, not a shelf.
+    const count = Math.min(50, Math.max(1, Math.floor(opts.count ?? 1)))
+    const spare = (r: StockInsert): StockInsert =>
+      r.inventory_type === "reconstituted"
+        ? { ...r, acquired_on: null, reconstituted_on: null, bac_water_ml: null }
+        : { ...r, acquired_on: null }
+    const rows: StockInsert[] = Array.from({ length: count }, (_, i) =>
+      i === 0 ? row : { ...(opts.restAsSpares ? spare(row) : row), id: crypto.randomUUID() },
+    )
+    const payload = rows.map((r) => ({ ...r, user_id: ctx.userId }))
+    let { error } = await ctx.supabase.from("inventory_items").insert(payload)
     // Pre-016 the strength column still has its old name. Retry on the old shape
     // rather than telling the user their stock didn't save.
     if (error && isUndefinedColumn(error)) {
       ;({ error } = await ctx.supabase
         .from("inventory_items")
-        .insert({ ...toLegacyColumns(row), user_id: ctx.userId }))
+        .insert(rows.map((r) => ({ ...toLegacyColumns(r), user_id: ctx.userId }))))
     }
     if (error) {
       // A form the database cannot hold YET, rather than a failure of this
       // write. Reported distinctly so the sheet can name the real reason —
       // there is nothing to retry, and silently degrading a tub to a tablet
       // count would corrupt its maths. See `isPendingEnumValue`.
-      if (isPendingEnumValue(error, row)) {
-        console.error("addStockItem: form not available until 014/016", error)
+      if (isPendingEnumValue(error, row) || isPendingSpare(error, rows)) {
+        console.error("addStockItem: form not available until its migration", error)
         return { ok: false, pendingMigration: true }
       }
       console.error("addStockItem failed", error)
@@ -360,20 +456,97 @@ export async function addStockItem(
       // user to "try again" sends them round a loop that never ends.
       return { ok: false, rejectedShape: error.code === "23514" }
     }
-    // Archive the compound's prior active vials so only this new one stays active
-    // (one card per compound). Best-effort: the new vial is already in, so a failure
-    // here only risks a transient duplicate that the next add/refill cleans up.
-    const { error: archiveError } = await ctx.supabase
-      .from("inventory_items")
-      .update({ is_active: false })
-      .eq("user_id", ctx.userId)
-      .eq("protocol_compound_id", row.protocol_compound_id)
-      .eq("is_active", true)
-      .neq("id", row.id)
-    if (archiveError) console.error("addStockItem archive-prior failed", archiveError)
     return { ok: true }
   } catch (e) {
     console.error("addStockItem failed", e)
+    return { ok: false }
+  }
+}
+
+/**
+ * A spare vial or a dropper refused by a database without `026`. An unmixed
+ * vial breaks the old `reconstituted` arm (no water) and a dropper is an enum
+ * value it has never heard of (`22P02`, caught above). Same answer as a tub
+ * before `014`: nothing to retry, so say why.
+ */
+function isPendingSpare(error: { code?: string } | null, rows: StockInsert[]): boolean {
+  if (error?.code !== "23514") return false
+  return rows.some(
+    (r) => r.inventory_type === "dropper" ||
+      (r.inventory_type === "reconstituted" && r.bac_water_ml == null),
+  )
+}
+
+/**
+ * MIX a spare vial: its water, and today as both its mix date and its start
+ * (Mix 2, Adrian, 2026-09-24: tap the vial, then Mix). `dateKey` is the
+ * DEVICE's local date — the database's `current_date` is UTC.
+ *
+ * Only a container not yet started is touched (`acquired_on IS NULL`), so a
+ * second tap, or a stale screen, cannot restart a vial already in use.
+ */
+export async function mixStockItem(
+  id: string,
+  bacWaterMl: number,
+  dateKey: string,
+): Promise<{ ok: boolean; refusal?: WriteRefusalKind }> {
+  const refused = await refuseWrite();
+  if (refused) return refused;
+  if (!(bacWaterMl > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return { ok: false }
+  try {
+    const ctx = await sessionCtx()
+    if (!ctx) return { ok: false }
+    const { data, error } = await ctx.supabase
+      .from("inventory_items")
+      .update({ bac_water_ml: bacWaterMl, reconstituted_on: dateKey, acquired_on: dateKey })
+      .eq("id", id)
+      .eq("user_id", ctx.userId)
+      .eq("inventory_type", "reconstituted")
+      .is("acquired_on", null)
+      .select("id")
+    if (error) {
+      console.error("mixStockItem failed", error)
+      return { ok: false }
+    }
+    // Zero rows is not an error to PostgREST: already started, or not theirs.
+    return { ok: (data ?? []).length === 1 }
+  } catch (e) {
+    console.error("mixStockItem failed", e)
+    return { ok: false }
+  }
+}
+
+/**
+ * OPEN a spare that needs no mixing: today becomes its start ("Unopened", tap,
+ * then Open). The same call starts a spare picked in the log panel, because
+ * picking it is the moment it goes into use. Idempotent in the same way as
+ * {@link mixStockItem}.
+ */
+export async function openStockItem(
+  id: string,
+  dateKey: string,
+): Promise<{ ok: boolean; refusal?: WriteRefusalKind }> {
+  const refused = await refuseWrite();
+  if (refused) return refused;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return { ok: false }
+  try {
+    const ctx = await sessionCtx()
+    if (!ctx) return { ok: false }
+    const { data, error } = await ctx.supabase
+      .from("inventory_items")
+      .update({ acquired_on: dateKey })
+      .eq("id", id)
+      .eq("user_id", ctx.userId)
+      .neq("inventory_type", "reconstituted")
+      .is("acquired_on", null)
+      .select("id")
+    if (error) {
+      console.error("openStockItem failed", error)
+      return { ok: false }
+    }
+    return { ok: (data ?? []).length === 1 }
+  } catch (e) {
+    console.error("openStockItem failed", e)
     return { ok: false }
   }
 }

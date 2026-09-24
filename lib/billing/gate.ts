@@ -287,7 +287,8 @@ export async function requireWriteAccess(): Promise<
  *   lib/db/compoundPauses.ts       upsertPause, endPause, endPauseGroup
  *   lib/db/cycles.ts               ensureActiveCycle, updateCycle
  *   lib/db/doseLogs.ts             upsertDoseLog, upsertDoseLogs
- *   lib/db/inventory.ts            addStockItem, updateStockItem
+ *   lib/db/inventory.ts            addStockItem, updateStockItem, mixStockItem,
+ *                                  openStockItem
  *   lib/db/oneOffLogs.ts           upsertOneOffLog
  *   lib/db/protocolCompounds.ts    upsertProtocolCompound,
  *                                  upsertProtocolCompounds

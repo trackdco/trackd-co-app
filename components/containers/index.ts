@@ -4,4 +4,5 @@ export { useAnimatedFill, FILL_EASE_MS } from "./useAnimatedFill";
 export { Vial } from "./Vial";
 export { Bottle } from "./Bottle";
 export { Tub } from "./Tub";
+export { Dropper } from "./Dropper";
 export { DEFAULT_CONTAINER_SIZE, type ContainerProps } from "./types";

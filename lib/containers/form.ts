@@ -35,7 +35,9 @@ import {
 import { COMPOUNDS } from "@/lib/compounds-catalogue"
 import type { InventoryType } from "@/lib/db/types"
 
-export type ContainerForm = "vial" | "bottle" | "tub"
+/** `dropper` is the liquid-oral container (`supabase/protocol/025`): a screw
+ *  collar and a rubber bulb, holding mL at a stated strength or counted drops. */
+export type ContainerForm = "vial" | "bottle" | "tub" | "dropper"
 
 /** The four `inventory_type` values, as a type guard. Lives here because this is
  *  the module that answers "what form is this compound", and a second copy is
@@ -48,7 +50,8 @@ export function isInventoryForm(v: unknown): v is InventoryType {
     v === "reconstituted" ||
     v === "preconcentrated" ||
     v === "oral_solid" ||
-    v === "bulk_powder"
+    v === "bulk_powder" ||
+    v === "dropper"
   )
 }
 
@@ -67,6 +70,9 @@ export function isInventoryForm(v: unknown): v is InventoryType {
  */
 function statedForm(inventoryType?: string | null): ContainerForm | null {
   if (inventoryType === "bulk_powder") return "tub"
+  // Like a tub, only ever a stated form: no route implies a dropper (a liquid
+  // oral is `po`, exactly like a tablet).
+  if (inventoryType === "dropper") return "dropper"
   return null
 }
 

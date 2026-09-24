@@ -1,6 +1,7 @@
 import { containerColour } from "@/lib/containers/colour";
 import { containerFormFor } from "@/lib/containers/form";
 import { Bottle } from "./Bottle";
+import { Dropper } from "./Dropper";
 import { Tub } from "./Tub";
 import { Vial } from "./Vial";
 import type { ContainerProps } from "./types";
@@ -41,6 +42,8 @@ export function Container({
       return <Vial colour={colour} {...rest} />;
     case "tub":
       return <Tub colour={colour} {...rest} />;
+    case "dropper":
+      return <Dropper colour={colour} {...rest} />;
     default:
       return <Bottle colour={colour} {...rest} />;
   }

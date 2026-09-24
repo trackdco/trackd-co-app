@@ -34,6 +34,37 @@ Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
     the stack colour only where a caller passes it.
   Checked at 390x844 in Chromium and WebKit on the Home, Protocol and Progress previews;
   `npm run check` (2191 tests) and `next build` (65 pages) pass.
+- **Phase 3, the data layer:** built, and the migrations are WRITTEN BUT NOT APPLIED.
+  - `supabase/protocol/025_dropper_enums.sql` (run alone, first) and
+    `026_stock_spares_and_dropper.sql`: spares (`acquired_on` NULL, an unmixed vial
+    as a whole), the dropper's three shapes, the `drop` unit family, spares counting no
+    doses in `v_inventory_math` (+ `is_started`), the per-compound `v_compound_stock`,
+    and `cycle_end_item_id` with an owner-scoped key. **Awaiting Adrian's "apply batch
+    1".** Tested first on a local Postgres 17 (PGlite) replay of `trackd_schema_v0_4_2` +
+    `protocol/001`–`024` whose view hash and columns match production exactly: 21 checks,
+    including started rows' figures byte-identical before and after, idempotent reruns,
+    `main`'s insert shape still started, and no pointing a cycle at another user's vial.
+  - App side, working before AND after the migrations: `listStock` returns a
+    `StockRead` (a failed read says "Couldn't load your stock. Try again" on Protocol
+    instead of "Add stock"); `addStockItem` keeps other containers open and adds a box
+    of N as N rows; `mixStockItem` / `openStockItem` (gated; gate manifest 34);
+    `vialOnDate` and the log sheet take the OLDEST open container first;
+    `lib/protocol/stockView.ts` (in use / open / spares) and `runsDry.ts` (walks the due
+    days, tested on Mon/Thu, cycles, pauses, twice daily); the dropper through types,
+    unit families, container art (`Dropper.tsx`), labels, draw and fill.
+  - Catalogue: `half_life_estimated` (BPC-157, TB-500, GHK-Cu) in `compounds.csv`, the
+    bundled catalogue and the seed (which now adds its own column; still applied at
+    merge). Blend components in `lib/compound-blends.ts` (`componentsOf`): Wolverine and
+    CJC + Ipamorelin 1:1, Glow 1:1:5, KLOW 1:1:5:1, NDT 38 mcg T4 + 9 mcg T3 per grain.
+    Custom compounds get an optional half-life field on the pad.
+  - Decision taken in the build: "runs dry" is computed in TS over the due days
+    (`isDueOnFor`) rather than in SQL, so the schedule rules have one home
+    (architecture → "Stock: several containers").
+  - Left for Phase 7 (UI): the add-stock form for spares, boxes and the dropper, Mix /
+    Open in the Stock page, and the cycle's chosen vial (`VIAL_END_SUPPORTED`).
+  - Found, not changed: two readable lines in `--text-subtle` that predate this build
+    (the custom form's "Saved to your account" footer and `PadInput`'s word
+    placeholder).
 - **Verification limit:** creating a QA account on the live database was refused by the
   session's auto-mode guard, so screens are checked on the dev-only `/preview/*` pages
   (mock data, no database), not signed in.

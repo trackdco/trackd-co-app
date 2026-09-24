@@ -108,6 +108,9 @@ top of `progress-tracker.md`.
 4. Scroll settle, app-wide ("Lighter").
 5. Data: the blend `components` field, the dropper type, dry vials and bulk
    quantity (today each inventory row is one vial).
+   BUILT on the data side (Phase 3); migrations `025` + `026` await Adrian's approval.
+   Their UI (add stock for spares / boxes / dropper, Mix, Open, the cycle's vial) is
+   Phase 7.
 
 ### Build notes from the last round (Adrian, 2026-09-24)
 - Make the faded no-stock vial slightly brighter, so it reads on the card.

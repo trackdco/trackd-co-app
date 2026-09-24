@@ -143,6 +143,9 @@ const compounds = data
       // Only emit `commonName` when set (the curated "better known as" subset).
       ...(commonName ? { commonName } : {}),
       halfLifeHours: hl ? Number(hl) : null,
+      // Only emitted when true: a half-life with no human PK behind it, shown
+      // with a small "est." (Adrian, 2026-09-24). Absent means a published figure.
+      ...(/^true$/i.test((r[idx.half_life_estimated] ?? "").trim()) ? { halfLifeEstimated: true } : {}),
     }
   })
   .sort((a, b) => a.name.localeCompare(b.name))

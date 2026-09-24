@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils"
 import { PRESS } from "@/lib/ui-presets"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
+import { NumberPad, PadInput } from "@/components/feel/NumberPad"
 import { Input } from "@/components/ui/input"
 import {
   Sheet,
@@ -82,8 +83,25 @@ const DEFAULT_FORM = {
   unit: "mg",
   route: "im",
   inventoryType: "preconcentrated",
+  /** Hours, as typed. Optional (Adrian, 2026-09-24): empty = no half-life, and
+   *  the compound simply draws no curve. */
+  halfLife: "",
 }
 type FormState = typeof DEFAULT_FORM
+
+/** A half-life as typed on the pad: digits and one point, a sane length. */
+function sanitizeHalfLife(raw: string): string {
+  const cleaned = raw.replace(/[^0-9.]/g, "")
+  const dot = cleaned.indexOf(".")
+  const one = dot < 0 ? cleaned : cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/\./g, "")
+  return one.slice(0, 7)
+}
+
+/** The typed half-life as hours, or null when it is empty or not a real figure. */
+function halfLifeFrom(typed: string): number | null {
+  const n = Number.parseFloat(typed)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
 
 // Release the handle past this fraction of the sheet's height → dismiss.
 const DISMISS_THRESHOLD = 0.3
@@ -349,6 +367,7 @@ export function AddToStackMenu({
       unit: compound.defaultUnit,
       route: compound.defaultRoute,
       inventoryType: compound.defaultInventoryType,
+      halfLife: compound.halfLifeHours != null ? String(compound.halfLifeHours) : "",
     })
     setFormMode("edit")
     setEditingId(compound.id)
@@ -387,6 +406,7 @@ export function AddToStackMenu({
               defaultUnit: form.unit,
               defaultRoute: form.route,
               defaultInventoryType: form.inventoryType,
+              halfLifeHours: halfLifeFrom(form.halfLife),
             }
           : c
       )
@@ -401,7 +421,7 @@ export function AddToStackMenu({
         defaultUnit: form.unit,
         defaultRoute: form.route,
         defaultInventoryType: form.inventoryType,
-        halfLifeHours: null,
+        halfLifeHours: halfLifeFrom(form.halfLife),
       }
       next = [created, ...customs]
       changed = created
@@ -1220,6 +1240,8 @@ function CompoundForm({
   onCancelDelete: () => void
   onConfirmDelete: () => void
 }) {
+  const [halfLifePad, setHalfLifePad] = useState(false)
+  const halfLifeRef = useRef<HTMLButtonElement>(null)
   return (
     // The fields rise in as the form arrives (feel pass §4).
     <div
@@ -1271,6 +1293,40 @@ function CompoundForm({
         onChange={(v) => setForm((f) => ({ ...f, inventoryType: v }))}
         options={INVENTORY_TYPE_OPTIONS}
       />
+
+      {/* Optional. With it, this compound gets a half-life curve like the
+          catalogue's; without it, none (Adrian, 2026-09-24). */}
+      <div className="block">
+        <FieldLabel>Half-life</FieldLabel>
+        <PadInput
+          value={form.halfLife}
+          label="Half-life in hours"
+          unit="hours"
+          active={halfLifePad}
+          onOpen={() => setHalfLifePad(true)}
+          inputRef={halfLifeRef}
+          suffix={<span className="font-sans text-sm text-text-muted">hours</span>}
+          className="h-12 w-full"
+        />
+        <NumberPad
+          active={halfLifePad ? 0 : null}
+          fields={[
+            {
+              id: "half-life",
+              label: "Half-life",
+              unit: "hours",
+              value: form.halfLife,
+              onChange: (v) => setForm((f) => ({ ...f, halfLife: v })),
+              sanitize: sanitizeHalfLife,
+            },
+          ]}
+          onActiveChange={() => {}}
+          onClose={() => setHalfLifePad(false)}
+          anchorRef={halfLifeRef}
+          returnFocusRef={halfLifeRef}
+          label="Half-life"
+        />
+      </div>
 
       {saveFailed && (
         <p className="text-sm text-state-warning">

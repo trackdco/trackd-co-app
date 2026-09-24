@@ -26,6 +26,10 @@ import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
 import { StockActionsSheet } from "@/components/protocol/StockActionsSheet"
 import { listStock, type StockItem } from "@/lib/db/inventory"
+import { containersOf } from "@/lib/protocol/stockView"
+import { cn } from "@/lib/utils"
+import { PRESS } from "@/lib/ui-presets"
+import { runsDryInDays } from "@/lib/protocol/runsDry"
 import { remainingLabel } from "@/lib/containers/labels"
 import { subscribeDoseSynced } from "@/lib/home/doseLog"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
@@ -38,6 +42,7 @@ import {
 } from "@/lib/home/stack"
 import {
   getDoseLogsSnapshot,
+  loggedCountFor,
   subscribeDoseLogs,
   type DayLogs,
 } from "@/lib/home/doseLog"
@@ -177,6 +182,7 @@ export function ProtocolScreen({
     null
   )
   const [stockTick, setStockTick] = useState(0)
+  const [stockFailed, setStockFailed] = useState(false)
   /**
    * Re-read stock when a dose write LANDS, the same signal the dashboard uses.
    *
@@ -207,18 +213,37 @@ export function ProtocolScreen({
       const members = activeKey
         .split(",")
         .map((id) => ({ id, name: active.find((c) => c.id === id)?.name ?? null }))
-      const [items, idMap] = await Promise.all([
+      const [read, idMap] = await Promise.all([
         listStock(),
         resolveProtocolCompoundIds(members),
       ])
       if (cancelled) return
+      // A failed read is NOT "no stock": the cards keep claiming nothing and one
+      // line says the read failed (build brief §5, item 6).
+      if (!read.ok) {
+        setStockFailed(true)
+        return
+      }
+      setStockFailed(false)
       const pcToClient = new Map(
         Object.entries(idMap).map(([clientId, pcId]) => [pcId, clientId])
       )
+      // ONE card per compound, as today: the container IN USE (the oldest open
+      // one), carrying what the compound holds in every open container, and a
+      // runway walked over the days a dose is actually due.
       const next = new Map<string, StockItem>()
-      for (const item of items) {
-        const clientId = pcToClient.get(item.protocolCompoundId)
-        if (clientId) next.set(clientId, item)
+      for (const held of read.compounds) {
+        const clientId = pcToClient.get(held.protocolCompoundId)
+        const inUse = containersOf(read.items, held.protocolCompoundId).inUse
+        if (!clientId || !inUse) continue
+        const c = active.find((x) => x.id === clientId)
+        next.set(clientId, {
+          ...inUse,
+          dosesRemaining: held.dosesReady,
+          daysToEmpty: c
+            ? runsDryInDays(c, held.dosesReady, todayKey, loggedCountFor(logs[todayKey], clientId))
+            : inUse.daysToEmpty,
+        })
       }
       setFetchedStock(next)
     })()
@@ -273,6 +298,20 @@ export function ProtocolScreen({
             })
           }
         />
+        {/* The read FAILED: say so once, with a retry, rather than letting the
+            cards read "Add stock" for stock the user does hold. */}
+        {stockFailed && (
+          <p className="mt-2 px-1 text-sm text-state-error">
+            Couldn&apos;t load your stock.{" "}
+            <button
+              type="button"
+              onClick={() => setStockTick((t) => t + 1)}
+              className={cn(PRESS.text, "text-foreground underline underline-offset-4")}
+            >
+              Try again
+            </button>
+          </p>
+        )}
       </div>
 
       <div data-area="schedule" className="animate-home-up" style={delay(55)}>

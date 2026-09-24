@@ -18,6 +18,8 @@
     "lib/db/doseLogs.ts#upsertDoseLog",
     "lib/db/doseLogs.ts#upsertDoseLogs",
     "lib/db/inventory.ts#addStockItem",
+    "lib/db/inventory.ts#mixStockItem",
+    "lib/db/inventory.ts#openStockItem",
     "lib/db/inventory.ts#updateStockItem",
     "lib/db/oneOffLogs.ts#upsertOneOffLog",
     "lib/db/protocolCompounds.ts#upsertProtocolCompound",

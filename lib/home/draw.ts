@@ -84,6 +84,8 @@ function doseInBaseUnit(amount: number, doseUnit: string): number | null {
   if (!Number.isFinite(amount) || amount <= 0) return null
   if (doseUnit === "mcg") return amount / 1000
   if (doseUnit === "mg" || doseUnit === "iu") return amount
+  // A drop is its own base (`026`): a dropper with no stated strength per drop.
+  if (doseUnit === "drop") return amount
   return null
 }
 
@@ -122,6 +124,13 @@ function formatMl(ml: number): string {
 /** "2 tabs" / "1 cap" — halves are real (people split tabs), so allow 2dp. Carries the
  *  same honesty guard as the volume figures: a real dose below 0.005 of a tab must not
  *  round to "0 tabs", which would read as *take nothing*. */
+/** A dropper's measure, in drops: "2 drops", "1 drop". */
+function formatDrops(count: number): string {
+  const fixed = count.toFixed(2)
+  const n = Number(fixed) === 0 ? trim(count.toPrecision(1)) : trim(fixed)
+  return `${n} ${Number(n) === 1 ? "drop" : "drops"}`
+}
+
 function formatCount(count: number, oralForm: string | null): string {
   const noun = oralForm === "capsule" ? "cap" : "tab"
   const fixed = count.toFixed(2)
@@ -173,6 +182,23 @@ export function formatDraw(
   // `concentrationPerMl`, so the volume path below would return null anyway —
   // this is the same answer, said on purpose.
   if (source.inventoryType === "bulk_powder") return null
+
+  // A dropper is measured, not drawn into a syringe: mL for a research liquid
+  // (dosed in mL steps with the mg shown), drops for vitamin drops. `oralForm`
+  // carries the stored measure, `ml` or `drop` (ui-context → the five).
+  if (source.inventoryType === "dropper") {
+    if (source.oralForm === "drop") {
+      const strength = source.strengthPerUnit
+      if (strength == null) return { kind: "count", label: formatDrops(base) }
+      if (strength <= 0) return null
+      return { kind: "count", label: formatDrops(base / strength) }
+    }
+    const perMl = source.concentrationPerMl
+    if (!perMl || perMl <= 0) return null
+    const ml = base / perMl
+    if (!Number.isFinite(ml) || ml <= 0) return null
+    return { kind: "count", label: `${formatMl(ml)} mL` }
+  }
 
   // reconstituted + preconcentrated both resolve to a volume draw (D6).
   const conc = source.concentrationPerMl

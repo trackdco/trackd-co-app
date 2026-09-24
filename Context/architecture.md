@@ -416,9 +416,10 @@ stored.)
     **The vial is resolved for the dose's own DAY** by `vialOnDate` (`protocolSync.ts`) — the
     single rule, used by BOTH the write path (`pushProtocolDoseLog`) and the log sheet's read
     (the `resolveVialForDate` server action), so they can't drift. It takes the newest vial whose
-    `acquired_on <= dateKey`, active **or since-archived**, with the unit family filtered **in
+    `acquired_on <= dateKey`, active **or since-archived**, (**superseded 2026-09-24**: now the OLDEST open
+    one with stock left first, this as the fallback; see "Stock: several containers" below), with the unit family filtered **in
     the query** (so an incompatible newest vial falls through to an older compatible one rather
-    than losing the link). One vial is in use per compound at a time (`addStockItem` archives the
+    than losing the link). (Superseded 2026-09-24, several containers can be open; see below.) One vial is in use per compound at a time (`addStockItem` archives the
     priors on every add/refill), so "newest acquired by then" *is* the vial that was in use then.
     No vial that far back ⇒ **no link**, rather than a wrong one. This is what keeps back-dating
     honest — a dose logged for last Tuesday can't draw down a vial opened on Friday — and it
@@ -460,6 +461,50 @@ stored.)
     (`hydrateProtocol.ts` reconciles the local `archived` flag and converges Postgres) —
     so an archive done offline is no longer resurrected on reconnect. A robust offline
     outbox (covering offline dose un-logging + multi-device conflicts) is post-beta work.
+
+- **Stock: several containers, spares, and the dropper (half-life build, 2026-09-24,
+  `supabase/protocol/025` + `026`).** Adrian's rules: two open vials can BOTH be logged
+  from and the OLD one is used first; unmixed vials are "Unreconstituted" spares, and
+  spares count toward doses left only once started; liquid orals come in a dropper.
+  - **One row per container.** `addStockItem` no longer archives the compound's other
+    rows; a box of N inserts N rows in one insert. A container leaves the list when it
+    is discarded (archived); history is never deleted.
+  - **A spare is `acquired_on IS NULL`.** `026` lets an unmixed vial be stored (no
+    water, no mix date, not started, as a whole) and keeps the column default, so a row
+    `main` inserts is still started. `mixStockItem` (water, and today as mix date and
+    start) and `openStockItem` (today as start) touch only unstarted rows. The date is
+    the DEVICE's, passed in, because the database's `current_date` is UTC.
+  - **`v_inventory_math` counts no doses and no runway for a spare** (its amounts stay,
+    so it can be drawn at its real level) and gains `is_started`, appended last so the
+    replace keeps every column in place.
+  - **`v_compound_stock`** is the per-compound read: `doses_ready` (every open
+    container), `open_count`, `spares_held`. `listStock` returns a `StockRead`, and a
+    FAILED read is `{ ok: false }`, never an empty list, which every card used to read
+    as "Add stock". Until `026` is applied, the per-compound figures are summed from
+    the rows (there are no spares before it).
+  - **Which container is in use** is `lib/protocol/stockView.ts`: the oldest open one
+    with anything left. The server's `vialOnDate` applies the same order: the oldest
+    ACTIVE container started by the dose's day with stock left, else the newest started
+    by then (the old rule, which keeps back-dating to an archived vial honest).
+  - **Runs dry walks the calendar, in TS, on purpose** (`lib/protocol/runsDry.ts`):
+    forward from today over the days a dose is DUE, spending `doses_ready`. Which days
+    are due (cadence, cycle, pauses, the resume re-anchor, schedule versions) is
+    `isDueOnFor`'s answer, so it is asked rather than re-derived in SQL, where it would
+    be a second copy of the schedule rules. The stock arithmetic stays in the views;
+    only the calendar walk is here. `days_to_empty` (an average-week estimate) stays for
+    the notification runner.
+  - **The dropper is the fifth `inventory_type`**, with three shapes: mL at a stated
+    mg/mL (a pre-mixed vial's maths), drops at a stated strength per drop (an oral's),
+    and plain drops based in the new `drop` unit (its own family, like `tab`).
+  - **A cycle can end when a CHOSEN container runs out** (`cycle_end_item_id` on
+    `protocol_compounds` and the version trail; NULL = the one being logged from). A
+    composite key to `inventory_items (id, user_id)` makes it impossible to name another
+    user's container, and deleting the container clears only that column.
+  - **Blend components** live beside the blends in `lib/compound-blends.ts`
+    (`componentsOf`): each component's share of one dose, by catalogue name, so its
+    half-life and "est." flag come from `compounds.csv`. **`half_life_estimated`** is a
+    catalogue column (`compounds.csv`, the bundled catalogue, and the seed, which adds
+    the column itself). A custom compound's optional half-life rides the custom record.
 
 - The **quick-actions menu** (A10) lives on a **floating action button** pinned
   bottom-right above the nav (`components/shortcuts/QuickActionsFab.tsx`, Spec 20),

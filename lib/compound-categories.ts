@@ -44,6 +44,9 @@ export interface Compound {
    *  "aka …" chip in search. Absent ⇒ no chip (the listed name is the known one). */
   commonName?: string
   halfLifeHours: number | null
+  /** True when the half-life has no human PK data behind it (BPC-157, TB-500,
+   *  GHK-Cu). The Half-life row adds a small "est."; nothing else changes. */
+  halfLifeEstimated?: boolean
 }
 
 /** A compound's selectable routes, default first. Falls back to the single

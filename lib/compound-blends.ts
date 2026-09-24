@@ -154,3 +154,67 @@ export function describeBlendOverlap(
     shared.length > 1 ? "those" : "it"
   } from each.`
 }
+
+/* ------------------------------------------------------------- components */
+
+/**
+ * One part of a compound, for the half-life curves (build brief §5, item 9).
+ *
+ * A blend draws one line per component (Sorbet, told apart by dash too), and
+ * each component has its own half-life, read from the catalogue by `name` —
+ * never restated here, so a retuned half-life in `compounds.csv` moves the line.
+ */
+export interface BlendComponent {
+  /** Exact catalogue name. Its half-life and "est." flag come from there. */
+  name: string
+  /** The short label on its tab ("BPC"). */
+  label: string
+  /** How much of this component ONE unit of the compound's dose holds, in
+   *  {@link unit}: Glow's 1750 mcg dose is 250 BPC-157 : 250 TB-500 : 1250
+   *  GHK-Cu, so BPC-157 is 1/7. */
+  perDoseUnit: number
+  /** The component's own unit when it differs from the compound's: NDT is
+   *  dosed in mg of tablet, its T4 is counted in mcg. Absent = the same. */
+  unit?: string
+}
+
+/**
+ * The make-up of every compound that is more than one thing, keyed by exact
+ * catalogue name. The blend ratios are the ones the half-life design was drawn
+ * with (the preview, 2026-09-24): Wolverine and CJC + Ipamorelin 1:1, Glow
+ * 1:1:5, KLOW 1:1:5:1. NDT is labelled per grain (60 mg): 38 mcg T4 and 9 mcg T3.
+ *
+ * Deliberately NOT {@link BLENDS}: that list drives the overlap heads-up, and
+ * adding NDT or CJC + Ipamorelin there would start flagging T3 or Ipamorelin
+ * against them — a behaviour change nobody asked for.
+ */
+const COMPONENTS: Record<string, BlendComponent[]> = {
+  "wolverine (bpc-157 + tb-500)": [
+    { name: "BPC-157", label: "BPC", perDoseUnit: 1 / 2 },
+    { name: "TB-500", label: "TB", perDoseUnit: 1 / 2 },
+  ],
+  "glow (bpc-157 + tb-500 + ghk-cu)": [
+    { name: "BPC-157", label: "BPC", perDoseUnit: 1 / 7 },
+    { name: "TB-500", label: "TB", perDoseUnit: 1 / 7 },
+    { name: "GHK-Cu", label: "GHK", perDoseUnit: 5 / 7 },
+  ],
+  "klow (bpc-157 + tb-500 + ghk-cu + kpv)": [
+    { name: "BPC-157", label: "BPC", perDoseUnit: 1 / 8 },
+    { name: "TB-500", label: "TB", perDoseUnit: 1 / 8 },
+    { name: "GHK-Cu", label: "GHK", perDoseUnit: 5 / 8 },
+    { name: "KPV", label: "KPV", perDoseUnit: 1 / 8 },
+  ],
+  "cjc-1295 + ipamorelin": [
+    { name: "CJC-1295 (no DAC)", label: "CJC", perDoseUnit: 1 / 2 },
+    { name: "Ipamorelin", label: "IPA", perDoseUnit: 1 / 2 },
+  ],
+  "natural desiccated thyroid": [
+    { name: "Levothyroxine (T4)", label: "T4", perDoseUnit: 38 / 60, unit: "mcg" },
+    { name: "Liothyronine (T3)", label: "T3", perDoseUnit: 9 / 60, unit: "mcg" },
+  ],
+}
+
+/** The components of this compound, or null when it is a single compound. */
+export function componentsOf(name: string): BlendComponent[] | null {
+  return COMPONENTS[norm(name)] ?? null
+}

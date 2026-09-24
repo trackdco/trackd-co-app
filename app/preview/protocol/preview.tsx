@@ -141,6 +141,7 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLog
   const stock: StockItem[] = [
     {
       id: "pv-inv-test",
+      createdAt: null,
       protocolCompoundId: "pv-test-e",
       compoundName: "Testosterone Enanthate",
       category: "anabolic",
@@ -167,6 +168,7 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLog
     },
     {
       id: "pv-inv-ipa",
+      createdAt: null,
       protocolCompoundId: "pv-ipa",
       compoundName: "Ipamorelin",
       category: "peptide",

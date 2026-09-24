@@ -225,7 +225,8 @@ export const COMPOUNDS: Compound[] = [
         "inventoryType": "oral_solid"
       }
     ],
-    "halfLifeHours": 4
+    "halfLifeHours": 4,
+    "halfLifeEstimated": true
   },
   {
     "name": "Bromocriptine",
@@ -737,7 +738,8 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": 4
+    "halfLifeHours": 4,
+    "halfLifeEstimated": true
   },
   {
     "name": "GHRP-2",
@@ -2070,7 +2072,8 @@ export const COMPOUNDS: Compound[] = [
     "defaultUnit": "mg",
     "defaultRoute": "subq",
     "defaultInventoryType": "reconstituted",
-    "halfLifeHours": 2
+    "halfLifeHours": 2,
+    "halfLifeEstimated": true
   },
   {
     "name": "Telmisartan",

@@ -1,0 +1,37 @@
+-- ============================================================================
+-- 025 · two new enum values: the dropper, and the drop
+-- ============================================================================
+--
+-- ▶ HOW TO RUN THIS
+--   1. Paste the WHOLE file into the SQL Editor and run it. It is two
+--      statements and nothing else.
+--   2. "Success. No rows returned" is the success message.
+--   3. CHECK (paste this afterwards; it should return TWO rows, `dropper` and
+--      `drop`):
+--        SELECT enumlabel FROM pg_enum
+--        WHERE enumlabel IN ('dropper', 'drop');
+--   4. Idempotent: `IF NOT EXISTS`, so running it twice is harmless.
+--
+-- ⚠️ RUN THIS ON ITS OWN, AND BEFORE `026`. `ALTER TYPE ... ADD VALUE` cannot be
+-- used by a later statement in the SAME transaction ("unsafe use of new value"),
+-- and `026` uses both values in a CHECK. Same split as `014` PART A / PART B.
+--
+-- WHY
+--
+-- The dropper is the container for liquid orals (Adrian, 2026-09-24,
+-- ui-context → "Motion and the five never-designed parts"): a screw collar and a
+-- rubber bulb. It serves research liquids, dosed in mL steps with the mg shown,
+-- and vitamin drops, dosed per drop. It is a FIFTH inventory type
+-- (`bulk_powder` was the fourth).
+--
+-- A drop had no unit at all. `drop` joins `dose_unit` so a label that states no
+-- strength per drop can still be counted, the way a tablet with no stated
+-- strength is counted in `tab` (`016`).
+--
+-- SAFETY: adding enum values changes no existing row and no existing CHECK.
+-- Running `main` against the database afterwards is unaffected: nothing on it
+-- ever writes either value.
+-- ============================================================================
+
+ALTER TYPE public.inventory_type ADD VALUE IF NOT EXISTS 'dropper';
+ALTER TYPE public.dose_unit ADD VALUE IF NOT EXISTS 'drop';

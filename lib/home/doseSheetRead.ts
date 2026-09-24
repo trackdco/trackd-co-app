@@ -14,7 +14,7 @@
  * with its existing guarantees (identity from the session, RLS, never throws).
  */
 import { resolveDrawSources, resolveVialForDate } from "@/lib/home/protocolSync"
-import { listStock, type StockItem } from "@/lib/db/inventory"
+import { listStock, type StockRead } from "@/lib/db/inventory"
 import { listInjectionSiteCatalogue } from "@/lib/db/injectionSites"
 import type { DrawSource } from "@/lib/home/draw"
 import type { InjectionSiteRow } from "@/lib/db/types"
@@ -33,8 +33,8 @@ export interface DoseSheetWants {
 export interface DoseSheetRead {
   /** The vial facts for the draw; null when none resolved or not asked. */
   drawSource: DrawSource | null
-  /** Active stock, or null when not asked. */
-  stock: StockItem[] | null
+  /** Active stock (a failed read says so), or null when not asked. */
+  stock: StockRead | null
   /** The back-dated day's vial id (null = none then); undefined when not asked. */
   dateVialId: string | null | undefined
   /** The catalogue, or null when not asked. */

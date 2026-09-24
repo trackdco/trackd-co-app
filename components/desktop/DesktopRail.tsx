@@ -12,7 +12,8 @@ import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { useIsDesktop } from "@/lib/desktop/breakpoint"
 import { computeNextDose } from "@/lib/home/nextDose"
 import { requestProgressAction } from "@/lib/progress/progressAction"
-import { listStock, type StockItem } from "@/lib/db/inventory"
+import { listStock, type CompoundStock, type StockItem } from "@/lib/db/inventory"
+import { containersOf } from "@/lib/protocol/stockView"
 import { remainingLabel } from "@/lib/containers/labels"
 import {
   getDoseLogsSnapshot,
@@ -122,7 +123,10 @@ export function DesktopRail({
   // opened it, if it had focus (a keyboard or a click in Chrome).
   const weightTrigger = useRef<HTMLElement | null>(null)
   const [addOpen, setAddOpen] = useState(false)
-  const [stock, setStock] = useState<StockItem[]>([])
+  const [stock, setStock] = useState<{ items: StockItem[]; compounds: CompoundStock[] }>({
+    items: [],
+    compounds: [],
+  })
 
   const liveStack = useSyncExternalStore(
     subscribeStack,
@@ -173,12 +177,13 @@ export function DesktopRail({
     let alive = true
     const load = () => {
       listStock()
-        .then((rows) => {
-          if (alive) setStock(rows)
+        .then((read) => {
+          // A failed read keeps what the rail last knew rather than emptying it.
+          if (alive && read.ok) setStock({ items: read.items, compounds: read.compounds })
         })
         .catch(() => {
           // Non-fatal. A rail with no runway section is a smaller loss than a
-          // rail that throws, and `listStock` already returns [] on error.
+          // rail that throws.
         })
     }
     load()
@@ -239,12 +244,17 @@ export function DesktopRail({
     [isDesktop, stack, logs, today, todayDate],
   )
 
-  /** Lowest runway first, and only vials that actually report one. */
+  /** Lowest runway first, one line per COMPOUND (several containers can be
+   *  open), worded from the container in use. Only compounds that report one. */
   const runway = useMemo(
     () =>
-      stock
-        .filter((s) => s.dosesRemaining != null)
-        .sort((a, b) => (a.dosesRemaining ?? 0) - (b.dosesRemaining ?? 0))
+      stock.compounds
+        .filter((c) => c.dosesReady != null)
+        .sort((a, b) => (a.dosesReady ?? 0) - (b.dosesReady ?? 0))
+        .flatMap((c) => {
+          const inUse = containersOf(stock.items, c.protocolCompoundId).inUse
+          return inUse ? [{ ...inUse, dosesRemaining: c.dosesReady }] : []
+        })
         .slice(0, RUNWAY_SHOWN),
     [stock],
   )

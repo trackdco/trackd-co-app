@@ -1,4 +1,4 @@
-name,category,default_unit,default_route,default_inventory_type,aliases,half_life_hours,alt_routes,common_name
+name,category,default_unit,default_route,default_inventory_type,aliases,half_life_hours,alt_routes,common_name,half_life_estimated
 Testosterone Enanthate,anabolic,mg,im,preconcentrated,"Test E, TestE, Test Enan, Testoviron",108,subq
 Testosterone Cypionate,anabolic,mg,im,preconcentrated,"Test C, Test Cyp, Depo-Testosterone",120,subq
 Testosterone Propionate,anabolic,mg,im,preconcentrated,"Test P, Prop, Test Prop",20,subq
@@ -50,8 +50,8 @@ Tesamorelin,peptide,mg,subq,reconstituted,"Tesa, Egrifta",0.5
 GHRP-2,peptide,mcg,subq,reconstituted,GHRP2,0.5
 GHRP-6,peptide,mcg,subq,reconstituted,GHRP6,0.3
 Hexarelin,peptide,mcg,subq,reconstituted,Hex,1
-BPC-157,peptide,mcg,subq,reconstituted,"BPC, Body Protection Compound, BPC caps",4,po:oral_solid
-TB-500,peptide,mg,subq,reconstituted,"Thymosin Beta-4, TB4",2
+BPC-157,peptide,mcg,subq,reconstituted,"BPC, Body Protection Compound, BPC caps",4,po:oral_solid,,true
+TB-500,peptide,mg,subq,reconstituted,"Thymosin Beta-4, TB4",2,,,true
 IGF-1 LR3,peptide,mcg,subq,reconstituted,"IGF, IGF1, LR3, IGF1-LR3",24
 Melanotan II,peptide,mg,subq,reconstituted,"MT-2, MT2, Melanotan",2,nasal
 PT-141,peptide,mg,subq,reconstituted,"Bremelanotide, Vyleesi, PT-141 spray",2.7,nasal
@@ -67,7 +67,7 @@ CJC-1295 + Ipamorelin,peptide,mcg,subq,reconstituted,"CJC/Ipa, CJC Ipamorelin, C
 Wolverine (BPC-157 + TB-500),peptide,mcg,subq,reconstituted,"Wolverine, Wolverine Stack, BPC-157 TB-500, BPC TB500",
 Glow (BPC-157 + TB-500 + GHK-Cu),peptide,mcg,subq,reconstituted,"Glow, Glow Blend, Glow Stack, GHK-Cu BPC TB500",
 KLOW (BPC-157 + TB-500 + GHK-Cu + KPV),peptide,mcg,subq,reconstituted,"KLOW, KLOW Blend, KLOW Stack, KPV GHK-Cu BPC TB500",
-GHK-Cu,peptide,mg,subq,reconstituted,"Copper Peptide, GHK Copper, Copper Tripeptide",4
+GHK-Cu,peptide,mg,subq,reconstituted,"Copper Peptide, GHK Copper, Copper Tripeptide",4,,,true
 KPV,peptide,mcg,subq,reconstituted,Lysine-Proline-Valine,
 Thymosin Alpha-1,peptide,mg,subq,reconstituted,"TA-1, Zadaxin",2
 MOTS-c,peptide,mg,subq,reconstituted,"MOTSc, MOTS c",
