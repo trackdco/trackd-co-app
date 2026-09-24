@@ -405,6 +405,17 @@ stored.)
     (`cycles.notes`) shown under the Plan header. The dose-plan is never labelled "protocol" in
     UI (it's "Plan"/"Cycle").
     A dev-only `/preview/protocol` (mock data, 404 in prod) renders the screen without auth.
+    **Stock, Stacks and Cycles pages (2026-09-24).** Protocol's foot is three tiles
+    (`components/protocol/FootTiles.tsx`) that push `/protocol/stock`, `/protocol/stacks`
+    and `/protocol/cycles` (`app/(app)/protocol/{stock,stacks,cycles}`, each with its own
+    `loading.tsx`; screens in `components/protocol/pages/`, the shared row and shell in
+    `pages/Subpage.tsx`). They replace the Stacks and Cycles sections, whose components
+    (`StacksView`, `CyclesView`, `StackDetailSheet`, `CycleDetailSheet`, `CycleCard`) are
+    deleted; editing still goes through `StackEditSheet` and `CycleRuleSheet`, and stock
+    through `AddStockSheet` (one compound, type implied, a box of N with the rest as spares,
+    "Mix one now", the dropper). Mix / Open write through `mixStockItem` / `openStockItem`,
+    Discard through `setStockArchived`. The page figures are pure and tested
+    (`lib/protocol/stockPage.ts`, `cyclePage.ts`). Previews: `/preview/protocol/{stock,stacks,cycles}`.
     (Per-cycle **goals** were prototyped then removed — goals belong in Progress, where you
     track against them; revisit in a later version.)
   - **Dose→inventory link (wired):** the Home log sheet (`LogDoseSheet`) shows a **"From

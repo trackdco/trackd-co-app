@@ -18,8 +18,7 @@ import {
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { CompoundsRow } from "@/components/protocol/CompoundsRow"
 import { ScheduleWeeks } from "@/components/protocol/ScheduleWeeks"
-import { StacksView } from "@/components/protocol/StacksView"
-import { CyclesView } from "@/components/protocol/CyclesView"
+import { FootTiles } from "@/components/protocol/FootTiles"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
@@ -77,8 +76,8 @@ export function ProtocolScreen({
   initialStockFor,
   previewStock,
   previewCompounds,
-  previewStacks,
   previewLogs,
+  footBase,
 }: {
   userId: string
   initialStockFor?: string | null
@@ -87,6 +86,8 @@ export function ProtocolScreen({
   previewCompounds?: StackCompound[]
   previewStacks?: Stack[]
   previewLogs?: DayLogs
+  /** Where the foot tiles' pages live (the preview has its own). */
+  footBase?: string
 }) {
   /**
    * Guarded: adding a compound and adding or editing stock. Both EDIT THE
@@ -333,16 +334,10 @@ export function ProtocolScreen({
         <ScheduleWeeks compounds={compounds} logs={logs} todayKey={todayKey} />
       </div>
 
-      <div data-area="stacks" className="animate-home-up" style={delay(220)}>
-        <StacksView
-          userId={userId}
-          previewCompounds={previewCompounds}
-          previewStacks={previewStacks}
-        />
-      </div>
-
-      <div data-area="cycles" className="animate-home-up" style={delay(275)}>
-        <CyclesView userId={userId} previewStack={previewCompounds} />
+      {/* The foot (Adrian, 2026-09-24): Stacks, Cycles and Stock each push
+          their own page, in place of the Stacks and Cycles sections. */}
+      <div data-area="foot" className="animate-home-up" style={delay(220)}>
+        <FootTiles base={footBase} />
       </div>
       </SkeletonSwap>
 

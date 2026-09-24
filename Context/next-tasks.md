@@ -106,6 +106,10 @@ top of `progress-tracker.md`.
 3. ~~Today's Log Flow B: the two-tap tick, tiles in place, the stock cards, the
    border fill and the E4 finish, and the darker logged card.~~ DONE (Phase 6), with
    the ⋯ sheet (Skip, Pause), the grouped spares and Add stock over the row.
+3b. ~~Stock / Stacks / Cycles pages, foot tiles, Add stock for spares / boxes / dropper,
+   Mix and Open~~ DONE (Phase 7). Still owed: a cycle ending on a chosen vial
+   (`VIAL_END_SUPPORTED`) needs a "vial ran dry on" producer threaded into `isDueOnFor`
+   first; see progress-tracker.
 4. Scroll settle, app-wide ("Lighter").
 5. Data: the blend `components` field, the dropper type, dry vials and bulk
    quantity (today each inventory row is one vial).

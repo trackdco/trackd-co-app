@@ -47,6 +47,7 @@ import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
 import { resolveFill, vialBasis, FILL_PRESETS, round3, formatGrams } from "@/lib/protocol/vialFill"
 import { StockAddedCard } from "@/components/protocol/StockAddedCard"
+import { Container } from "@/components/containers"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
 const EMPTY: StackCompound[] = []
@@ -71,6 +72,7 @@ const TYPES: { value: InventoryType; label: string }[] = [
   { value: "preconcentrated", label: "Pre-mixed" },
   { value: "oral_solid", label: "Oral" },
   { value: "bulk_powder", label: "Powder" },
+  { value: "dropper", label: "Dropper" },
 ]
 
 function num(s: string): number {
@@ -89,6 +91,7 @@ const ALL_FORMS: InventoryType[] = [
   "preconcentrated",
   "oral_solid",
   "bulk_powder",
+  "dropper",
 ]
 
 /** The inventory form(s) a compound can actually be stocked as, from the bundled
@@ -116,7 +119,7 @@ function catalogueForms(name: string): InventoryType[] | null {
  * supplement to be described as tabs it is not made of.
  */
 function formsForMethod(method: InjectionMethod): InventoryType[] {
-  if (method === "po") return ["oral_solid", "bulk_powder"]
+  if (method === "po") return ["oral_solid", "bulk_powder", "dropper"]
   if (method === "im" || method === "subq") return ["reconstituted", "preconcentrated"]
   if (method === "nasal") return ["reconstituted"]
   return ALL_FORMS
@@ -349,7 +352,9 @@ function AddStockForm({
   const [bacWater, setBacWater] = useState(numStr(ei?.bacWaterMl))
   // preconcentrated
   const [oilMl, setOilMl] = useState(
-    ei?.inventoryType === "preconcentrated" ? numStr(ei.totalAmount) : "",
+    ei?.inventoryType === "preconcentrated" || (ei?.inventoryType === "dropper" && ei.totalAmountUnit === "ml")
+      ? numStr(ei.totalAmount)
+      : "",
   )
   const [concentration, setConcentration] = useState(numStr(ei?.concentrationMgPerMl))
   // oral_solid
@@ -370,6 +375,21 @@ function AddStockForm({
     ei?.inventoryType === "bulk_powder" ? numStr(ei.totalAmount) : "",
   )
   const [servingG, setServingG] = useState(numStr(ei?.servingSizeG))
+  // dropper (`supabase/protocol/025`): held in mL at a stated mg/mL (the
+  // pre-mixed fields above), or counted by the drop with an optional strength
+  // per drop.
+  const [dropMode, setDropMode] = useState<"ml" | "drops">(
+    ei?.inventoryType === "dropper" && ei.totalAmountUnit === "drop" ? "drops" : "ml",
+  )
+  const [drops, setDrops] = useState(
+    ei?.inventoryType === "dropper" && ei.totalAmountUnit === "drop" ? numStr(ei.totalAmount) : "",
+  )
+  const [perDrop, setPerDrop] = useState(ei?.inventoryType === "dropper" ? numStr(ei.strengthPerUnit) : "")
+  // A box of several (Adrian, 2026-09-24): the first is started and the rest
+  // are spares, which count no doses until they are mixed or opened. An unmixed
+  // vial can be held too: with "Mix one now" off, every vial is a spare.
+  const [boxCount, setBoxCount] = useState(1)
+  const [mixNow, setMixNow] = useState(true)
   // "How much is in it?" — a Full/¾/½/¼ preset, or an exact amount-left in the
   // vial's own measure (mL of solution, or tab/cap count). An exact entry overrides
   // the preset. Both fold into prior_used_base on save; default Full = no change.
@@ -476,23 +496,26 @@ function AddStockForm({
   const effectiveOralForm = oralRule.countUnit ?? oralForm
 
 
+  /** Held unmixed: a spare with no water, no mix date and no start (`026`). */
+  const unmixed = type === "reconstituted" && !mixNow && !editItem
   const fill = resolveFill(
     type,
     {
       // Converted: `vialBasis` sizes a vial by its powder mass in the STORED
       // unit, so a mg entry on an iu vial must be 3× before it gets here.
       powder: powderInBase,
-      bacWater: num(bacWater),
-      oilMl: num(oilMl),
+      // An unmixed vial holds no solution yet, so it has no level to set.
+      bacWater: unmixed ? 0 : num(bacWater),
+      oilMl: type === "dropper" && dropMode === "drops" ? 0 : num(oilMl),
       concentration: num(concentration),
-      count: num(count),
+      count: type === "dropper" ? (dropMode === "drops" ? num(drops) : 0) : num(count),
       // ONLY when the row will actually store one. The field is hidden for a
       // compound dosed in tablets, but its state survives a compound change —
       // and `vialBasis` sizes an oral's capacity as `count × strength`, while
       // the strengthless row it is about to save is sized as `count`. A stale
       // figure here writes `prior_used_base` at strength× the right scale, and
       // the view then subtracts that from remaining forever.
-      strength: strengthRequired ? num(strength) : 0,
+      strength: type === "dropper" ? (dropMode === "drops" ? num(perDrop) : 0) : strengthRequired ? num(strength) : 0,
       tubGrams: num(tubGrams),
     },
     exactLeft,
@@ -503,6 +526,20 @@ function AddStockForm({
     if (!compoundId) return null
     const base = { id: crypto.randomUUID(), protocol_compound_id: compoundId }
     const prior_used_base = fill.priorUsed
+    if (type === "reconstituted" && unmixed) {
+      if (num(powder) <= 0) return null
+      return {
+        ...base,
+        inventory_type: "reconstituted",
+        base_unit: powderBaseUnit,
+        total_amount: powderInBase,
+        total_amount_unit: powderBaseUnit,
+        bac_water_ml: null,
+        reconstituted_on: null,
+        acquired_on: null,
+        prior_used_base: null,
+      }
+    }
     if (type === "reconstituted") {
       if (num(powder) <= 0 || num(bacWater) <= 0) return null
       return {
@@ -540,6 +577,42 @@ function AddStockForm({
         total_amount: num(tubGrams),
         total_amount_unit: "g",
         serving_size_g: num(servingG) > 0 ? num(servingG) : null,
+        prior_used_base,
+      }
+    }
+    if (type === "dropper") {
+      // The three shapes `026` accepts, one arm each.
+      if (dropMode === "ml") {
+        if (num(oilMl) <= 0 || num(concentration) <= 0) return null
+        return {
+          ...base,
+          inventory_type: "dropper",
+          base_unit: "mg",
+          total_amount: num(oilMl),
+          total_amount_unit: "ml",
+          concentration_mg_per_ml: num(concentration),
+          prior_used_base,
+        }
+      }
+      if (num(drops) <= 0) return null
+      if (num(perDrop) > 0) {
+        return {
+          ...base,
+          inventory_type: "dropper",
+          base_unit: strengthUnitToSave,
+          total_amount: num(drops),
+          total_amount_unit: "drop" as DoseUnit,
+          strength_per_unit: num(perDrop),
+          prior_used_base,
+        }
+      }
+      return {
+        ...base,
+        inventory_type: "dropper",
+        base_unit: "drop" as DoseUnit,
+        total_amount: num(drops),
+        total_amount_unit: "drop" as DoseUnit,
+        strength_per_unit: null,
         prior_used_base,
       }
     }
@@ -581,6 +654,12 @@ function AddStockForm({
   }
 
   const insert = buildInsert()
+  /** Adding to a named compound whose form is known: the sheet does not ask. */
+  const typeImplied =
+    compoundLocked &&
+    !editItem &&
+    picker !== "all" &&
+    (refillType != null || selected?.inventoryForm != null || formsForId(compoundId).length <= 1)
   const allowedForms = formsForId(compoundId)
   const formsToShow = picker === "all" ? ALL_FORMS : allowedForms
 
@@ -589,12 +668,23 @@ function AddStockForm({
   const fillUnit =
     // `effectiveOralForm`, so a capsule-dosed compound does not read "tab left"
     // while its row is stored in capsules.
-    type === "oral_solid" ? effectiveOralForm : type === "bulk_powder" ? "g" : "mL"
+    type === "oral_solid" ? effectiveOralForm : type === "bulk_powder" ? "g" : type === "dropper" && dropMode === "drops" ? "drops" : "mL"
 
   /** What was added, worded the way the container would be read: "10 mL",
    *  "60 tablets", "300 g". Null when the form has nothing quantifiable, which
    *  cannot happen on a successful save but keeps the card honest. */
   function addedLabel(): string | null {
+    const one = oneLabel()
+    return one && boxCount > 1 ? `${boxCount} × ${one}` : one
+  }
+  function oneLabel(): string | null {
+    if (type === "dropper" && dropMode === "drops") {
+      const n = num(drops)
+      return n > 0 ? `${n} drop${n === 1 ? "" : "s"}` : null
+    }
+    if (unmixed) {
+      return num(powder) > 0 ? `${round3(num(powder))} ${powderEntryUnit}` : null
+    }
     if (type === "bulk_powder") {
       return num(tubGrams) > 0 ? formatGrams(num(tubGrams)) : null
     }
@@ -682,7 +772,8 @@ function AddStockForm({
       // sheet said "Couldn't save this stock" with nothing wrong at their end.
       // The add-compound sheet already used the returned id; this path did not.
       const r = await addStockItem(
-        pcId ? { ...insert, protocol_compound_id: pcId } : insert
+        pcId ? { ...insert, protocol_compound_id: pcId } : insert,
+        { count: boxCount, restAsSpares: true },
       )
       if (!r.ok) {
         // A form the database cannot hold until `014`/`016` are applied gets its
@@ -716,7 +807,7 @@ function AddStockForm({
         // `percent` is remaining-against-total for exactly these inputs, which
         // is the same ratio `v_inventory_math` will report once it lands. A
         // full vial is 1; one entered as half used settles at 0.5.
-        fill: fill.percent != null ? fill.percent / 100 : 1,
+        fill: unmixed ? 0 : fill.percent != null ? fill.percent / 100 : 1,
         amountLabel: addedLabel(),
       })
     } finally {
@@ -755,6 +846,18 @@ function AddStockForm({
     if (strengthRequired) {
       padFields.push({ id: "strength", label: "Strength each", short: "Each", unit: strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit, value: strength, onChange: setStrength, sanitize: clean })
     }
+  } else if (type === "dropper") {
+    if (dropMode === "ml") {
+      padFields.push(
+        { id: "oilMl", label: "Volume", short: "Volume", unit: "mL", value: oilMl, onChange: setOilMl, sanitize: clean },
+        { id: "concentration", label: "Strength", short: "Strength", unit: "mg/mL", value: concentration, onChange: setConcentration, sanitize: clean },
+      )
+    } else {
+      padFields.push(
+        { id: "drops", label: "Drops", short: "Drops", value: drops, onChange: setDrops, decimal: false, sanitize: clean },
+        { id: "perDrop", label: "Per drop", short: "Per drop", unit: strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit, value: perDrop, onChange: setPerDrop, sanitize: clean },
+      )
+    }
   } else if (type === "bulk_powder") {
     padFields.push(
       { id: "tubGrams", label: "Tub weight", short: "Tub", unit: "g", value: tubGrams, onChange: setTubGrams, sanitize: clean },
@@ -775,6 +878,20 @@ function AddStockForm({
           </p>
         ) : (
           <>
+            {compoundLocked && selected ? (
+              // Every add is for ONE compound (Adrian, 2026-09-24): name it, with
+              // its container, rather than a picker locked to one option.
+              <div className="flex items-center gap-2.5 text-[15px] text-foreground">
+                <Container
+                  name={selected.name}
+                  inventoryType={type}
+                  category={selected.category}
+                  fill={unmixed ? 0 : 0.95}
+                  size={34}
+                />
+                <span className="min-w-0 truncate">{selected.name}</span>
+              </div>
+            ) : (
             <label className="block">
               <span className={STOCK_FIELD_LABEL}>Compound</span>
               <select
@@ -805,8 +922,9 @@ function AddStockForm({
                 ))}
               </select>
             </label>
+            )}
 
-            {picker === "hidden" ? (
+            {typeImplied ? null : picker === "hidden" ? (
               // One obvious form (or a refill keeping its vial's form): no choice to
               // make — just name it, with a quiet way out if they track it differently.
               <div>
@@ -901,7 +1019,7 @@ function AddStockForm({
                     </p>
                   )}
                 </label>
-                <label className="block">
+                <label className={cn("block transition-opacity", unmixed && "pointer-events-none opacity-40")}>
                   <span className={STOCK_FIELD_LABEL}>BAC water (mL)</span>
                   <PadInput {...pad.bind("bacWater")} value={bacWater} label="BAC water" unit="mL" className="h-11 w-full" />
                 </label>
@@ -918,6 +1036,38 @@ function AddStockForm({
                   <span className={STOCK_FIELD_LABEL}>Strength (mg/mL)</span>
                   <PadInput {...pad.bind("concentration")} value={concentration} label="Strength" unit="mg/mL" className="h-11 w-full" />
                 </label>
+              </div>
+            )}
+
+            {type === "dropper" && (
+              <div className="space-y-3">
+                <ThumbGroup selection={dropMode} thumbClassName={PILL_THUMB} role="group" aria-label="Measured in" className="flex gap-2">
+                  <button type="button" onClick={() => setDropMode("ml")} aria-pressed={dropMode === "ml"} className={pill(dropMode === "ml")}>mL</button>
+                  <button type="button" onClick={() => setDropMode("drops")} aria-pressed={dropMode === "drops"} className={pill(dropMode === "drops")}>Drops</button>
+                </ThumbGroup>
+                {dropMode === "ml" ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className={STOCK_FIELD_LABEL}>Volume (mL)</span>
+                      <PadInput {...pad.bind("oilMl")} value={oilMl} label="Volume" unit="mL" className="h-11 w-full" />
+                    </label>
+                    <label className="block">
+                      <span className={STOCK_FIELD_LABEL}>Strength (mg/mL)</span>
+                      <PadInput {...pad.bind("concentration")} value={concentration} label="Strength" unit="mg/mL" className="h-11 w-full" />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className={STOCK_FIELD_LABEL}>Drops</span>
+                      <PadInput {...pad.bind("drops")} value={drops} label="Drops" className="h-11 w-full" />
+                    </label>
+                    <label className="block">
+                      <span className={STOCK_FIELD_LABEL}>Per drop ({strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit})</span>
+                      <PadInput {...pad.bind("perDrop")} value={perDrop} label="Per drop" unit={strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit} placeholder="optional" className="h-11 w-full" />
+                    </label>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1018,6 +1168,59 @@ function AddStockForm({
                   <span className={STOCK_FIELD_LABEL}>Serving (g)</span>
                   <PadInput {...pad.bind("servingG")} value={servingG} label="Serving" unit="g" placeholder="optional" className="h-11 w-full" />
                 </label>
+              </div>
+            )}
+
+            {!editItem && (
+              <div className="divide-y-[0.5px] divide-border-default border-t-[0.5px] border-border-default">
+                <div className="flex items-center justify-between gap-2.5 py-2.5">
+                  <span className="text-[13px] text-text-muted">
+                    {`${containerNoun({ inventoryType: type, category: selected?.category, name: selected?.name }).replace(/^./, (ch) => ch.toUpperCase())}s`}
+                  </span>
+                  <span className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      aria-label="One fewer"
+                      onClick={() => setBoxCount((n) => Math.max(1, n - 1))}
+                      className={cn(PRESS.icon, "flex h-[30px] w-[30px] items-center justify-center rounded-full bg-bg-surface-raised text-base text-foreground")}
+                    >
+                      −
+                    </button>
+                    <b className="min-w-[38px] text-center font-mono text-[17px] font-light text-foreground">{boxCount}</b>
+                    <button
+                      type="button"
+                      aria-label="One more"
+                      onClick={() => setBoxCount((n) => Math.min(50, n + 1))}
+                      className={cn(PRESS.icon, "flex h-[30px] w-[30px] items-center justify-center rounded-full bg-bg-surface-raised text-base text-foreground")}
+                    >
+                      +
+                    </button>
+                  </span>
+                </div>
+                {type === "reconstituted" && (
+                  <div className="flex items-center justify-between gap-2.5 py-2.5">
+                    <span className="text-[13px] text-text-muted">Mix one now</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={mixNow}
+                      aria-label="Mix one now"
+                      onClick={() => setMixNow((m) => !m)}
+                      className={cn(
+                        "relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200",
+                        mixNow ? "bg-accent-amber" : "border border-border-strong bg-bg-input",
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "absolute top-1 h-5 w-5 rounded-full bg-primary transition-[left] duration-200 ease-out motion-reduce:transition-none",
+                          mixNow ? "left-[1.625rem]" : "left-1",
+                        )}
+                      />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

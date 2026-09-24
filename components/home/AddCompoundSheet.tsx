@@ -454,7 +454,9 @@ function AddCompoundBody({
   // fields**, so the gate is now simply "is this a thing with stock", which is
   // every form there is. Adding creatine from scratch offers a stock step and
   // never mentions BAC water.
-  const canStock = !isEdit && isStockableForm(stockType)
+  // Not a dropper: this form has no dropper fields, and its stock is added from
+  // Protocol → Stock, whose sheet does (Adrian, 2026-09-24).
+  const canStock = !isEdit && isStockableForm(stockType) && stockType !== "dropper"
   // The cycle being built here. Held in form state until the compound exists,
   // then written through the same `setCompoundCycle` Protocol → Cycles uses.
   // A RE-ADD presents as a first-time add in every visible respect (Spec 02), so

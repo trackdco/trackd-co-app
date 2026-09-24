@@ -131,6 +131,38 @@ Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
     slot's time when there is no draw.
   - Found, not changed: a finished multi-dose row dims twice (the row at 60% and each
     logged slot at 60%), which predates this build.
+- **Phase 7, Stock / Stacks / Cycles:** Protocol's foot is three B2 tall tiles with the
+  Glass icons in Sorbet (`FootTiles.tsx`, ported from the icon preview), pushing
+  `/protocol/stock`, `/protocol/stacks` and `/protocol/cycles`. They replace the Stacks and
+  Cycles sections (those components are deleted; the edit sheets stay). Shared shell: the
+  "‹ Protocol" link, the title, rows that open in place (unfold, others condense, the up
+  arrow spins in, closed bodies are `inert`), destructive actions as Cancel + a red pill.
+  - Stock: each running compound's container in use at its real level with a "+N" spare
+    badge, "2 OPEN · 3 SPARE" / "8.5 ML LEFT", doses left (amber at 7 days or fewer to dry).
+    Open: Doses left and Runs dry tiles, the containers three across (the older open one
+    marked NEXT), grouped spares ("3 unreconstituted · MIX FIRST" → water chip + "Mix one";
+    "1 unopened · OPEN FIRST" → "Open one"), and Add stock · Correct · Discard. "No stock"
+    card with a +.
+  - Stacks: member vials in the stack colour, "2 · 8:00 AM" (or "2 compounds" when the
+    times differ), colour dot; open: each member's dose and cadence, Edit; "New stack"
+    hairline card.
+  - Cycles: the rhythm (a cell a day up to 21 days, else a proportional bar, today marked),
+    days on/off left; open: two tiles that never wrap ("1 of 3" over "Round"), Pattern and
+    Started, Edit · Remove; a "No cycle" card with a + per compound. Ended cycles are hidden.
+  - Add stock: one compound (a header, no picker), the type implied and not asked when the
+    compound says what it is, a Vials (or Bottles) count with the rest saved as spares, "Mix
+    one now" for powders (off = every vial held unmixed), and the dropper (mL at a strength,
+    or drops with an optional strength per drop). Custom compounds can be a Dropper.
+  - Log row: the unmixed group arms on tap and offers the water and Mix (Mix 2).
+  Checked at 390x844 in Chromium and WebKit and at 375x548 on `/preview/protocol/*`; the row
+  unfold records at 59fps in Chromium (headless WebKit runs ~32fps for every screen).
+  `npm run check` and `next build` pass. Not done, on purpose:
+  - **A cycle ending when a chosen vial runs out (VIAL_END_SUPPORTED) is still withheld.**
+    Nothing yet works out the day a vial actually ran dry, and that date would have to reach
+    `isDueOnFor`, which every screen calls synchronously. Offering the option without it would
+    be a control that silently does nothing, which the code forbids. `cycle_end_item_id` is in
+    `026` for when that producer exists.
+  - The Home log's dropper dose still steps like any dose (not in mL steps yet).
 - **Verification limit:** creating a QA account on the live database was refused by the
   session's auto-mode guard, so screens are checked on the dev-only `/preview/*` pages
   (mock data, no database), not signed in.

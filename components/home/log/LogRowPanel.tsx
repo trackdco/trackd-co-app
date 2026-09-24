@@ -19,6 +19,9 @@ import { formatTimeLabel, isInjectable, type StackCompound } from "@/lib/home/st
 import { formatDateKeyShort } from "@/lib/home/stack"
 import { clockHHMM, formatStepAmount, stepFor, type RowDraft } from "@/lib/home/logDraft"
 import { containersOf } from "@/lib/protocol/stockView"
+import { mixWaterDefault } from "@/lib/protocol/stockPage"
+import { mixStockItem } from "@/lib/db/inventory"
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 
 export type LogTile = "site" | "stock" | "note"
 
@@ -110,6 +113,13 @@ export function LogRowPanel({
 
   /* ---- stock, read once when the row opens ---- */
   const [stock, setStock] = useState<StockState>({ kind: "loading" })
+  // Mix 2 (Adrian, 2026-09-24): tap the unmixed vials, then Mix. The water
+  // starts at what this compound was last mixed with and can be changed.
+  const { guard } = useWriteAccess()
+  const [armed, setArmed] = useState(false)
+  const [water, setWater] = useState<string | null>(null)
+  const [mixing, setMixing] = useState(false)
+  const [mixTick, setMixTick] = useState(0)
   const onToday = dateKey === todayKey
   const draftRef = useRef(draft)
   useEffect(() => {
@@ -146,7 +156,7 @@ export function LogRowPanel({
     }
     // Read once per open row; a draft change must not re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compound.id, dateKey, readKey])
+  }, [compound.id, dateKey, readKey, mixTick])
 
   /* ---- keep the open row in view, above the Track bar ---- */
   const rootRef = useRef<HTMLDivElement>(null)
@@ -343,6 +353,8 @@ export function LogRowPanel({
     // cards to swipe past say nothing one card does not. Picking the unopened
     // group takes the oldest, which Track then starts.
     const dryOnes = stock.spares.filter((v) => v.inventoryType === "reconstituted")
+    const waterShown = water ?? String(mixWaterDefault([...stock.open, ...stock.spares]))
+    const waterWidth = waterShown.length
     const sealed = stock.spares.filter((v) => v.inventoryType !== "reconstituted")
     const group = (vs: StockItem[], dry: boolean) =>
       vs.length === 0
@@ -363,16 +375,20 @@ export function LogRowPanel({
                 key={v.id}
                 type="button"
                 aria-pressed={on}
-                aria-disabled={dry}
+                aria-expanded={dry ? armed : undefined}
                 onClick={() => {
-                  if (dry) return
+                  if (dry) {
+                    setArmed((a) => !a)
+                    return
+                  }
+                  setArmed(false)
                   onDraft({ inventoryItemId: v.id })
                   onSpare(v.acquiredOn == null ? v.id : null)
                 }}
                 className={cn(
                   "log-vcard flex flex-[0_0_calc(50%-4px)] flex-col items-center gap-1.5 rounded-xl border bg-bg-surface px-2 pt-3 pb-2.5 text-[12.5px] text-foreground",
-                  on ? "border-text-primary" : "border-transparent",
-                  dry && "opacity-55",
+                  on || (dry && armed) ? "border-text-primary" : "border-transparent",
+                  dry && !armed && "opacity-55",
                 )}
               >
                 <Container
@@ -388,6 +404,48 @@ export function LogRowPanel({
             )
           })}
         </div>
+        {armed && dryOnes.length > 0 ? (
+          <div className="animate-hl-swap mt-3 flex items-center justify-center gap-2">
+            <label className="flex items-center gap-1 rounded-full border border-border-strong px-2.5 py-[5px] font-mono text-[11px] text-foreground">
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.5}
+                value={waterShown}
+                onChange={(e) => setWater(e.target.value)}
+                aria-label="BAC water, mL"
+                style={{ width: `${Math.max(1, waterWidth)}ch` }}
+                className="min-w-0 bg-transparent text-right outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              mL
+            </label>
+            <button
+              type="button"
+              disabled={mixing || !(Number.parseFloat(waterShown) > 0)}
+              onClick={() =>
+                guard(() => {
+                  const target = dryOnes[0]
+                  const ml = Number.parseFloat(waterShown)
+                  if (!target || !(ml > 0)) return
+                  setMixing(true)
+                  void mixStockItem(target.id, ml, todayKey)
+                    .then((r) => {
+                      if (!r.ok) return
+                      setArmed(false)
+                      onSpare(null)
+                      onDraft({ inventoryItemId: target.id })
+                      setMixTick((t) => t + 1)
+                    })
+                    .finally(() => setMixing(false))
+                })
+              }
+              className={cn(PRESS.button, "rounded-full bg-accent-primary px-3.5 py-[5px] text-[12.5px] font-medium text-bg-base disabled:opacity-50")}
+            >
+              Mix
+            </button>
+          </div>
+        ) : (
         <button
           type="button"
           onClick={() => {
@@ -406,6 +464,7 @@ export function LogRowPanel({
         >
           {notCounted ? "Count it" : "Don’t count this dose"}
         </button>
+        )}
       </div>
     )
   }

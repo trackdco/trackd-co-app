@@ -7,6 +7,10 @@ import { BottomNav } from "@/components/navigation/bottom-nav"
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab"
 import { useMounted } from "@/components/home/useMounted"
 import { ProtocolScreen } from "@/components/protocol/ProtocolScreen"
+import { StockScreen } from "@/components/protocol/pages/StockScreen"
+import { StacksScreen } from "@/components/protocol/pages/StacksScreen"
+import { CyclesScreen } from "@/components/protocol/pages/CyclesScreen"
+import { saveStacks, notifyStacksChanged, type Stack } from "@/lib/home/stacks"
 import {
   recordScheduleStop,
   saveStack,
@@ -20,7 +24,7 @@ import {
 } from "@/lib/home/doseLog"
 import type { DoseLog } from "@/lib/home/mockHomeData"
 import { toDateKey } from "@/lib/home/mockHomeData"
-import type { StockItem } from "@/lib/db/inventory"
+import type { StockItem, StockRead } from "@/lib/db/inventory"
 
 /**
  * Seeds a mock cycle + stack into a throwaway "preview" store, then renders the
@@ -36,7 +40,7 @@ function dayOffset(days: number): string {
   return toDateKey(d)
 }
 
-function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLogs } {
+function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLogs; stacks: Stack[]; read: StockRead } {
   // Ten weeks back, so the week stepper has real history to walk rather than
   // one week and a wall.
   const start = dayOffset(-70)
@@ -73,8 +77,13 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLog
       schedule: { cadence: { type: "daysOfWeek", days: [1, 4] }, timeOfDay: "20:00", startDate: start },
       rotationSites: [],
       rotationIndex: 0,
+      cycle: { pattern: { type: "onOff", onDays: 14, offDays: 7 }, end: { type: "afterRounds", rounds: 3 }, colour: "steel", anchor: dayOffset(-16) },
     },
   ]
+  stack[1] = {
+    ...stack[1],
+    cycle: { pattern: { type: "onOff", onDays: 56, offDays: 28 }, end: { type: "never" }, colour: "bronze", anchor: dayOffset(-18) },
+  }
 
   // A PAUSED compound, so the grid's pause glyph has something to draw. Paused
   // for the whole of last week and still paused, which is the shape that reads
@@ -251,24 +260,69 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLog
     if (Object.keys(day).length > 0) logs[key] = day
   }
 
-  return { stack, stock, logs }
+  // A stack of two, and stock with spares for the Stock page: Retatrutide
+  // holds two open vials and three unmixed; Test E one open and one unopened.
+  const stacks: Stack[] = [
+    {
+      id: "pv-stack-mt",
+      name: "Monday & Thursday",
+      colour: "steel",
+      effectiveFrom: start,
+      members: ["pv-reta", "pv-anastrozole"].map((compoundId, position) => ({ compoundId, from: start, position })),
+    },
+  ]
+  const vial = (id: string, pc: string, name: string, over: Partial<StockItem> = {}): StockItem => ({
+    ...stock[1],
+    id,
+    protocolCompoundId: pc,
+    compoundName: name,
+    ...over,
+  })
+  const spare = (id: string, pc: string, name: string, over: Partial<StockItem> = {}): StockItem =>
+    vial(id, pc, name, {
+      acquiredOn: null, reconstitutedOn: null, bacWaterMl: null, remainingDisplay: null,
+      dosesRemaining: null, remainingBase: null, ...over,
+    })
+  const items: StockItem[] = [
+    stock[0],
+    spare("pv-inv-test-2", "pv-test-e", "Testosterone Enanthate", { inventoryType: "preconcentrated", category: "anabolic", totalAmountUnit: "ml", totalBase: 2500 }),
+    stock[1],
+    vial("pv-inv-reta-1", "pv-reta", "Retatrutide", { dosesRemaining: 4, remainingBase: 2, totalBase: 10, createdAt: "2026-09-01T00:00:00Z" }),
+    vial("pv-inv-reta-2", "pv-reta", "Retatrutide", { dosesRemaining: 7, remainingBase: 7, totalBase: 10, createdAt: "2026-09-20T00:00:00Z" }),
+    spare("pv-inv-reta-s1", "pv-reta", "Retatrutide"),
+    spare("pv-inv-reta-s2", "pv-reta", "Retatrutide"),
+    spare("pv-inv-reta-s3", "pv-reta", "Retatrutide"),
+  ]
+  const read: StockRead = {
+    ok: true,
+    items,
+    compounds: [
+      { protocolCompoundId: "pv-test-e", dosesReady: 17, openCount: 1, sparesHeld: 1 },
+      { protocolCompoundId: "pv-ipa", dosesReady: 3, openCount: 1, sparesHeld: 0 },
+      { protocolCompoundId: "pv-reta", dosesReady: 11, openCount: 2, sparesHeld: 3 },
+    ],
+  }
+
+  return { stack, stock, logs, stacks, read }
 }
 
-export function ProtocolPreview() {
+export function ProtocolPreview({ page }: { page?: "stock" | "stacks" | "cycles" }) {
   const mounted = useMounted()
-  const { stack, stock, logs } = useMemo(() => buildMock(), [])
+  const { stack, stock, logs, stacks, read } = useMemo(() => buildMock(), [])
 
   // Seed the throwaway preview store (no setState here → no cascading render).
   useEffect(() => {
     saveStack(USER, stack)
     saveDoseLogs(USER, logs)
+    saveStacks(USER, stacks)
+    notifyStacksChanged()
     notifyStackChanged()
     // `saveDoseLogs` is intentionally silent (doseLog.ts): the mutators notify.
     // Writing the store directly means this owes the signal itself. Without it
     // the seeded logs only appeared because `notifyStackChanged` happened to
     // wake a subscriber in the same component.
     notifyDoseLogsChanged()
-  }, [stack, logs])
+  }, [stack, logs, stacks])
 
   if (!mounted) return null
   return (
@@ -287,7 +341,15 @@ export function ProtocolPreview() {
       </header>
 
       <main className="flex-1">
-        <ProtocolScreen userId={USER} previewStock={stock} />
+        {page === "stock" ? (
+          <StockScreen userId={USER} backHref="/preview/protocol" previewRead={read} />
+        ) : page === "stacks" ? (
+          <StacksScreen userId={USER} backHref="/preview/protocol" />
+        ) : page === "cycles" ? (
+          <CyclesScreen userId={USER} backHref="/preview/protocol" />
+        ) : (
+          <ProtocolScreen userId={USER} previewStock={stock} footBase="/preview/protocol" />
+        )}
       </main>
 
       <BottomNav />

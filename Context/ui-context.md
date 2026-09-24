@@ -1136,6 +1136,15 @@ its own page. Back is the existing "‹ Protocol" link. Rows open in place with 
   half-life card and Schedule side by side and the three foot tiles under them. Stock, Stacks
   and Cycles open in the main column.
 
+**As built (2026-09-24).** `components/protocol/FootTiles.tsx` (B2: 128px tall, 22px radius,
+46px Glass icons in `--blend-1` / `--blend-3` / `--blend-2`) and `components/protocol/pages/`.
+The row family is `.xrow` in globals.css (12px rows, 7px condensed, icon at 0.72, the body on
+`grid-template-rows` 500ms, the pad on the O2 unfold, the arrow's 550ms spin-in); tinted
+tiles are `.x-ftile` (hue 12% on raised, figure hue 70% toward white, amber when low);
+the containers strip is `.x-vscroll` / `.x-vcard` (three across; a spare group sizes to
+its words); the rhythm is `.x-rhy`. The destructive confirm is Cancel + a `state-error`
+pill. The water chip beside "Mix one" is an inline number, sized to its value.
+
 **Home half-life glance.** H5: a swipeable card per compound (container, name,
 Circulating and Of last dose left, a sparkline, a pager of short bars, and no
 dots beside names). Tapping a half-hidden card scrolls it to the centre;

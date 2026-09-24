@@ -163,4 +163,7 @@ export const INVENTORY_TYPE_OPTIONS = [
   { value: "reconstituted", label: "Reconstituted" },
   { value: "preconcentrated", label: "Oil (pre-mixed)" },
   { value: "oral_solid", label: "Tabs / caps" },
+  // A liquid by the mL or the drop (Adrian, 2026-09-24): research liquids and
+  // vitamin drops. Its stock is added from Protocol → Stock.
+  { value: "dropper", label: "Dropper" },
 ] as const
