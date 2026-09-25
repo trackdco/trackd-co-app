@@ -14,6 +14,8 @@ import {
   lowStock,
   lowStockMessage,
   doseReminderMessage,
+  missedNudgeMessage,
+  joinNames,
   PC_REMINDER_SELECT,
   type ReminderCompound,
   type LowStockItem,
@@ -432,7 +434,7 @@ describe("push copy stays readable", () => {
 
   it("stops listing names once the list would run long", () => {
     const body = lowStockMessage(vials(10))?.body ?? "";
-    expect(body).toBe("10 compounds are running low.");
+    expect(body).toBe("10 compounds are running low on stock");
     expect(body).not.toContain("Compound number");
   });
 
@@ -448,6 +450,41 @@ describe("push copy stays readable", () => {
       compound({ id: `c${i}`, name: `Compound number ${i + 1}` }),
     );
     expect(doseReminderMessage(many)?.body).toBe("You have 9 doses due today.");
+  });
+
+  it("joins names as A & B, or A, B & C", () => {
+    expect(joinNames(["BPC-157"])).toBe("BPC-157");
+    expect(joinNames(["BPC-157", "TB-500"])).toBe("BPC-157 & TB-500");
+    expect(joinNames(["BPC-157", "TB-500", "Ipamorelin"])).toBe("BPC-157, TB-500 & Ipamorelin");
+  });
+
+  it("lists two or three due doses with the same join", () => {
+    const due = ["BPC-157", "TB-500"].map((name, i) => compound({ id: `c${i}`, name }));
+    expect(doseReminderMessage(due)?.body).toBe("BPC-157 & TB-500 are all due today.");
+  });
+
+  it("puts the low-stock names on their own line", () => {
+    const [a, b] = vials(2);
+    expect(lowStockMessage([a, b])?.body).toBe(
+      "2 compounds are running low on stock\n(Compound number 1 & Compound number 2)",
+    );
+  });
+
+  it("gives one low compound its dose count, singular when it is one", () => {
+    const one = (dosesRemaining: number): LowStockItem[] => [{ ...vials(1)[0], dosesRemaining }];
+    expect(lowStockMessage(one(4.6))?.body).toBe("Compound number 1 is running low on stock\n(≈4 doses left)");
+    expect(lowStockMessage(one(1.2))?.body).toBe("Compound number 1 is running low on stock\n(≈1 dose left)");
+    // Under one dose would read "≈0 doses left", so it takes the line with no count.
+    expect(lowStockMessage(one(0.4))?.body).toBe("Compound number 1 is running low");
+  });
+
+  it("leaves the app name out of every title (the service worker adds it on iPhone)", () => {
+    const titles = [
+      lowStockMessage(vials(1))?.title,
+      doseReminderMessage([compound()])?.title,
+      missedNudgeMessage([compound()])?.title,
+    ];
+    expect(titles).toEqual(["Low Stock", "Dose Reminder", "Don't Forget"]);
   });
 
   it("keeps every message free of em dashes", () => {

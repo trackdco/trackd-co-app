@@ -1,5 +1,28 @@
 # Progress Tracker
 
+## 🟡 NOTIFICATION COPY — ON BRANCH `notifications/copy-refresh`, NOT MERGED (2026-09-25)
+
+Adrian rewrote every push in an editor artifact
+(https://claude.ai/artifact/QF1fs1YkV1UgVpq3qcK9Yr, his edits are its `edits`
+collection, new ideas in `custom`). Built from `main` in a worktree.
+
+- **Titles are Title Case and carry no app name** ("Dose Reminder", "Don't Forget",
+  "Low Stock", "Your Trial Ends Soon", "Free Access Ends Soon"). `public/sw.js` adds
+  "Trakabl • " on iPhone only, because iPhone shows no app name and Android and
+  desktop already print it in their header (Adrian's pick). Decided on the device
+  because one account can hold an iPhone and an Android subscription.
+- **Names join as "A & B" / "A, B & C"** (`joinNames`), in the dose digest and the
+  low-stock list. Low stock puts the names or the dose count on a second line;
+  "≈1 dose" is singular, and under one dose drops the count.
+- **Trial push still says the plan starts** ("… and your Pro plan starts then").
+  Adrian had dropped "billing starts then"; kept a plan-starts line because the
+  paywall promises this reminder "before anything changes".
+- **All three billing pushes open `/billing`** (were `/profile`).
+- **Android small icon fixed.** It was `icon-192.png`, an opaque square, which
+  Android paints as a white square. Now `public/notification-badge.png`, Kyle's
+  silhouette, made by `scripts/brand/kyle.mjs` (the other generated files came
+  out byte-identical).
+
 ## ✅ THE FEEL PASS — MERGED TO `main` (2026-09-18)
 
 The brief is `Context/Feature Specs/wave 3/feel-pass.md` (6 prototype rounds,

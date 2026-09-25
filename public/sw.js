@@ -105,6 +105,23 @@ async function serveSplash(request, pathname) {
   }
 }
 
+const APP_NAME = "Trakabl";
+
+// iPhone draws a notification with the app's icon and no app name, so there the
+// name goes into the title: "Trakabl • Dose Reminder" (Adrian, 2026-09-25).
+// Android and desktop already print the name in the notification's own header,
+// so they get the title bare rather than the name twice. Decided here rather than
+// on the server because one account can have an iPhone and an Android subscribed
+// and the server sends both the same payload. An iPad reports a Mac user agent
+// and gets the bare title; that is the price of not guessing.
+const IS_IPHONE = /iphone|ipod|ipad/i.test(self.navigator.userAgent || "");
+
+function titleFor(raw) {
+  const title = typeof raw === "string" ? raw.trim() : "";
+  if (!title || title.startsWith(APP_NAME)) return title || APP_NAME;
+  return IS_IPHONE ? `${APP_NAME} • ${title}` : title;
+}
+
 // A push arrived. The server (send-push) sends a JSON body
 // { title, body, url?, tag? }. Show a notification; if the body is missing or
 // unparseable, fall back to a generic Trakabl notification rather than throwing
@@ -117,11 +134,14 @@ self.addEventListener("push", (event) => {
     data = {};
   }
 
-  const title = data.title || "Trakabl";
+  const title = titleFor(data.title);
   const options = {
     body: data.body,
     icon: "/icon-192.png",
-    badge: "/icon-192.png",
+    // Android paints the small icon from its alpha channel alone. icon-192.png is
+    // an opaque square, so it showed as a white square; this is Kyle's silhouette
+    // (made by scripts/brand/kyle.mjs).
+    badge: "/notification-badge.png",
     tag: data.tag,
     data: { url: data.url || "/dashboard" },
   };

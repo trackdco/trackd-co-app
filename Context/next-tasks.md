@@ -1,5 +1,29 @@
 # Next Tasks
 
+## 🟡 NOTIFICATIONS (2026-09-25)
+
+Branch `notifications/copy-refresh`: the new push wording, the iPhone prefix and
+the Android icon. Details in `progress-tracker.md`.
+
+### 1. Merge the copy branch (Adrian says when)
+Tests pass. Check one real push on an iPhone and an Android after it deploys: the
+prefix only on iPhone, Kyle in the Android status bar.
+
+### 2. "Hide compound names" setting (next)
+Adrian wants users able to keep compound names off the lock screen. Needs a
+`notification_preferences` column, count-only variants of the dose, unlogged and
+low-stock bodies, and a switch on the redesigned page (task 3). Read the new column
+in its own tolerant query, as `courtesy.ts` does, so a deploy before the migration
+cannot break the runner.
+
+### 3. Redesign the Notifications settings page (Adrian asked)
+Mockup first, in an artifact, scored with ux-heuristics before he sees it.
+
+### 4. New notifications (Adrian choosing)
+Six plain ideas and eight "cheeky" ones in Kyle's voice are cards in the editor
+artifact. The cheeky ones break the no-chirp rule in `ui-context.md`; if Adrian
+keeps any, record them there as a sanctioned exception, as onboarding's were.
+
 ## 🟢 WHO OPERATES TRAKABL — MERGED AND APPLIED (2026-09-24)
 
 Details in `progress-tracker.md`. Legal docs are live at terms/privacy/CHD 2.3

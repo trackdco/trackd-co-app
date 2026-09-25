@@ -427,7 +427,22 @@ export function lowStock(
  */
 const NAME_LIST_MAX = 3;
 
-/** "Doses due today" digest. Lists names when few, else just the count. */
+/**
+ * "A & B", or "A, B & C". Adrian's rule (2026-09-25), used wherever a push lists
+ * names, so the dose digest and the low-stock list read the same way.
+ */
+export function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
+}
+
+/*
+ * The titles carry no "Trakabl • " prefix. iPhone shows no app name on a
+ * notification, so public/sw.js adds it there; Android and desktop print the
+ * name in their own header, where a prefix would say it twice.
+ */
+
+/** Morning digest of what is due. Lists names when few, else just the count. */
 export function doseReminderMessage(due: ReminderCompound[]): PushMessage | null {
   if (due.length === 0) return null;
   const names = due.map((c) => c.name);
@@ -435,9 +450,9 @@ export function doseReminderMessage(due: ReminderCompound[]): PushMessage | null
     names.length === 1
       ? `${names[0]} is due today.`
       : names.length <= NAME_LIST_MAX
-        ? `Due today: ${names.join(", ")}.`
+        ? `${joinNames(names)} are all due today.`
         : `You have ${names.length} doses due today.`;
-  return { title: "Doses due today", body, url: "/dashboard", tag: "trackd-dose-daily" };
+  return { title: "Dose Reminder", body, url: "/dashboard", tag: "trackd-dose-daily" };
 }
 
 /** Later-in-the-day nudge for due doses still unlogged. */
@@ -445,11 +460,11 @@ export function missedNudgeMessage(due: ReminderCompound[]): PushMessage | null 
   if (due.length === 0) return null;
   const n = due.length;
   return {
-    title: "Don't forget",
+    title: "Don't Forget",
     body:
       n === 1
-        ? `${due[0].name} is still unlogged today.`
-        : `${n} doses are still unlogged today.`,
+        ? `${due[0].name} is still unlogged today`
+        : `${n} doses are still unlogged today`,
     url: "/dashboard",
     tag: "trackd-missed",
   };
@@ -465,13 +480,16 @@ export function missedNudgeMessage(due: ReminderCompound[]): PushMessage | null 
  */
 export function lowStockMessage(items: LowStockItem[]): PushMessage | null {
   if (items.length === 0) return null;
+  // Under one dose left reads as "≈0 doses", so it takes the line with no count.
+  const left =
+    items.length === 1 && items[0].dosesRemaining != null
+      ? Math.floor(items[0].dosesRemaining)
+      : 0;
   const body =
     items.length === 1
-      ? `${items[0].name} is running low${
-          items[0].dosesRemaining != null
-            ? `. About ${Math.floor(items[0].dosesRemaining)} doses left.`
-            : "."
-        }`
+      ? left >= 1
+        ? `${items[0].name} is running low on stock\n(≈${left} ${left === 1 ? "dose" : "doses"} left)`
+        : `${items[0].name} is running low`
       : items.length <= NAME_LIST_MAX
         ? // "compounds", not "vials". The feeding query (`runner.ts`) selects
           // `inventory_items` with NO `inventory_type` filter, so tubs and
@@ -480,7 +498,7 @@ export function lowStockMessage(items: LowStockItem[]): PushMessage | null {
           // There is no per-item form here to word it from (`LowStockItem` is a
           // name and a runway), and the message covers a mixed set anyway, so it
           // uses the one noun that is true of all three.
-          `${items.length} compounds are running low: ${items.map((i) => i.name).join(", ")}.`
-        : `${items.length} compounds are running low.`;
-  return { title: "Running low", body, url: "/protocol", tag: "trackd-lowstock" };
+          `${items.length} compounds are running low on stock\n(${joinNames(items.map((i) => i.name))})`
+        : `${items.length} compounds are running low on stock`;
+  return { title: "Low Stock", body, url: "/protocol", tag: "trackd-lowstock" };
 }
