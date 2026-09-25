@@ -2,19 +2,24 @@
 
 import { useState } from "react"
 
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { BottomSheet } from "@/components/layout/BottomSheet"
 import { Container } from "@/components/containers"
+import { Warning } from "@/components/icons"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { DATA_MONO, PRESS, PRIMARY_BUTTON, SHEET_TITLE } from "@/lib/ui-presets"
+import {
+  CHIP,
+  CHIP_OFF,
+  DATA_MONO,
+  INLINE_NOTE,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SHEET_TITLE,
+} from "@/lib/ui-presets"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
-import { formatDateKeyShort, type StackCompound } from "@/lib/home/stack"
+import { dayLong } from "@/lib/format/date"
+import type { StackCompound } from "@/lib/home/stack"
 import {
   activePause,
   dayKeyFromNumber,
@@ -178,39 +183,51 @@ export function PauseSheet({
    */
   onResume: (compound: StackCompound, on: string, onlyThis?: boolean) => void
 }) {
+  const ref = referenceKey ?? todayKey
+  const existing = compound ? activePause(compound.pauses, ref) : null
+  const back = compound && existing ? resumesOn(compound.pauses, ref) : null
+  const verb = existing ? "Resume" : "Pause"
+  // The one sheet frame (consistency fix #1): the header is the compound's
+  // container and what is being done to it; the actions end the form.
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="rail"
-        side="bottom"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
-      >
-        {/* The visible heading lives in `PauseHeader` beside the container, so
-            the accessible one here is off-screen rather than duplicated. */}
-        <SheetHeader className="sr-only">
-          <SheetTitle>
-            {compound
-              ? `${activePause(compound.pauses, referenceKey ?? todayKey) ? "Resume" : "Pause"} ${title ?? compound.name}`
-              : "Pause"}
-          </SheetTitle>
-        </SheetHeader>
-        {open && compound && (
-          <PauseBody
-            key={compound.id}
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={compound ? `${verb} ${title ?? compound.name}` : "Pause"}
+      desktop="rail"
+      // No field focused on open, so no keyboard springs up over the sheet.
+      onOpenAutoFocus={(e) => e.preventDefault()}
+      header={
+        compound ? (
+          <PauseHeader
             compound={compound}
-            todayKey={todayKey}
-            referenceKey={referenceKey ?? todayKey}
-            stackMembers={stackMembers ?? []}
-            title={title}
-            defaultStackMode={defaultStackMode ?? false}
-            onPause={onPause}
-            onResume={onResume}
-            onClose={() => onOpenChange(false)}
+            name={title}
+            verb={verb}
+            sub={
+              existing
+                ? back
+                  ? `Paused since ${dayLong(existing.startedOn)}`
+                  : "Paused, no end date set"
+                : undefined
+            }
           />
-        )}
-      </SheetContent>
-    </Sheet>
+        ) : undefined
+      }
+    >
+      {open && compound && (
+        <PauseBody
+          key={compound.id}
+          compound={compound}
+          todayKey={todayKey}
+          referenceKey={ref}
+          stackMembers={stackMembers ?? []}
+          defaultStackMode={defaultStackMode ?? false}
+          onPause={onPause}
+          onResume={onResume}
+          onClose={() => onOpenChange(false)}
+        />
+      )}
+    </BottomSheet>
   )
 }
 
@@ -235,7 +252,7 @@ function PauseHeader({
   verb?: string
 }) {
   return (
-    <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+    <div className="flex items-center gap-3">
       <Container
         name={compound.name}
         inventoryType={inventoryTypeForCompound(
@@ -262,7 +279,6 @@ function PauseBody({
   todayKey,
   referenceKey,
   stackMembers,
-  title,
   defaultStackMode,
   onPause,
   onResume,
@@ -272,7 +288,6 @@ function PauseBody({
   todayKey: string
   referenceKey: string
   stackMembers: StackCompound[]
-  title?: string
   defaultStackMode: boolean
   onPause: (ids: string[], range: { startedOn: string; endsOn: string | null }) => void
   /**
@@ -346,13 +361,7 @@ function PauseBody({
   // carries no fill of its own: the others are outlined, because a fill would
   // hide the thumb as it passes beneath them.
   const chip = (active: boolean) =>
-    cn(
-      PRESS.pill,
-      "rounded-lg border px-3 py-1.5 text-sm transition-colors duration-300",
-      active
-        ? "border-transparent text-bg-base"
-        : "border-border-default text-text-muted hover:text-foreground"
-    )
+    cn(CHIP, "duration-300", active ? "border-transparent font-medium text-bg-base" : CHIP_OFF)
 
   const toggle = (on: boolean) => (
     <span
@@ -384,24 +393,11 @@ function PauseBody({
     const back = resumesOn(compound.pauses, referenceKey)
     return (
       <>
-        <PauseHeader
-          compound={compound}
-          name={title}
-          verb="Resume"
-          sub={
-            back
-              ? `Paused since ${formatDateKeyShort(existing.startedOn)}`
-              : "Paused, no end date set"
-          }
-        />
-        <div
-          data-sheet-body
-          className="mt-3 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
-        >
-          <Row label="Started" value={formatDateKeyShort(existing.startedOn)} />
+        <div data-sheet-body className="pb-1">
+          <Row label="Started" value={dayLong(existing.startedOn)} />
           <Row
             label="Back on"
-            value={back ? formatDateKeyShort(back) : "When I resume it"}
+            value={back ? dayLong(back) : "When I resume it"}
             expanded={openRow === "back"}
             onClick={() => setOpenRow((r) => (r === "back" ? null : "back"))}
           />
@@ -469,7 +465,7 @@ function PauseBody({
                       {m.name}
                     </span>
                     <span className={cn(DATA_MONO, "shrink-0")}>
-                      {resumeLabel(m.pauses, referenceKey, formatDateKeyShort) ?? ""}
+                      {resumeLabel(m.pauses, referenceKey, dayLong) ?? ""}
                     </span>
                   </label>
                 ))}
@@ -526,7 +522,7 @@ function PauseBody({
                   })
                   onClose()
                 }}
-                className="rounded-xl border border-border-default px-4 py-3 text-sm font-medium text-text-primary hover:bg-bg-surface-raised"
+                className={SECONDARY_BUTTON}
               >
                 Save the new date
               </button>
@@ -550,13 +546,9 @@ function PauseBody({
 
   return (
     <>
-      <PauseHeader compound={compound} name={title} />
       {/* The rows rise in as the sheet lands (feel pass §4); the header lands
           with the sheet. */}
-      <div
-        data-sheet-body
-        className="mt-3 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
-      >
+      <div data-sheet-body className="pb-1">
         <Row
           label="How long"
           value={lengthLabel}
@@ -600,7 +592,7 @@ function PauseBody({
 
         <Row
           label="Starts"
-          value={startedOn === todayKey ? "Today" : formatDateKeyShort(startedOn)}
+          value={startedOn === todayKey ? "Today" : dayLong(startedOn)}
           expanded={openRow === "starts"}
           onClick={() => setOpenRow((r) => (r === "starts" ? null : "starts"))}
         />
@@ -633,7 +625,7 @@ function PauseBody({
               ? "Pick a date"
               : endsOn === null
                 ? "When I resume it"
-                : formatDateKeyShort(resumeDate ?? startedOn)
+                : dayLong(resumeDate ?? startedOn)
           }
           expanded={openRow === "back"}
           onClick={
@@ -719,23 +711,30 @@ function PauseBody({
             closes, and nothing on screen changes. Named rather than silently
             allowed. */}
         {alreadyOver && (
-          <p className="text-sm leading-relaxed text-accent-amber">
+          // A note, not a box: a muted line and one amber glyph (fix #27).
+          <p className={cn(INLINE_NOTE, "mt-3")}>
+            <Warning className="mt-px h-3.5 w-3.5 shrink-0 text-accent-amber" aria-hidden />
             That pause would already be over. Move the start date, or choose a
             longer stretch.
           </p>
         )}
 
-        <button
-          type="button"
-          disabled={targets.length === 0 || awaitingDate || alreadyOver}
-          onClick={() => {
-            onPause(targets, { startedOn, endsOn })
-            onClose()
-          }}
-          className={cn(PRIMARY_BUTTON, "mt-5 w-full")}
-        >
-          {awaitingDate ? "Pick a date" : "Pause"}
-        </button>
+        <div className="mt-5 flex gap-2">
+          <button type="button" onClick={onClose} className={cn(SECONDARY_BUTTON, "flex-1")}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={targets.length === 0 || awaitingDate || alreadyOver}
+            onClick={() => {
+              onPause(targets, { startedOn, endsOn })
+              onClose()
+            }}
+            className={cn(PRIMARY_BUTTON, "flex-1")}
+          >
+            {awaitingDate ? "Pick a date" : "Pause"}
+          </button>
+        </div>
       </div>
     </>
   )

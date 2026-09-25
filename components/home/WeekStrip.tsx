@@ -6,6 +6,7 @@ import { PillThumb, useSlidingThumb } from "@/components/feel/SlidingThumb"
 import { PRESS } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 import type { DateKey, DayStatus } from "@/lib/home/mockHomeData"
+import { dayLong, dayRange } from "@/lib/format/date"
 
 export interface WeekDay {
   key: DateKey
@@ -38,10 +39,6 @@ interface WeekStripProps {
 // Sun-first initials, indexed by Date.getDay(); the row itself runs Mon → Sun.
 /** Three-letter day names — shown beneath each date (Spec 02). */
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-]
 
 const STATUS_LABEL: Record<DayStatus, string> = {
   logged: "all doses logged",
@@ -55,23 +52,14 @@ const STATUS_LABEL: Record<DayStatus, string> = {
 const COMMIT_FRACTION = 0.2
 
 /**
- * Compact range for the displayed week, e.g. "9-15 Jun" or "30 Jun - 6 Jul".
- *
- * ⚠️ U+002D HYPHEN-MINUS, NOT AN EN DASH. This rendered "17–23 Aug" with U+2013.
- * Outside billing and predating that work, but a launch-morning user sees this
- * strip and the beta notice in the same glance, and the launch copy rule is
- * character-exact: en dash, em dash, figure dash and horizontal bar are all
- * banned and a plain hyphen is the replacement.
+ * The displayed week as the app writes a range: "9 to 15 Jun", "30 Jun to
+ * 6 Jul" (consistency fix #26). No dash of any kind.
  */
 function weekRangeLabel(days: WeekDay[]): string {
-  const a = days[0]?.date
-  const b = days[days.length - 1]?.date
+  const a = days[0]?.key
+  const b = days[days.length - 1]?.key
   if (!a || !b) return ""
-  const aM = MONTHS_SHORT[a.getMonth()]
-  const bM = MONTHS_SHORT[b.getMonth()]
-  return a.getMonth() === b.getMonth()
-    ? `${a.getDate()}-${b.getDate()} ${bM}`
-    : `${a.getDate()} ${aM} - ${b.getDate()} ${bM}`
+  return dayRange(a, b)
 }
 
 /**
@@ -274,7 +262,7 @@ export function WeekStrip({
                         tabIndex={isCentre ? undefined : -1}
                         onClick={() => onSelect(key)}
                         aria-pressed={selected}
-                        aria-label={`${date.toDateString()}, ${STATUS_LABEL[status]}`}
+                        aria-label={`${dayLong(key)}, ${STATUS_LABEL[status]}`}
                         className={cn(
                           PRESS.day,
                           "week-day flex flex-col items-center rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-accent-amber/50",

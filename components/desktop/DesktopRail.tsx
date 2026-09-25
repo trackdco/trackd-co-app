@@ -31,7 +31,8 @@ import {
 import { isPausedOn } from "@/lib/home/pauses"
 import { belongsInDayLog, ringCounts } from "@/lib/home/dayDoses"
 import { toDateKey } from "@/lib/home/mockHomeData"
-import { CARD_EYEBROW, DATA_MONO, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets"
+import { CARD_EYEBROW, DATA_MONO, METRIC_VALUE, PRIMARY_BUTTON, UNIT_SUFFIX } from "@/lib/ui-presets"
+import { formatDose } from "@/lib/format/dose"
 import type { BodySex } from "@/lib/db/types"
 import type { WeightUnit } from "@/lib/weight"
 import { cn } from "@/lib/utils"
@@ -46,10 +47,6 @@ const RING_C = 2 * Math.PI * RING_R
 
 /** Lowest-runway vials worth standing on the rail. More than three is a list. */
 const RUNWAY_SHOWN = 3
-
-function formatDose(dose: number): string {
-  return Number.isInteger(dose) ? String(dose) : dose.toFixed(2).replace(/0$/, "")
-}
 
 /** "20:00" → "8:00 pm". The app's one clock format. */
 function clockLabel(time24: string): { time: string; suffix: string } | null {
@@ -351,22 +348,21 @@ export function DesktopRail({
               <CategoryIcon category={next.compound.category ?? ""} className="h-3.5 w-3.5" />
               <span className="truncate">{next.name}</span>
             </p>
-            <p className={cn(DATA_MONO, "mt-1 tracking-[0.08em] uppercase")}>
-              {formatDose(next.dose)} {next.unit}
-            </p>
+            {/* A figure, not metadata: no uppercase (consistency fix #8). */}
+            <p className={cn(DATA_MONO, "mt-1")}>{formatDose(next.dose, next.unit)}</p>
             <button
               type="button"
               onClick={() => guard(() => setQuickTrackOpen(true))}
-              className="mt-3.5 w-full inst-btn px-4 py-2 text-[0.8125rem] font-medium text-bg-base transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn(PRIMARY_BUTTON, "mt-3.5 w-full")}
             >
               Log it
             </button>
           </>
         ) : (
           <p className="mt-2 text-[0.8125rem] leading-relaxed text-text-muted">
-            {dueCount === 0
-              ? "Nothing is scheduled for today."
-              : "Everything scheduled for today is logged."}
+            {/* "Nothing scheduled" when there were none, "Nothing due" when all
+                are done (consistency fix #24). */}
+            {dueCount === 0 ? "Nothing scheduled" : "Nothing due"}
           </p>
         )}
       </section>
@@ -384,9 +380,7 @@ export function DesktopRail({
                   <li key={c.id} className="flex items-center gap-2.5 text-xs">
                     <CategoryIcon category={c.category ?? ""} className="h-3.5 w-3.5" />
                     <span className="min-w-0 flex-1 truncate text-text-muted">{c.name}</span>
-                    <span className={DATA_MONO}>
-                      {formatDose(on.dose)} {on.unit}
-                    </span>
+                    <span className={DATA_MONO}>{formatDose(on.dose, on.unit)}</span>
                   </li>
                 )
               })}
@@ -468,6 +462,11 @@ export function DesktopRail({
         onOpenChange={setQuickTrackOpen}
         userId={userId}
         bodySex={bodySex}
+        // Nothing to log: the picker, in place of the sheet (never over it).
+        onAddCompound={() => {
+          setQuickTrackOpen(false)
+          guard(() => setAddOpen(true))
+        }}
       />
       <LogWeightPad
         open={weightOpen}

@@ -10,6 +10,7 @@ import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { formatTimeLabel } from "@/lib/home/stack"
 import type { NextDose } from "@/lib/home/nextDose"
 import { DATA_MONO } from "@/lib/ui-presets"
+import { formatDose } from "@/lib/format/dose"
 import { CATEGORY_META, FALLBACK_CATEGORY_META } from "@/lib/compound-categories"
 import type { CompoundCategory } from "@/lib/compound-categories"
 
@@ -138,17 +139,10 @@ function NextDoseWidget({ next }: { next: NextDoseInfo }) {
       <div className="flow-card flex flex-col inst-card p-5">
         <p className={CARD_EYEBROW}>Next dose</p>
         <div className="mt-3 flex flex-1 flex-col justify-center">
+          {/* "Nothing due" when all are done, "Nothing scheduled" when there
+              were none, and no second sentence (consistency fix #24). */}
           <span className="text-base text-foreground">
             {next.scheduledAny ? "Nothing due" : "Nothing scheduled"}
-          </span>
-          <span className="mt-1 text-sm text-text-muted">
-            {/* "until tomorrow" was hardcoded and claimed a fact about the NEXT
-                day that this card never checks. On a weekly compound, the most
-                common first protocol there is, the next dose is seven days out
-                and the line was simply wrong. Say only what is true of today. */}
-            {next.scheduledAny
-              ? "You're all clear for today"
-              : "No doses planned for this day."}
           </span>
         </div>
       </div>
@@ -174,17 +168,11 @@ function NextDoseWidget({ next }: { next: NextDoseInfo }) {
             the same helper the log row uses so the two can't print 0.13 and 0.125
             for the same dose side by side. */}
         <span className={DATA_MONO}>
-          {formatTimeLabel(d.time24)} · {formatDose(d.dose)}
-          {d.unit}
+          {formatTimeLabel(d.time24)} · {formatDose(d.dose, d.unit)}
         </span>
       </div>
     </div>
   )
-}
-
-/** Same rounding as the log row's, so a dose never renders two ways at once. */
-function formatDose(dose: number): string {
-  return Number.isInteger(dose) ? String(dose) : dose.toFixed(2).replace(/0$/, "")
 }
 
 export type NextDoseInfo =

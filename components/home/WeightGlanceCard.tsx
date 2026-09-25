@@ -6,8 +6,14 @@ import { CaretRight } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { DrawFrame, useFirstDraw } from "@/components/feel/FirstDraw"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
-import { PRESS } from "@/lib/ui-presets"
-import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets"
+import {
+  CARD_EYEBROW,
+  METRIC_VALUE,
+  ROW_CHEVRON,
+  SEGMENTED_ITEM,
+  SEGMENTED_TRACK,
+  UNIT_SUFFIX,
+} from "@/lib/ui-presets"
 import type { DateKey } from "@/lib/home/mockHomeData"
 import { kgToUnit, type WeightUnit } from "@/lib/weight"
 import { sparkGeometry, sparkLastPoint } from "@/lib/progress/spark"
@@ -164,7 +170,7 @@ export function WeightGlanceCard({
               thumbClassName="inst-thumb"
               role="group"
               aria-label="Weight series"
-              className="mt-3 grid grid-cols-2 gap-1 inst-rail p-0.5 text-[11px]"
+              className={cn(SEGMENTED_TRACK, "mt-3")}
             >
               {(["trend", "scale"] as const).map((m) => (
                 <button
@@ -173,8 +179,8 @@ export function WeightGlanceCard({
                   onClick={() => setMode(m)}
                   aria-pressed={mode === m}
                   className={cn(
-                    PRESS.pill,
-                    "rounded-sm py-1 font-medium transition-colors duration-300 ease-out",
+                    SEGMENTED_ITEM,
+                    "font-medium",
                     // Touch area extended to 44px with a transparent
                     // pseudo-element (25 + 2x10), so the pill keeps its compact
                     // look and stops being a 25px-tall target.
@@ -206,7 +212,7 @@ export function WeightGlanceCard({
             thumbClassName="inst-thumb"
             role="group"
             aria-label="Weight series"
-            className="inline-flex shrink-0 inst-rail p-0.5 text-[11px]"
+            className={cn(SEGMENTED_TRACK, "inline-flex shrink-0")}
           >
             {(["trend", "scale"] as const).map((m) => (
               <button
@@ -215,8 +221,8 @@ export function WeightGlanceCard({
                 onClick={() => setMode(m)}
                 aria-pressed={mode === m}
                 className={cn(
-                  PRESS.pill,
-                  "rounded-sm px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
+                  SEGMENTED_ITEM,
+                  "font-medium",
                   "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
                   mode === m ? "text-bg-base" : "text-text-muted",
                 )}
@@ -237,7 +243,7 @@ export function WeightGlanceCard({
       >
         {empty ? (
           <p className="text-sm text-text-muted">
-            No weight logged yet. Track it from the + menu.
+            No weight logged yet. Log it from the +.
           </p>
         ) : (
           <>
@@ -277,7 +283,7 @@ export function WeightGlanceCard({
             </svg>
             </DrawFrame>
 
-            <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+            <CaretRight className={ROW_CHEVRON} aria-hidden />
           </>
         )}
       </button>
@@ -304,10 +310,13 @@ function ValueBlock({
       )}
     >
       <span className="flex items-baseline gap-1.5">
-        <span className={METRIC_VALUE}>
-          {s.last == null ? "—" : s.last.toFixed(1)}
-        </span>
-        <span className={UNIT_SUFFIX}>{unit}</span>
+        {/* No reading, no figure: never a dash (consistency fix #10). */}
+        {s.last == null ? null : (
+          <>
+            <span className={METRIC_VALUE}>{s.last.toFixed(1)}</span>
+            <span className={UNIT_SUFFIX}>{unit}</span>
+          </>
+        )}
       </span>
       <span className="mt-1 block font-mono text-sm text-text-muted">
         {s.deltaText === null ? (

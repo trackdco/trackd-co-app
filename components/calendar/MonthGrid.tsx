@@ -4,6 +4,7 @@ import { Camera, Info, NotePencil, Plus, Scales, Syringe } from "@/components/ic
 
 import { cn } from "@/lib/utils";
 import type { DateKey } from "@/lib/home/mockHomeData";
+import { dayLong } from "@/lib/format/date";
 import {
   WEEKDAY_INITIALS,
   type CalendarDayStatus,
@@ -130,7 +131,7 @@ function DayCell({
       type="button"
       onClick={() => onSelect(cell)}
       aria-pressed={selected}
-      aria-label={`${cell.date.toDateString()}`}
+      aria-label={dayLong(cell.key)}
       className={cn(
         "relative flex flex-col items-center gap-1 py-0.5 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50",
         !cell.inMonth && "opacity-40",

@@ -2,18 +2,19 @@
 
 import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Trash } from "@/components/icons";
+import { Trash } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
-import { CARD_EYEBROW, DATA_MONO, PAGE_TITLE, PRESS } from "@/lib/ui-presets";
+import { CARD_EYEBROW, DATA_MONO, FIELD_LABEL, PAGE_TITLE, PRESS, PRIMARY_BUTTON } from "@/lib/ui-presets";
+import { BackLink } from "@/components/feel/BackLink";
+import { ConfirmDialog } from "@/components/feel/ConfirmDialog";
+import { dayShort } from "@/lib/format/date";
+import { showToast } from "@/lib/toast";
 import { NumberPad, PadInput } from "@/components/feel/NumberPad";
 import { RouteHandoff, RouteTitle, WeightBlocks } from "@/components/feel/RouteSkeletons";
 import { formatDateKeyNumeric } from "@/lib/calendar/calendar";
 import { Input } from "@/components/ui/input";
-import {
-  dateKeyToDate,
-  type DateKey,
-} from "@/lib/home/mockHomeData";
+import type { DateKey } from "@/lib/home/mockHomeData";
 import {
   formatWeight,
   sanitizeWeightInput,
@@ -64,21 +65,6 @@ interface WeightViewProps {
   todayKey: DateKey;
 }
 
-const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-function shortDate(key: DateKey): string {
-  const d = dateKeyToDate(key);
-  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
-}
-
-function longDate(key: DateKey): string {
-  const d = dateKeyToDate(key);
-  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
-}
-
 const MONTHS_FULL = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -117,8 +103,9 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [savedFlash, setSavedFlash] = useState(false);
   const [busyDelete, setBusyDelete] = useState<string | null>(null);
+  /** The entry a delete is asking about (consistency fix #5). */
+  const [deleting, setDeleting] = useState<Entry | null>(null);
   // The weight is typed on the Trakabl pad (feel pass §3). Done on the pad is the
   // same save as the Done button below it.
   const [padOpen, setPadOpen] = useState(false);
@@ -148,11 +135,8 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
     }
     const kg = unitToKg(n, unit);
     if (kg < 30 || kg > 300) {
-      setError(
-        unit === "lbs"
-          ? "Weight must be between 66 and 661 lbs."
-          : "Weight must be between 30 and 300 kg.",
-      );
+      // The pad's own sentence, so the two never disagree (fix #29).
+      setError(`Enter a weight between ${formatWeight(30, unit)} and ${formatWeight(300, unit)} ${unit}.`);
       return;
     }
     const savedKey = dateKey;
@@ -164,8 +148,8 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
       try {
         const res = await logWeight(kg, savedKey);
         if (res.ok) {
-          setSavedFlash(true);
-          window.setTimeout(() => setSavedFlash(false), 1400);
+          // Confirmed by the toast, as every save is (consistency fix #27).
+          showToast(`Weight logged: ${formatWeight(kg, unit)} ${unit}`);
           setValue("");
           setDateKey(todayKey);
           router.refresh(); // commit: holds the optimistic value until fresh data lands
@@ -184,7 +168,8 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
     });
   }
 
-  function handleDelete(key: DateKey) {
+  function handleDelete(entry: Entry) {
+    const key = entry.key;
     setBusyDelete(key);
     setError(null);
     startTransition(async () => {
@@ -194,6 +179,13 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
         const res = await deleteWeight(key);
         if (res.ok) {
           router.refresh();
+          // Undo logs the same reading back on the same day.
+          showToast("Weight deleted", {
+            undo: () =>
+              void logWeight(entry.kg, key)
+                .then((r) => (r.ok ? router.refresh() : showToast("Couldn’t undo. Try again.")))
+                .catch(() => showToast("Couldn’t undo. Try again.")),
+          });
         } else {
           // Transition ends with no refresh → the row reappears (rollback) + error.
           setError(res.error ?? "Couldn't delete that entry. Try again.");
@@ -222,28 +214,25 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
       className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
       <RouteTitle id="weight">
-        <header className="px-1">
+        {/* The one way back (consistency fix #23). */}
+        <BackLink href="/progress" label="Progress" />
+        <header className="mt-1 px-1">
           <h1 className={PAGE_TITLE}>Weight</h1>
-          <p className="mt-0.5 text-sm text-text-muted">
-            Log your bodyweight and watch the trend.
-          </p>
         </header>
       </RouteTitle>
       <RouteHandoff id="weight">
         <WeightBlocks />
       </RouteHandoff>
 
-      {/* ── Track your weight ─────────────────────────────────────── */}
+      {/* ── Log weight ────────────────────────────────────────────── */}
       <section
         className="flow-card animate-home-up relative inst-card p-5"
         style={{ animationDelay: "0ms" }}
       >
-        <h2 className={CARD_EYEBROW}>Track your weight</h2>
+        <h2 className={CARD_EYEBROW}>Log weight</h2>
         <div className="mt-4 flex gap-3">
           <label className="block flex-1 min-w-0">
-            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-              Weight
-            </span>
+            <span className={FIELD_LABEL}>Weight</span>
             <PadInput
               value={value}
               label={`Weight in ${unit}`}
@@ -283,9 +272,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
           </label>
 
           <label className="block w-[8.5rem] max-w-[44%] shrink-0">
-            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-              Date
-            </span>
+            <span className={FIELD_LABEL}>Date</span>
             <Input
               type="date"
               value={dateKey}
@@ -306,28 +293,19 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
         {error && <p className="mt-2 px-1 text-sm text-state-error">{error}</p>}
 
+        {/* "Log" is the verb (consistency fixes #12, #27). */}
         <button
           type="button"
           onClick={() => guard(handleSave)}
           disabled={saving}
-          className={cn(PRESS.button, "mt-4 w-full inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-60")}
+          className={cn(PRIMARY_BUTTON, "mt-4 w-full")}
         >
           {saving
             ? "Saving…"
             : dateKey === todayKey
-              ? "Done"
-              : `Log for ${shortDate(dateKey)}`}
+              ? "Log"
+              : `Log for ${dayShort(dateKey)}`}
         </button>
-
-        {/* Brief saved tick — UI feedback only (sanctioned green). */}
-        {savedFlash && (
-          <div
-            aria-hidden
-            className="animate-shortcut-fade pointer-events-none absolute right-5 top-5 flex items-center gap-1.5 rounded-lg bg-accent-green/15 px-2.5 py-1 text-xs font-medium text-accent-green"
-          >
-            <Check className="h-3.5 w-3.5" /> Saved
-          </div>
-        )}
       </section>
 
       {/* ── Trend / Scale graph ───────────────────────────────────── */}
@@ -373,10 +351,10 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                         type="button"
                         onClick={() => editEntry(entry)}
                         className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-bg-input/40"
-                        aria-label={`Edit weight for ${longDate(entry.key)}`}
+                        aria-label={`Edit weight for ${dayShort(entry.key)}`}
                       >
                         <span className="truncate text-sm text-text-muted">
-                          {longDate(entry.key)}
+                          {dayShort(entry.key)}
                           {entry.key === todayKey && (
                             <span className="ml-2 text-xs text-text-muted">Today</span>
                           )}
@@ -387,10 +365,10 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(entry.key)}
+                        onClick={() => setDeleting(entry)}
                         disabled={busyDelete === entry.key}
-                        aria-label={`Delete weight for ${longDate(entry.key)}`}
-                        className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-state-error disabled:opacity-50"
+                        aria-label={`Delete weight for ${dayShort(entry.key)}`}
+                        className={cn(PRESS.icon, "mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:text-foreground disabled:opacity-50")}
                       >
                         <Trash className="h-4 w-4" aria-hidden />
                       </button>
@@ -402,6 +380,18 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
           </div>
         )}
       </section>
+
+      {/* A weight asks before it goes, like every delete (consistency fix #5). */}
+      <ConfirmDialog
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        title="Delete this weight?"
+        line={deleting ? `${formatWeight(deleting.kg, unit)} ${unit} on ${dayShort(deleting.key)}.` : undefined}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleting) handleDelete(deleting);
+        }}
+      />
     </div>
   );
 }

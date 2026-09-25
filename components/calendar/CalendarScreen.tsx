@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "@/components/icons";
+
+import { BackLink } from "@/components/feel/BackLink";
+import { useLogRows } from "@/components/home/log/useLogRows";
+import { useDrawSources } from "@/components/home/log/useDrawSources";
+import { dayDoseRows } from "@/lib/home/logRows";
+import { parseSlotKey } from "@/lib/home/doseLog";
 
 import { useMounted } from "@/components/home/useMounted";
 import { CalendarBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
@@ -45,7 +49,6 @@ import {
 } from "@/lib/calendar/cycleBands";
 import { cycleColourVar, formatCyclePattern } from "@/lib/protocol/cycleRule";
 import { CARD_EYEBROW, DATA_MONO } from "@/lib/ui-presets";
-import { LogDoseSheet } from "@/components/home/LogDoseSheet";
 import { setSelectedDay } from "@/lib/home/selectedDay";
 import {
   addOneOff,
@@ -59,7 +62,8 @@ import {
 } from "@/lib/home/oneOffLogs";
 import { OneOffSheet } from "@/components/home/OneOffSheet";
 import { OneOffDaySheet } from "@/components/calendar/OneOffDaySheet";
-import { formatJournalDate } from "@/lib/progress/journal";
+import { dayLong } from "@/lib/format/date";
+import { showToast } from "@/lib/toast";
 
 /** Stable empty reference for the one-off store's server snapshot. */
 const EMPTY_ONE_OFFS: OneOffDays = {};
@@ -102,14 +106,15 @@ interface CalendarScreenProps {
  * grid of adherence rings: filled disc (logged: a dose, journal, or weight + a
  * tiny type icon), dotted ring (scheduled, unlogged), regular stroke (past,
  * nothing due), faint stroke (future / pre-protocol). The selected day reads
- * white — the primary accent. Tap any day for a read-only detail sheet (Running →
- * Weight → Markers → Journal → Photos); Weight and Journal deep-link to their canonical
- * editors. A "June 2026 ⌄" month/year picker pages the months; the footer has a
- * Today button and the ⓘ Calendar key.
+ * white — the primary accent. Tap any day for its sheet: the day's doses as the
+ * same Flow B rows Home draws (log one on THAT day), then what else was logged
+ * (off-plan, weight, markers, journal, photos); Weight and Journal deep-link to
+ * their canonical editors. A "June 2026 ⌄" month/year picker pages the months;
+ * the footer has a Today button and the ⓘ Calendar key.
  *
- * Weight / journal / markers arrive as props (Supabase, RLS-scoped); the dose
- * "Running" + the scheduled/logged ring states come from the same device-local
- * stack + dose log Home uses, read after mount so SSR stays deterministic.
+ * Weight / journal / markers arrive as props (Supabase, RLS-scoped); the doses
+ * and the scheduled/logged ring states come from the same device-local stack +
+ * dose log Home uses, read after mount so SSR stays deterministic.
  */
 export function CalendarScreen({
   weightByDate,
@@ -146,15 +151,14 @@ export function CalendarScreen({
   });
   const [selectedKey, setSelectedKey] = useState<DateKey>(serverTodayKey);
   const [sheetOpen, setSheetOpen] = useState(false);
-  /** The day's off-plan MENU (behind the "⋯" beside Running). */
+  /** The day's off-plan list (the "⋯" beside Also logged). */
   const [oneOffDayOpen, setOneOffDayOpen] = useState(false);
   /** The form that records one. Opened from that menu. */
   const [oneOffOpen, setOneOffOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
-  // The compound being logged from the calendar, if any.
-  const [logTarget, setLogTarget] = useState<StackCompound | null>(null);
-  /** A day a committed dose moved to, applied once the sheet is out of the way. */
-  const [pendingDay, setPendingDay] = useState<DateKey | null>(null);
+  /** A one-off sheet was opened from the day sheet: closing it goes back
+   *  there, so no sheet ever opens over another (consistency fix #1). */
+  const [backToDay, setBackToDay] = useState(false);
 
   // Correct "today" to the DEVICE clock, then keep it correct: on focus, on
   // becoming visible again, and once a minute so a page left open overnight rolls
@@ -294,39 +298,48 @@ export function CalendarScreen({
     [deviceReady, logs, selectedKey, stackById],
   );
 
-  // Compounds due on the selected day that aren't logged yet — the calendar's
-  // log path (Spec 01 → "any screen that has a selected date passes that date
-  // into the logging action"). The calendar was read-only, so picking a past day
-  // and logging simply wasn't possible from here.
-  const dueOnSelected = useMemo(
-    () =>
-      deviceReady
-        ? activeStack.filter(
-            (c) =>
-              !logs[selectedKey]?.[c.id] &&
-              isDueOnFor(c, dateKeyToDate(selectedKey)),
-          )
-        : [],
-    [deviceReady, activeStack, logs, selectedKey],
+  // The selected day's doses as Flow B rows (consistency fix #0): the same rows,
+  // words and Track bar as Home, writing to THIS day.
+  const dayDoses = useMemo(
+    () => (deviceReady ? dayDoseRows(stack, logs, selectedKey) : []),
+    [deviceReady, stack, logs, selectedKey],
   );
+  // A log whose compound is gone from the protocol entirely still shows, read
+  // only: the dose happened.
+  const orphans = useMemo(
+    () => running.filter((r) => !stackById.has(parseSlotKey(r.id).compoundId)),
+    [running, stackById],
+  );
+  const drawSources = useDrawSources(
+    dayDoses.map((d) => d.id),
+    selectedKey,
+    sheetOpen,
+  );
+  const rows = useLogRows({
+    day: selectedKey,
+    todayKey,
+    logs,
+    guard,
+    commit: (id, log, day, slot) => guard(() => commitDoseOn(userId, id, log, day, day, slot)),
+    remove: (id, day, slot) => unlogDose(userId, day, id, slot),
+    // Read by the row itself when it opens. No Add stock from a row here: it
+    // would open a sheet over the day sheet.
+    catalogue: [],
+    bodySex,
+  });
 
-  // Days since each site was last used, relative to the SELECTED day — the log
-  // sheet's "last used here" rest hint. Same computation as the dashboard's.
-  const siteLastUsedDays = useMemo(() => {
-    const out: Record<string, number> = {};
-    const selN = Math.floor(dateKeyToDate(selectedKey).getTime() / 86_400_000);
-    for (const [key, dayLogObj] of Object.entries(logs)) {
-      if (key > selectedKey) continue;
-      const ago = selN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000);
-      if (ago < 0) continue;
-      for (const [compoundId, dayLog] of Object.entries(dayLogObj)) {
-        if (key === selectedKey && compoundId === logTarget?.id) continue;
-        const sid = dayLog.siteId;
-        if (sid && (out[sid] === undefined || ago < out[sid])) out[sid] = ago;
-      }
-    }
-    return out;
-  }, [logs, selectedKey, logTarget]);
+  /** Leave the day sheet for a one-off sheet, and come back to it after. */
+  function toOneOffs(open: () => void) {
+    rows.close();
+    setSheetOpen(false);
+    setBackToDay(true);
+    open();
+  }
+  function backFromOneOffs() {
+    if (!backToDay) return;
+    setBackToDay(false);
+    setSheetOpen(true);
+  }
 
   // Publish the day the calendar is parked on, so the quick-actions FAB writes
   // here too rather than to today. Cleared on unmount (see selectedDay.ts).
@@ -358,20 +371,15 @@ export function CalendarScreen({
           in here, and the cards below are their own layers while they rise
           (a transform), so without it the panel opened UNDER the grid. */}
       <RouteTitle id="calendar" className="relative z-10">
-        {/* "Back to Dashboard" is how a phone reaches Calendar, because a sixth
-            thumb target does not fit in the tab bar. On desktop Calendar IS a
-            sidebar item, so a back link to somewhere you did not come from is
-            just wrong. `desktop:` is the custom variant declared in desktop.css;
-            below the breakpoint the class matches nothing. */}
-        <Link
-          href="/dashboard"
-          className="desktop:hidden -ml-1 inline-flex items-center gap-1.5 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden />
-          Dashboard
-        </Link>
+        {/* The one back link (consistency fix #23). A phone reaches Calendar
+            from the Dashboard; on desktop Calendar IS a sidebar item, so a back
+            link to somewhere you did not come from is just wrong. `desktop:` is
+            the custom variant declared in desktop.css. */}
+        <div className="desktop:hidden">
+          <BackLink href="/dashboard" label="Dashboard" />
+        </div>
 
-        <header className="mt-5 px-1">
+        <header className="mt-3 px-1">
           <MonthYearPicker year={view.year} month0={view.month0} onChange={setView} />
         </header>
       </RouteTitle>
@@ -418,11 +426,14 @@ export function CalendarScreen({
         </section>
       )}
 
-      {/* The day's off-plan entries, behind the "⋯" beside Running. */}
+      {/* The day's off-plan entries, behind the "⋯" beside Also logged. */}
       <OneOffDaySheet
         open={oneOffDayOpen}
-        onOpenChange={setOneOffDayOpen}
-        dateLabel={formatJournalDate(selectedKey)}
+        onOpenChange={(o) => {
+          setOneOffDayOpen(o);
+          if (!o) backFromOneOffs();
+        }}
+        dateLabel={dayLong(selectedKey)}
         logs={deviceReady ? oneOffsOn(oneOffs, selectedKey) : []}
         onAdd={() =>
           guard(() => {
@@ -438,18 +449,30 @@ export function CalendarScreen({
           runway or stock. */}
       <OneOffSheet
         open={oneOffOpen}
-        onOpenChange={setOneOffOpen}
+        onOpenChange={(o) => {
+          setOneOffOpen(o);
+          if (!o) backFromOneOffs();
+        }}
         todayKey={todayKey}
         dateKey={selectedKey}
         recents={recentOneOffLabels(oneOffs, todayKey)}
-        onSave={(log) => guard(() => addOneOff(userId, log))}
+        onSave={(log) =>
+          guard(() => {
+            if (addOneOff(userId, log)) showToast("Logged");
+          })
+        }
       />
 
       <DayDetailSheet
         open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        onOpenChange={(o) => {
+          // An open row does not outlive its sheet.
+          if (!o) rows.close();
+          setSheetOpen(o);
+        }}
         dateKey={selectedKey}
-        running={running}
+        log={{ flow: rows.flow, bar: rows.bar, doses: dayDoses, drawSources }}
+        orphans={orphans}
         weightKg={weightByDate[selectedKey] ?? null}
         unit={unit}
         markers={selJournal?.markers ?? []}
@@ -461,12 +484,8 @@ export function CalendarScreen({
         // The CALENDAR is the entry point (Adrian, 2026-08-07): you record a
         // one-off against the day you are looking at, which is usually not today.
         oneOffs={deviceReady ? oneOffsOn(oneOffs, selectedKey) : []}
-        onOpenOneOffs={() => setOneOffDayOpen(true)}
-        dueToLog={dueOnSelected}
-        onLogDose={(c) => {
-          setSheetOpen(false);
-          setLogTarget(c);
-        }}
+        onAddOneOff={() => guard(() => toOneOffs(() => setOneOffOpen(true)))}
+        onManageOneOffs={() => toOneOffs(() => setOneOffDayOpen(true))}
         onOpenWeight={() => {
           setSheetOpen(false);
           router.push("/weight");
@@ -481,42 +500,6 @@ export function CalendarScreen({
           requestProgressAction("photos-gallery");
           router.push("/progress");
         }}
-      />
-
-      {/* Logging from the calendar writes to the SELECTED day — the same
-          LogDoseSheet the dashboard uses, handed `selectedKey` as its dateKey so
-          nothing can fall back to "now". */}
-      <LogDoseSheet
-        open={logTarget !== null}
-        compound={logTarget}
-        existing={logTarget ? (logs[selectedKey]?.[logTarget.id] ?? null) : null}
-        dateKey={selectedKey}
-        todayKey={todayKey}
-        siteLastUsedDays={siteLastUsedDays}
-        bodySex={bodySex}
-        onOpenChange={(o) => {
-          if (!o) {
-            setLogTarget(null);
-            if (pendingDay) {
-              const d = dateKeyToDate(pendingDay);
-              setSelectedKey(pendingDay);
-              setView({ year: d.getFullYear(), month0: d.getMonth() });
-              setPendingDay(null);
-            }
-          }
-        }}
-        onTracked={(compoundId, log, landsOn, openedOn) => guard(() => {
-          // ONE shared implementation with Home and quick-track — three copies
-          // of this had already drifted, and the drift silently dropped the day
-          // the user had just edited.
-          commitDoseOn(userId, compoundId, log, landsOn, openedOn)
-          // Deferred until the sheet closes, so following the dose cannot
-          // remount the sheet and wipe what is in it.
-          if (landsOn !== openedOn) setPendingDay(landsOn as DateKey)
-        })}
-        hasLogOn={(day) => Boolean(logs[day]?.[logTarget?.id ?? ""])}
-        /* The day the SHEET is showing, not the live selection — see Home. */
-        onRemove={(compoundId, day) => unlogDose(userId, day, compoundId)}
       />
 
       <LegendSheet open={legendOpen} onOpenChange={setLegendOpen} />

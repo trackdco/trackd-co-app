@@ -3,14 +3,51 @@
  * becomes a logged dose (ui-context → "Today's Log, and logging a dose").
  *
  * Nothing here is saved until Track: the draft lives in the row, and Track
- * turns it into a `DoseLog` for the same commit path the Log sheet uses. The
- * rules for defaults are the sheet's, so a dose logged from the row and one
- * logged from the sheet are the same record.
+ * turns it into a `DoseLog` for the one commit path (`commitDoseOn`). The old
+ * Log sheet is retired: every place that logs a dose draws these rows.
  *
  * Pure: no React, no storage (code-standards.md).
  */
+import { formatDose, formatDoseAmount } from "@/lib/format/dose"
+import { dayLong } from "@/lib/format/date"
 import type { DoseLog } from "@/lib/home/mockHomeData"
-import { doseAmountsOf, doseTimesOf, hasTime, resolveScheduleOn, type StackCompound } from "@/lib/home/stack"
+import {
+  doseAmountsOf,
+  doseTimesOf,
+  formatTimeLabel,
+  hasTime,
+  resolveScheduleOn,
+  type StackCompound,
+} from "@/lib/home/stack"
+
+/**
+ * THE WORDS OF LOGGING A DOSE (consistency fix #0): one way to log, with the
+ * same words wherever you start (Home's rows, Quick log, the Calendar's day).
+ * The old Log sheet said "Don't count this one", "Update" and "Live now,
+ * 09:41:07"; these are the ones that stayed.
+ */
+export const LOG_WORDS = {
+  /** The Track bar's verb (sanctioned, ui-context → the Track bar). */
+  track: "Track",
+  /** The verb once the dose is already logged (edit mode). */
+  save: "Save",
+  /** A dose logged without touching stock. */
+  dontCount: "Don’t count this dose",
+  /** The opposite: it comes off the container in use. */
+  countIt: "Count it",
+  /** A logged dose's tick tapped again. */
+  unticked: "Unticked",
+} as const
+
+/** "Today", else the day as the app writes it ("Tue 3 Sep"). */
+export function logDayWord(dateKey: string, todayKey: string): string {
+  return dateKey === todayKey ? "Today" : dayLong(dateKey)
+}
+
+/** The Time row: "Today · 9:41 AM" (never a 24-hour clock with seconds). */
+export function logTimeLabel(dateKey: string, todayKey: string, time24: string): string {
+  return `${logDayWord(dateKey, todayKey)} · ${formatTimeLabel(time24)}`
+}
 
 export interface RowDraft {
   /** The amount, in the unit it will be logged in. */
@@ -36,8 +73,7 @@ export function plannedFor(c: StackCompound, dateKey: string, slot: number): { a
 
 /**
  * The draft a row opens with: the dose as logged when it is (edit mode), else
- * the plan for that slot. No site is pre-picked and the time follows the clock,
- * exactly as the Log sheet opens.
+ * the plan for that slot. No site is pre-picked and the time follows the clock.
  */
 export function initialDraft(
   c: StackCompound,
@@ -81,9 +117,10 @@ export function draftTime(
   return hasTime(planned) ? planned : ""
 }
 
-/** An amount as the stepper and the bar show it: no trailing zeros. */
+/** An amount as the stepper and the bar show it: no trailing zeros. The one
+ *  dose format (lib/format/dose), without the unit. */
 export function formatStepAmount(n: number): string {
-  return String(Number(n.toFixed(3)))
+  return formatDoseAmount(n)
 }
 
 /**
@@ -135,7 +172,7 @@ export function stepFor(dose: number, unit?: string): number {
 
 /** "Track 2 mg · Abdomen L", or "Save" in edit mode. */
 export function trackLabel(draft: RowDraft, siteName: string | null, editing: boolean): string {
-  if (editing) return "Save"
-  const base = `Track ${formatStepAmount(draft.amount)} ${draft.unit}`
+  if (editing) return LOG_WORDS.save
+  const base = `${LOG_WORDS.track} ${formatDose(draft.amount, draft.unit)}`
   return siteName ? `${base} · ${siteName}` : base
 }

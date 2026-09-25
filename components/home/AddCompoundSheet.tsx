@@ -1,10 +1,22 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { CalendarDots, CaretDown, PencilSimple, Plus, Trash, Warning } from "@/components/icons"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { CalendarDots, PencilSimple, Plus, Trash, Warning } from "@/components/icons"
+import { CloseArrowIcon } from "@/components/feel/CloseArrow"
+import { BottomSheet } from "@/components/layout/BottomSheet"
+import { showToast } from "@/lib/toast"
+import { dayLong } from "@/lib/format/date"
 
 import { cn } from "@/lib/utils"
-import { PRESS, STOCK_FIELD_LABEL, STOCK_PILL } from "@/lib/ui-presets"
+import {
+  CHIP,
+  CHIP_OFF,
+  FIELD_LABEL,
+  INLINE_NOTE,
+  PRESS,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+} from "@/lib/ui-presets"
 import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { usePadSession } from "@/components/feel/usePadSession"
@@ -36,12 +48,6 @@ import { newId } from "@/lib/home/id"
 import { pushProtocolCompound } from "@/lib/home/protocolSync"
 import { trackSync } from "@/lib/home/syncStatus"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import {
   ROUTE_OPTIONS,
   routesOf,
   unitOptionsFor,
@@ -53,7 +59,6 @@ import { AmberNotice, useAmberNotice } from "@/components/notifications/amber-no
 import { dateKeyToDate, toDateKey } from "@/lib/home/mockHomeData"
 import { getSelectedDayOrToday } from "@/lib/home/selectedDay"
 import {
-  formatDateKeyShort,
   formatTimeLabel,
   hasTime,
   loadStack,
@@ -97,7 +102,7 @@ type CadenceType = Cadence["type"]
 const CADENCE_OPTIONS: { value: CadenceType; label: string }[] = [
   { value: "daily", label: "Daily" },
   { value: "everyOtherDay", label: "Every other day" },
-  { value: "everyNDays", label: 'Every "X" Days' },
+  { value: "everyNDays", label: "Every few days" },
   { value: "daysOfWeek", label: "Specific days" },
 ]
 const DOW: { letter: string; day: number }[] = [
@@ -298,7 +303,7 @@ const DOSES_SOFT_CAP = 6
 const DOSES_HARD_CAP = 10
 
 /**
- * "Add to log" / "Edit compound" — captures dose and schedule (with a start date
+ * "Add compound" / "Edit compound" — captures dose and schedule (with a start date
  * so the cycle can be planned). The injection site is no longer set per compound
  * (Spec 19) — it's chosen at log time from the user's working set.
  * Method and unit are locked to the compound's database values (the unit can be
@@ -365,40 +370,65 @@ export function AddCompoundSheet({
     setShown(next)
   }
 
+  // The one sheet frame (consistency fix #1), with the Cancel / Title / Verb
+  // bar. The verb saves through the body, which owns the form.
+  const isEdit = shown ? shown.id !== null && !shown.readd : false
+  const title = isEdit ? "Edit compound" : "Add compound"
+  const saveRef = useRef<(() => void) | null>(null)
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="dialog"
-        side="bottom"
-        showCloseButton={false}
-        // Don't auto-focus a field on open — keeps the keypad from popping over the
-        // form/dropdowns before the user taps a field.
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="h-[92dvh] gap-0 border-t-0 bg-transparent p-0 shadow-none"
-      >
-        {shown ? (
-          <AddCompoundBody
-            key={shown.id ?? shown.name}
-            source={shown}
-            userId={userId}
-            onCancel={() => onOpenChange(false)}
-            onAdded={onAdded}
-          />
-        ) : null}
-      </SheetContent>
-    </Sheet>
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description="Set the dose and schedule."
+      desktop="dialog"
+      // No field focused on open, so no keyboard springs up over the sheet.
+      onOpenAutoFocus={(e) => e.preventDefault()}
+      header={
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className={cn(PRESS.text, "-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary")}
+          >
+            Cancel
+          </button>
+          <span aria-hidden className="justify-self-center text-base font-medium text-foreground">
+            {title}
+          </span>
+          <button
+            type="button"
+            onClick={() => saveRef.current?.()}
+            className={cn(PRESS.text, "-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80")}
+          >
+            {isEdit ? "Save" : "Add"}
+          </button>
+        </div>
+      }
+    >
+      {shown ? (
+        <AddCompoundBody
+          key={shown.id ?? shown.name}
+          source={shown}
+          userId={userId}
+          saveRef={saveRef}
+          onAdded={onAdded}
+        />
+      ) : null}
+    </BottomSheet>
   )
 }
 
 function AddCompoundBody({
   source,
   userId,
-  onCancel,
+  saveRef,
   onAdded,
 }: {
   source: Source
   userId: string
-  onCancel: () => void
+  /** The header's verb (Add / Save) calls this. */
+  saveRef: { current: (() => void) | null }
   onAdded: (saved: StackCompound) => void
 }) {
   // Re-adding a deleted compound: an in-place upsert (keeps the id, drops the
@@ -1061,7 +1091,7 @@ function AddCompoundBody({
     if (!isEdit && !isReadd) {
       const name = source.name.trim().toLowerCase()
       if ((loadStack(userId) ?? []).some((c) => c.name.trim().toLowerCase() === name)) {
-        show(`${source.name} is already in your log.`)
+        show(`${source.name} is already in your protocol.`)
         return
       }
     }
@@ -1152,7 +1182,7 @@ function AddCompoundBody({
           : {}),
     }
     if (!upsertStack(userId, saved)) {
-      show("Couldn't save to this device. Storage may be full or off.")
+      show("Couldn’t save on this phone. Try again.")
       return
     }
     // Remember the unit for this compound and put it at the head of "Recently
@@ -1165,6 +1195,8 @@ function AddCompoundBody({
     // it. Best-effort + backgrounded so the user isn't kept waiting.
     const stock = canStock && addStockOn ? buildStockInsert() : null
     onAdded(saved)
+    // Every save is confirmed by a toast (consistency fix #27).
+    showToast(isEdit ? "Saved" : `${saved.name} added`)
     if (stock) {
       /**
        * TRACKED, not discarded.
@@ -1198,8 +1230,13 @@ function AddCompoundBody({
     }
   }
 
+  // The header's verb saves the form as it is now.
+  useEffect(() => {
+    saveRef.current = () => void handleSave()
+  })
+
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg">
+    <div>
       <AmberNotice notice={notice} onDismiss={dismiss} />
 
       {/* "That is a lot of doses" — a real question, not a toast, because it
@@ -1219,13 +1256,15 @@ function AddCompoundBody({
               setConfirmManyDoses(false)
             }
           }}
-          className="absolute inset-0 z-50 flex items-center justify-center bg-bg-base/70 px-6 backdrop-blur-sm"
+          // Fixed to the sheet's frame (which is transformed), so it covers
+          // the sheet wherever the form is scrolled. The pop-up's look.
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
         >
-          <div className="w-full max-w-xs space-y-3 rounded-2xl bg-bg-surface-raised p-5 shadow-lg">
-            <p className="text-sm font-medium text-foreground">
+          <div className="inst-card w-full max-w-[320px] space-y-3 rounded-[20px] p-5">
+            <p className="text-[17px] font-normal tracking-[-0.01em] text-foreground">
               {cleanLaterTimes.length + 1} doses a day?
             </p>
-            <p className="text-sm leading-relaxed text-text-muted">
+            <p className="text-[13.5px] leading-snug text-text-muted">
               That is more than most protocols ask for. It will show as{" "}
               {cleanLaterTimes.length + 1} separate rows to tick off each day.
             </p>
@@ -1237,7 +1276,7 @@ function AddCompoundBody({
                 // The SAFE choice takes focus, not the destructive one.
                 autoFocus
                 onClick={() => setConfirmManyDoses(false)}
-                className="flex-1 rounded-xl border border-border-default bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary hover:bg-bg-surface-raised"
+                className={cn(SECONDARY_BUTTON, "flex-1")}
               >
                 Go back
               </button>
@@ -1247,7 +1286,7 @@ function AddCompoundBody({
                   setConfirmManyDoses(false)
                   void handleSave(true)
                 }}
-                className="flex-1 inst-btn px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+                className={cn(PRIMARY_BUTTON, "flex-1")}
               >
                 Yes, save
               </button>
@@ -1255,30 +1294,6 @@ function AddCompoundBody({
           </div>
         </div>
       )}
-
-      {/* Header */}
-      <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 pt-4 pb-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className={cn(PRESS.text, "-m-2 flex min-h-11 items-center justify-self-start p-2 text-base text-text-muted transition-colors hover:text-text-primary")}
-        >
-          Cancel
-        </button>
-        <SheetTitle className="justify-self-center text-base font-medium text-foreground">
-          {isEdit ? "Edit compound" : "Add to log"}
-        </SheetTitle>
-        <button
-          type="button"
-          onClick={() => void handleSave()}
-          className={cn(PRESS.text, "-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80")}
-        >
-          {isEdit ? "Save" : "Add"}
-        </button>
-      </div>
-      <SheetDescription className="sr-only">
-        Set the dose and schedule.
-      </SheetDescription>
 
       <div
         // Unreachable while the confirm is up. `aria-modal` alone is a claim,
@@ -1288,7 +1303,7 @@ function AddCompoundBody({
         // notice that appears later rises when it does. The sections carry no
         // entrance of their own.
         data-sheet-body
-        className="flex-1 space-y-5 overflow-y-auto px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+        className="space-y-5 pt-1 pb-1"
       >
         {/* Compound header — the container, the name, and one detail line.
             Replaces the bordered name card (spec 10). The container is the thing
@@ -1307,18 +1322,13 @@ function AddCompoundBody({
             covered by a blend you track (or vice versa). Add it anyway only if you
             want the extra dose; the blend itself logs as one unit. */}
         {overlapNote && (
-          <div className="flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
-            <Warning
-              className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
-              aria-hidden
-            />
-            <p className="text-xs leading-relaxed text-foreground">
-              {overlapNote}{" "}
-              <span className="text-text-muted">
-                For personal tracking only, not medical or dosing advice.
-              </span>
-            </p>
-          </div>
+          // A note, not a box: a muted line and one amber glyph (fix #27).
+          <p className={INLINE_NOTE}>
+            <Warning className="mt-px h-3.5 w-3.5 shrink-0 text-accent-amber" aria-hidden />
+            <span>
+              {overlapNote} For personal tracking only, not medical or dosing advice.
+            </span>
+          </p>
         )}
 
         {/* ── Card one: the dose ─────────────────────────────────────
@@ -1518,7 +1528,7 @@ function AddCompoundBody({
           <FormRow
             label="Starts"
             onPress={() => setStartOpen((o) => !o)}
-            value={formatDateKeyShort(startDate)}
+            value={dayLong(startDate)}
             expanded={startOpen}
           />
           {startOpen && (
@@ -1709,7 +1719,7 @@ function AddCompoundBody({
                 <>
                   Starting on{" "}
                   <span className="font-mono text-foreground">
-                    {formatDateKeyShort(startDate)}
+                    {dayLong(startDate)}
                   </span>
                   , in the past, so you can log the doses you&apos;ve already
                   taken.
@@ -1722,23 +1732,17 @@ function AddCompoundBody({
         {/* Changing the dose (amount or unit) while EDITING — a non-alarming
             heads-up that the change applies going forward, with the disclaimer. */}
         {isEdit && (Number(dose) !== Number(source.dose) || unit !== source.unit) && (
-          <div className="flex gap-2.5 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3">
-            <Warning
-              className="mt-0.5 h-4 w-4 shrink-0 text-accent-amber"
-              aria-hidden
-            />
-            <p className="text-xs leading-relaxed text-foreground">
+          <p className={INLINE_NOTE}>
+            <Warning className="mt-px h-3.5 w-3.5 shrink-0 text-accent-amber" aria-hidden />
+            <span>
               You&apos;re changing your dose to{" "}
-              <span className="font-mono text-accent-amber">
+              <span className="font-mono text-foreground">
                 {dose || "0"} {unit}
               </span>
               . This applies to your upcoming doses. Anything already logged stays
-              as it was.{" "}
-              <span className="text-text-muted">
-                For personal tracking only, not medical or dosing advice.
-              </span>
-            </p>
-          </div>
+              as it was. For personal tracking only, not medical or dosing advice.
+            </span>
+          </p>
         )}
 
         {/* Date preview — SHORTENED (spec 10 · step 5). It was
@@ -1751,13 +1755,13 @@ function AddCompoundBody({
           <p className="px-1 text-xs text-text-muted">
             First dose{" "}
             <span className="font-mono text-text-muted">
-              {formatDateKeyShort(upcoming[0])}
+              {dayLong(upcoming[0])}
             </span>
             {upcoming.length > 1 && (
               <>
                 , then{" "}
                 <span className="font-mono text-text-muted">
-                  {formatDateKeyShort(upcoming[1])}
+                  {dayLong(upcoming[1])}
                 </span>
               </>
             )}
@@ -1875,7 +1879,7 @@ function AddCompoundBody({
                 {stockType === "reconstituted" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>Powder in vial</span>
+                      <span className={FIELD_LABEL}>Powder in vial</span>
                       <div className="flex items-center gap-1.5">
                         <PadInput {...pad.bind("stPowder")} value={stPowder} label="Powder in vial" unit={stPowderUnits.length === 1 ? stPowderUnits[0] : stPowderUnit} className="h-11 flex-1" />
                         {/* One unit ⇒ state it rather than ask. */}
@@ -1884,7 +1888,7 @@ function AddCompoundBody({
                         ) : (
                           <ThumbGroup selection={stPowderUnit} thumbClassName={PILL_THUMB} role="group" aria-label="Powder unit" className="flex gap-1">
                             {stPowderUnits.map((u) => (
-                              <button key={u} type="button" onClick={() => setStPowderUnit(u)} aria-pressed={stPowderUnit === u} className={cn(PRESS.pill, STOCK_PILL, "duration-300", stPowderUnit === u ? ROW_PILL_ON : ROW_PILL_OFF)}>{u}</button>
+                              <button key={u} type="button" onClick={() => setStPowderUnit(u)} aria-pressed={stPowderUnit === u} className={cn(ROW_PILL, stPowderUnit === u ? ROW_PILL_ON : ROW_PILL_OFF)}>{u}</button>
                             ))}
                           </ThumbGroup>
                         )}
@@ -1898,7 +1902,7 @@ function AddCompoundBody({
                       )}
                     </label>
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>BAC water (mL)</span>
+                      <span className={FIELD_LABEL}>BAC water (mL)</span>
                       <PadInput {...pad.bind("stBac")} value={stBac} label="BAC water" unit="mL" className="h-11 w-full" />
                     </label>
                   </div>
@@ -1906,11 +1910,11 @@ function AddCompoundBody({
                 {stockType === "preconcentrated" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>Volume (mL)</span>
+                      <span className={FIELD_LABEL}>Volume (mL)</span>
                       <PadInput {...pad.bind("stMl")} value={stMl} label="Volume" unit="mL" className="h-11 w-full" />
                     </label>
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>Strength (mg/mL)</span>
+                      <span className={FIELD_LABEL}>Strength (mg/mL)</span>
                       <PadInput {...pad.bind("stConc")} value={stConc} label="Strength" unit="mg/mL" className="h-11 w-full" />
                     </label>
                   </div>
@@ -1918,7 +1922,7 @@ function AddCompoundBody({
                 {stockType === "oral_solid" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>Count</span>
+                      <span className={FIELD_LABEL}>Count</span>
                       <div className="flex gap-1.5">
                         <PadInput {...pad.bind("stCount")} value={stCount} label="Count" className="h-11 flex-1" />
                         {stOralRule.countUnit ? (
@@ -1930,8 +1934,8 @@ function AddCompoundBody({
                           </span>
                         ) : (
                           <ThumbGroup selection={stOralForm} thumbClassName={PILL_THUMB} role="group" aria-label="Tablet or capsule" className="flex gap-1">
-                            <button type="button" onClick={() => setStOralForm("tab")} aria-pressed={stOralForm === "tab"} className={cn(PRESS.pill, STOCK_PILL, "duration-300", stOralForm === "tab" ? ROW_PILL_ON : ROW_PILL_OFF)}>tab</button>
-                            <button type="button" onClick={() => setStOralForm("capsule")} aria-pressed={stOralForm === "capsule"} className={cn(PRESS.pill, STOCK_PILL, "duration-300", stOralForm === "capsule" ? ROW_PILL_ON : ROW_PILL_OFF)}>cap</button>
+                            <button type="button" onClick={() => setStOralForm("tab")} aria-pressed={stOralForm === "tab"} className={cn(ROW_PILL, stOralForm === "tab" ? ROW_PILL_ON : ROW_PILL_OFF)}>tab</button>
+                            <button type="button" onClick={() => setStOralForm("capsule")} aria-pressed={stOralForm === "capsule"} className={cn(ROW_PILL, stOralForm === "capsule" ? ROW_PILL_ON : ROW_PILL_OFF)}>cap</button>
                           </ThumbGroup>
                         )}
                       </div>
@@ -1941,7 +1945,7 @@ function AddCompoundBody({
                           `supabase/protocol/016`. Hidden entirely for a compound
                           dosed in tablets, where the tablet is the unit and a
                           strength may not be stored at all. */}
-                      <span className={STOCK_FIELD_LABEL}>Strength each</span>
+                      <span className={FIELD_LABEL}>Strength each</span>
                       <div className="flex items-center gap-1.5">
                         <PadInput {...pad.bind("stStrength")} value={stStrength} label="Strength each" unit={stStrengthUnits.length === 1 ? stStrengthUnits[0] : stStrengthUnit} placeholder={stStrengthRequired ? undefined : "optional"} className="h-11 flex-1" />
                         {stStrengthUnits.length === 1 ? (
@@ -1949,7 +1953,7 @@ function AddCompoundBody({
                         ) : (
                           <ThumbGroup selection={stStrengthUnit} thumbClassName={PILL_THUMB} role="group" aria-label="Strength unit" className="flex gap-1">
                             {stStrengthUnits.map((u) => (
-                              <button key={u} type="button" onClick={() => setStStrengthUnit(u)} aria-pressed={stStrengthUnit === u} className={cn(PRESS.pill, STOCK_PILL, "duration-300", stStrengthUnit === u ? ROW_PILL_ON : ROW_PILL_OFF)}>{u}</button>
+                              <button key={u} type="button" onClick={() => setStStrengthUnit(u)} aria-pressed={stStrengthUnit === u} className={cn(ROW_PILL, stStrengthUnit === u ? ROW_PILL_ON : ROW_PILL_OFF)}>{u}</button>
                             ))}
                           </ThumbGroup>
                         )}
@@ -1972,11 +1976,11 @@ function AddCompoundBody({
                 {stockType === "bulk_powder" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>Tub weight (g)</span>
+                      <span className={FIELD_LABEL}>Tub weight (g)</span>
                       <PadInput {...pad.bind("stTubGrams")} value={stTubGrams} label="Tub weight" unit="g" className="h-11 w-full" />
                     </label>
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>Serving (g)</span>
+                      <span className={FIELD_LABEL}>Serving (g)</span>
                       <PadInput {...pad.bind("stServingG")} value={stServingG} label="Serving" unit="g" placeholder="optional" className="h-11 w-full" />
                     </label>
                   </div>
@@ -1986,7 +1990,7 @@ function AddCompoundBody({
                     discoverable straight away. The presets/bar light up once there's a
                     capacity to take a fraction of. */}
                 <div className="space-y-2 hairline-t border-border-default/60 pt-3">
-                  <FieldLabel>How much is in it?</FieldLabel>
+                  <span className={FIELD_LABEL}>How much is in it?</span>
                   {stockFill.basis ? (
                     <>
                       {/* Neutral fullness gauge — the same calm bar as the Stock card. */}
@@ -2025,12 +2029,7 @@ function AddCompoundBody({
                                   setStExactLeft("")
                                 }}
                                 aria-pressed={on}
-                                className={cn(
-                                  PRESS.pill,
-                                  STOCK_PILL,
-                                  "duration-300",
-                                  on ? ROW_PILL_ON : ROW_PILL_OFF,
-                                )}
+                                className={cn(ROW_PILL, on ? ROW_PILL_ON : ROW_PILL_OFF)}
                               >
                                 {p.label}
                               </button>
@@ -2062,9 +2061,6 @@ function AddCompoundBody({
           </div>
         )}
 
-        <p className="px-1 text-xs leading-relaxed text-text-muted">
-          Saved to your account. Only you can see it.
-        </p>
       </div>
 
       <NumberPad {...pad.padProps(padFields)} label="Compound numbers" />
@@ -2180,9 +2176,9 @@ const ROW_PRESSABLE = PRESS.button
 // its own and the others have none either, or the thumb would vanish beneath
 // them as it passes. The stock panel's `STOCK_PILL`s take the same ON/OFF pair
 // for that reason (`STOCK_PILL_OFF` carries a fill).
-const ROW_PILL = `${PRESS.pill} rounded-lg border px-3 py-2 text-xs transition-colors duration-300`
+const ROW_PILL = `${CHIP} duration-300`
 const ROW_PILL_ON = "border-transparent font-medium text-bg-base"
-const ROW_PILL_OFF = "border-border-default text-text-muted hover:text-text-primary"
+const ROW_PILL_OFF = CHIP_OFF
 const PILL_THUMB = "inst-thumb"
 const ROW_SELECT =
   "h-11 min-w-0 rounded-lg border border-border-default bg-bg-input px-2 text-sm text-foreground outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -2269,13 +2265,17 @@ function FormRow({
             />
           )}
           {onPress && !noCaret && !plus && (
-            <CaretDown
-              className={cn(
-                "h-4 w-4 shrink-0 text-text-subtle transition-transform duration-200 motion-reduce:transition-none",
-                expanded && "rotate-180",
-              )}
+            // The one arrow for opening in place (fix #11): down while
+            // shut, up once open.
+            <span
               aria-hidden
-            />
+              className={cn(
+                "flex shrink-0 text-text-subtle transition-transform duration-200 motion-reduce:transition-none",
+                !expanded && "rotate-180",
+              )}
+            >
+              <CloseArrowIcon size={12} />
+            </span>
           )}
         </span>
       )}
@@ -2305,14 +2305,6 @@ function FormRow({
         </p>
       )}
     </>
-  )
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="mb-1.5 block text-xs font-medium tracking-wider text-text-muted uppercase">
-      {children}
-    </span>
   )
 }
 

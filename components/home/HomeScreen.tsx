@@ -1,9 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { CalendarDots, CaretDown, User } from "@/components/icons"
+import { CalendarDots, User } from "@/components/icons"
+import { CloseArrowIcon } from "@/components/feel/CloseArrow"
 import { belongsInDayLog, ringCounts } from "@/lib/home/dayDoses"
 import { PRESS } from "@/lib/ui-presets"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
@@ -27,13 +27,14 @@ import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { WeekStrip, type WeekDay } from "@/components/home/WeekStrip"
 import { HomeGreeting } from "@/components/home/HomeGreeting"
 import { TodaysCycleCard } from "@/components/home/TodaysCycleCard"
-import { LogFlowContext, rowKey, type LogFlow } from "@/components/home/log/LogFlow"
-import { LogRowPanel } from "@/components/home/log/LogRowPanel"
-import { SAVE_CONFIRM_MS, TrackBar } from "@/components/home/log/TrackBar"
+import { LogFlowContext, rowKey } from "@/components/home/log/LogFlow"
+import { TrackBar } from "@/components/home/log/TrackBar"
+import { useLogRows } from "@/components/home/log/useLogRows"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
-import { draftToLog, initialDraft, trackLabel, type RowDraft } from "@/lib/home/logDraft"
-import { openStockItem, type StockRead } from "@/lib/db/inventory"
-import { siteShortLabel } from "@/lib/home/siteCatalog"
+import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
+import type { StockRead } from "@/lib/db/inventory"
+import { dayLong } from "@/lib/format/date"
+import { pauseUndoable, pausesEndedBy } from "@/lib/home/pauseUndo"
 import {
   getOneOffsSnapshot,
   oneOffsOn,
@@ -50,7 +51,6 @@ import {
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
 import { InjectionSitesGlanceCard } from "@/components/home/InjectionSitesGlanceCard"
 import { InjectionSitesSheet } from "@/components/home/InjectionSitesSheet"
-import { LogDoseSheet } from "@/components/home/LogDoseSheet"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import type { PausedEntry } from "@/components/home/TodaysCycleCard"
 import { PauseSheet } from "@/components/home/PauseSheet"
@@ -71,6 +71,7 @@ import {
   type DayStatus,
   type DoseLog,
 } from "@/lib/home/mockHomeData"
+import type { Pause } from "@/lib/home/pauses"
 import {
   archiveInStack,
   getStackSnapshot,
@@ -81,7 +82,6 @@ import {
   nextStartingCompound,
   doseAmountsOf,
   doseTimesOf,
-  formatDateKeyShort,
   notifyStackChanged,
   pauseCompound,
   pauseCompounds,
@@ -115,10 +115,6 @@ import { HalfLifeGlance } from "@/components/halflife/HalfLifeGlance"
 const WEEKDAYS = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ]
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-]
 
 // Stable empty-logs reference for useSyncExternalStore's server snapshot.
 const EMPTY_LOGS: DayLogs = {}
@@ -129,10 +125,6 @@ const EMPTY_ONE_OFFS: OneOffDays = {}
 // Stable empty reference so a day with no resolved vials doesn't remount the rows.
 const EMPTY_DRAW_RESULT: DrawSourcesResult = { sources: {}, noVial: [] }
 
-function dayLabel(key: DateKey): string {
-  const d = dateKeyToDate(key)
-  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`
-}
 
 /**
  * Home / Dashboard. A pinned header (a sans "Dashboard" title + the selected
@@ -201,7 +193,6 @@ export function HomeScreen({
   /** Dev-preview-only: the stock an open row's Stock panel shows. */
   previewStock?: StockRead
 }) {
-  const router = useRouter()
   /**
    * THE READ-ONLY GATE. Wraps the write-initiating handlers on this screen and
    * nothing else.
@@ -241,12 +232,6 @@ export function HomeScreen({
   // Which week the strip shows: 0 = current, -1 = last week, … Swipe to change,
   // capped at 0 so it stays a "look back" (never a future week).
   const [weekOffset, setWeekOffset] = useState(0)
-  const [logTarget, setLogTarget] = useState<{
-    compound: StackCompound
-    existing: DoseLog | null
-    /** Which of the day's doses is being logged (Spec w2b-13, Step 5). */
-    slot: number
-  } | null>(null)
   // Injection-site map (opened from the glance card) — a read-only view of the
   // rotation derived from the dose log. `mirrorTip` shows a one-time note that the
   // front view is mirrored, decided on the first-ever open (event-driven, so no
@@ -261,6 +246,8 @@ export function HomeScreen({
   // Tapping a compound opens its detail; "Edit" from there opens the add sheet.
   const [detailTarget, setDetailTarget] = useState<StackCompound | null>(null)
   const [editTarget, setEditTarget] = useState<StackCompound | null>(null)
+  /** The compound picker, from the empty log's "Add compound". */
+  const [addOpen, setAddOpen] = useState(false)
 
   // The stack (per-compound dosing/schedule/rotation) lives in localStorage so it
   // survives reloads and a sibling (the add flow) can update it. `useSyncExternal-
@@ -464,7 +451,7 @@ export function HomeScreen({
 
   // Selected day's list: anything LOGGED that day (history — kept even after a
   // compound is archived) plus active compounds due that day. The injection site
-  // is chosen in the log sheet's body map (Spec 19), not per compound here.
+  // is chosen in an open row's Site panel (Spec 19), not per compound here.
   const isToday = selectedKey === todayKey
   const selectedDate = dateKeyToDate(selectedKey)
   const selectedRows = logs[selectedKey] ?? {}
@@ -589,7 +576,7 @@ export function HomeScreen({
       count: 1,
       resumesOn: resumesOn(c.pauses, selectedKey),
       resumeLabel:
-        resumeLabel(c.pauses, selectedKey, formatDateKeyShort) ?? "Indefinite",
+        resumeLabel(c.pauses, selectedKey, dayLong) ?? "Indefinite",
     }))
   // A fully paused stack, as ONE entry. The return date is read from the FIRST
   // member and the entry acts on it: members paused in one action share a group
@@ -606,7 +593,7 @@ export function HomeScreen({
       stackName: st.name,
       resumesOn: resumesOn(members[0].pauses, selectedKey),
       resumeLabel:
-        resumeLabel(members[0].pauses, selectedKey, formatDateKeyShort) ??
+        resumeLabel(members[0].pauses, selectedKey, dayLong) ??
         "Indefinite",
     }),
   )
@@ -665,36 +652,11 @@ export function HomeScreen({
   // rather than showing a draw priced against the previous day's vial — a wrong draw
   // is worse than no draw.
   const drawResult = drawState.key === drawKey ? drawState.result : EMPTY_DRAW_RESULT
-  // Only compounds we looked up and CONFIRMED have no vial may offer "add stock" — not
-  // a read still in flight, and not one whose query failed. Both of those say nothing.
-  const noVialIds = useMemo(() => new Set(drawResult.noVial), [drawResult])
-
-  // Days since each site was last used, for the log sheet's "last used here" rest
-  // hint. Relative to the SELECTED day and INCLUDING it — so a site another compound
-  // already used that day reads "used today" (you can still log two compounds into
-  // one muscle; this just tells you). Only the dose being logged right now (the
-  // active compound's own log on that day) is left out, so it never counts itself.
-  const activeLogCompoundId = logTarget?.compound.id
-  const selDayN = Math.floor(selectedDate.getTime() / 86_400_000)
-  const siteLastUsedDays: Record<string, number> = {}
-  for (const [key, dayLogObj] of Object.entries(logs)) {
-    if (key > selectedKey) continue
-    const ago = selDayN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000)
-    if (ago < 0) continue
-    for (const [compoundId, dayLog] of Object.entries(dayLogObj)) {
-      if (key === selectedKey && compoundId === activeLogCompoundId) continue
-      const sid = dayLog.siteId
-      if (sid && (siteLastUsedDays[sid] === undefined || ago < siteLastUsedDays[sid])) {
-        siteLastUsedDays[sid] = ago
-      }
-    }
-  }
 
   // Days since each site was last used, TODAY-relative and INCLUDING today — the
   // recency shading for the Injection-sites card + sheet (last pin brightest amber).
-  // This intentionally differs from siteLastUsedDays above, which is selected-day
-  // relative and excludes the selected day (that one is only the log sheet's rest
-  // hint — "don't count the dose you're logging").
+  // The Site panel's own day chips are selected-day relative and leave out the
+  // dose being logged (`siteDaysBefore`, inside `useLogRows`).
   const siteDaysSinceToday = siteDaysSince(logs, todayKey)
 
   // Recent injectable doses grouped by SITE (muscle), newest first, for the
@@ -762,23 +724,10 @@ export function HomeScreen({
     ? "Today's Log"
     : `${WEEKDAYS[selectedDate.getDay()]}'s Log`
 
-  /**
-   * Commit a dose on the day the sheet says it lands on.
-   *
-   * `landsOn` is usually `openedOn`. When the user has changed the Date row it
-   * is not, and the dose has to MOVE: writing the new day without clearing the
-   * old one would leave two entries for one dose, which is exactly the
-   * duplication the un-log path exists to prevent.
-   */
-  function handleTracked(
-    compoundId: string,
-    log: DoseLog,
-    landsOn: string,
-    openedOn: string,
-    slot = 0
-  ) {
+  /** Commit a dose (fresh or edited) on the day its row belongs to. */
+  function handleTracked(compoundId: string, log: DoseLog, day: string, slot = 0) {
     /**
-     * ⚠️ GUARDED HERE TOO, not only at the tick that opens the sheet.
+     * ⚠️ GUARDED HERE TOO, not only at the tick that opens the row.
      *
      * A cold review found the hole: the tick is guarded, and "Log today's dose"
      * on the COMPOUND DETAIL SHEET was not — so a lapsed user reached this
@@ -801,28 +750,20 @@ export function HomeScreen({
     // BEFORE the write, and only once the cloud history has settled, so a
     // returning user on a new phone is never greeted as new.
     const firstEver = hydration === "done" && !hasAnyLog(logs) && !celebrated(userId)
-    commitDoseOn(userId, compoundId, log, landsOn, openedOn, slot)
+    commitDoseOn(userId, compoundId, log, day, day, slot)
     if (firstEver) {
       markCelebrated(userId)
       // After the tick's lift, so the row reads as logged under the scrim.
       window.setTimeout(() => setFirstDoseOpen(true), 420)
     }
-    // The row's tick pops once the sheet has gone (feel pass §8).
-    trackedRef.current = { id: compoundId, slot, day: landsOn }
-    // Follow the dose to its new day — but only AFTER the sheet has closed. The
-    // sheet freezes the day it opened on for exactly this reason: moving the
-    // selection while it is open used to remount it, wiping the success tick and
-    // re-seeding every field from the schedule.
-    if (landsOn !== openedOn) setPendingDay(landsOn as DateKey)
+    // The row's tick lifts once its row has closed (feel pass §8).
+    trackedRef.current = { id: compoundId, slot, day }
   }
 
-  /** A day the committed dose moved to, applied once the sheet is out of the way. */
-  const [pendingDay, setPendingDay] = useState<DateKey | null>(null)
-
   /**
-   * THE ROW'S TICK POPS AFTER THE SHEET CLOSES (feel pass §8): the app's own
-   * tick-pop and ring, on the dose that was just tracked. Recorded at commit,
-   * played on close, cleared once the ring has finished.
+   * THE ROW'S TICK LIFTS AFTER TRACK (feel pass §8), on the dose that was just
+   * tracked. Recorded at commit, played once the row has closed, cleared once
+   * the lift has finished.
    */
   const trackedRef = useRef<{ id: string; slot: number; day: string } | null>(null)
   const [firstDoseOpen, setFirstDoseOpen] = useState(false)
@@ -842,103 +783,11 @@ export function HomeScreen({
 
   /* ------------------------------------------------ Today's Log, Flow B */
 
-  /**
-   * The row open in Today's Log, and the one still folding shut after it closed
-   * (so its contents stay drawn while it collapses). Nothing is logged until
-   * Track (ui-context → "Today's Log, and logging a dose").
-   */
-  interface OpenRow {
-    dose: StackCompound
-    slot: number
-    existing: DoseLog | null
-    day: DateKey
-    draft: RowDraft
-  }
-  const [openRow, setOpenRow] = useState<OpenRow | null>(null)
-  const [closingRow, setClosingRow] = useState<OpenRow | null>(null)
-  const [rowPanelOpen, setRowPanelOpen] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  // Track is running (a spare being started first): the bar stays disabled, so
-  // a second tap cannot log the dose twice.
-  const [tracking, setTracking] = useState(false)
+  /** Stock added from an open row: the sheet over it, then the row reads its
+   *  stock again. Also Home's compound sheet's Stock (consistency fix #4: open
+   *  the Add stock sheet here rather than leaving Home). */
   const [stockSheetFor, setStockSheetFor] = useState<StackCompound | null>(null)
   const [stockReadKey, setStockReadKey] = useState(0)
-  /** An unopened spare picked in the Stock panel: Track starts it first. */
-  const spareRef = useRef<string | null>(null)
-  const closeTimer = useRef<number | undefined>(undefined)
-  // A row belongs to the day it was opened on; the strip moving closes it.
-  const liveRow = openRow && openRow.day === selectedKey ? openRow : null
-  // The open row as it is NOW, for work that finishes later (Save's confirm,
-  // Track after a spare starts): a closure holds the row as it was.
-  const openRowRef = useRef<OpenRow | null>(null)
-  useEffect(() => {
-    openRowRef.current = openRow
-  }, [openRow])
-  const sameRow = (a: OpenRow | null, b: OpenRow | null) =>
-    Boolean(a && b && a.dose.id === b.dose.id && a.slot === b.slot && a.day === b.day)
-
-  const isOpenRow = (id: string, slot: number) => liveRow?.dose.id === id && liveRow.slot === slot
-
-  function closeLogRow() {
-    const cur = openRowRef.current ?? openRow
-    if (!cur) return
-    setClosingRow(cur)
-    setOpenRow(null)
-    setRowPanelOpen(false)
-    setConfirming(false)
-    spareRef.current = null
-    window.clearTimeout(closeTimer.current)
-    closeTimer.current = window.setTimeout(() => setClosingRow(null), 520)
-  }
-
-  function openLogRow(dose: StackCompound, slot: number) {
-    const existing = logs[selectedKey]?.[slotKey(dose.id, slot)] ?? null
-    if (openRow) setClosingRow(openRow)
-    window.clearTimeout(closeTimer.current)
-    closeTimer.current = window.setTimeout(() => setClosingRow(null), 520)
-    setOpenRow({ dose, slot, existing, day: selectedKey, draft: initialDraft(dose, selectedKey, slot, existing) })
-    setRowPanelOpen(false)
-    setConfirming(false)
-    spareRef.current = null
-  }
-
-  async function trackOpenRow() {
-    const tapped = liveRow
-    if (!tapped || tapped.draft.amount <= 0 || confirming || tracking) return
-    // The same door as the tick: a read-only account meets the pop-up here.
-    if (!guard(() => {})) return
-    const spare = spareRef.current
-    // Only today: a spare started on a past day would become the oldest open
-    // container and take every later dose (cold review, 2026-09-25).
-    if (spare && tapped.day === todayKey) {
-      // Picking a spare is the moment it goes into use (build brief §5): start
-      // it BEFORE the dose links to it, or the link is dropped as not started.
-      setTracking(true)
-      await openStockItem(spare, tapped.day).catch(() => ({ ok: false }))
-      setTracking(false)
-    }
-    // The row as it is now: an edit made while the spare started still counts,
-    // and a row closed meanwhile is not logged.
-    const row = openRowRef.current
-    if (!row || !sameRow(row, tapped) || row.draft.amount <= 0) return
-    const log = draftToLog(row.dose, row.draft, row.day, todayKey, row.slot, new Date())
-    if (row.existing) {
-      // Edit mode: Save confirms with a calm tick, then the bar drops.
-      setConfirming(true)
-      window.setTimeout(() => {
-        handleTracked(row.dose.id, log, row.day, row.day, row.slot)
-        // Close it only if it is still the open row: another may have been
-        // opened during the confirm.
-        if (sameRow(openRowRef.current, row)) closeLogRow()
-        else setConfirming(false)
-        playTrackedPop()
-      }, SAVE_CONFIRM_MS)
-      return
-    }
-    handleTracked(row.dose.id, log, row.day, row.day, row.slot)
-    closeLogRow()
-    playTrackedPop()
-  }
 
   // FIRST RUN (build-brief-final §3.1): nobody has logged a dose on this
   // account yet, and the cloud history has settled, so the first due row's
@@ -947,95 +796,66 @@ export function HomeScreen({
   const firstRunKey =
     hydration === "done" && isToday && !bubbleGone && !hasAnyLog(logs) && firstDue ? rowKey(firstDue.id, 0) : null
 
-  const logFlow: LogFlow = {
-    openKey: liveRow ? rowKey(liveRow.dose.id, liveRow.slot) : null,
-    closingKey: closingRow ? rowKey(closingRow.dose.id, closingRow.slot) : null,
-    condensed: liveRow !== null && rowPanelOpen,
-    draft: liveRow?.draft ?? null,
-    firstRunKey,
-    onTick: (dose, slot) => {
-      if (firstRunKey) {
-        markBubbleSeen(userId)
-        setBubbleGone(true)
-      }
-      const log = logs[selectedKey]?.[slotKey(dose.id, slot)]
-      // A LOGGED dose's tick un-logs it (the tick only), with a 3s Undo that
-      // puts back the very same dose: its amount, time, site and container.
-      if (log) {
-        if (isOpenRow(dose.id, slot)) closeLogRow()
-        const day = selectedKey
-        handleRemove(dose.id, day, slot)
-        showToast("Unticked", { undo: () => handleTracked(dose.id, log, day, day, slot) })
-        return
-      }
-      // The first tap opens the row, the second logs it.
-      if (isOpenRow(dose.id, slot)) {
-        void trackOpenRow()
-        return
-      }
-      guard(() => openLogRow(dose, slot))
-    },
-    onOpen: (dose, slot) => {
-      if (isOpenRow(dose.id, slot)) {
-        closeLogRow()
-        return
-      }
-      const logged = Boolean(logs[selectedKey]?.[slotKey(dose.id, slot)])
-      // Editing a logged dose writes only on Save, which is guarded there.
-      if (logged) openLogRow(dose, slot)
-      else guard(() => openLogRow(dose, slot))
-    },
-    renderPanel: (dose, slot) => {
-      const row = isOpenRow(dose.id, slot)
-        ? liveRow
-        : closingRow?.dose.id === dose.id && closingRow.slot === slot
-          ? closingRow
-          : null
-      if (!row) return null
-      const live = row === liveRow
-      return (
-        <LogRowPanel
-          key={rowKey(dose.id, slot)}
-          compound={row.dose}
-          dateKey={row.day}
-          todayKey={todayKey}
-          draft={row.draft}
-          onDraft={(patch) =>
-            // Only onto THIS row: a closing row's late stock read must not
-            // land on the row opened after it.
-            live && setOpenRow((r) => (r && sameRow(r, row) ? { ...r, draft: { ...r.draft, ...patch } } : r))
-          }
-          catalogue={injectionCatalogue}
-          siteLastUsedDays={siteLastUsedDays}
-          bodySex={bodySex}
-          onTileChange={(o) => live && setRowPanelOpen(o)}
-          onAddStock={() => setStockSheetFor(row.dose)}
-          onSpare={(id) => {
-            spareRef.current = id
-          }}
-          readKey={stockReadKey}
-          previewStock={previewStock}
-        />
-      )
-    },
-  }
-  // The Track bar names the site SHORT ("Abdomen L"), consistency fix #28.
-  const trackSiteName =
-    liveRow?.draft.siteId
-      ? siteShortLabel(liveRow.draft.siteId, injectionCatalogue.find((s) => s.id === liveRow.draft.siteId)?.label)
-      : null
-
   /**
-   * Undo a logged dose — on the day the SHEET was showing, which the sheet
-   * passes in.
-   *
-   * It used to read `selectedKey`, the live selection. Those agreed only by
-   * accident; once the sheet froze the day it opened on, leaving it open across
-   * midnight was enough to make Remove delete the NEXT day's dose and tombstone
-   * it, while the one on screen survived.
+   * The rows open in place, the tick logs on its second tap, and the Track bar
+   * is the open row's action (`useLogRows`, shared with Quick log and the
+   * Calendar's day, consistency fix #0).
    */
+  const rows = useLogRows({
+    day: selectedKey,
+    todayKey,
+    logs,
+    guard,
+    commit: (id, log, day, slot) => handleTracked(id, log, day, slot),
+    remove: (id, day, slot) => handleRemove(id, day, slot),
+    afterTrack: playTrackedPop,
+    onAnyTick: () => {
+      if (!firstRunKey) return
+      markBubbleSeen(userId)
+      setBubbleGone(true)
+    },
+    firstRunKey,
+    catalogue: injectionCatalogue,
+    bodySex,
+    onAddStock: (c) => setStockSheetFor(c),
+    stockReadKey,
+    previewStock,
+  })
+
+  /** Remove a logged dose, on the day its row was drawn for (passed in, never
+   *  the live selection, which can have moved since). */
   function handleRemove(compoundId: string, dateKey: string, slot = 0) {
     unlogDose(userId, dateKey, compoundId, slot)
+  }
+
+  /* ------------------------------------------------ toasts with Undo (§3.16) */
+
+  /**
+   * Resumes arrive one call per compound (the stack checklist loops), so they
+   * are gathered for one tick and confirmed with ONE toast whose Undo puts every
+   * one of them back.
+   */
+  const resumeBatch = useRef<{ compoundId: string; pause: Pause }[] | null>(null)
+  function confirmResumed(ended: { compoundId: string; pause: Pause }[]) {
+    if (!resumeBatch.current) {
+      resumeBatch.current = []
+      queueMicrotask(() => {
+        const all = resumeBatch.current ?? []
+        resumeBatch.current = null
+        showToast("Resumed", {
+          undo:
+            all.length > 0
+              ? () => {
+                  // Pausing again with the very pause it ended: the store merges
+                  // it back over the shortened one, which restores it exactly.
+                  for (const e of all) pauseCompound(userId, e.compoundId, e.pause)
+                  notifyStackChanged()
+                }
+              : undefined,
+        })
+      })
+    }
+    resumeBatch.current.push(...ended)
   }
 
   return (
@@ -1053,24 +873,29 @@ export function HomeScreen({
         <div data-area="title" className={cn(!skeletonShown && "animate-shortcut-fade")}>
           <PageScrollTitle
             title="Dashboard"
-            eyebrow={dayLabel(selectedKey)}
+            eyebrow={dayLong(selectedKey)}
             action={
               // Collapse, calendar, profile — left to right (Spec 02).
               <div className="-mr-1 flex items-center">
+                {/* The week opens in place, so its toggle is THE close arrow
+                    (consistency fix #11): raised and pointing up while the
+                    week is open, a plain down arrow while it is shut. */}
                 <button
                   type="button"
                   onClick={() => setStripOpen((o) => !o)}
                   aria-expanded={stripOpen}
                   aria-label={stripOpen ? "Collapse the week" : "Expand the week"}
-                  className={cn(PRESS.icon, "flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+                  className={cn(PRESS.icon, "flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
                 >
-                  <CaretDown
+                  <span
                     aria-hidden
                     className={cn(
-                      "h-5 w-5 transition-transform duration-300 ease-out motion-reduce:transition-none",
-                      !stripOpen && "-rotate-90"
+                      "flex h-[30px] w-[30px] items-center justify-center rounded-[9px] transition-[rotate,color] duration-300 ease-out motion-reduce:transition-none",
+                      stripOpen ? "inst-ghost text-foreground" : "rotate-180",
                     )}
-                  />
+                  >
+                    <CloseArrowIcon />
+                  </span>
                 </button>
                 <Link
                   href="/calendar"
@@ -1151,38 +976,28 @@ export function HomeScreen({
             // above the empty card instead of vanishing.
             <div className="space-y-3">
               <HomeGreeting firstName={firstName} />
-              <EmptyLogCard />
+              {/* The + stays hidden until the first log, so the card ends in
+                  the one action that fixes it (consistency fix #24). */}
+              <EmptyLogCard onAdd={() => guard(() => setAddOpen(true))} />
             </div>
           ) : (
             // Flow B: the rows open in place, the tick logs on its second tap,
             // and the Track bar below is the open row's action.
-            <LogFlowContext.Provider value={logFlow}>
+            <LogFlowContext.Provider value={rows.flow}>
             <TodaysCycleCard
               progress={{ logged: selectedLogged, due: dayDots.length }}
               greeting={<HomeGreeting firstName={firstName} />}
               title={cycleTitle}
               dueDoses={dueDoses}
               startsNext={startsNext}
-              /* GUARDED. The tick is the app's primary write, so a read-only
-                 account meets the pop-up here rather than after filling in a
-                 sheet. Un-ticking below is NOT guarded: removing a dose you
-                 logged is yours to do whatever your subscription says. */
-              onLog={(dose, slot) =>
-                guard(() =>
-                  setLogTarget({ compound: dose, existing: null, slot }),
-                )
-              }
+              /* The stack tick's fallback: a dose opens its row, which is
+                 guarded there. Un-ticking below is NOT guarded: removing a
+                 dose you logged is yours to do whatever your subscription says. */
+              onLog={(dose, slot) => rows.flow.onOpen(dose, slot)}
               /* From the ROW, so the day is the one the row is rendered for. */
               onUnlog={(dose, slot) => handleRemove(dose.id, selectedKey, slot)}
               onOpenDetail={(dose) => setDetailTarget(dose)}
               drawSources={drawResult.sources}
-              noVialIds={noVialIds}
-              // Carries WHICH compound, so Protocol opens straight onto its
-              // add-stock sheet. Dropping the argument left the user at the top
-              // of a scrolling row having to recognise the card again.
-              onAddStock={(dose) =>
-                router.push(`/protocol?stock=${encodeURIComponent(dose.id)}`)
-              }
               // Grouping is dated, so the card has to know WHICH day it is
               // drawing — a stack made today never reaches back over history.
               dayKey={selectedKey}
@@ -1218,7 +1033,7 @@ export function HomeScreen({
                 // a member has no set time at all it fell through to noon. On the
                 // selected day's "today" that means the clock; back-dating has no
                 // clock to read, so it falls back to the scheduled time, which is
-                // the same rule the single-dose log sheet uses.
+                // the same rule a single row's Track uses.
                 const time24 = selectedKey === todayKey ? hhmmNow() : ""
                 for (const m of members) {
                   // One tap logs the NEXT unlogged dose of each member, not
@@ -1265,7 +1080,19 @@ export function HomeScreen({
               // Which slots is not decided here — the row hands over exactly the
               // ones it means (never a paused member, never a Skipped dose).
               onUnlogStack={(targets) => {
-                for (const t of targets) handleRemove(t.compound.id, selectedKey, t.slot)
+                const day = selectedKey
+                // What each removed dose WAS, so Undo puts back the very same
+                // doses: amounts, times, sites and containers.
+                const removed = targets.flatMap((t) => {
+                  const log = logs[day]?.[slotKey(t.compound.id, t.slot)]
+                  return log ? [{ id: t.compound.id, slot: t.slot, log }] : []
+                })
+                for (const t of targets) handleRemove(t.compound.id, day, t.slot)
+                showToast("Unticked", {
+                  undo: () => {
+                    for (const r of removed) handleTracked(r.id, r.log, day, r.slot)
+                  },
+                })
               }}
             />
             </LogFlowContext.Provider>
@@ -1325,13 +1152,7 @@ export function HomeScreen({
       <FirstDoseModal open={firstDoseOpen} onClose={() => setFirstDoseOpen(false)} />
 
       {/* The open row's action (A1). */}
-      <TrackBar
-        up={liveRow !== null && liveRow.draft.amount > 0}
-        label={liveRow ? trackLabel(liveRow.draft, trackSiteName, Boolean(liveRow.existing)) : ""}
-        confirming={confirming}
-        busy={tracking}
-        onTrack={() => void trackOpenRow()}
-      />
+      <TrackBar {...rows.bar} />
 
       {/* Add stock from a log row: a sheet OVER the open row, ending on the
           "Added" card, with no Refill offer (Adrian, 2026-09-24). The row reads
@@ -1352,51 +1173,6 @@ export function HomeScreen({
         }}
       />
 
-      <LogDoseSheet
-        open={logTarget !== null}
-        compound={logTarget?.compound ?? null}
-        existing={logTarget?.existing ?? null}
-        slot={logTarget?.slot ?? 0}
-        // The dose lands on the day the strip is parked on, not necessarily today —
-        // `handleTracked` already writes to `selectedKey`, and the sheet needs the
-        // same day to default the time and name it back to the user.
-        dateKey={selectedKey}
-        todayKey={todayKey}
-        siteLastUsedDays={siteLastUsedDays}
-        bodySex={bodySex}
-        catalogue={injectionCatalogue}
-        // What the strip's own draw read already knows (same day, same due set),
-        // so the sheet does not reserve a stock card for a compound with none.
-        stockHint={
-          !logTarget
-            ? undefined
-            : drawResult.sources[logTarget.compound.id]
-              ? "has"
-              : noVialIds.has(logTarget.compound.id)
-                ? "none"
-                : undefined
-        }
-        onOpenChange={(open) => {
-          if (!open) {
-            setLogTarget(null)
-            playTrackedPop()
-            // The sheet is gone, so following a moved dose to its new day can no
-            // longer remount it out from under the user.
-            if (pendingDay) {
-              setSelectedKey(pendingDay)
-              setPendingDay(null)
-            }
-          }
-        }}
-        onTracked={handleTracked}
-        onRemove={handleRemove}
-        hasLogOn={(day) =>
-          Boolean(
-            logs[day]?.[slotKey(logTarget?.compound.id ?? "", logTarget?.slot ?? 0)]
-          )
-        }
-      />
-
       {/* Tap a compound → its detail; Edit there opens the add sheet pre-filled.
           "Delete" stops future doses and keeps every logged dose — the only
           lifecycle verb there is (Spec 02). */}
@@ -1410,21 +1186,6 @@ export function HomeScreen({
         onOpenChange={(open) => {
           if (!open) setDetailTarget(null)
         }}
-        onEditTodaysDose={(c) => guard(() => {
-          // "Edit today's dose" → open the Log sheet for today's entry (edit if
-          // already logged, fresh otherwise), the same site/time flow as logging.
-          // GUARDED: it is the same write as the tick, reached from the detail
-          // sheet, and a cold review found it open while the tick was closed.
-          setDetailTarget(null)
-          setLogTarget({
-            compound: c,
-            existing: selectedRows[c.id] ?? null,
-            // Slot 0 — "Edit today's dose" means the day's FIRST dose. A
-            // multi-dose compound's later doses are edited from their own
-            // sub-rows, where it is unambiguous which one is meant.
-            slot: 0,
-          })
-        })}
         onPause={(c) => guard(() => {
           // Pausing EDITS THE PROTOCOL, which is on the gated list.
           setDetailTarget(null)
@@ -1459,9 +1220,11 @@ export function HomeScreen({
             exists: true,
           }
         })()}
+        // The Add stock sheet Home already mounts, over Home, rather than
+        // leaving for Protocol (consistency fix #4).
         onAddStock={(c) => {
           setDetailTarget(null)
-          router.push(`/protocol?stock=${encodeURIComponent(c.id)}`)
+          guard(() => setStockSheetFor(c))
         }}
         // SKIP — a record, not an absence. It writes a log with
         // `status: "skipped"`, so the day reads as dealt with rather than as a
@@ -1485,21 +1248,24 @@ export function HomeScreen({
           // confirmation and no undo. Nothing to skip is not the same as skip
           // the first one.
           if (slot == null) return
+          const day = selectedKey
           logDose(
             userId,
-            selectedKey,
+            day,
             c.id,
             {
               amount: String(
                 doseAmountsOf(resolved.schedule, resolved.dose)[slot] ?? c.dose,
               ),
               unit: c.unit,
-              time24: selectedKey === todayKey ? hhmmNow() : "",
+              time24: day === todayKey ? hhmmNow() : "",
               siteId: null,
               status: "skipped",
             },
             slot,
           )
+          // Undo unskips: the skip record goes, and the dose is due again.
+          showToast("Skipped", { undo: () => handleRemove(c.id, day, slot) })
         })}
         onEdit={(c) => {
           setDetailTarget(null)
@@ -1507,8 +1273,14 @@ export function HomeScreen({
         }}
         // Stops it from the day the strip is parked on, not from today — the same
         // rule every other write on this screen follows.
-        onArchive={(id) => archiveInStack(userId, id, true, selectedKey)}
+        onArchive={(id) => {
+          const name = stack.find((c) => c.id === id)?.name
+          if (archiveInStack(userId, id, true, selectedKey)) showToast(name ? `${name} deleted` : "Deleted")
+        }}
       />
+
+      {/* The empty log's one action (the + is hidden until the first log). */}
+      <AddToStackMenu open={addOpen} onOpenChange={setAddOpen} userId={userId} />
 
       <AddCompoundSheet
         open={editTarget !== null}
@@ -1557,14 +1329,33 @@ export function HomeScreen({
             : []
         }
         onPause={(ids, range) => {
+          const targets = ids
+            .map((id) => stack.find((c) => c.id === id))
+            .filter((c): c is StackCompound => c !== undefined)
+          // Changing the dates of a pause already running is a save, not a pause.
+          const editing = targets.some((c) => activePause(c.pauses, selectedKey) !== null)
+          // Undo only when the pause stood alone (see `pauseUndoable`).
+          const undoable = !editing && pauseUndoable(targets, range)
+          let undo: (() => void) | undefined
           if (ids.length === 1) {
             pauseCompound(userId, ids[0], { id: newId(), ...range })
+            if (undoable) undo = () => void resumeCompound(userId, ids[0], range.startedOn)
           } else {
             // One group id for the whole action, so resuming the stack later
             // restores exactly these and leaves a separately-paused member be.
-            pauseCompounds(userId, ids, range, newId(), newId)
+            const groupId = newId()
+            pauseCompounds(userId, ids, range, groupId, newId)
+            if (undoable) undo = () => void resumePauseGroup(userId, groupId, range.startedOn)
           }
           notifyStackChanged()
+          showToast(editing ? "Saved" : "Paused", {
+            undo: undo
+              ? () => {
+                  undo?.()
+                  notifyStackChanged()
+                }
+              : undefined,
+          })
         }}
         onResume={(c, on, onlyThis) => {
           const active = activePause(c.pauses, on)
@@ -1574,12 +1365,12 @@ export function HomeScreen({
           // UNLESS the caller says otherwise: the stack checklist resumes each
           // ticked member on its own, because it has already listed every paused
           // member and an unticked one is a choice, not an oversight.
-          if (active?.groupId && !onlyThis) {
-            resumePauseGroup(userId, active.groupId, on)
-          } else {
-            resumeCompound(userId, c.id, on)
-          }
+          // What this resume ends, remembered first so Undo can put it back.
+          const group = active?.groupId && !onlyThis ? active.groupId : null
+          const ended = pausesEndedBy(stack, on, group ? { groupId: group } : { compoundId: c.id })
+          const ok = group ? resumePauseGroup(userId, group, on) : resumeCompound(userId, c.id, on)
           notifyStackChanged()
+          if (ok) confirmResumed(ended)
         }}
       />
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 
 import { NumberPad } from "@/components/feel/NumberPad"
 import { AmberNotice, useAmberNotice } from "@/components/notifications/amber-notice"
+import { showToast } from "@/lib/toast"
 import { logWeight } from "@/app/(app)/weight/actions"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import { formatDateKeyNumeric } from "@/lib/calendar/calendar"
@@ -15,9 +16,10 @@ import { formatWeight, sanitizeWeightInput, unitToKg, type WeightUnit } from "@/
  *
  * Tapping "Log weight" opens the number pad at once: no sheet, no date line.
  * The last weight is prefilled and SELECTED, so the first key replaces it and
- * Delete clears it. Done saves and confirms with the drop-down notice ("Weight
- * logged: 85.2 kg", amber outline, no icon). The hide chevron or a tap on the
- * scrim cancels without saving.
+ * Delete clears it. Done saves and confirms with the bottom toast ("Weight
+ * logged: 85.2 kg"), as every save is (consistency fix #27). A number the pad
+ * refuses is said in the drop-down notice, above the pad that covers the foot
+ * of the screen. The hide chevron or a tap on the scrim cancels without saving.
  *
  * The sheet this replaces (`components/home/AddWeightSheet.tsx`) also offered a
  * different date and progress photos. Both still live elsewhere: the Weight
@@ -55,7 +57,6 @@ export function LogWeightPad({
     if (open) setDraft(lastKg != null ? formatWeight(lastKg, unit) : "")
   }
   const [, startTransition] = useTransition()
-  const confirm = useAmberNotice(2600)
   const warn = useAmberNotice(4000)
 
   const today = toDateKey(new Date())
@@ -84,13 +85,13 @@ export function LogWeightPad({
       try {
         const res = await logWeight(kg, loggedFor)
         if (!res.ok) {
-          warn.show(res.error ?? "Couldn't save. Try again.")
+          showToast(res.error ?? "Couldn’t save. Try again.")
           return
         }
-        confirm.show(`Weight logged: ${shown} ${unit}`)
+        showToast(`Weight logged: ${shown} ${unit}`)
         router.refresh()
       } catch {
-        warn.show("Couldn't save. Try again.")
+        showToast("Couldn’t save. Try again.")
       }
     })
   }
@@ -116,7 +117,6 @@ export function LogWeightPad({
         label="Log weight"
         returnFocusRef={returnFocusRef}
       />
-      <AmberNotice notice={confirm.notice} onDismiss={confirm.dismiss} icon={null} />
       <AmberNotice notice={warn.notice} onDismiss={warn.dismiss} />
     </>
   )

@@ -3,21 +3,15 @@
 import { useMemo, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
-import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { CARD_EYEBROW, SEGMENTED_ITEM_LG, SEGMENTED_TRACK } from "@/lib/ui-presets"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { BottomSheet } from "@/components/layout/BottomSheet"
 import type {
   BodySex,
   InjectionSiteRoute,
   InjectionSiteRow,
 } from "@/lib/db/types"
 import { BodyMap } from "@/components/sites/BodyMap"
-import { useSheetDrag } from "@/components/home/useSheetDrag"
 import { decayWindow, siteHeat } from "@/lib/home/siteRecency"
 import { siteDisplayName } from "@/lib/home/siteCatalog"
 import { rampFill } from "@/lib/sites/recencyRamp"
@@ -137,14 +131,6 @@ export function InjectionSitesSheet({
     setInspectedId(null)
   }
 
-  // Drag the top of the sheet DOWN to dismiss — the shared bottom-sheet gesture
-  // (15+ sheets use it). Pulling the handle/title strip past ~30% of the height
-  // closes; otherwise it springs back.
-  const { cardRef, handleProps, cardStyle } = useSheetDrag(
-    () => onOpenChange(false),
-    open,
-  )
-
   // Left-edge swipe-back: a drag that STARTS at the very left edge and moves
   // decisively right closes the sheet (like an OS back gesture). Detect-and-close,
   // no visual drag — so it can't get stuck part-way or fight the scroll / map scrub.
@@ -170,90 +156,51 @@ export function InjectionSitesSheet({
     edgeRef.current = null
   }
 
+  // The one sheet frame (consistency fix #1): the handle and a drag close it,
+  // as do the dark above it and a swipe in from the left edge. No Done.
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="rail" data-desktop-wide
-        side="bottom"
-        showCloseButton={false}
-        className="h-[94dvh] gap-0 border-t-0 bg-transparent p-0 shadow-none"
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Injection sites"
+      description="Tap a muscle to see when you last pinned it. Recent pins are listed below."
+      desktop="rail"
+    >
+      <div
+        onPointerDown={onEdgePointerDown}
+        onPointerMove={onEdgePointerMove}
+        onPointerUp={endEdge}
+        onPointerCancel={endEdge}
       >
-        <div
-          ref={cardRef}
-          style={cardStyle}
-          onPointerDown={onEdgePointerDown}
-          onPointerMove={onEdgePointerMove}
-          onPointerUp={endEdge}
-          onPointerCancel={endEdge}
-          className="flex h-full flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
-        >
-          {/* Grab strip — drag DOWN to dismiss (or swipe in from the very left edge). */}
-          <div
-            {...handleProps}
-            className="flex h-11 shrink-0 items-center justify-center cursor-grab touch-none active:cursor-grabbing"
+        {/* The sections rise in as the sheet lands (feel pass §4). The keyed
+            route crossfade below keeps its own fade, which overrides the rise. */}
+        <div data-sheet-body className="flex flex-col gap-5 pt-1 pb-3">
+          {/* Route toggle, on the shared sliding thumb (feel pass §6). */}
+          <ThumbGroup
+            selection={route}
+            thumbClassName="inst-thumb"
+            className={SEGMENTED_TRACK}
+            role="group"
+            aria-label="Route"
           >
-            <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
-          </div>
-
-          {/* Title + Done — Done is the quick tap-out; drag-down / edge-swipe also close. */}
-          <div className="flex shrink-0 items-center justify-between gap-3 px-6">
-            <SheetTitle className={SHEET_TITLE}>
-              Injection sites
-            </SheetTitle>
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="-mr-2 flex h-9 items-center rounded-lg px-3 text-sm font-medium text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Done
-            </button>
-          </div>
-          <SheetDescription className="sr-only">
-            Tap a muscle to see when you last pinned it. Recent pins are listed
-            below.
-          </SheetDescription>
-
-          {/* The sections rise in as the sheet lands (feel pass §4). The keyed
-              route crossfade below keeps its own fade, which overrides the rise. */}
-          <div
-            data-sheet-body
-            className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 pb-10 pt-4"
-          >
-            {/* Route toggle, on the shared sliding thumb (feel pass §6). */}
-            <div className="flex justify-center">
-              <ThumbGroup
-                selection={route}
-                thumbClassName="inst-thumb"
-                className="inline-flex inst-rail p-0.5 text-sm"
-                role="group"
-                aria-label="Route"
+            {ROUTES.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => {
+                  setPicked(r.key)
+                  setInspectedId(null)
+                }}
+                aria-pressed={route === r.key}
+                className={cn(SEGMENTED_ITEM_LG, "font-medium", route === r.key ? "text-bg-base" : "text-text-muted")}
               >
-                {ROUTES.map((r) => (
-                  <button
-                    key={r.key}
-                    type="button"
-                    onClick={() => {
-                      setPicked(r.key)
-                      setInspectedId(null)
-                    }}
-                    aria-pressed={route === r.key}
-                    className={cn(
-                      PRESS.pill,
-                      "rounded-sm px-5 py-1.5 font-medium transition-colors duration-300 ease-out",
-                      route === r.key ? "text-bg-base" : "text-text-muted",
-                    )}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </ThumbGroup>
-            </div>
+                {r.label}
+              </button>
+            ))}
+          </ThumbGroup>
 
-            {/* Body + recency; fades in when you switch IM ↔ Sub-Q. */}
-            <div
-              key={route}
-              className="flex flex-col gap-5 duration-300 animate-in fade-in motion-reduce:animate-none"
-            >
+          {/* Body + recency; fades in when you switch IM ↔ Sub-Q. */}
+          <div key={route} className="flex flex-col gap-5 duration-300 animate-in fade-in motion-reduce:animate-none">
             {/* Big body map + the scrub tooltip that follows the pointer. */}
             <div
               ref={mapRef}
@@ -284,18 +231,14 @@ export function InjectionSitesSheet({
                   className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-lg border border-border-default bg-bg-surface-raised px-2.5 py-1.5 shadow-lg"
                   style={{ left: pointer.x, top: pointer.y - 12 }}
                 >
-                  <p className="whitespace-nowrap text-xs font-medium text-foreground">
-                    {siteDisplayName(inspected.label)}
-                  </p>
+                  <p className="whitespace-nowrap text-xs font-medium text-foreground">{siteDisplayName(inspected.label)}</p>
                   <p
                     className={cn(
                       "whitespace-nowrap text-[11px] tabular-nums",
                       inspectedPinned ? "text-accent-amber" : "text-text-muted",
                     )}
                   >
-                    {inspectedPinned
-                      ? `Pinned ${agoLabel(inspectedDays!)}`
-                      : "No recent pins"}
+                    {inspectedPinned ? `Pinned ${agoLabel(inspectedDays!)}` : "No recent pins"}
                   </p>
                 </div>
               )}
@@ -305,12 +248,10 @@ export function InjectionSitesSheet({
               <RecencyLegend />
             </div>
 
-            {/* Last logged — your most-recent muscles, each with the compound(s) you
-                put there (two compounds in one area read together). */}
-            <div className="rounded-2xl bg-bg-input px-4 py-3.5">
-              <h3 className="mb-3 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-muted">
-                Last logged
-              </h3>
+            {/* Last logged — your most-recent muscles, each with the compound(s)
+                you put there (two compounds in one area read together). */}
+            <div className="rounded-xl bg-bg-input px-4 py-3.5">
+              <h3 className={cn(CARD_EYEBROW, "mb-3")}>Last logged</h3>
               {recentForRoute.length > 0 ? (
                 <ul className="flex flex-col gap-3.5">
                   {recentForRoute.slice(0, 4).map((s, i) => (
@@ -327,40 +268,28 @@ export function InjectionSitesSheet({
                           <span className="min-w-0 truncate text-sm text-foreground">
                             {s.siteLabel ? siteDisplayName(s.siteLabel) : "No site"}
                           </span>
-                          <span className="shrink-0 font-mono text-xs text-text-muted">
-                            {agoLabel(s.daysAgo)}
-                          </span>
+                          <span className="shrink-0 font-mono text-xs text-text-muted">{agoLabel(s.daysAgo)}</span>
                         </div>
-                        <p className="truncate text-xs text-text-muted">
-                          {s.compounds.join(", ")}
-                        </p>
+                        <p className="truncate text-xs text-text-muted">{s.compounds.join(", ")}</p>
                       </div>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-text-muted">
-                  Nothing logged yet. Pick any site when you log a dose.
-                </p>
+                <p className="text-sm text-text-muted">Nothing logged yet. Pick any site when you log a dose.</p>
               )}
             </div>
 
+            {/* ONE footnote (consistency fix #29): the ramp, and on the first
+                open that the front is mirrored. It reports; it never advises. */}
             <p className="px-1 text-xs leading-relaxed text-text-muted">
-              Brighter is more recent; a site fades to empty {decayWindow(route)}{" "}
-              days after its last use. Your call where to inject next.
+              Brighter is more recent; a site fades to empty {decayWindow(route)} days after its last use.
+              {showMirrorTip ? " The front view is mirrored, like a selfie." : null}
             </p>
-            </div>
-
-            {showMirrorTip && (
-              <p className="px-1 text-center text-[0.65rem] leading-relaxed text-text-muted">
-                The front view is mirrored, like a selfie: your left is on the
-                left.
-              </p>
-            )}
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </BottomSheet>
   )
 }
 
@@ -368,9 +297,7 @@ export function InjectionSitesSheet({
 function RecencyLegend() {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[0.65rem] uppercase tracking-[0.1em] text-text-muted">
-        Recent
-      </span>
+      <span className={CARD_EYEBROW}>Recent</span>
       <span className="flex items-center gap-1" aria-hidden>
         {[1, 0.55, 0.25].map((o) => (
           <span
@@ -387,9 +314,7 @@ function RecencyLegend() {
           }}
         />
       </span>
-      <span className="text-[0.65rem] uppercase tracking-[0.1em] text-text-muted">
-        Rested
-      </span>
+      <span className={CARD_EYEBROW}>Rested</span>
     </div>
   )
 }

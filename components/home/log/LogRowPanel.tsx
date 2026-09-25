@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 
 import { Container } from "@/components/containers"
+import { CloseArrow } from "@/components/feel/CloseArrow"
 import { NumberPad, PadInput } from "@/components/feel/NumberPad"
 import { SolidIcon } from "@/components/feel/SolidIcon"
 import { usePadSession } from "@/components/feel/usePadSession"
 import { BodyAspectSwitch, BodyMap } from "@/components/sites/BodyMap"
 import { cn } from "@/lib/utils"
-import { PRESS } from "@/lib/ui-presets"
+import { ADD_ACTION, PRESS, TILE_LABEL } from "@/lib/ui-presets"
 import type { StockItem, StockRead } from "@/lib/db/inventory"
 import type { BodySex, InjectionSiteAspect, InjectionSiteRow } from "@/lib/db/types"
 import { unitFamilyOk } from "@/lib/db/doseUnits"
@@ -17,10 +18,9 @@ import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { containerNounTitle } from "@/lib/containers/labels"
 import { readDoseSheet } from "@/lib/home/doseSheetRead"
 import { decayWindow } from "@/lib/home/siteRecency"
-import { siteLabel, siteShortLabel, sitesForSex } from "@/lib/home/siteCatalog"
-import { formatTimeLabel, isInjectable, type StackCompound } from "@/lib/home/stack"
-import { formatDateKeyShort } from "@/lib/home/stack"
-import { clockHHMM, formatStepAmount, stepFor, type RowDraft } from "@/lib/home/logDraft"
+import { siteDisplayName, siteLabel, siteShortLabel, sitesForSex } from "@/lib/home/siteCatalog"
+import { isInjectable, type StackCompound } from "@/lib/home/stack"
+import { clockHHMM, formatStepAmount, logTimeLabel, stepFor, type RowDraft } from "@/lib/home/logDraft"
 import { containersOf } from "@/lib/protocol/stockView"
 
 export type LogTile = "site" | "stock" | "note"
@@ -43,14 +43,6 @@ type StockState =
       /** A back-dated day: the container in use THEN (null = none), and only it. */
       dateVialId?: string | null
     }
-
-function UpArrow() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M6 14.5l6-6 6 6" />
-    </svg>
-  )
-}
 
 function Plus() {
   return (
@@ -102,7 +94,9 @@ export function LogRowPanel({
   bodySex: BodySex
   /** A panel opened or closed: the other rows condense while one is open. */
   onTileChange: (open: boolean) => void
-  onAddStock: () => void
+  /** Add stock from the row. Absent inside a sheet (Quick log, the Calendar's
+   *  day), where it would open a sheet over a sheet. */
+  onAddStock?: () => void
   /** The picked container is an unopened spare, so Track must start it first. */
   onSpare: (id: string | null) => void
   /** Changes when stock was added from this row: read it again. */
@@ -116,6 +110,8 @@ export function LogRowPanel({
 
   /* ---- stock, read once when the row opens ---- */
   const [stock, setStock] = useState<StockState>({ kind: "loading" })
+  /** Bumped by "Try again" after a failed read. */
+  const [readTry, setReadTry] = useState(0)
   // The site list when the server's read came back empty: fetched here, as the
   // Log sheet did, so one failed read does not cost every dose its site.
   const [fetchedCatalogue, setFetchedCatalogue] = useState<InjectionSiteRow[] | null>(null)
@@ -169,7 +165,7 @@ export function LogRowPanel({
     }
     // Read once per open row; a draft change must not re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compound.id, dateKey, readKey])
+  }, [compound.id, dateKey, readKey, readTry])
 
   /* ---- keep the open row in view, above the Track bar (on opening only) ---- */
   const rootRef = useRef<HTMLDivElement>(null)
@@ -177,12 +173,24 @@ export function LogRowPanel({
     window.setTimeout(() => {
       const el = rootRef.current
       if (!el) return
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      const behavior: ScrollBehavior = reduce ? "auto" : "smooth"
       const r = el.getBoundingClientRect()
-      const over = r.bottom - (window.innerHeight - TRACK_BAR_CLEAR_PX)
-      if (over > 0) {
-        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        window.scrollBy({ top: over, behavior: reduce ? "auto" : "smooth" })
+      // Inside a sheet (Quick log, the Calendar's day) the sheet's own body
+      // scrolls, and its Track bar sits under it, not over the page.
+      const sheet = el.closest<HTMLElement>('[data-slot="sheet-content"]')
+      if (sheet) {
+        let box: HTMLElement | null = el.parentElement
+        while (box && box !== sheet && !(box.scrollHeight > box.clientHeight && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) {
+          box = box.parentElement
+        }
+        if (!box || box === sheet) return
+        const over = r.bottom - box.getBoundingClientRect().bottom + 8
+        if (over > 0) box.scrollBy({ top: over, behavior })
+        return
       }
+      const over = r.bottom - (window.innerHeight - TRACK_BAR_CLEAR_PX)
+      if (over > 0) window.scrollBy({ top: over, behavior })
     }, delay)
   }
   // The row has opened (its body grows over 450ms).
@@ -275,7 +283,6 @@ export function LogRowPanel({
     return () => window.clearInterval(id)
   }, [draft.time24, onToday])
   const timeShown = draft.time24 ?? (onToday ? clock : compound.schedule.timeOfDay)
-  const dayWord = onToday ? "Today" : formatDateKeyShort(dateKey)
 
   /* ---- site ---- */
   const route = compound.method === "im" ? "im" : "subq"
@@ -337,7 +344,7 @@ export function LogRowPanel({
       key: "stock",
       glyph: "stock",
       label: "Stock",
-      sub: stock.kind === "loading" ? " " : inUse ? nounOf(inUse) : "None",
+      sub: stock.kind !== "ready" ? " " : inUse ? nounOf(inUse) : "None",
       set: Boolean(inUse),
     },
     { key: "note", glyph: "note", label: "Note", sub: draft.note.trim() ? "Added" : "Add", set: Boolean(draft.note.trim()) },
@@ -356,10 +363,21 @@ export function LogRowPanel({
       return <span aria-hidden className="sk h-[34px] w-full rounded-xl bg-bg-surface-raised" />
     }
     if (stock.kind === "failed") {
+      // The same error line as Protocol's, with its retry (consistency fix #22).
       return (
-        <button type="button" onClick={close} className="min-w-0 flex-1 py-1.5 text-left text-[13px] text-text-muted">
-          Couldn&apos;t load your stock
-        </button>
+        <p className="min-w-0 flex-1 py-1.5 text-[13px] text-state-error">
+          Couldn&apos;t load your stock.{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setStock({ kind: "loading" })
+              setReadTry((t) => t + 1)
+            }}
+            className={cn(PRESS.text, "text-foreground underline underline-offset-4")}
+          >
+            Try again
+          </button>
+        </p>
       )
     }
     if (noStock) {
@@ -368,14 +386,16 @@ export function LogRowPanel({
           <button type="button" onClick={close} className="min-w-0 flex-1 py-1.5 text-left text-[13px] text-text-muted">
             No stock yet
           </button>
-          <button
-            type="button"
-            onClick={onAddStock}
-            aria-label="Add stock"
-            className={cn(PRESS.button, "inst-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-bg-base")}
-          >
-            <Plus />
-          </button>
+          {onAddStock ? (
+            <button
+              type="button"
+              onClick={onAddStock}
+              aria-label="Add stock"
+              className={ADD_ACTION}
+            >
+              <Plus />
+            </button>
+          ) : null}
         </span>
       )
     }
@@ -429,7 +449,7 @@ export function LogRowPanel({
           )}
           <p key={draft.siteId ?? "none"} className="animate-hl-swap min-h-5 text-center text-[13px]">
             {draft.siteId ? (
-              <span className="text-foreground">{siteName(draft.siteId)}</span>
+              <span className="text-foreground">{siteDisplayName(siteName(draft.siteId))}</span>
             ) : (
               <span className="text-text-muted">Tap where you injected</span>
             )}
@@ -513,8 +533,8 @@ export function LogRowPanel({
         <span className="text-[13px] text-text-muted">Time</span>
         {/* The time opens the phone's own picker: a native time input laid
             transparently over the words. */}
-        <label className="relative font-mono text-[12.5px] text-foreground">
-          {dayWord} · {formatTimeLabel(timeShown)}
+        <label className="relative font-mono text-[12px] text-foreground">
+          {logTimeLabel(dateKey, todayKey, timeShown)}
           <input
             type="time"
             value={timeShown}
@@ -543,8 +563,8 @@ export function LogRowPanel({
             <span className="log-tile-icon flex">
               <SolidIcon name={t.glyph} size={20} tone={tile === t.key || t.set ? "on" : "off"} />
             </span>
-            <span className="text-[11.5px] leading-[1.1]">{t.label}</span>
-            <span className="max-w-full truncate font-mono text-[9.5px] leading-none text-text-muted">{t.sub}</span>
+            <span className={cn(TILE_LABEL, "leading-[1.1]", tile === t.key && "text-foreground")}>{t.label}</span>
+            <span className="max-w-full truncate font-mono text-[10px] leading-none text-text-muted">{t.sub}</span>
           </button>
         ))}
       </div>
@@ -559,15 +579,9 @@ export function LogRowPanel({
                 {shown ? headerOf(shown) : null}
               </div>
               {hasArrow ? (
-                <button
-                  data-pan-part
-                  type="button"
-                  onClick={close}
-                  aria-label="Close"
-                  className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md text-foreground")}
-                >
-                  <UpArrow />
-                </button>
+                <span data-pan-part className="flex shrink-0">
+                  <CloseArrow onClick={close} shown={tile !== null} />
+                </span>
               ) : null}
             </div>
             {body ? (

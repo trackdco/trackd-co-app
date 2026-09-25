@@ -6,9 +6,15 @@ import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { DrawFrame, useFirstDraw } from "@/components/feel/FirstDraw";
 import { ThumbGroup } from "@/components/feel/SlidingThumb";
-import { PRESS } from "@/lib/ui-presets";
-import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets";
+import {
+  CARD_EYEBROW,
+  METRIC_VALUE,
+  SEGMENTED_ITEM,
+  SEGMENTED_TRACK,
+  UNIT_SUFFIX,
+} from "@/lib/ui-presets";
 import { dateKeyToDate, type DateKey } from "@/lib/home/mockHomeData";
+import { dayShort } from "@/lib/format/date";
 import {
   defaultRangeFor,
   kgToUnit,
@@ -48,15 +54,6 @@ interface ChartPoint {
   label: string;
 }
 
-const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-function shortDate(key: DateKey): string {
-  const d = dateKeyToDate(key);
-  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
-}
 
 /** Trailing simple moving average — the smoothed "trend" that rides out the
  *  day-to-day scale noise. */
@@ -141,7 +138,7 @@ export function WeightGraph({
       i: j,
       scale: Number(scaleAll[i].toFixed(2)),
       trend: Number(trendAll[i].toFixed(2)),
-      label: shortDate(e.key),
+      label: dayShort(e.key),
     }));
 
   const hasData = windowed.length > 0;
@@ -199,7 +196,7 @@ export function WeightGraph({
           thumbClassName="inst-thumb"
           role="group"
           aria-label="Weight series"
-          className="inline-flex shrink-0 inst-rail p-0.5 text-xs"
+          className={cn(SEGMENTED_TRACK, "inline-flex shrink-0")}
         >
           {(["trend", "scale"] as const).map((m) => (
             <button
@@ -207,11 +204,7 @@ export function WeightGraph({
               type="button"
               onClick={() => setMode(m)}
               aria-pressed={mode === m}
-              className={cn(
-                PRESS.pill,
-                "rounded-sm px-3 py-1 font-medium transition-colors duration-300 ease-out",
-                mode === m ? "text-bg-base" : "text-text-muted",
-              )}
+              className={cn(SEGMENTED_ITEM, "font-medium", mode === m ? "text-bg-base" : "text-text-muted")}
             >
               {m === "trend" ? "Trend" : "Scale"}
             </button>
@@ -333,8 +326,7 @@ export function WeightGraph({
           thumbClassName="inst-thumb"
           role="group"
           aria-label="Range"
-          className="mt-4 grid gap-1 inst-rail p-0.5"
-          style={{ gridTemplateColumns: `repeat(${ranges.length}, minmax(0, 1fr))` }}
+          className={cn(SEGMENTED_TRACK, "mt-4")}
         >
           {ranges.map((r) => (
             <button
@@ -345,11 +337,7 @@ export function WeightGraph({
                 setRangeId(r.id);
               }}
               aria-pressed={range.id === r.id}
-              className={cn(
-                PRESS.pill,
-                "rounded-sm py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
-                range.id === r.id ? "text-bg-base" : "text-text-muted",
-              )}
+              className={cn(SEGMENTED_ITEM, "font-medium", range.id === r.id ? "text-bg-base" : "text-text-muted")}
             >
               {r.label}
             </button>

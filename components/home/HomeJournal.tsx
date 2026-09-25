@@ -5,7 +5,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { readJournalForHome, saveJournalEntry } from "@/app/(app)/progress/actions"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { DatePickerPanel } from "@/components/calendar/DatePickerPanel"
+import { CloseArrow } from "@/components/feel/CloseArrow"
 import { SolidIcon } from "@/components/feel/SolidIcon"
+import { dayLong, dayShort } from "@/lib/format/date"
 import { PhotoAdjustSheet, type PhotoAdjustResult } from "@/components/media/PhotoAdjustSheet"
 import { MarkerDialer } from "@/components/progress/MarkerDialer"
 import type { DateKey } from "@/lib/home/mockHomeData"
@@ -13,7 +15,7 @@ import { DOCUMENT_ASPECT } from "@/lib/media/framing"
 import type { JournalEntry, MarkerOption } from "@/lib/progress/journal"
 import { createClient } from "@/lib/supabase/client"
 import { showToast } from "@/lib/toast"
-import { CARD_EYEBROW, PRESS, PRIMARY_BUTTON } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS, PRIMARY_BUTTON, TILE_LABEL } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 
 type Tile = "markers" | "photos" | "date"
@@ -33,14 +35,6 @@ const EXT: Record<string, string> = {
 
 type Loaded = { entries: JournalEntry[]; options: MarkerOption[] }
 
-function UpArrow() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M6 14.5l6-6 6 6" />
-    </svg>
-  )
-}
-
 function Plus({ size = 12 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 12 12" aria-hidden>
@@ -49,10 +43,6 @@ function Plus({ size = 12 }: { size?: number }) {
   )
 }
 
-function dayLine(key: string): string {
-  const [y, m, d] = key.split("-").map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }).replace(",", "")
-}
 
 function dayWord(key: string, todayKey: string): string {
   if (key === todayKey) return "Today"
@@ -60,8 +50,7 @@ function dayWord(key: string, todayKey: string): string {
   const yest = new Date(y, m - 1, d - 1)
   const yk = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, "0")}-${String(yest.getDate()).padStart(2, "0")}`
   if (key === yk) return "Yesterday"
-  const [ky, km, kd] = key.split("-").map(Number)
-  return new Date(ky, km - 1, kd).toLocaleDateString("en-AU", { day: "numeric", month: "short" })
+  return dayShort(key, y)
 }
 
 /**
@@ -209,7 +198,7 @@ export function HomeJournal({ userId, dayKey, todayKey }: { userId: string; dayK
       if (up.error) throw new Error(up.error.message)
       setPending((prev) => [...prev, { path, url: URL.createObjectURL(file) }])
     } catch {
-      setAttachError("Couldn't add that photo.")
+      setAttachError("Couldn’t add that photo. Try again.")
     } finally {
       setUploading(false)
     }
@@ -335,20 +324,9 @@ export function HomeJournal({ userId, dayKey, todayKey }: { userId: string; dayK
     <section className="inst-card p-5" data-journal-open={open ? "true" : "false"}>
       <div className="flex items-center justify-between">
         <h2 className={CARD_EYEBROW}>Journal</h2>
-        {open ? (
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close the journal"
-            className={cn(
-              PRESS.icon,
-              "inst-ghost -my-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-md text-foreground transition-opacity",
-              tile && "pointer-events-none opacity-0",
-            )}
-          >
-            <UpArrow />
-          </button>
-        ) : null}
+        {/* The one close arrow (consistency fix #11); it steps back while a
+            tile's panel, with its own arrow, is open. */}
+        <CloseArrow onClick={close} label="Close the journal" shown={open && !tile} className="-my-2" />
       </div>
 
       {!open ? (
@@ -363,7 +341,7 @@ export function HomeJournal({ userId, dayKey, todayKey }: { userId: string; dayK
 
       <div className="log-panel" data-open={open ? "true" : "false"} inert={!open}>
         <div>
-          <p className="mt-2 text-[17px] font-light text-foreground">{dayLine(date)}</p>
+          <p className="mt-2 text-[17px] font-light text-foreground">{dayLong(date)}</p>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -390,8 +368,8 @@ export function HomeJournal({ userId, dayKey, todayKey }: { userId: string; dayK
                 <span className="log-tile-icon flex">
                   <SolidIcon name={t.glyph} size={20} tone={tile === t.key || subs[t.key] !== "None" ? "on" : "off"} />
                 </span>
-                <span className="text-[11.5px] leading-[1.1]">{t.label}</span>
-                <span className="max-w-full truncate font-mono text-[9.5px] leading-none text-text-muted">{subs[t.key]}</span>
+                <span className={cn(TILE_LABEL, "leading-[1.1]", tile === t.key && "text-foreground")}>{t.label}</span>
+                <span className="max-w-full truncate font-mono text-[10px] leading-none text-text-muted">{subs[t.key]}</span>
               </button>
             ))}
           </div>
@@ -402,15 +380,9 @@ export function HomeJournal({ userId, dayKey, todayKey }: { userId: string; dayK
                   <span data-pan-part className="min-w-0 flex-1 text-[13px] text-foreground">
                     {shown ? TILES.find((t) => t.key === shown)?.label : null}
                   </span>
-                  <button
-                    data-pan-part
-                    type="button"
-                    onClick={() => setTile(null)}
-                    aria-label="Close"
-                    className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md text-foreground")}
-                  >
-                    <UpArrow />
-                  </button>
+                  <span data-pan-part className="flex shrink-0">
+                    <CloseArrow onClick={() => setTile(null)} shown={tile !== null} />
+                  </span>
                 </div>
                 <div data-pan-part className="mt-2.5">
                   {shown ? panelBody(shown) : null}

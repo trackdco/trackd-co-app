@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { StackCompound } from "@/lib/home/stack"
-import { draftToLog, initialDraft, stepFor, trackLabel } from "./logDraft"
+import { draftToLog, formatStepAmount, initialDraft, LOG_WORDS, logTimeLabel, stepFor, trackLabel } from "./logDraft"
 
 const c = (over: Partial<StackCompound> = {}): StackCompound => ({
   id: "reta",
@@ -91,5 +91,25 @@ describe("the stepper and the bar", () => {
     expect(trackLabel(d, "Abdomen L", false)).toBe("Track 2 mg · Abdomen L")
     expect(trackLabel(d, null, false)).toBe("Track 2 mg")
     expect(trackLabel(d, "Abdomen L", true)).toBe("Save")
+  })
+})
+
+describe("one way to log, in the same words (consistency fix #0)", () => {
+  it("says Save in edit mode and Track otherwise, with the one dose format", () => {
+    const d = { ...initialDraft(c(), "2026-09-24", 0, null), amount: 1.125 }
+    expect(trackLabel(d, null, false)).toBe("Track 1.125 mg")
+    expect(trackLabel(d, null, true)).toBe(LOG_WORDS.save)
+    expect(formatStepAmount(1.1250001)).toBe("1.125")
+    expect(formatStepAmount(250)).toBe("250")
+  })
+
+  it("names the stock choice as the rows do", () => {
+    expect(LOG_WORDS.dontCount).toBe("Don’t count this dose")
+    expect(LOG_WORDS.countIt).toBe("Count it")
+  })
+
+  it("writes the time as a day and a 12-hour clock, never seconds", () => {
+    expect(logTimeLabel("2026-09-24", "2026-09-24", "09:41")).toBe("Today · 9:41 AM")
+    expect(logTimeLabel("2026-09-22", "2026-09-24", "20:05")).toBe("Tue 22 Sep · 8:05 PM")
   })
 })

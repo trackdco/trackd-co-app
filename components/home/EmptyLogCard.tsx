@@ -2,15 +2,19 @@
 
 import { CalendarDot, Plus, Syringe } from "@/components/icons"
 
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRIMARY_BUTTON } from "@/lib/ui-presets"
+import { cn } from "@/lib/utils"
 
 /**
  * The Home empty state — shown when the user has no compounds in their log yet
- * (a blank template). Explains, in three steps, how the log works and points to
- * the centre "+" to get started. Replaces the Today's Log card until the first
+ * (a blank template). Explains, in three steps, how the log works, and ends in
+ * the one action that fixes it (consistency fix #24): "Add compound", which
+ * opens the compound picker. Replaces the Today's Log card until the first
  * compound is added.
+ *
+ * No privacy line here: it is said once, in Profile (consistency fix #29).
  */
-export function EmptyLogCard() {
+export function EmptyLogCard({ onAdd }: { onAdd: () => void }) {
   return (
     <section className="flow-card inst-card p-5">
       <h2 className={CARD_EYEBROW}>Start your log</h2>
@@ -24,7 +28,7 @@ export function EmptyLogCard() {
           icon={<Plus className="h-4 w-4" aria-hidden />}
           // Adrian's wording, approved in the feel pass (round 5).
           title="Start with a compound"
-          body="Tap the white + at the bottom right. Find your compound in the catalogue, or create one."
+          body="Tap Add compound below. Find your compound in the catalogue, or create one."
         />
         <Step
           n={2}
@@ -36,15 +40,14 @@ export function EmptyLogCard() {
           n={3}
           icon={<Syringe className="h-4 w-4" aria-hidden />}
           title="Log each dose"
-          body="Tap the empty circle beside a compound to log it. For injectables, choose the site on the body map. Each shows how long since you last used it."
+          // The Flow B gesture: the first tap opens the row (consistency fix #24).
+          body="Tap a dose to open it, then Track."
         />
       </ol>
 
-      {/* The same sentence the log sheet uses. The old one ("saved on this
-          device") was false: everything here is saved to the account. */}
-      <p className="mt-5 hairline-t pt-4 text-xs text-text-muted">
-        Saved to your account. Only you can see it.
-      </p>
+      <button type="button" onClick={onAdd} className={cn(PRIMARY_BUTTON, "mt-5 w-full")}>
+        Add compound
+      </button>
     </section>
   )
 }

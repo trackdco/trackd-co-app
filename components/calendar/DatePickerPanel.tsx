@@ -12,6 +12,7 @@ import {
   monthTitle,
 } from "@/lib/calendar/calendar";
 import { dateKeyToDate, type DateKey } from "@/lib/home/mockHomeData";
+import { dayLong } from "@/lib/format/date";
 import { CARD_EYEBROW } from "@/lib/ui-presets";
 
 /** The disc's pop, then long enough to watch it land before the step closes. */
@@ -231,7 +232,7 @@ export function DatePickerPanel({
                 disabled={future}
                 onClick={() => choose(cell.key)}
                 aria-pressed={selected}
-                aria-label={cell.date.toDateString()}
+                aria-label={dayLong(cell.key)}
                 className="flex justify-center py-0.5 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-accent-amber/50 disabled:cursor-default"
               >
                 <span

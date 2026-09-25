@@ -10,28 +10,23 @@ import {
 } from "@/components/icons"
 
 import { inventoryTypeForCompound } from "@/lib/containers/form"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { useSheetDrag } from "@/components/home/useSheetDrag"
+import { BottomSheet } from "@/components/layout/BottomSheet"
+import { ConfirmDialog } from "@/components/feel/ConfirmDialog"
 import { Container } from "@/components/containers"
-import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PRESS, PRIMARY_BUTTON } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 import {
   cadenceLabel,
-  formatDateKeyShort,
   formatTimeLabel,
   methodLabel,
   upcomingDoseDates,
   type StackCompound,
 } from "@/lib/home/stack"
+import { formatDose } from "@/lib/format/dose"
+import { dayLong } from "@/lib/format/date"
 import { activePause } from "@/lib/home/pauses"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import { SolidIcon } from "@/components/feel/SolidIcon"
-import { PopDialog } from "@/components/feel/PopDialog"
 import { halfLifeOf } from "@/lib/halflife/compoundCurve"
 import { formatHalfLife } from "@/lib/halflife/model"
 import { isBlend } from "@/lib/compound-blends"
@@ -56,8 +51,8 @@ interface CompoundDetailSheetProps {
   /** The day being viewed. Every other read on this sheet is selected-day
    *  scoped; the pause label was the one asking about today. */
   dateKey?: string
-  /** Edit the dose for the viewed day — the white action; opens the Log sheet.
-   *  Dashboard only (omitted in the plan context). */
+  /** Edit the dose for the viewed day — the white action in the "dashboard"
+   *  context only. Home uses "row" (the row logs), Protocol "plan". */
   onEditTodaysDose?: (compound: StackCompound) => void
   /** Edit the compound GOING FORWARD — opens the add sheet pre-filled (under More). */
   onEdit: (compound: StackCompound) => void
@@ -117,10 +112,6 @@ interface CompoundDetailSheetProps {
   }
 }
 
-function formatDose(dose: number): string {
-  return Number.isInteger(dose) ? String(dose) : String(dose)
-}
-
 /**
  * The sheet that opens when a compound row on the Home card is tapped (the row
  * plays the spread-from-touch glow as it opens). Read-only detail — dose and
@@ -148,14 +139,17 @@ export function CompoundDetailSheet({
   const [shown, setShown] = useState<StackCompound | null>(compound)
   if (compound !== null && compound !== shown) setShown(compound)
 
+  // The one sheet frame (consistency fix #1). Its header is the compound's
+  // container and name, drawn in the body, so the title is for screen readers.
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="rail"
-        side="bottom"
-        showCloseButton={false}
-        className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
-      >
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={shown?.name ?? "Compound"}
+      hideTitle
+      description={shown ? `Dose and schedule for ${shown.name}.` : undefined}
+      desktop="rail"
+    >
         {shown ? (
           <DetailBody
             key={shown.id}
@@ -176,8 +170,7 @@ export function CompoundDetailSheet({
             stockSection={stockSection}
           />
         ) : null}
-      </SheetContent>
-    </Sheet>
+    </BottomSheet>
   )
 }
 
@@ -231,8 +224,9 @@ function DetailBody({
     onChanged: () => void
   }
 }) {
-  const { cardRef, handleProps, cardStyle } = useSheetDrag(onClose)
   const [moreOpen, setMoreOpen] = useState(false)
+  // A pending Discard of the container in use: it asks first (fix #5).
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const hl = isBlend(compound.name) ? null : halfLifeOf(compound.name, compound.method)
   // A pending DELETE confirmation (drops down before it happens).
   const [confirmArchive, setConfirmArchive] = useState(false)
@@ -273,25 +267,8 @@ function DetailBody({
   )
 
   return (
-    <div
-      ref={cardRef}
-      style={cardStyle}
-      className="flex flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg"
-    >
-      {/* Grab handle — drag down to dismiss. */}
-      <div
-        {...handleProps}
-        className="flex h-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
-      >
-        <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
-      </div>
-
-      <SheetTitle className="sr-only">{compound.name}</SheetTitle>
-      <SheetDescription className="sr-only">
-        Dose and schedule for {compound.name}.
-      </SheetDescription>
-
-      <div className="space-y-5 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    <div>
+      <div className="space-y-5 pb-1">
         {/* Header — the compound's CONTAINER rather than the small type icon
             (Adrian's call). At sheet size the drawn vial / bottle / tub is the
             thing that identifies the compound at a glance, and a 14px glyph was
@@ -321,7 +298,7 @@ function DetailBody({
             </span>
           ) : null}
           <span className={cn("flex items-center px-3.5 py-3 font-mono text-[13.5px] text-foreground", hl && "fact-sep")}>
-            {formatDose(compound.dose)} {compound.unit}
+            {formatDose(compound.dose, compound.unit)}
           </span>
           <span className="fact-sep flex items-center px-3.5 py-3 text-[13.5px] text-foreground">
             {methodLabel(compound.method)}
@@ -337,7 +314,7 @@ function DetailBody({
                 slot. Started-on was previously nowhere on the sheet. */}
             <Stat label="Started">
               <span className="font-mono">
-                {formatDateKeyShort(compound.schedule.startDate)}
+                {dayLong(compound.schedule.startDate)}
               </span>
             </Stat>
             <Stat label="Schedule">
@@ -353,7 +330,7 @@ function DetailBody({
             <p className="px-1 text-xs text-text-muted">
               Next:{" "}
               <span className="font-mono text-text-muted">
-                {upcoming.map(formatDateKeyShort).join(", ")}
+                {upcoming.map((k) => dayLong(k)).join(", ")}
               </span>
             </p>
           )}
@@ -409,17 +386,7 @@ function DetailBody({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          const item = stockSection.inUse!
-                          void setStockArchived(item.id, true).then((r) => {
-                            if (!r.ok) return
-                            stockSection.onChanged()
-                            showToast("Discarded", {
-                              undo: () => void setStockArchived(item.id, false).then(() => stockSection.onChanged()),
-                            })
-                          })
-                          setMoreOpen(false)
-                        }}
+                        onClick={() => setConfirmDiscard(true)}
                         className={cn(GHOST_BUTTON, "flex-1 py-2 text-[13px] text-accent-destructive-on-surface")}
                       >
                         Discard
@@ -450,10 +417,7 @@ function DetailBody({
             onClick={() =>
               context === "plan" || context === "row" ? onEdit(compound) : onEditTodaysDose?.(compound)
             }
-            className={cn(
-              PRESS.button,
-              "flex w-full items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90",
-            )}
+            className={cn(PRIMARY_BUTTON, "w-full")}
           >
             {/* NO ICON. The filled button is already the loudest thing on the
                 sheet and its label says exactly what it does — a glyph beside it
@@ -542,27 +506,41 @@ function DetailBody({
               Delete {compound.name}
             </button>
           </div>
-          <PopDialog open={confirmArchive} onClose={() => setConfirmArchive(false)} title={`Delete ${compound.name}?`} role="alertdialog">
-            <p className="mt-2 text-[13.5px] leading-snug text-text-muted">
-              It stops being dosed from today. Every dose you logged is kept.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <button type="button" onClick={() => setConfirmArchive(false)} className={cn(GHOST_BUTTON, "flex-1 py-2.5")}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirmArchive(false)
-                  onArchive(compound.id)
-                  onClose()
-                }}
-                className={cn(PRESS.button, "flex flex-1 items-center justify-center rounded-lg bg-accent-destructive py-2.5 text-sm font-medium text-text-primary")}
-              >
-                Delete
-              </button>
-            </div>
-          </PopDialog>
+          {/* THE ONE CONFIRM (consistency fix #5). */}
+          <ConfirmDialog
+            open={confirmArchive}
+            onClose={() => setConfirmArchive(false)}
+            title={`Delete ${compound.name}?`}
+            line="It stops from today. Every dose you logged is kept."
+            confirmLabel="Delete"
+            onConfirm={() => {
+              onArchive(compound.id)
+              onClose()
+            }}
+          />
+          {stockSection?.inUse ? (
+            <ConfirmDialog
+              open={confirmDiscard}
+              onClose={() => setConfirmDiscard(false)}
+              title={`Discard this ${containerNounTitle({ inventoryType: stockSection.inUse.inventoryType, totalAmountUnit: stockSection.inUse.totalAmountUnit, category: compound.category, name: compound.name }).toLowerCase()}?`}
+              line="It comes off your stock."
+              confirmLabel="Discard"
+              onConfirm={() => {
+                const item = stockSection.inUse!
+                setMoreOpen(false)
+                void setStockArchived(item.id, true).then((r) => {
+                  if (!r.ok) {
+                    showToast("Couldn’t discard. Try again.")
+                    return
+                  }
+                  stockSection.onChanged()
+                  showToast("Discarded", {
+                    undo: () => void setStockArchived(item.id, false).then(() => stockSection.onChanged()),
+                  })
+                })
+              }}
+            />
+          ) : null}
         </div>
       </div>
     </div>
@@ -607,9 +585,7 @@ function Stat({
 }) {
   return (
     <div className="rounded-xl bg-bg-surface-raised px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted">
-        {label}
-      </p>
+      <p className={CARD_EYEBROW}>{label}</p>
       <p className="mt-1 text-sm text-foreground">{children}</p>
     </div>
   )

@@ -2,17 +2,21 @@
 
 import { useMemo, useRef, useState } from "react"
 
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { BottomSheet } from "@/components/layout/BottomSheet"
 import { Container } from "@/components/containers"
 import { Input } from "@/components/ui/input"
 import { MagnifyingGlass } from "@/components/icons"
 import { cn } from "@/lib/utils"
-import { DATA_MONO, PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import {
+  CHIP,
+  CHIP_OFF,
+  DATA_MONO,
+  FIELD_LABEL,
+  PRESS,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+} from "@/lib/ui-presets"
+import { dayLong } from "@/lib/format/date"
 import { NumberPad, PadInput } from "@/components/feel/NumberPad"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { sanitizeDoseInput } from "@/lib/home/stack"
@@ -36,7 +40,6 @@ export interface OneOffChoice {
 
 const FIELD =
   "h-11 w-full min-w-0 rounded-xl border border-border-default bg-bg-input px-3 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong"
-const LABEL = "text-xs font-medium uppercase tracking-[0.14em] text-text-muted"
 
 /**
  * Log something you took once, off-plan (Spec w2b-13, Step 8).
@@ -74,30 +77,29 @@ export function OneOffSheet({
   recents?: OneOffLog[]
   onSave: (log: OneOffLog) => void
 }) {
+  // The one sheet frame (consistency fix #1): a title, the form, then Cancel
+  // and Log side by side at its foot.
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="rail"
-        side="bottom"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
-      >
-        <SheetHeader>
-          <SheetTitle className={SHEET_TITLE}>Log something else</SheetTitle>
-        </SheetHeader>
-        {open && (
-          <OneOffBody
-            key={dateKey}
-            todayKey={todayKey}
-            dateKey={dateKey}
-            customCompounds={customCompounds ?? []}
-            recents={recents ?? []}
-            onSave={onSave}
-            onClose={() => onOpenChange(false)}
-          />
-        )}
-      </SheetContent>
-    </Sheet>
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Log something else"
+      desktop="rail"
+      // No field focused on open, so no keyboard springs up over the sheet.
+      onOpenAutoFocus={(e) => e.preventDefault()}
+    >
+      {open && (
+        <OneOffBody
+          key={dateKey}
+          todayKey={todayKey}
+          dateKey={dateKey}
+          customCompounds={customCompounds ?? []}
+          recents={recents ?? []}
+          onSave={onSave}
+          onClose={() => onOpenChange(false)}
+        />
+      )}
+    </BottomSheet>
   )
 }
 
@@ -161,21 +163,9 @@ function OneOffBody({
     }
   }
 
-  const pill = (active: boolean) =>
-    cn(
-      PRESS.pill,
-      "rounded-lg px-3 py-1.5 text-sm transition-colors",
-      active
-        ? "bg-accent-primary text-bg-base"
-        : "bg-bg-surface-raised text-text-muted hover:text-foreground"
-    )
-
   return (
     // The sections rise in as the sheet lands (feel pass §4).
-    <div
-      data-sheet-body
-      className="space-y-4 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
-    >
+    <div data-sheet-body className="space-y-4 pb-1">
       {picked ? (
         <div className="flex items-center gap-3">
           <Container
@@ -190,13 +180,13 @@ function OneOffBody({
               {picked.name}
             </p>
             <p className={DATA_MONO}>
-              {dateKey === todayKey ? "Today" : dateKey}
+              {dateKey === todayKey ? "Today" : dayLong(dateKey)}
             </p>
           </div>
           <button
             type="button"
             onClick={() => setPicked(null)}
-            className="shrink-0 text-xs font-medium text-text-muted hover:text-foreground"
+            className={cn(PRESS.text, "-m-2 min-h-11 shrink-0 p-2 text-xs font-medium text-text-muted hover:text-foreground")}
           >
             Change
           </button>
@@ -208,7 +198,7 @@ function OneOffBody({
               while still being picked from a list. */}
           {recents.length > 0 && (
             <div className="space-y-2">
-              <span className={LABEL}>Recent</span>
+              <span className={FIELD_LABEL}>Recent</span>
               <div className="flex flex-wrap gap-2">
                 {recents.map((r) => (
                   <button
@@ -222,7 +212,7 @@ function OneOffBody({
                         defaultUnit: r.unit ?? "mg",
                       })
                     }
-                    className={pill(false)}
+                    className={cn(CHIP, CHIP_OFF)}
                   >
                     {r.label}
                   </button>
@@ -232,7 +222,7 @@ function OneOffBody({
           )}
 
           <label className="block space-y-1.5">
-            <span className={LABEL}>What did you take?</span>
+            <span className={FIELD_LABEL}>What did you take?</span>
             <div className="relative">
               <MagnifyingGlass
                 className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-text-subtle"
@@ -283,7 +273,7 @@ function OneOffBody({
         <>
           <div className="grid grid-cols-2 gap-3">
             <label className="block space-y-1.5">
-              <span className={LABEL}>How much</span>
+              <span className={FIELD_LABEL}>How much</span>
               {/* One decimal point and a bounded length now: the text field
                   kept any number of dots. "Optional" is a word, so it stays. */}
               <PadInput
@@ -316,7 +306,7 @@ function OneOffBody({
               />
             </label>
             <label className="block space-y-1.5">
-              <span className={LABEL}>Time</span>
+              <span className={FIELD_LABEL}>Time</span>
               <Input
                 type="time"
                 value={time24}
@@ -327,7 +317,7 @@ function OneOffBody({
           </div>
 
           <div className="space-y-2">
-            <span className={LABEL}>Unit</span>
+            <span className={FIELD_LABEL}>Unit</span>
             {/* The unit on a WHITE sliding thumb (feel pass §6). The thumb is
                 the selection, so the other units are outlined rather than
                 filled: a fill would hide the thumb as it passes beneath. */}
@@ -345,11 +335,11 @@ function OneOffBody({
                   onClick={() => setUnit(u)}
                   aria-pressed={unit === u}
                   className={cn(
-                    PRESS.pill,
-                    "rounded-lg border px-3 py-1.5 text-sm transition-colors duration-300",
-                    unit === u
-                      ? "border-transparent text-bg-base"
-                      : "border-border-default text-text-muted hover:text-foreground",
+                    CHIP,
+                    "duration-300",
+                    // The thumb slides beneath, so the chosen chip has no fill
+                    // of its own (CHIP_ON's fill would hide it).
+                    unit === u ? "border-transparent font-medium text-bg-base" : CHIP_OFF,
                   )}
                 >
                   {u}
@@ -359,7 +349,7 @@ function OneOffBody({
           </div>
 
           <label className="block space-y-1.5">
-            <span className={LABEL}>Note</span>
+            <span className={FIELD_LABEL}>Note</span>
             <Input
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -368,11 +358,13 @@ function OneOffBody({
             />
           </label>
 
-          <p className="text-xs leading-relaxed text-text-muted">
-            This is recorded on its own. It does not affect your stock, your
-            schedule or your consistency.
-          </p>
+          {/* One short line (consistency fix #29). */}
+          <p className="text-xs leading-relaxed text-text-muted">Not counted in stock or consistency.</p>
 
+          <div className="flex gap-2">
+          <button type="button" onClick={onClose} className={cn(SECONDARY_BUTTON, "flex-1")}>
+            Cancel
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -393,13 +385,11 @@ function OneOffBody({
               })
               onClose()
             }}
-            className={cn(
-              PRESS.button,
-              "w-full inst-btn px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90",
-            )}
+            className={cn(PRIMARY_BUTTON, "flex-1")}
           >
-            Log it
+            Log
           </button>
+          </div>
         </>
       )}
     </div>

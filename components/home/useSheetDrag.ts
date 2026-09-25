@@ -9,8 +9,8 @@ const useIsoLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect
 
 /**
- * Drag-to-dismiss for a bottom sheet — the shared version of the gesture that
- * `LogDoseSheet` / `InjectionSitesSheet` / `AddWeightSheet` each hand-rolled. Put
+ * Drag-to-dismiss for a bottom sheet — the shared version of the gesture the
+ * early sheets each hand-rolled (now `components/layout/BottomSheet`). Put
  * `cardRef` + `cardStyle` on the sheet's card root and spread `handleProps` on
  * the grab-handle element; pulling the handle down past ~30% of the card height
  * calls `onClose`, otherwise it springs back. Pointer-based, no dependency.

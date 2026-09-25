@@ -6,10 +6,10 @@ import type { StackCompound } from "@/lib/home/stack"
 import type { RowDraft } from "@/lib/home/logDraft"
 
 /**
- * Today's Log, Flow B, as the card's rows see it. Home owns the open row, its
- * draft and the Track bar; a row asks this for what to do with a tap and what
- * to draw under itself. Without a provider the card keeps its old behaviour
- * (a tick opens the Log sheet), so nothing else that draws it changes.
+ * Flow B, as the rows see it. The host (Home, Quick log, the Calendar's day,
+ * through `useLogRows`) owns the open row, its draft and the Track bar; a row
+ * asks this for what to do with a tap and what to draw under itself. There is
+ * one way to log a dose (consistency fix #0), so a row needs a provider.
  */
 export interface LogFlow {
   /** `id#slot` of the open row, or null. */
@@ -26,6 +26,8 @@ export interface LogFlow {
   onOpen: (dose: StackCompound, slot: number) => void
   /** The open row's panel. */
   renderPanel: (dose: StackCompound, slot: number) => ReactNode
+  /** Close the open row (a group folding over it, a sheet closing). */
+  close: () => void
   /** First run: the row whose circle the "Tap the circle" bubble points at. */
   firstRunKey?: string | null
 }
@@ -33,6 +35,13 @@ export interface LogFlow {
 export const LogFlowContext = createContext<LogFlow | null>(null)
 
 export const rowKey = (id: string, slot: number) => `${id}#${slot}`
+
+/** Close the open row if it belongs to one of these compounds: a group that
+ *  folds must not leave a hidden row open under the Track bar. */
+export function closeRowIn(flow: LogFlow, ids: string[]): void {
+  const open = flow.openKey
+  if (open && ids.some((id) => open.startsWith(`${id}#`))) flow.close()
+}
 
 /** A finished day: the edge holds bold, then exhales thin (E4, 2px → 3.5px,
  *  held, → 0.75px over ~3s), then the card settles darker (D1) and stays. */

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CaretDown, CaretLeft, CaretRight } from "@/components/icons";
+import { CaretLeft, CaretRight } from "@/components/icons";
 
+import { CloseArrowIcon } from "@/components/feel/CloseArrow";
 import { cn } from "@/lib/utils";
-import { PAGE_TITLE } from "@/lib/ui-presets";
+import { CHIP, CHIP_OFF, CHIP_ON, PAGE_TITLE } from "@/lib/ui-presets";
 import { monthTitle } from "@/lib/calendar/calendar";
 
 const MONTHS_SHORT = [
@@ -45,13 +46,14 @@ export function MonthYearPicker({ year, month0, onChange }: MonthYearPickerProps
         <span className={PAGE_TITLE}>
           {monthTitle(year, month0)}
         </span>
-        <CaretDown
-          className={cn(
-            "h-5 w-5 text-text-muted transition-transform duration-200",
-            open && "rotate-180",
-          )}
+        {/* The one arrow for what opens in place (consistency fix #11):
+            down while shut, up while the panel is open. */}
+        <span
           aria-hidden
-        />
+          className={cn("flex text-text-muted transition-transform duration-200", !open && "rotate-180")}
+        >
+          <CloseArrowIcon size={16} />
+        </span>
       </button>
 
       {open && (
@@ -90,10 +92,9 @@ export function MonthYearPicker({ year, month0, onChange }: MonthYearPickerProps
                       setOpen(false);
                     }}
                     className={cn(
-                      "rounded-lg py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent-amber/50",
-                      active
-                        ? "bg-accent-primary font-medium text-bg-base"
-                        : "text-text-muted hover:bg-bg-input hover:text-foreground",
+                      CHIP,
+                      "w-full outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      active ? CHIP_ON : CHIP_OFF,
                     )}
                   >
                     {label}

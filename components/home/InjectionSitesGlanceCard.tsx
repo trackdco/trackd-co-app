@@ -3,7 +3,7 @@
 import { useState } from "react"
 
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
+import { CARD_EYEBROW, SEGMENTED_ITEM, SEGMENTED_TRACK } from "@/lib/ui-presets"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import type {
   BodySex,
@@ -83,7 +83,7 @@ export function InjectionSitesGlanceCard({
           thumbClassName="inst-thumb"
           role="group"
           aria-label="Route"
-          className="inline-flex shrink-0 inst-rail p-0.5 text-[11px]"
+          className={cn(SEGMENTED_TRACK, "inline-flex shrink-0")}
         >
           {ROUTES.map((r) => (
             <button
@@ -91,11 +91,7 @@ export function InjectionSitesGlanceCard({
               type="button"
               onClick={() => setPicked(r.key)}
               aria-pressed={route === r.key}
-              className={cn(
-                PRESS.pill,
-                "rounded-sm px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
-                route === r.key ? "text-bg-base" : "text-text-muted",
-              )}
+              className={cn(SEGMENTED_ITEM, "font-medium", route === r.key ? "text-bg-base" : "text-text-muted")}
             >
               {r.label}
             </button>
@@ -119,9 +115,7 @@ export function InjectionSitesGlanceCard({
           <SitePreview route={route} daysSince={daysSince} sex={bodySex} />
 
           <div className="w-full hairline-t pt-3.5">
-            <p className="mb-2.5 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-text-muted">
-              Last logged
-            </p>
+            <p className={cn(CARD_EYEBROW, "mb-2.5")}>Last logged</p>
             {sitesForRoute.length > 0 ? (
               <ul className="flex flex-col gap-2.5">
                 {sitesForRoute.map((s, i) => (
@@ -142,7 +136,7 @@ export function InjectionSitesGlanceCard({
               </ul>
             ) : (
               <p className="text-xs text-text-muted">
-                No {route === "im" ? "IM" : "sub-Q"} doses logged yet.
+                No {route === "im" ? "IM" : "Sub-Q"} doses logged yet.
               </p>
             )}
           </div>
