@@ -1,5 +1,32 @@
 # Progress Tracker
 
+## 🗳 WHOLE-BUILD REVISION — ANSWERED (2026-09-25, 05:29 UTC). NEXT: ONE FINAL PAGE TO CONFIRM.
+
+His answers: https://claude.ai/artifact/CcZi92RTjpcJw3JrY5wAo2 (`whole/answers`). "I'll need one final artifact to
+fully confirm at the end now." Settled here: G2 flow (reworked, below), "All" = four squares, Markers tile =
+"3 noted", Add compound = container with mark (recent and list), the button icons, the build notes. Cycle
+Pause and End-stops-the-compound go to the event-actions SPEC (`w_events`), though he gave design notes.
+Changes and new work for the final page:
+- First run: pick MANY compounds first, they land in the log unspecified, step 2 sets dose, schedule
+  (with how-often options) and stock per compound, then log the first dose. Setup cards on other pages: a
+  researched range of ideas.
+- Home: Next dose reads "X days" only; the open card follows the swipe; the journal opens in place ON Home;
+  the sites sheet uses EXACTLY the log sheet's map (day lines to each muscle); the open page shows
+  "Level: Steady"; alternatives to the count-up. (The Track bar is the real Flow B design; explain it.)
+- Markers: a search, "use my last markers", which are suggested; words: Injection Site Pain tops out at
+  Unbearable, Joint Pain at Savage, Headaches keeps Migraine and tops at Unbearable, Irritability NOT
+  "Explosive", Gyno as None / Low / Medium / High (+ one to reach five).
+- Protocol: tiles 2×2, bigger icons, NO tint; no "t½" in the compound sheet; Stacks get Edit and Delete.
+- Cycles: Pause becomes play; a paused cycle dims and drops into a Paused group; every pop-up animates; a
+  clearer End flow (ending a cycle vs deleting the compound); a tappable, brighter live timeline; how 10+
+  cycles look.
+- Stock: "Runs dry soon" (no "Order soon"); spares as small full vials; no use-by / expiry footnote;
+  "Current vial"; a Mix sheet (water, concentration).
+- Progress: a clear way out of the full-screen photo, date and weight under it; Running as ONE card with the
+  compounds indented, in Protocol's order; the new-account page rethought from research.
+- A new + menu (daily actions, not bloods); icons slightly less gradient; UI style directions so the app
+  matches the gradient icons; a walkthrough of every feature.
+
 ## 🗳 ROUND THREE — ANSWERED (2026-09-25, 04:36 UTC). WHOLE-BUILD PAGE PUBLISHED; HIS REVISION IS NEXT.
 
 Whole-build page: https://claude.ai/artifact/CcZi92RTjpcJw3JrY5wAo2 (db `whole/answers`, `whole/draft`). Checked
