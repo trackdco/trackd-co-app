@@ -1,14 +1,19 @@
 # Progress Tracker
 
-## 🗳 ROUND THREE — ANSWERED (2026-09-25, 04:36 UTC). NEXT: ONE WHOLE-APP VIEW, THEN ANOTHER REVISION.
+## 🗳 ROUND THREE — ANSWERED (2026-09-25, 04:36 UTC). WHOLE-BUILD PAGE PUBLISHED; HIS REVISION IS NEXT.
+
+Whole-build page: https://claude.ai/artifact/CcZi92RTjpcJw3JrY5wAo2 (db `whole/answers`, `whole/draft`). Checked
+by two agents (completeness against all three rounds of answers, and fresh eyes); their high and medium
+findings were fixed in version 2, including one demo account read by every phone. Open question on it:
+whether cycle Pause and End-stops-the-compound ship now or wait for the event-actions spec (`w_events`).
 
 Answers in https://claude.ai/artifact/HPrYxng3Nt6EPK2R4rNWqg (`part3/answers`). Adrian: "continue, but I'll
 need another revision". So the next page shows EVERY decision from all three rounds as the app would be
 built, screen by screen, with notes per section; after his revision, the build handover.
 
 **Decided in round three:**
-- Half-life card (Home): dose ticks along the line. The Level row shows ONLY when not steady (Climbing, or
-  Dropping once stopped). Next dose reads the day, the countdown and the DOSE AMOUNT, e.g. "Mon (3 days) · 2 mg".
+- Half-life card (Home): dose ticks along the line. The Level row shows ONLY while Climbing (his words: "just
+  have the level Climbing not when its steady"); a stopped compound shows Clears in instead. Next dose reads the day, the countdown and the DOSE AMOUNT, e.g. "Mon (3 days) · 2 mg".
 - A compound's half-life page: when it peaks, the estimate band (no caption), and "Clears in" as a row under
   Peaks; the explanation moves behind a "?" guide. Past runs are tappable and open that run's graph. Reached
   from Protocol's Half-life tile, then a compound.
@@ -22,7 +27,8 @@ built, screen by screen, with notes per section; after his revision, the build h
 - Cycles: C1 list top card; rounded-square buttons (Edit, Pause, End), with a confirm on End.
 - Stock: shelves per type, scrolling sideways; a tap opens the compound's OWN PAGE; its buttons need icons; each
   page gets a setup card like Home's get-started.
-- Progress: every card keeps its frame with a way to add; photos preview three (front, side, back); a tap
+- Progress: every card keeps its frame (he hedged on per-card inputs, "maybe not"; the whole-build page shows
+  one setup card over quiet frames); photos preview three (front, side, back); a tap
   enlarges one, a second tap opens it full screen and zoomable.
 - Get started: G1 (the card, three rows), but he wants to see another version.
 - Icons: supplements = LEAF. Protocol tiles = hue icons, shorter tiles, whole tile lightly tinted. + menu =
