@@ -1,6 +1,37 @@
 # Progress Tracker
 
-## 🗳 FINAL CHECK, ROUND TWO — SAME PAGE, NEW DB DOCS `final2/*`. NEXT: HIS SUBMIT, THEN THE BUILD PROMPT.
+## 🗳 FINAL CHECK, ROUND TWO — ANSWERED 2026-09-25 10:00 UTC. NEXT: A "FINAL FINAL" PAGE IN A NEW CHAT.
+
+His picks (`final2/answers`): celebration ring, reworked as a pop-up with Kyle in an amber ring, titled "First Dose
+Logged". Switches and all shapes are rounded rectangles (circles only for the camera shutter and avatars). Half-life
+mark = the curve. Protocol tile marks in colour. Pages slide in. The range band replaces the fill. Spares stacked with
+a count. Swipe between vials, not compounds. Cycle rows: name, pattern, strip. End = "End cycle", kept under Ended.
+Types start folded with a hint. The + becomes a card (morph, four items). New account: one button. Build list ok.
+His notes overrode or added to these:
+- Stock is too complex ("i have vials i want to add vials, i want to mix my vials thats it"). No shelves of any kind,
+  but a clear divide between compounds, still by type. No "Runs dry soon". Compounds with no stock as dotted
+  outlines. Disregard his earlier Add stock ask.
+- Home: no full-screen "Tracked" overlay (that overlay was only in the mock; the branch's Home already ticks
+  the row and fills the card edge). A side card in the half-life rail
+  switches to that compound. No auto-scroll after Track. He wants time until the half-life point and until the peak,
+  with a key ("we might need to rethink this"). No empty space beside the opened graph. Panel arrows inline, with no
+  empty band. The Note panel is titled "Add a Note", with placeholder options.
+- Markers: tick several, then rate them. Buttons "Add more markers" and "Use my last". The input outline is clipped
+  (bug).
+- Cycles: the hint goes after the first tap. Headers show only type and count. Ended cycles can be deleted (how?).
+  Paused moves to the BOTTOM: the row fades, then slides into it. No count bump. "+ New cycle" and "+ New stack" go
+  top right, like "Add stock".
+- Protocol: the compound sheet header becomes one long card with the half-life, dose and route on one line. The ?
+  guide's lines overlap, and the "now" dot distracts. Centre the "Usually…" line. Maybe an intro paragraph.
+- Progress viewer: dots at the bottom, date and weight at the top, a near-opaque backdrop, pinch zoom that springs
+  back. Running becomes a sideways row with the type chips. New-account frames show no person.
+- Look: he likes all three styles. Find a "least AI" taste skill. He allows typeface and palette changes, keeping
+  black, white and amber. The amber looks too yellow. He wants "the big words again" (most likely: keep the full
+  Intramuscular / Subcutaneous words on the sites sheet, as the app has them; offered as a pick).
+He is doing "as little as possible" on the next page. The handover for it is `~/trakabl-mockups/final-check/HANDOVER.md`
+(outside git; the mockup source moved there from the session scratchpad and rebuilds byte-identical).
+
+## 🗳 FINAL CHECK, ROUND TWO — WHAT THE PAGE SHOWED (SAME PAGE, NEW DB DOCS `final2/*`)
 
 Round one was submitted 07:42 UTC (`final/answers`). Settled there: Track pinned; figures roll; the steady word
 is Holding; Irritability tops at Raging; Gyno None/Low/Medium/High/Severe; suggested markers the same for

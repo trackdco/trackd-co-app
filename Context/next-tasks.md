@@ -1,13 +1,15 @@
 # Next Tasks
 
-## ✅ NOW: HIS FINAL CHECK, THEN THE BUILD HANDOVER (branch `design/half-life-motion`)
+## ✅ NOW: THE FINAL FINAL PAGE (A NEW CHAT), THEN THE BUILDER PROMPT (branch `design/half-life-motion`)
 
-1. Adrian works through https://claude.ai/artifact/2Mnj2qS3FKxiSNsNPjxiv1 and Submits (`final/answers`).
-2. Read the answers (ArtifactData get `final/answers`); resolve any "Change it" notes, ask about anything blank.
-3. Write the build handover prompt for a new chat: every decision from all rounds plus this page's picks, the
-   code facts listed in the progress tracker's FINAL CHECK section, the 30 consistency fixes, the held
-   migrations (025/026 with the merge, embeds hinted), and what waits on his other chats (needle, nav icons,
-   containers). The page source lives in the old session scratchpad (`r6/`); the handover must stand alone.
+1. Round two of the final check was answered 2026-09-25 10:00 UTC (`final2/answers`, keys `f7_*`). He wants one
+   more page, the "FINAL FINAL", built by a NEW chat on the same URL (db `final3/*`, keys `f8_*`), kept short:
+   everything applied, "Looks right / Change" per section, a few pre-selected picks, and a style builder
+   (three styles × typefaces × palettes, keeping black, white and amber).
+2. That chat follows `~/trakabl-mockups/final-check/HANDOVER.md` (outside git). The mockup source, every
+   round's saved answers and the reference notes are also in `~/trakabl-mockups/final-check/`.
+3. After he submits it: write `Context/build-brief-final.md` and the ui-context updates, commit, and give him
+   the builder prompt (saved as `Context/PROMPT-build-final.md`) for another new chat.
 4. Nothing is built, pushed or migrated until he says so.
 
 ## 🗳 ROUND TWO — PART TWO, THEN BUILD (branch `design/half-life-motion`)
