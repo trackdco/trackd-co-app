@@ -1,5 +1,15 @@
 # Next Tasks
 
+## ✅ NOW: HIS FINAL CHECK, THEN THE BUILD HANDOVER (branch `design/half-life-motion`)
+
+1. Adrian works through https://claude.ai/artifact/2Mnj2qS3FKxiSNsNPjxiv1 and Submits (`final/answers`).
+2. Read the answers (ArtifactData get `final/answers`); resolve any "Change it" notes, ask about anything blank.
+3. Write the build handover prompt for a new chat: every decision from all rounds plus this page's picks, the
+   code facts listed in the progress tracker's FINAL CHECK section, the 30 consistency fixes, the held
+   migrations (025/026 with the merge, embeds hinted), and what waits on his other chats (needle, nav icons,
+   containers). The page source lives in the old session scratchpad (`r6/`); the handover must stand alone.
+4. Nothing is built, pushed or migrated until he says so.
+
 ## 🗳 ROUND TWO — PART TWO, THEN BUILD (branch `design/half-life-motion`)
 
 State and decisions: progress-tracker, "ROUND TWO". Adrian's own words are in the round-two

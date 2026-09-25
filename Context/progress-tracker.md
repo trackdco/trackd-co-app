@@ -1,6 +1,27 @@
 # Progress Tracker
 
-## 🗳 WHOLE-BUILD REVISION — ANSWERED (2026-09-25, 05:29 UTC). NEXT: ONE FINAL PAGE TO CONFIRM.
+## 🗳 FINAL CHECK PAGE — PUBLISHED (2026-09-25). NEXT: HIS SUBMIT, THEN THE BUILD HANDOVER PROMPT. NOTHING BUILT.
+
+Page: https://claude.ai/artifact/2Mnj2qS3FKxiSNsNPjxiv1 (db `final/answers` on Submit, `final/draft` as he goes).
+Every screen in the order a user meets it, each with "how you use it" steps (his walkthrough), a working phone,
+Looks right / Change, and a note box. Built from research (setup and empty states, the + menu, number motion,
+photo viewer, cycle pause/end, many-row timelines) and three independent UI-style directions; checked in Chromium
+and WebKit at 390x844 and 375x548; reviewed by three agents (completeness, fresh eyes, code truth).
+Open picks on the page: setup ideas (multi), Track bar pinned vs in the row, figure motion (roll / curve then roll /
+"+2 mg" / count up), the steady word (Steady / Settled / Holding), Irritability's top step, Gyno's fifth level,
+which markers are suggested, the "t½" replacement, the End pop-up (his words vs "End cycle" kept under Ended),
+Progress new account (P1-P3), the + (Q1 his four / Q2 due first / Q3 fan), the look (as now / Overhead light /
+Own light / Quiet monochrome), Bloods mark (B1-B5).
+Code facts the build must keep (from the code-truth review; they shaped the page):
+- Runs dry counts open and mixed containers only, warning at 7 days (`lib/protocol/runsDry.ts`, `stockPage.ts:11`).
+- A dose row opens with NO site chosen; never a suggested-next-site (ui-context). Tablets have no Site tile.
+- Vitamin D3 has no catalogue half-life, so no curve. Custom markers already exist as a form (MarkerDialer).
+- Bloods upload takes images only today (PDF would be new). Stack delete has no undo today: add a
+  `restoreStack` that re-commits the saved Stack verbatim (refuse if a member joined another stack).
+- The Track bar is on this branch only, not live. Compound Pause already holds a cycle's clock (`lib/home/pauses.ts`).
+- The Mix sheet's numbers use the same maths as Home's draw (units = mL x 100; water defaults to the last used).
+
+## 🗳 WHOLE-BUILD REVISION — ANSWERED (2026-09-25, 05:29 UTC). FINAL PAGE PUBLISHED ABOVE.
 
 His answers: https://claude.ai/artifact/CcZi92RTjpcJw3JrY5wAo2 (`whole/answers`). "I'll need one final artifact to
 fully confirm at the end now." Settled here: G2 flow (reworked, below), "All" = four squares, Markers tile =
