@@ -173,8 +173,8 @@ export type SaveOfferKind = "trial" | "paid";
  * does neither: a cold review noted it tells somebody whose cancellation just
  * failed nothing about what to do, on the screen where that matters most.
  */
-export const CANCEL_FAILED = "We couldn't cancel just now. Please try again.";
-export const RESUME_FAILED = "We couldn't restart it just now. Please try again.";
+export const CANCEL_FAILED = "Couldn’t cancel. Try again.";
+export const RESUME_FAILED = "Couldn’t restart it. Try again.";
 /** `04`'s dialog, but the string is the server's and the client needs it too. */
 export const CLAIM_FAILED = "We couldn't add the extra time just now.";
 

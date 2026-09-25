@@ -2,14 +2,15 @@
 
 import { useState } from "react"
 
+import { BottomSheet } from "@/components/layout/BottomSheet"
 import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+  CARD_EYEBROW,
+  FIELD_LABEL,
+  INNER_RADIUS,
+  PRESS,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+} from "@/lib/ui-presets"
 import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
 import { usePadSession } from "@/components/feel/usePadSession"
 import { cn } from "@/lib/utils"
@@ -27,7 +28,9 @@ import {
 
 const FIELD =
   "h-11 w-full min-w-0 rounded-xl border border-border-default bg-bg-input px-3 text-base text-foreground shadow-xs outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong"
-const LABEL = "text-xs font-medium uppercase tracking-[0.14em] text-text-muted"
+/** A group's heading in the sheet ("Pattern", "End", "Colour"): the eyebrow
+ *  (consistency fix #14). A field's own label is `FIELD_LABEL` (fix #19). */
+const GROUP = CARD_EYEBROW
 
 const END_LABELS: Record<CycleEnd["type"], string> = {
   never: "No end",
@@ -70,45 +73,49 @@ export function CycleRuleSheet({
   /** `null` removes the cycle; the compound then runs on its schedule alone. */
   onSave: (cycle: CycleRule | null) => void
 }) {
+  // THE ONE SHEET FRAME (consistency fix #1). The form owns the frame, so its
+  // pinned footer can read the form. Each open starts a fresh form on the rule
+  // it opened with, held while the sheet slides away.
+  const [session, setSession] = useState(open ? 1 : 0)
+  const [opened, setOpened] = useState({ compoundName, cycle, vialTracked })
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setSession((n) => n + 1)
+      setOpened({ compoundName, cycle, vialTracked })
+    }
+  }
+  if (session === 0) return null
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="rail"
-        side="bottom"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-border-default bg-bg-surface"
-      >
-        <SheetHeader>
-          <SheetTitle className={SHEET_TITLE}>
-            {cycle ? "Edit cycle" : "Add cycle"}
-          </SheetTitle>
-          <p className="text-sm text-text-muted">{compoundName}</p>
-        </SheetHeader>
-        {open && (
-          <CycleRuleForm
-            key={cycle ? "edit" : "new"}
-            cycle={cycle}
-            vialTracked={vialTracked}
-            onClose={() => onOpenChange(false)}
-            onSave={onSave}
-          />
-        )}
-      </SheetContent>
-    </Sheet>
+    <CycleRuleForm
+      key={session}
+      open={open}
+      onOpenChange={onOpenChange}
+      compoundName={opened.compoundName}
+      cycle={opened.cycle}
+      vialTracked={opened.vialTracked}
+      onSave={onSave}
+    />
   )
 }
 
 function CycleRuleForm({
+  open,
+  onOpenChange,
+  compoundName,
   cycle,
   vialTracked,
-  onClose,
   onSave,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  compoundName: string
   cycle: CycleRule | null
   vialTracked: boolean
-  onClose: () => void
   onSave: (cycle: CycleRule | null) => void
 }) {
+  const onClose = () => onOpenChange(false)
   const initOnOff = cycle?.pattern.type === "onOff" ? cycle.pattern : null
   const [repeats, setRepeats] = useState(initOnOff !== null)
   const [onDays, setOnDays] = useState(String(initOnOff?.onDays ?? 7))
@@ -181,156 +188,157 @@ function CycleRuleForm({
   }
 
   return (
-    // The sections rise in as the sheet lands (feel pass §4).
-    <div data-sheet-body className="space-y-5 px-4 pb-2">
-      {/* Pattern */}
-      <div className="space-y-3">
-        <p className={LABEL}>Pattern</p>
-        <div className="grid grid-cols-2 gap-2">
-          <PatternOption
-            label="Continuous"
-            hint="Runs every scheduled day"
-            selected={!repeats}
-            onSelect={() => setRepeats(false)}
-          />
-          <PatternOption
-            label="On / off"
-            hint="Alternates, repeating"
-            selected={repeats}
-            onSelect={() => setRepeats(true)}
-          />
-        </div>
-        {repeats && (
-          <div className="grid grid-cols-2 gap-3">
-            <label className="space-y-1">
-              <span className={LABEL}>Days on</span>
-              <PadInput {...pad.bind("onDays")} value={onDays} label="Days on" unit="days" className="h-11 w-full" />
-            </label>
-            <label className="space-y-1">
-              <span className={LABEL}>Days off</span>
-              <PadInput {...pad.bind("offDays")} value={offDays} label="Days off" unit="days" className="h-11 w-full" />
-            </label>
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={cycle ? "Edit cycle" : "Add cycle"}
+      description={compoundName}
+      desktop="rail"
+      // Cancel and Save, like every other sheet (consistency fix #6). A cycle
+      // ends from its row on the Cycles page, which asks first.
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={cn(SECONDARY_BUTTON, "flex-1")}>
+            Cancel
+          </button>
+          <button type="button" onClick={save} disabled={!valid} className={cn(PRIMARY_BUTTON, "flex-1")}>
+            Save
+          </button>
+        </>
+      }
+    >
+      <p className="mb-4 truncate text-sm text-text-muted">{compoundName}</p>
+      {/* The sections rise in as the sheet lands (feel pass §4). */}
+      <div data-sheet-body className="space-y-5 pb-2">
+        {/* Pattern */}
+        <div className="space-y-3">
+          <p className={GROUP}>Pattern</p>
+          <div className="grid grid-cols-2 gap-2">
+            <PatternOption
+              label="Continuous"
+              hint="Runs every scheduled day"
+              selected={!repeats}
+              onSelect={() => setRepeats(false)}
+            />
+            <PatternOption
+              label="On / off"
+              hint="Alternates, repeating"
+              selected={repeats}
+              onSelect={() => setRepeats(true)}
+            />
           </div>
-        )}
-      </div>
-
-      {/* Start */}
-      <label className="space-y-1 block">
-        <span className={LABEL}>Starts</span>
-        <input
-          type="date"
-          className={FIELD}
-          value={anchor}
-          onChange={(e) => setAnchor(e.target.value)}
-        />
-      </label>
-
-      {/* End condition */}
-      <div className="space-y-2">
-        <p className={LABEL}>End</p>
-        <div className="inst-rows">
-          {offerable.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setEndType(t)}
-              className={cn(PRESS.button, "flex w-full items-center gap-3 px-4 py-3 text-left")}
-            >
-              <span
-                className={cn(
-                  "h-4 w-4 shrink-0 rounded-full border",
-                  effectiveEndType === t
-                    ? "border-accent-primary bg-accent-primary"
-                    : "border-border-strong"
-                )}
-              />
-              <span className="text-sm text-foreground">{END_LABELS[t]}</span>
-            </button>
-          ))}
+          {repeats && (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={FIELD_LABEL}>Days on</span>
+                <PadInput {...pad.bind("onDays")} value={onDays} label="Days on" unit="days" className="h-11 w-full" />
+              </label>
+              <label className="block">
+                <span className={FIELD_LABEL}>Days off</span>
+                <PadInput {...pad.bind("offDays")} value={offDays} label="Days off" unit="days" className="h-11 w-full" />
+              </label>
+            </div>
+          )}
         </div>
-        {effectiveEndType === "onDate" && (
+
+        {/* Start */}
+        <label className="block">
+          <span className={FIELD_LABEL}>Starts</span>
           <input
             type="date"
             className={FIELD}
-            value={endDate}
-            /* The picker cannot offer a date the rule would reject. */
-            min={anchor}
-            aria-label="Cycle end date"
-            onChange={(e) => setEndDate(e.target.value)}
+            value={anchor}
+            onChange={(e) => setAnchor(e.target.value)}
           />
-        )}
-        {effectiveEndType === "afterRounds" && (
-          <label className="space-y-1 block">
-            <span className={LABEL}>Rounds</span>
-            <PadInput {...pad.bind("rounds")} value={rounds} label="Rounds" className="h-11 w-full" />
-            <span className="text-xs text-text-muted">
-              One round is {repeats ? `${pattern.type === "onOff" ? pattern.onDays : 0} on plus ${pattern.type === "onOff" ? pattern.offDays : 0} off` : "one on and off period"}.
-            </span>
-          </label>
-        )}
-      </div>
+        </label>
 
-      {/* Colour */}
-      <div className="space-y-2">
-        <p className={LABEL}>Colour</p>
-        <div className="flex flex-wrap gap-2">
-          {CYCLE_COLOURS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              aria-label={CYCLE_COLOUR_LABELS[c]}
-              aria-pressed={colour === c}
-              onClick={() => setColour(c)}
-              style={{ background: cycleColourVar(c) }}
-              className={cn(
-                PRESS.tick,
-                "h-9 w-9 rounded-full transition",
-                colour === c && "ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-surface"
-              )}
+        {/* End condition */}
+        <div className="space-y-2">
+          <p className={GROUP}>End</p>
+          <div className="inst-rows">
+            {offerable.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setEndType(t)}
+                className={cn(PRESS.row, "flex w-full items-center gap-3 px-4 py-3 text-left")}
+              >
+                <span
+                  className={cn(
+                    "h-4 w-4 shrink-0 rounded-full border",
+                    effectiveEndType === t
+                      ? "border-accent-primary bg-accent-primary"
+                      : "border-border-strong"
+                  )}
+                />
+                <span className="text-sm text-foreground">{END_LABELS[t]}</span>
+              </button>
+            ))}
+          </div>
+          {effectiveEndType === "onDate" && (
+            <input
+              type="date"
+              className={FIELD}
+              value={endDate}
+              /* The picker cannot offer a date the rule would reject. */
+              min={anchor}
+              aria-label="Cycle end date"
+              onChange={(e) => setEndDate(e.target.value)}
             />
-          ))}
+          )}
+          {effectiveEndType === "afterRounds" && (
+            <label className="block">
+              <span className={FIELD_LABEL}>Rounds</span>
+              <PadInput {...pad.bind("rounds")} value={rounds} label="Rounds" className="h-11 w-full" />
+              <span className="mt-1 block text-xs text-text-muted">
+                One round is {repeats ? `${pattern.type === "onOff" ? pattern.onDays : 0} on plus ${pattern.type === "onOff" ? pattern.offDays : 0} off` : "one on and off period"}.
+              </span>
+            </label>
+          )}
         </div>
+
+        {/* Colour */}
+        <div className="space-y-2">
+          <p className={GROUP}>Colour</p>
+          <div className="flex flex-wrap gap-2">
+            {CYCLE_COLOURS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                aria-label={CYCLE_COLOUR_LABELS[c]}
+                aria-pressed={colour === c}
+                onClick={() => setColour(c)}
+                style={{ background: cycleColourVar(c) }}
+                className={cn(
+                  PRESS.tick,
+                  "h-9 w-9 rounded-full transition",
+                  colour === c && "ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-surface"
+                )}
+              />
+            ))}
+          </div>
+        </div>
+
+        <NumberPad
+          {...pad.padProps(
+            [
+              ...(repeats
+                ? ([
+                    { id: "onDays", label: "Days on", short: "On", unit: "days", value: onDays, onChange: setOnDays, decimal: false, sanitize: digits },
+                    { id: "offDays", label: "Days off", short: "Off", unit: "days", value: offDays, onChange: setOffDays, decimal: false, sanitize: digits },
+                  ] satisfies PadField[])
+                : []),
+              ...(effectiveEndType === "afterRounds"
+                ? ([
+                    { id: "rounds", label: "Rounds", short: "Rounds", value: rounds, onChange: setRounds, decimal: false, sanitize: digits },
+                  ] satisfies PadField[])
+                : []),
+            ],
+          )}
+          label="Cycle lengths"
+        />
       </div>
-
-      {/* Cancel and Save, like every other sheet (consistency fix #6). A cycle
-          ends from its row on the Cycles page, which asks first. */}
-      <SheetFooter className="flex-row gap-2 px-0">
-        <button
-          type="button"
-          onClick={onClose}
-          className={cn(PRESS.button, "h-11 flex-1 inst-ghost text-sm text-foreground")}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={save}
-          disabled={!valid}
-          className={cn(PRESS.button, "h-11 flex-1 inst-btn text-sm font-medium text-bg-base disabled:opacity-40")}
-        >
-          Save
-        </button>
-      </SheetFooter>
-
-      <NumberPad
-        {...pad.padProps(
-          [
-            ...(repeats
-              ? ([
-                  { id: "onDays", label: "Days on", short: "On", unit: "days", value: onDays, onChange: setOnDays, decimal: false, sanitize: digits },
-                  { id: "offDays", label: "Days off", short: "Off", unit: "days", value: offDays, onChange: setOffDays, decimal: false, sanitize: digits },
-                ] satisfies PadField[])
-              : []),
-            ...(effectiveEndType === "afterRounds"
-              ? ([
-                  { id: "rounds", label: "Rounds", short: "Rounds", value: rounds, onChange: setRounds, decimal: false, sanitize: digits },
-                ] satisfies PadField[])
-              : []),
-          ],
-        )}
-        label="Cycle lengths"
-      />
-    </div>
+    </BottomSheet>
   )
 }
 
@@ -351,7 +359,8 @@ function PatternOption({
       onClick={onSelect}
       className={cn(
         PRESS.card,
-        "rounded-2xl px-3 py-3 text-left transition",
+        INNER_RADIUS,
+        "px-3 py-3 text-left transition",
         selected ? "bg-bg-input" : "bg-bg-surface-raised"
       )}
     >

@@ -611,7 +611,7 @@ export function methodLabel(method: InjectionMethod): string {
     case "im":
       return "IM"
     case "subq":
-      return "SubQ"
+      return "Sub-Q"
     case "po":
       return "Oral"
     case "nasal":

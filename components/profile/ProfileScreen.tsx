@@ -20,7 +20,7 @@ import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle";
 import { ProfileBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
-import { CARD_EYEBROW, PAGE_TITLE, PRESS } from "@/lib/ui-presets";
+import { CARD_EYEBROW, PAGE_TITLE, PRESS, ROW_CHEVRON } from "@/lib/ui-presets";
 
 /**
  * Profile — everything about your account, on one page (spec 09 · part two).
@@ -202,12 +202,15 @@ export function ProfileScreen({
         </div>
       </div>
 
-      <p
-        className="animate-home-up text-center text-xs text-text-muted"
+      {/* The privacy line, said ONCE, here (consistency fix #29): it used to
+          repeat under four different forms. */}
+      <div
+        className="animate-home-up space-y-1 text-center text-xs text-text-muted"
         style={{ animationDelay: "220ms" }}
       >
-        Trakabl · v0.4 (Beta)
-      </p>
+        <p>Only you can see your data.</p>
+        <p>Trakabl · v0.4 (Beta)</p>
+      </div>
     </div>
   );
 }
@@ -261,7 +264,8 @@ function LinkRow({
         // next person must change.
         <span className="max-w-[55%] shrink truncate text-sm text-text-muted">{value}</span>
       ) : null}
-      <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+      {/* It goes somewhere: the row chevron (consistency fix #11). */}
+      <CaretRight className={ROW_CHEVRON} aria-hidden />
     </Link>
   );
 }

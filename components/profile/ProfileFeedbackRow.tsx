@@ -4,7 +4,7 @@ import { useState } from "react"
 import { CaretRight, ChatCircleDots } from "@/components/icons"
 
 import { FeedbackSheet } from "@/components/feedback/FeedbackSheet"
-import { PRESS } from "@/lib/ui-presets"
+import { PRESS, ROW_CHEVRON } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 
 /**
@@ -29,7 +29,7 @@ export function ProfileFeedbackRow({ userId }: { userId: string }) {
       >
         <ChatCircleDots className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
         <span className="flex-1 text-sm text-foreground">Send feedback</span>
-        <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+        <CaretRight className={ROW_CHEVRON} aria-hidden />
       </button>
 
       <FeedbackSheet

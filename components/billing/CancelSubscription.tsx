@@ -1480,7 +1480,7 @@ function dialogCopy({
      */
     const period = offerPeriodWord(offer?.noun ?? "week");
     return {
-      title: "Thank you!",
+      title: "Thank you.",
       /**
        * ⚠️ F2: ONE SENTENCE, NAMING THE WINDOW, FOR BOTH KINDS.
        *

@@ -11,8 +11,19 @@ import {
 } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { PRESS } from "@/lib/ui-presets"
+import {
+  ADD_ACTION,
+  CARD_EYEBROW,
+  CHIP,
+  CHIP_OFF,
+  FIELD_LABEL,
+  PRESS,
+  SEGMENTED_ITEM_LG,
+  SEGMENTED_TRACK,
+} from "@/lib/ui-presets"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
+import { ConfirmDialog } from "@/components/feel/ConfirmDialog"
+import { showToast } from "@/lib/toast"
 import { NumberPad, PadInput } from "@/components/feel/NumberPad"
 import { customCompoundsKey } from "@/lib/home/customCompounds"
 import { Input } from "@/components/ui/input"
@@ -440,17 +451,40 @@ export function AddToStackMenu({
     }
   }
 
+  /**
+   * After a custom compound is deleted: "<Name> deleted" with Undo, which puts
+   * it back on this device and, once the cloud delete has landed, backs it up
+   * again (the same best-effort push an add makes).
+   */
+  function toastDeleted(removed: CustomCompound, deletion: Promise<unknown>) {
+    showToast(`${removed.name} deleted`, {
+      undo: () => {
+        const now = loadCustoms(userId)
+        if (now.some((c) => c.id === removed.id)) return
+        const back = [removed, ...now]
+        if (!saveCustoms(userId, back)) {
+          showToast("Couldn’t undo. Try again.")
+          return
+        }
+        setCustoms(back)
+        void deletion.finally(() => pushCustom(removed))
+      },
+    })
+  }
+
   async function performDelete() {
     if (!editingId) return
     const deletingId = editingId
+    const removed = customs.find((c) => c.id === deletingId)
     const next = customs.filter((c) => c.id !== deletingId)
 
     try {
       const saved = await saveCustoms(userId, next)
       if (saved) {
         setCustoms(next)
-        void deleteCustom(deletingId) // best-effort cloud backup
+        const deletion = deleteCustom(deletingId) // best-effort cloud backup
         backToBrowse()
+        if (removed) toastDeleted(removed, deletion)
       } else {
         setSaveFailed(true)
       }
@@ -467,20 +501,26 @@ export function AddToStackMenu({
     setConfirmingDeleteId(id)
   }
 
-  function cancelDeleteCustom() {
-    setConfirmingDeleteId(null)
-  }
-
   function confirmDeleteCustom(id: string) {
+    const removed = customs.find((c) => c.id === id)
     const next = customs.filter((c) => c.id !== id)
+    setConfirmingDeleteId(null)
     if (saveCustoms(userId, next)) {
       setCustoms(next)
-      void deleteCustom(id) // best-effort cloud backup
-      setConfirmingDeleteId(null)
+      const deletion = deleteCustom(id) // best-effort cloud backup
+      if (removed) toastDeleted(removed, deletion)
     } else {
-      setSaveFailed(true)
+      showToast("Couldn’t delete. Try again.")
     }
   }
+
+  /** The custom compound a delete is asking about, from the list or the form. */
+  const askingDelete =
+    confirmingDeleteId != null
+      ? (customs.find((c) => c.id === confirmingDeleteId) ?? null)
+      : confirmingDelete && editingId
+        ? (customs.find((c) => c.id === editingId) ?? null)
+        : null
 
   const nameValid = form.name.trim().length > 0
 
@@ -530,7 +570,7 @@ export function AddToStackMenu({
     window.setTimeout(() => {
       setShakingName((cur) => (cur === compound.name ? null : cur))
     }, 450)
-    if (n >= 3) showNotice(`${compound.name} is already in your log.`)
+    if (n >= 3) showNotice(`${compound.name} is already in your protocol.`)
   }
 
   return (
@@ -607,7 +647,7 @@ export function AddToStackMenu({
           </div>
 
           <SheetDescription className="sr-only">
-            Search the compounds catalogue, or make your own, to add to your log.
+            Search the compounds catalogue, or make your own, to add to your protocol.
           </SheetDescription>
 
           {mode === "form" ? (
@@ -618,10 +658,7 @@ export function AddToStackMenu({
               nameError={nameError}
               clearNameError={() => setNameError(null)}
               saveFailed={saveFailed}
-              confirmingDelete={confirmingDelete}
               onAskDelete={() => setConfirmingDelete(true)}
-              onCancelDelete={() => setConfirmingDelete(false)}
-              onConfirmDelete={performDelete}
             />
           ) : (
             <BrowseBody
@@ -637,14 +674,24 @@ export function AddToStackMenu({
               recent={recent}
               onBlockedTap={handleBlockedTap}
               shakingName={shakingName}
-              confirmingDeleteId={confirmingDeleteId}
               onAskDeleteCustom={askDeleteCustom}
-              onCancelDeleteCustom={cancelDeleteCustom}
-              onConfirmDeleteCustom={confirmDeleteCustom}
-              deleteFailed={saveFailed}
               stacks={stacks}
             />
           )}
+
+          <ConfirmDialog
+            open={askingDelete !== null}
+            onClose={() => {
+              setConfirmingDeleteId(null)
+              setConfirmingDelete(false)
+            }}
+            title={`Delete ${askingDelete?.name ?? "this compound"}?`}
+            confirmLabel="Delete"
+            onConfirm={() => {
+              if (confirmingDeleteId != null) confirmDeleteCustom(confirmingDeleteId)
+              else void performDelete()
+            }}
+          />
         </div>
       </SheetContent>
     </Sheet>
@@ -691,11 +738,7 @@ function BrowseBody({
   recent,
   onBlockedTap,
   shakingName,
-  confirmingDeleteId,
   onAskDeleteCustom,
-  onCancelDeleteCustom,
-  onConfirmDeleteCustom,
-  deleteFailed,
   stacks,
 }: {
   query: string
@@ -711,11 +754,7 @@ function BrowseBody({
   recent: Compound[]
   onBlockedTap: (c: Compound) => void
   shakingName: string | null
-  confirmingDeleteId: string | null
   onAskDeleteCustom: (id: string) => void
-  onCancelDeleteCustom: () => void
-  onConfirmDeleteCustom: (id: string) => void
-  deleteFailed: boolean
   /** The user's stacks, for the reference-only Stacks side of the segmented
    *  control. Empty ⇒ no control at all (Spec 05). */
   stacks: Stack[]
@@ -731,11 +770,7 @@ function BrowseBody({
     inLogNames,
     onBlockedTap,
     shakingName,
-    confirmingDeleteId,
     onAskDeleteCustom,
-    onCancelDeleteCustom,
-    onConfirmDeleteCustom,
-    deleteFailed,
   }
 
   return (
@@ -769,7 +804,7 @@ function BrowseBody({
             thumbClassName="inst-thumb"
             role="group"
             aria-label="Show compounds or stacks"
-            className="grid grid-cols-2 gap-1 inst-rail p-1"
+            className={SEGMENTED_TRACK}
           >
             {(["compounds", "stacks"] as const).map((v) => (
               <button
@@ -778,8 +813,8 @@ function BrowseBody({
                 onClick={() => setSide(v)}
                 aria-pressed={side === v}
                 className={cn(
-                  PRESS.pill,
-                  "rounded-lg py-2 text-sm capitalize transition-colors duration-300",
+                  SEGMENTED_ITEM_LG,
+                  "capitalize",
                   side === v ? "text-bg-base" : "text-text-muted"
                 )}
               >
@@ -877,8 +912,8 @@ function RecentRow({
               onClick={() => (inLog ? onBlockedTap(compound) : onAdd(compound))}
               aria-label={
                 inLog
-                  ? `${compound.name} is already in your log`
-                  : `Add ${compound.name} to log`
+                  ? `${compound.name} is already in your protocol`
+                  : `Add ${compound.name} to your protocol`
               }
               className={cn(
                 // A dimmed card presses without the card variant's dim, which
@@ -1007,11 +1042,7 @@ function CompoundList({
   inLogNames,
   onBlockedTap,
   shakingName,
-  confirmingDeleteId,
   onAskDeleteCustom,
-  onCancelDeleteCustom,
-  onConfirmDeleteCustom,
-  deleteFailed,
   query,
 }: {
   items: Compound[]
@@ -1020,11 +1051,7 @@ function CompoundList({
   inLogNames: Set<string>
   onBlockedTap: (c: Compound) => void
   shakingName: string | null
-  confirmingDeleteId: string | null
   onAskDeleteCustom: (id: string) => void
-  onCancelDeleteCustom: () => void
-  onConfirmDeleteCustom: (id: string) => void
-  deleteFailed: boolean
   /** Set in search results → rows show the "also known as" line. */
   query?: string
 }) {
@@ -1033,44 +1060,6 @@ function CompoundList({
       {items.map((compound, i) => {
         const divider = i > 0 ? "hairline-t" : ""
         if (isCustom(compound)) {
-          // Your own compound, mid-delete-confirm — same red confirm as the edit
-          // menu's delete, shown inline in place of the row.
-          if (confirmingDeleteId === compound.id) {
-            return (
-              <li key={compound.id}>
-                <div className={cn("px-4 py-3", divider)}>
-                  <div className="rounded-xl border border-state-error/40 bg-state-error/10 p-3">
-                    <p className="text-sm text-foreground">
-                      Delete “{compound.name}”? This can&apos;t be undone.
-                    </p>
-                    {deleteFailed && (
-                      <p className="mt-2 text-sm text-state-warning">
-                        Couldn&apos;t save to this device (storage may be full or
-                        off). Try again, or check your browser&apos;s storage
-                        settings.
-                      </p>
-                    )}
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={onCancelDeleteCustom}
-                        className="flex-1 rounded-lg border border-border-strong py-2 text-sm text-text-muted transition-colors hover:text-text-primary"
-                      >
-                        Keep
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onConfirmDeleteCustom(compound.id)}
-                        className="flex-1 rounded-lg bg-state-error py-2 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </li>
-            )
-          }
           // Your own compound — three controls on the right: add-to-stack (+),
           // then a smaller edit and delete.
           return (
@@ -1092,8 +1081,8 @@ function CompoundList({
                     <button
                       type="button"
                       onClick={() => onBlockedTap(compound)}
-                      aria-label={`${compound.name} is already in your log`}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-default text-text-subtle"
+                      aria-label={`${compound.name} is already in your protocol`}
+                      className={IN_PROTOCOL_MARK}
                     >
                       <Check className="h-4 w-4" aria-hidden />
                     </button>
@@ -1101,11 +1090,8 @@ function CompoundList({
                     <button
                       type="button"
                       onClick={() => onAdd(compound)}
-                      aria-label={`Add ${compound.name} to log`}
-                      className={cn(
-                        PRESS.icon,
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input"
-                      )}
+                      aria-label={`Add ${compound.name} to your protocol`}
+                      className={ADD_ACTION}
                     >
                       <Plus className="h-4 w-4" aria-hidden />
                     </button>
@@ -1115,16 +1101,16 @@ function CompoundList({
                     type="button"
                     onClick={() => onEditCustom(compound)}
                     aria-label={`Edit ${compound.name}`}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-input hover:text-text-primary"
+                    className={cn(PRESS.icon, "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-input hover:text-text-primary")}
                   >
                     <PencilSimple className="h-4 w-4" aria-hidden />
                   </button>
-                  {/* Delete — same confirm + delete as the edit menu. */}
+                  {/* Delete: asks first, the same one confirm as the edit menu. */}
                   <button
                     type="button"
                     onClick={() => onAskDeleteCustom(compound.id)}
                     aria-label={`Delete ${compound.name}`}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-state-error transition-colors hover:bg-state-error/10"
+                    className={cn(PRESS.icon, "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-accent-destructive-on-surface transition-colors hover:bg-accent-destructive/10")}
                   >
                     <Trash className="h-4 w-4" aria-hidden />
                   </button>
@@ -1145,7 +1131,7 @@ function CompoundList({
               <button
                 type="button"
                 onClick={() => onBlockedTap(compound)}
-                aria-label={`${compound.name} is already in your log`}
+                aria-label={`${compound.name} is already in your protocol`}
                 className={cn(
                   "flex w-full items-center gap-3 px-4 py-3.5 text-left opacity-50",
                   divider,
@@ -1153,7 +1139,7 @@ function CompoundList({
                 )}
               >
                 <RowMain compound={compound} query={query} />
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-default text-text-subtle">
+                <span className={IN_PROTOCOL_MARK}>
                   <Check className="h-4 w-4" aria-hidden />
                 </span>
               </button>
@@ -1163,11 +1149,8 @@ function CompoundList({
                 <button
                   type="button"
                   onClick={() => onAdd(compound)}
-                  aria-label={`Add ${compound.name} to log`}
-                  className={cn(
-                    PRESS.icon,
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-all duration-200 ease-out hover:bg-bg-input"
-                  )}
+                  aria-label={`Add ${compound.name} to your protocol`}
+                  className={ADD_ACTION}
                 >
                   <Plus className="h-4 w-4" aria-hidden />
                 </button>
@@ -1192,9 +1175,9 @@ function MakeYourOwnRow({
     <button
       type="button"
       onClick={onClick}
-      className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-dashed border-border-strong px-4 py-3.5 text-left transition-colors duration-200 ease-out hover:bg-bg-surface-raised"
+      className={cn(PRESS.card, "hairline mt-3 flex w-full items-center gap-3 rounded-2xl border-border-default px-4 py-3.5 text-left transition-colors duration-200 ease-out hover:bg-bg-surface-raised")}
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-primary">
+      <span aria-hidden className={ADD_ACTION}>
         <Plus className="h-4 w-4" aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
@@ -1210,12 +1193,13 @@ function MakeYourOwnRow({
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="px-1 pt-1 pb-2 text-[11px] font-medium tracking-wider text-text-muted uppercase">
-      {children}
-    </p>
-  )
+  return <p className={cn(CARD_EYEBROW, "px-1 pt-1 pb-2")}>{children}</p>
 }
+
+/** A compound already in the protocol: the same rounded square as the "+",
+ *  outlined, holding a check. */
+const IN_PROTOCOL_MARK =
+  "flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg border border-border-default text-text-subtle"
 
 /* ------------------------------------------------------------------ form */
 
@@ -1226,10 +1210,7 @@ function CompoundForm({
   nameError,
   clearNameError,
   saveFailed,
-  confirmingDelete,
   onAskDelete,
-  onCancelDelete,
-  onConfirmDelete,
 }: {
   form: FormState
   setForm: React.Dispatch<React.SetStateAction<FormState>>
@@ -1237,10 +1218,7 @@ function CompoundForm({
   nameError: string | null
   clearNameError: () => void
   saveFailed: boolean
-  confirmingDelete: boolean
   onAskDelete: () => void
-  onCancelDelete: () => void
-  onConfirmDelete: () => void
 }) {
   const [halfLifePad, setHalfLifePad] = useState(false)
   const halfLifeRef = useRef<HTMLButtonElement>(null)
@@ -1337,45 +1315,16 @@ function CompoundForm({
         </p>
       )}
 
-      <p className="px-1 text-xs leading-relaxed text-text-muted">
-        Saved to your account. Only you can see it.
-      </p>
-
       {formMode === "edit" && (
         <div className="hairline-t pt-4">
-          {confirmingDelete ? (
-            <div className="rounded-xl border border-state-error/40 bg-state-error/10 p-3">
-              <p className="text-sm text-foreground">
-                Delete “{form.name.trim() || "this compound"}”? This can&apos;t be
-                undone.
-              </p>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={onCancelDelete}
-                  className="flex-1 rounded-lg border border-border-strong py-2 text-sm text-text-muted transition-colors hover:text-text-primary"
-                >
-                  Keep
-                </button>
-                <button
-                  type="button"
-                  onClick={onConfirmDelete}
-                  className="flex-1 rounded-lg bg-state-error py-2 text-sm font-medium text-text-primary transition-opacity hover:opacity-90"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={onAskDelete}
-              className="flex items-center gap-2 text-sm text-state-error transition-opacity hover:opacity-80"
-            >
-              <Trash className="h-4 w-4" aria-hidden />
-              Delete compound
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onAskDelete}
+            className={cn(PRESS.text, "-my-2 flex min-h-11 items-center gap-2 text-sm text-accent-destructive-on-surface")}
+          >
+            <Trash className="h-4 w-4" aria-hidden />
+            Delete compound
+          </button>
         </div>
       )}
     </div>
@@ -1383,11 +1332,7 @@ function CompoundForm({
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="mb-1.5 block text-xs font-medium tracking-wider text-text-muted uppercase">
-      {children}
-    </span>
-  )
+  return <span className={FIELD_LABEL}>{children}</span>
 }
 
 function PillGroup({
@@ -1425,11 +1370,10 @@ function PillGroup({
               onClick={() => onChange(o.value)}
               aria-pressed={active}
               className={cn(
-                PRESS.pill,
-                "flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm transition-colors duration-300",
-                active
-                  ? "border-transparent font-medium text-bg-base"
-                  : "border-border-default text-text-muted hover:text-text-primary"
+                CHIP,
+                "duration-300",
+                // On the thumb, so no fill of its own (`CHIP_ON` carries one).
+                active ? "border-transparent font-medium text-bg-base" : CHIP_OFF
               )}
             >
               {showDot && (

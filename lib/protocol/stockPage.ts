@@ -4,8 +4,8 @@
  */
 import type { StockItem } from "@/lib/db/inventory"
 import { remainingLabel } from "@/lib/containers/labels"
-
-const MON_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+import { dayShort } from "@/lib/format/date"
+import { toDateKey } from "@/lib/home/mockHomeData"
 
 /** "Runs dry" turns amber at this many days or fewer. */
 export const RUNS_DRY_WARN_DAYS = 7
@@ -27,7 +27,7 @@ export function runsDryText(
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(todayKey)
   if (!m) return null
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + days)
-  return { text: `${d.getDate()} ${MON_SHORT[d.getMonth()]}`, low }
+  return { text: dayShort(toDateKey(d)), low }
 }
 
 /**

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo } from "react"
 
 import { cn } from "@/lib/utils"
-import { CARD, CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
+import { CARD, CARD_EYEBROW, PRESS, ROW_CHEVRON } from "@/lib/ui-presets"
 import { CaretRight } from "@/components/icons"
 import {
   ScheduleGrid,
@@ -72,7 +72,8 @@ export function ScheduleCard({
     >
       <div className="flex items-center justify-between gap-2 pb-2.5">
         <h2 className={CARD_EYEBROW}>Schedule</h2>
-        <CaretRight className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-hidden />
+        {/* It GOES somewhere (the Schedule page): the row chevron (fix #11). */}
+        <CaretRight className={ROW_CHEVRON} aria-hidden />
       </div>
       {rows.length > 0 ? (
         <ScheduleGrid

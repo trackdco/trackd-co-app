@@ -108,6 +108,8 @@ export function ProtocolScreen({
   const [stockTarget, setStockTarget] = useState<StackCompound | null>(null)
   // Mix one, from the compound's sheet: the spare, and the water last used.
   const [mixTarget, setMixTarget] = useState<{ compound: StackCompound; spare: StockItem; lastWater: number } | null>(null)
+  // Held apart from the target, so the sheet slides away with its vial still in it.
+  const [mixOpen, setMixOpen] = useState(false)
   const [stockEditItem, setStockEditItem] = useState<StockItem | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -404,6 +406,7 @@ export function ProtocolScreen({
                     const c = detailTarget
                     setDetailTarget(null)
                     setMixTarget({ compound: c, spare, lastWater: stockExtras.get(c.id)?.lastWater ?? 2 })
+                    setMixOpen(true)
                   }),
                 onCorrect: (item) =>
                   guard(() => {
@@ -416,7 +419,7 @@ export function ProtocolScreen({
         }
       />
 
-      {/* Add, refill, or correct the amounts.
+      {/* Add stock, or Edit (correct) the amounts.
           `refillFor` takes the RESOLVED `protocol_compounds.id` from the stock row,
           never the client id: the two legitimately diverge, and passing the client
           id made every refill of a re-added compound fail the inventory FK.
@@ -467,8 +470,8 @@ export function ProtocolScreen({
           powder and water go in; "Mixed. Now in use." with Undo. */}
       {mixTarget ? (
         <MixVialSheet
-          open
-          onOpenChange={(o) => !o && setMixTarget(null)}
+          open={mixOpen}
+          onOpenChange={setMixOpen}
           compound={mixTarget.compound}
           spare={mixTarget.spare}
           lastWaterMl={mixTarget.lastWater}

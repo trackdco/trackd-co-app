@@ -13,6 +13,8 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 
 import { recordDocumentAcceptance } from "@/app/(app)/legal-acceptance";
+import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 import { markGraceNoticeSeen } from "@/lib/billing/betaNoticeStore";
 import { GRACE_CONTINUED_USE_PARTS, GRACE_NOTICE_PARTS } from "@/lib/billing/noticeCopy";
 
@@ -541,14 +543,15 @@ function GraceEndingDialog({
           <button
             type="button"
             onClick={close}
-            className="flex-1 inst-ghost py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+            // The one quiet button and the one white one (consistency fix #2).
+            className={cn(SECONDARY_BUTTON, "flex-1 outline-none focus-visible:ring-2 focus-visible:ring-ring")}
           >
             {P.dismiss}
           </button>
           <button
             type="button"
             onClick={choosePlan}
-            className="flex-1 inst-btn py-3 text-sm font-medium text-bg-base outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(PRIMARY_BUTTON, "flex-1 outline-none focus-visible:ring-2 focus-visible:ring-ring")}
           >
             {P.choose}
           </button>

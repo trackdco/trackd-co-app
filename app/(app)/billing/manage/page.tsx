@@ -10,7 +10,8 @@ import { manageSummaryFor, splitSummary } from "@/lib/billing/manageSummary";
 import { loadBillingFacts } from "@/lib/billing/screenFacts";
 import { cardOnFile } from "@/lib/billing/cardOnFile";
 import { formatPrice } from "@/lib/onboarding/pricing";
-import { CARD_EYEBROW, PAGE_TITLE } from "@/lib/ui-presets";
+import { CARD_EYEBROW } from "@/lib/ui-presets";
+import { PUSHED_PAGE, PushedPageHead } from "@/components/settings/PushedPage";
 import { createClient } from "@/lib/supabase/server";
 import { graceDaysLeft } from "@/lib/billing/graceEnding";
 
@@ -151,12 +152,13 @@ export default async function ManagePage() {
     <div
       data-screen="billing-manage"
       data-desktop-layout="column"
-      className="relative mx-auto w-full max-w-md px-5 pt-4 pb-5"
+      className={PUSHED_PAGE}
     >
-      {/* The title fades without moving; only the blocks under it rise. When
-          the route skeleton was just on screen the title was already there. */}
+      {/* The way back (to Billing, where they came from, §3.3) and the title
+          fade without moving; only the blocks under them rise. When the route
+          skeleton was just on screen they were already there. */}
       <RouteTitle id="billing-manage">
-        <h1 className={PAGE_TITLE}>Manage</h1>
+        <PushedPageHead back={{ href: "/billing", label: "Billing" }} title="Manage" />
       </RouteTitle>
 
       {/* The route skeleton (`manage/loading.tsx`), fading out over the first
@@ -229,7 +231,7 @@ export default async function ManagePage() {
          * rewritten, reordered or dropped, only weighted differently.
          */
         <div
-          className="flow-card animate-home-up mt-3 rounded-2xl bg-bg-surface"
+          className="flow-card animate-home-up rounded-2xl bg-bg-surface"
           style={{ animationDelay: "0ms" }}
         >
           <div className="px-4 pt-3.5 pb-3">
@@ -278,7 +280,7 @@ export default async function ManagePage() {
         </div>
       ) : null}
 
-      <section className="animate-home-up mt-6" style={rise(0)}>
+      <section className="animate-home-up" style={rise(0)}>
         <p className={`mb-3 ${CARD_EYEBROW}`}>Payment</p>
         <div className="flow-card overflow-hidden rounded-2xl bg-bg-surface">
           {/**
@@ -361,18 +363,8 @@ export default async function ManagePage() {
         </div>
       </section>
 
-      {/* ⚠️ BACK TO BILLING, NOT TO PROFILE (§3.3) — that is where they came
-          from. Same 44px shell as Billing's own back link: `min-h-11` outright
-          rather than padding arithmetic on a line box, with the negative inline
-          margin keeping the text optically where it was. */}
-      <div className="animate-home-up mt-6 text-sm text-text-muted" style={rise(1)}>
-        <Link
-          href="/billing"
-          className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          ← Back to billing
-        </Link>
-      </div>
+      {/* The typed "← Back to billing" that sat here is gone: the one way back
+          is the BackLink at the top (consistency fix #23). */}
     </div>
   );
 }

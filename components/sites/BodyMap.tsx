@@ -20,7 +20,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react"
 
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
-import { PRESS } from "@/lib/ui-presets"
+import { SEGMENTED_ITEM, SEGMENTED_ITEM_LG, SEGMENTED_TRACK } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 import { rampFill } from "@/lib/sites/recencyRamp"
 import type {
@@ -226,7 +226,9 @@ export function BodyAspectSwitch({
     <ThumbGroup
       selection={aspect}
       thumbClassName="inst-thumb"
-      className={cn("inline-flex inst-rail p-0.5", small ? "text-[12px]" : "text-sm")}
+      // The segmented rail (consistency fix #20): the card-header size in the
+      // dose row's panel, the sheet size on its own.
+      className={cn(SEGMENTED_TRACK, "inline-flex")}
       role="group"
       aria-label="Body view"
     >
@@ -237,9 +239,7 @@ export function BodyAspectSwitch({
           onClick={() => onChange(key)}
           aria-pressed={aspect === key}
           className={cn(
-            PRESS.pill,
-            "rounded-sm font-medium transition-colors duration-300 ease-out",
-            small ? "px-3.5 py-1" : "px-5 py-1.5",
+            small ? SEGMENTED_ITEM : SEGMENTED_ITEM_LG,
             aspect === key ? "text-bg-base" : "text-text-muted",
           )}
         >

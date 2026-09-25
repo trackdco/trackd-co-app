@@ -3,9 +3,16 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { CircleNotch } from "@/components/icons";
 
-import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets";
+import {
+  CARD_EYEBROW,
+  FIELD_LABEL,
+  PRIMARY_BUTTON,
+  SEGMENTED_ITEM_LG,
+  SEGMENTED_TRACK,
+} from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 import { ThumbGroup } from "@/components/feel/SlidingThumb";
+import { showToast } from "@/lib/toast";
 import {
   saveReminderPrefs,
   saveTimezone,
@@ -59,10 +66,24 @@ export function ReminderSettings({
   const [quietEnd, setQuietEnd] = useState(initial.quietEnd);
 
   const [pending, startTransition] = useTransition();
-  const [saved, setSaved] = useState<"idle" | "ok" | "err">("idle");
+  const [failed, setFailed] = useState(false);
+  /** What is saved right now: the page's values, then each save's. Undo puts
+   *  this back. */
+  const savedRef = useRef<ReminderPrefsInput>(initial);
+
+  /** Every field at once, for an Undo. */
+  function showValues(v: ReminderPrefsInput) {
+    setDose(v.doseRemindersOn);
+    setMissed(v.missedOn);
+    setUnloggedWait(v.unloggedWait);
+    setLowStock(v.lowStockOn);
+    setReminderTime(v.reminderTime);
+    setQuietStart(v.quietStart);
+    setQuietEnd(v.quietEnd);
+  }
 
   function save() {
-    setSaved("idle");
+    setFailed(false);
     const input: ReminderPrefsInput = {
       doseRemindersOn,
       missedOn,
@@ -74,7 +95,26 @@ export function ReminderSettings({
     };
     startTransition(async () => {
       const { ok } = await saveReminderPrefs(input);
-      setSaved(ok ? "ok" : "err");
+      if (!ok) {
+        setFailed(true);
+        return;
+      }
+      // "Saved" in the one toast, with Undo: the same save, with what was
+      // there before (consistency fix #27, build-brief-final §3.16).
+      const before = savedRef.current;
+      savedRef.current = input;
+      showToast("Saved", {
+        undo: () => {
+          void saveReminderPrefs(before).then((back) => {
+            if (!back.ok) {
+              showToast("Couldn’t undo. Try again.");
+              return;
+            }
+            savedRef.current = before;
+            showValues(before);
+          });
+        },
+      });
     });
   }
 
@@ -128,9 +168,7 @@ export function ReminderSettings({
       <div className="mt-5 space-y-4 hairline-t pt-4">
         <TimeRow label="Daily reminder time" value={reminderTime} onChange={setReminderTime} />
         <div>
-          <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-text-muted">
-            Quiet hours
-          </span>
+          <span className={FIELD_LABEL}>Quiet hours</span>
           <div className="flex items-center gap-3">
             <input
               type="time"
@@ -154,19 +192,20 @@ export function ReminderSettings({
         </div>
       </div>
 
-      <div className="mt-5 flex items-center gap-3">
+      <div className="mt-5">
         <button
           type="button"
           onClick={save}
           disabled={pending}
-          className="inline-flex h-11 items-center justify-center gap-2 inst-btn px-5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-60"
+          className={cn(PRIMARY_BUTTON, "px-5")}
         >
           {pending ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : null}
           {pending ? "Saving…" : "Save reminders"}
         </button>
-        {saved === "ok" && <span className="text-sm text-text-muted">Saved</span>}
-        {saved === "err" && (
-          <span className="text-sm text-text-muted">Couldn&apos;t save</span>
+        {failed && (
+          <p role="alert" className="mt-2 text-sm text-state-error">
+            Couldn&apos;t save. Try again.
+          </p>
         )}
       </div>
     </div>
@@ -232,12 +271,9 @@ function ChoiceRow({
 }) {
   return (
     <div className="py-3">
-      <span className="text-xs uppercase tracking-[0.18em] text-text-muted">
-        {label}
-      </span>
-      {/* The white is a sliding thumb (feel pass §6), so no pill carries a
-          fill of its own: the others are outlined, because a fill would hide
-          the thumb as it passes beneath them. */}
+      <span className={FIELD_LABEL}>{label}</span>
+      {/* The segmented rail (consistency fix #20): the white is a sliding
+          thumb (feel pass §6), so no choice carries a fill of its own. */}
       <ThumbGroup
         selection={value}
         thumbClassName="inst-thumb"
@@ -245,7 +281,7 @@ function ChoiceRow({
         aria-label={label}
         // Server-rendered: until the thumb is placed, the chosen pill carries
         // the white itself, or its dark label is unreadable on the card.
-        className="mt-2 flex gap-2 [&:not([data-thumb-ready])>[aria-checked=true]]:bg-accent-primary"
+        className={cn(SEGMENTED_TRACK, "mt-1 [&:not([data-thumb-ready])>[aria-checked=true]]:bg-accent-primary")}
       >
         {options.map((o) => {
           const on = o.value === value;
@@ -257,11 +293,9 @@ function ChoiceRow({
               aria-checked={on}
               onClick={() => onChange(o.value)}
               className={cn(
-                PRESS.pill,
-                "flex-1 rounded-sm border px-3 py-2 font-mono text-xs tabular-nums transition-colors duration-300",
-                on
-                  ? "border-transparent text-bg-base"
-                  : "border-border-default text-text-muted hover:text-foreground",
+                SEGMENTED_ITEM_LG,
+                "font-mono tabular-nums",
+                on ? "text-bg-base" : "text-text-muted hover:text-foreground",
               )}
             >
               {o.label}
@@ -285,9 +319,7 @@ function TimeRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className="text-xs uppercase tracking-[0.18em] text-text-muted">
-        {label}
-      </span>
+      <span className={cn(FIELD_LABEL, "mb-0")}>{label}</span>
       <input
         type="time"
         aria-label={label}

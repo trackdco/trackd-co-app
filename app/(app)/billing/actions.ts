@@ -797,7 +797,7 @@ export async function openBillingPortal(): Promise<
       "[billing] portal session failed (is a Customer Portal configuration saved in Stripe?):",
       err instanceof Error ? err.message : String(err),
     );
-    return { ok: false, error: "We couldn't open billing just now. Please try again." };
+    return { ok: false, error: "Couldn't open billing. Try again." };
   }
 }
 

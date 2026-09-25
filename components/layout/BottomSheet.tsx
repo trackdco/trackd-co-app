@@ -28,6 +28,7 @@ export function BottomSheet({
   header,
   footer,
   desktop = "dialog",
+  onOpenAutoFocus,
   className,
   children,
 }: {
@@ -44,6 +45,8 @@ export function BottomSheet({
   /** Pinned under the scrolling content: Cancel + the primary action. */
   footer?: ReactNode
   desktop?: "dialog" | "rail"
+  /** Focus on open. By default nothing is focused, so no keyboard springs up. */
+  onOpenAutoFocus?: (e: Event) => void
   className?: string
   children: ReactNode
 }) {
@@ -53,6 +56,7 @@ export function BottomSheet({
         data-desktop={desktop}
         side="bottom"
         showCloseButton={false}
+        onOpenAutoFocus={onOpenAutoFocus}
         className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >
         <Frame

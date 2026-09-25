@@ -5,7 +5,8 @@ import { CircleNotch } from "@/components/icons";
 
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
+import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 import { sendMyRemindersNow } from "@/lib/notifications/actions";
 
 /**
@@ -38,7 +39,7 @@ export function NotificationsToggle({
           "Notifications are blocked. Turn them on for Trakabl in your browser or phone settings, then try again.",
         );
       } else if (result.reason === "error") {
-        setMessage("Couldn't update notifications. Please try again.");
+        setMessage("Couldn't update notifications. Try again.");
       }
       // "dismissed" (closed the OS prompt) is silent — nothing to apologise for.
     }
@@ -152,7 +153,7 @@ function TestSend() {
         type="button"
         onClick={send}
         disabled={pending}
-        className="inline-flex items-center gap-2 text-sm text-foreground transition-opacity hover:opacity-80 disabled:opacity-60"
+        className={cn(PRESS.text, "-my-2 inline-flex min-h-11 items-center gap-2 text-sm text-foreground transition-opacity hover:opacity-80 disabled:opacity-60")}
       >
         {pending ? (
           <CircleNotch className="size-4 animate-spin" aria-hidden="true" />
@@ -166,7 +167,7 @@ function TestSend() {
       )}
       {result === "failed" && (
         <p className="mt-2 text-sm text-text-muted">
-          Couldn&apos;t send a test just now.
+          Couldn&apos;t send a test. Try again.
         </p>
       )}
     </div>

@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 
 import { Container } from "@/components/containers"
+import { CloseArrow } from "@/components/feel/CloseArrow"
 import { TypeRail } from "@/components/feel/TypeRail"
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
+import { CARD_EYEBROW, FIGURE, INNER_RADIUS, PRESS, TILE_LABEL } from "@/lib/ui-presets"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { CATEGORY_META, type CompoundCategory } from "@/lib/compound-categories"
 import type { DayLogs } from "@/lib/home/doseLog"
@@ -17,7 +18,6 @@ import { RollNumber } from "./RollNumber"
 import {
   FigureRows,
   Sparkline,
-  UpArrowIcon,
   graphAhead,
   graphBack,
   useHalfLifeModels,
@@ -47,7 +47,8 @@ function Chevron() {
  * Tapping ANY card centres it and opens it: the card grows to full width (the
  * rail is held on it every frame, so it never drifts) and the graph grows out
  * of it, lined up exactly because it is inside it. Swiping while open switches
- * compound; the up arrow closes it and it shrinks back. The open card adds the
+ * compound; the close arrow (the one `CloseArrow`, consistency fix #11) closes
+ * it and it shrinks back. The open card adds the
  * graph (its own top strip with a circled "?" for the key, the ½ line, the
  * dose ticks) and the rows, and does not repeat the two figures.
  *
@@ -203,7 +204,7 @@ export function HalfLifeGlance({
                 else cardRefs.current.delete(m.compound.id)
               }}
               data-open={isOpen ? "true" : "false"}
-              className="hl-glance-card relative flex flex-col gap-2.5 rounded-[14px] px-3.5 py-[13px]"
+              className={cn(INNER_RADIUS, "hl-glance-card relative flex flex-col gap-2.5 px-3.5 py-[13px]")}
               style={{ "--hue": m.hue } as CSSProperties}
             >
               <button
@@ -227,19 +228,19 @@ export function HalfLifeGlance({
                 </span>
                 <span className="grid grid-cols-2 gap-2">
                   <span className="flex flex-col">
-                    <span className="inst-figure font-mono text-[30px] leading-none font-light text-foreground">
+                    <span className={cn(FIGURE, "text-[30px] leading-none font-light text-foreground")}>
                       <RollNumber text={formatAmount(m.figures.circulating)} rollKey={taken} />
                       <span className="ml-[3px] font-sans text-[13px] text-text-muted">{m.line.unit}</span>
                     </span>
-                    <span className="mt-1.5 text-[11.5px] text-text-muted">Circulating</span>
+                    <span className={cn(TILE_LABEL, "mt-1.5")}>Circulating</span>
                   </span>
                   {m.figures.lastDoseLeft == null ? null : (
                     <span className="flex flex-col">
-                      <span className="inst-figure font-mono text-[30px] leading-none font-light text-foreground">
+                      <span className={cn(FIGURE, "text-[30px] leading-none font-light text-foreground")}>
                         <RollNumber text={formatPercent(m.figures.lastDoseLeft)} rollKey={taken} />
                         <span className="ml-[3px] font-sans text-[13px] text-text-muted">%</span>
                       </span>
-                      <span className="mt-1.5 text-[11.5px] text-text-muted">Of last dose left</span>
+                      <span className={cn(TILE_LABEL, "mt-1.5")}>Of last dose left</span>
                     </span>
                   )}
                 </span>
@@ -282,18 +283,14 @@ export function HalfLifeGlance({
                 </div>
               </div>
 
-              <button
-                type="button"
+              {/* The one close arrow: it waits turned and faded while the card
+                  is shut and spins in as it opens (`.close-arrow`). */}
+              <CloseArrow
                 onClick={close}
-                aria-label="Close"
-                tabIndex={isOpen ? 0 : -1}
-                className={cn(
-                  PRESS.icon,
-                  "hl-glance-up absolute top-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-md text-foreground",
-                )}
-              >
-                <UpArrowIcon />
-              </button>
+                label={`Close ${m.compound.name}`}
+                shown={isOpen}
+                className="absolute top-2.5 right-2.5"
+              />
             </div>
           )
         })}

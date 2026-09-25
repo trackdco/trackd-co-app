@@ -23,7 +23,8 @@ import { billingGateEnabled, reminderPromiseEnabled } from "@/lib/billing/gate";
 import { STOPPABLE_NOW } from "@/lib/billing/manage";
 import { SUPPORT_EMAIL } from "@/lib/brand";
 import { formatPrice } from "@/lib/onboarding/pricing";
-import { CARD_EYEBROW, PAGE_TITLE, PRESS } from "@/lib/ui-presets";
+import { CARD_EYEBROW, PRESS, ROW_CHEVRON } from "@/lib/ui-presets";
+import { PUSHED_PAGE, PushedPageHead } from "@/components/settings/PushedPage";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +94,7 @@ export default async function BillingPage() {
     <div
       data-screen="billing"
       data-desktop-layout="column"
-      className="relative mx-auto w-full max-w-md px-5 pt-4 pb-5"
+      className={PUSHED_PAGE}
     >
       {/* NO SUBTITLE. It read "Your plan and when it renews." and Adrian cut it
           (2026-08-12): the Plan card underneath already says the plan and the
@@ -102,28 +103,32 @@ export default async function BillingPage() {
           of switches whose purpose is not self-evident; this one does not. */}
       {/* The title fades without moving; only the blocks under it rise. When
           the route skeleton was just on screen the title was already there. */}
-      <RouteTitle id="billing">
-        <h1 className={PAGE_TITLE}>Billing</h1>
-      </RouteTitle>
+      {/* The head is one block on the scaffold: the way back at the TOP
+          (consistency fix #23), the title, and the empty slot below. */}
+      <div>
+        <RouteTitle id="billing">
+          <PushedPageHead back={{ href: "/profile", label: "Profile" }} title="Billing" />
+        </RouteTitle>
 
-      {/**
-       * WHERE THE "Glad you're staying." CARD LANDS, and why it is a slot.
-       *
-       * `03-cancel-flow.md` §3.10 puts that card at the TOP of Billing, while
-       * the state it follows from belongs to the resume action, which runs in
-       * `CancelSubscription` further down the page. The card is portaled up into
-       * this element rather than lifting the whole screen into a client
-       * component: the state stays in the component that took the action (§3.10
-       * forbids persisting it anywhere), this file stays a Server Component, and
-       * `08-billing-screen.md` can move one empty div when it places things.
-       *
-       * Empty until a resume happens, so it costs nothing in every other state.
-       */}
-      {/* `role="status"` sits on the SLOT, not on the card. A live region
-          inserted into the document at the same instant as its text is the
-          classic case a screen reader skips; this one is in the server-rendered
-          markup long before there is anything to announce. */}
-      <div id={STAYING_NOTICE_SLOT} role="status" />
+        {/**
+         * WHERE THE "Glad you're staying." CARD LANDS, and why it is a slot.
+         *
+         * `03-cancel-flow.md` §3.10 puts that card at the TOP of Billing, while
+         * the state it follows from belongs to the resume action, which runs in
+         * `CancelSubscription` further down the page. The card is portaled up into
+         * this element rather than lifting the whole screen into a client
+         * component: the state stays in the component that took the action (§3.10
+         * forbids persisting it anywhere), this file stays a Server Component, and
+         * `08-billing-screen.md` can move one empty div when it places things.
+         *
+         * Empty until a resume happens, so it costs nothing in every other state.
+         */}
+        {/* `role="status"` sits on the SLOT, not on the card. A live region
+            inserted into the document at the same instant as its text is the
+            classic case a screen reader skips; this one is in the server-rendered
+            markup long before there is anything to announce. */}
+        <div id={STAYING_NOTICE_SLOT} role="status" />
+      </div>
 
       {/* The route skeleton, fading out over the first block below. After the
           empty slot, not before it: it lays itself over its next sibling, and
@@ -171,7 +176,7 @@ export default async function BillingPage() {
         </div>
       ) : null}
 
-      <section className="animate-home-up mt-6" style={rise(0)}>
+      <section className="animate-home-up" style={rise(0)}>
         <p className={`mb-3 ${CARD_EYEBROW}`}>Plan</p>
         <div className="flow-card overflow-hidden rounded-2xl bg-bg-surface">
           <Row
@@ -375,7 +380,7 @@ export default async function BillingPage() {
                 )}
               >
                 <span className="flex-1 text-sm text-foreground">Set up my plan</span>
-                <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+                <CaretRight className={ROW_CHEVRON} aria-hidden />
               </a>
             </>
           ) : null}
@@ -414,7 +419,7 @@ export default async function BillingPage() {
                 )}
               >
                 <span className="flex-1 text-sm text-foreground">Manage</span>
-                <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+                <CaretRight className={ROW_CHEVRON} aria-hidden />
               </Link>
             </>
           ) : null}
@@ -424,7 +429,7 @@ export default async function BillingPage() {
       {/* The control, quiet and in its own block so it is neither buried nor
           competing with the summary above it. */}
       {action.kind === "cancel" || action.kind === "resume" ? (
-        <section className="animate-home-up mt-3" style={rise(1)}>
+        <section className="animate-home-up" style={rise(1)}>
           {/**
             * ⚠️ CANCELLED-BUT-STILL-RUNNING IS A CARD THAT HOLDS BOTH HALVES
             * (§3.9), AND THE PARAGRAPH USED TO SIT OUTSIDE IT.
@@ -624,7 +629,7 @@ export default async function BillingPage() {
           exclusive, so they share one step. */}
       {action.kind === "store" ? (
         <p
-          className="animate-home-up mt-6 px-1 text-sm leading-relaxed text-text-muted"
+          className="animate-home-up px-1 text-sm leading-relaxed text-text-muted"
           style={rise(1)}
         >
           This subscription is managed by{" "}
@@ -654,7 +659,7 @@ export default async function BillingPage() {
         action.reason === "no-subscription" &&
         hasStripeCustomer) ? (
         <p
-          className="animate-home-up mt-6 px-1 text-sm leading-relaxed text-text-muted"
+          className="animate-home-up px-1 text-sm leading-relaxed text-text-muted"
           style={rise(1)}
         >
           This one can&apos;t be changed from here. Email{" "}
@@ -665,20 +670,8 @@ export default async function BillingPage() {
         </p>
       ) : null}
 
-      {/* ⚠️ A 44px TAP TARGET, which is Apple's floor. It measured 112x18: a
-          bare text link with no box of its own. `03`'s cancel row already passes
-          at exactly 318x44, so the shell around it was the part failing.
-          `min-h-11` gives the height outright rather than leaving it to padding
-          arithmetic on a line box, and the negative inline margin keeps the text
-          optically where it was. */}
-      <div className="animate-home-up mt-6 text-sm text-text-muted" style={rise(2)}>
-        <Link
-          href="/profile"
-          className="-ml-2 inline-flex min-h-11 items-center rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          ← Back to profile
-        </Link>
-      </div>
+      {/* The typed "← Back to profile" that sat here is gone: the one way back
+          is the BackLink at the top (consistency fix #23). */}
     </div>
   );
 }

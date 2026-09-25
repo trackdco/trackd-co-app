@@ -12,6 +12,8 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 
 import { Confetti } from "@/components/onboarding/confetti";
+import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 import { Mascot } from "@/components/onboarding/mascot";
 import { recordDocumentAcceptance } from "@/app/(app)/legal-acceptance";
 import { markBetaNoticeSeen } from "@/lib/billing/betaNoticeStore";
@@ -547,7 +549,8 @@ function BetaLaunchDialog({
             /* `relative` on the row, so it stacks above the confetti layer. The
                burst is `pointer-events-none` so it could never have swallowed a
                tap, but a button drawn UNDER falling pieces reads as decoration. */
-            className={`${isComp ? "w-full" : "flex-1"} rounded-2xl bg-accent-primary py-3 text-sm font-medium text-bg-base outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring`}
+            // The one white button and the one quiet one (consistency fix #2).
+            className={cn(PRIMARY_BUTTON, isComp ? "w-full" : "flex-1", "outline-none focus-visible:ring-2 focus-visible:ring-ring")}
           >
             {isComp ? "Thank you" : "Got it"}
           </button>
@@ -555,7 +558,7 @@ function BetaLaunchDialog({
             <button
               type="button"
               onClick={setUpMyPlan}
-              className="flex-1 inst-ghost py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn(SECONDARY_BUTTON, "flex-1 outline-none focus-visible:ring-2 focus-visible:ring-ring")}
             >
               Set up my plan
             </button>

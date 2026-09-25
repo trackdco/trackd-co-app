@@ -190,11 +190,11 @@ export async function updatePhysical(
     .select("id")
     .maybeSingle();
 
-  if (error) return { error: "Couldn't save your changes. Please try again." };
+  if (error) return { error: "Couldn't save your changes. Try again." };
   // A zero-row update raises no error in PostgREST, so without this the card
   // closed back to its dimmed read state reporting a save that never happened.
   if (saved == null) {
-    return { error: "Couldn't save your changes. Please try again." };
+    return { error: "Couldn't save your changes. Try again." };
   }
 
   // Every screen that reads these values. Progress is in the list because `sex`

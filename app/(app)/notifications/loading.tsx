@@ -1,13 +1,14 @@
-import { SettingsLoading } from "@/components/feel/RouteSkeletons"
+import { PushedPageLoading } from "@/components/settings/PushedPage"
 
 /**
  * The Notifications screen's skeleton, so the tap from Profile switches at once
- * (feel pass §1).
+ * (feel pass §1). Its head is the page's own, the way back included.
  */
 export default function Loading() {
   return (
-    <SettingsLoading
+    <PushedPageLoading
       screen="notifications"
+      back={{ href: "/profile", label: "Profile" }}
       title="Notifications"
       subtitle="Reminders for your protocol, sent to this device."
     />

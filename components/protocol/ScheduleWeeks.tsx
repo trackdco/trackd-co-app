@@ -3,7 +3,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
-import { CARD, GHOST_BUTTON } from "@/lib/ui-presets"
+import { CARD, GHOST_BUTTON, ROW_META } from "@/lib/ui-presets"
 import { CaretLeft, CaretRight } from "@/components/icons"
 import { ScheduleGrid } from "@/components/protocol/ScheduleGrid"
 import {
@@ -18,11 +18,8 @@ import {
 } from "@/lib/protocol/scheduleWeek"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
-
-const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-]
+import { toDateKey } from "@/lib/home/mockHomeData"
+import { dayRange } from "@/lib/format/date"
 
 /**
  * The week's dates, which are the PRECISE half of the header: the label above is
@@ -31,21 +28,11 @@ const MONTHS_SHORT = [
  * So it has to carry a YEAR whenever the week is not in the current one. The
  * first version printed a year only when a week straddled New Year, which meant
  * every week of 2024 read "11 to 17 Mar", indistinguishable from a week of this
- * year, while nothing else on the card said otherwise.
+ * year, while nothing else on the card said otherwise. `dayRange` (the one
+ * range format, consistency fix #26) carries the year the same way.
  */
 function rangeLabel(weekDays: Date[], todayKey: string): string {
-  const a = weekDays[0]
-  const b = weekDays[6]
-  const am = MONTHS_SHORT[a.getMonth()]
-  const bm = MONTHS_SHORT[b.getMonth()]
-  const thisYear = Number(todayKey.slice(0, 4))
-  // A week straddling New Year needs both years; one wholly in another year
-  // needs its own on the end.
-  const startYear = a.getFullYear() === b.getFullYear() ? "" : ` ${a.getFullYear()}`
-  const endYear = b.getFullYear() === thisYear ? "" : ` ${b.getFullYear()}`
-  return am === bm && !startYear
-    ? `${a.getDate()} to ${b.getDate()} ${bm}${endYear}`
-    : `${a.getDate()} ${am}${startYear} to ${b.getDate()} ${bm}${endYear}`
+  return dayRange(toDateKey(weekDays[0]), toDateKey(weekDays[6]), Number(todayKey.slice(0, 4)))
 }
 
 /**
@@ -150,7 +137,7 @@ export function ScheduleWeeks({
         {/* Announced on change, so stepping says which week it landed on. */}
         <div className="min-w-0 text-center" aria-live="polite">
           <p className="truncate text-sm text-foreground">{heading}</p>
-          <p className="mt-0.5 font-mono text-[10.5px] uppercase tracking-[0.08em] text-text-muted">
+          <p className={cn(ROW_META, "mt-0.5")}>
             {rangeLabel(weekDays, todayKey)}
           </p>
         </div>

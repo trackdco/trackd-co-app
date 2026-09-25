@@ -7,14 +7,23 @@ import { CircleNotch } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { NumberPad, PadInput } from "@/components/feel/NumberPad";
+import { PopDialog } from "@/components/feel/PopDialog";
 import {
   CARD_EYEBROW,
   EDIT_BAR,
   EDIT_BAR_SAVE,
   EDIT_TOGGLE,
   GROW_FIELD,
+  PRESS,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
 } from "@/lib/ui-presets";
 import { updatePhysical, type PhysicalState } from "@/app/(app)/profile/actions";
+import { physicalUndoForm, type PhysicalValues } from "@/lib/profile/physicalUndo";
+import { showToast } from "@/lib/toast";
+
+/** An empty field reads as a fact, never a dash (consistency fix #10). */
+const NOT_SET = "Not set";
 
 const initialState: PhysicalState = {};
 
@@ -141,6 +150,11 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
    */
   const formId = useId();
   const [pendingSex, setPendingSex] = useState<string | null>(null);
+  // The value being asked about stays in the pop-up while it leaves.
+  const [askedSex, setAskedSex] = useState<string | null>(null);
+  if (pendingSex !== null && pendingSex !== askedSex) setAskedSex(pendingSex);
+  /** What was saved before this submit, for the toast's Undo. */
+  const beforeRef = useRef<PhysicalValues | null>(null);
 
   // A successful save returns the card to its read state. Adjust-during-render
   // rather than an effect: an effect would paint one frame of the edit state
@@ -162,6 +176,31 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
   const showError = state.error != null && !errorDismissed;
 
   /**
+   * "Saved", with Undo (consistency fix #27, build-brief-final §3.16). An
+   * effect, not the adjust-during-render above: the toast is another
+   * component's store, and it must not be set while this one renders. Undo is
+   * the same action again with what was saved before this submit.
+   */
+  useEffect(() => {
+    if (state.savedAt == null) return;
+    const form = beforeRef.current ? physicalUndoForm(beforeRef.current) : null;
+    showToast(
+      "Saved",
+      form
+        ? {
+            undo: () => {
+              const data = new FormData();
+              for (const [k, v] of Object.entries(form)) data.set(k, v);
+              void updatePhysical({}, data).then((r) => {
+                if (r.error) showToast("Couldn’t undo. Try again.");
+              });
+            },
+          }
+        : {},
+    );
+  }, [state.savedAt]);
+
+  /**
    * Stands the FAB and the shortcuts layer down while this card is open (the
    * `.edit-action-bar` note in `globals.css` has the why). An attribute on
    * `<body>` rather than a prop: that layer is a SIBLING of this card under the
@@ -178,15 +217,6 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
       delete document.body.dataset.inlineEdit;
     };
   }, [editing]);
-
-  useEffect(() => {
-    if (pendingSex === null) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPendingSex(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [pendingSex]);
 
   const imperial = units === "imperial";
 
@@ -257,7 +287,7 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
         <button
           type="button"
           onClick={editing ? cancelEditing : startEditing}
-          className={EDIT_TOGGLE}
+          className={cn(EDIT_TOGGLE, PRESS.text)}
         >
           {editing ? "Cancel" : "Edit"}
         </button>
@@ -268,7 +298,16 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
       <form
         id={formId}
         action={formAction}
-        onSubmit={() => setErrorDismissed(false)}
+        onSubmit={() => {
+          setErrorDismissed(false);
+          beforeRef.current = {
+            displayName: initial.displayName,
+            sex: initial.sex,
+            goal: initial.goal,
+            unitsPreference: initial.unitsPreference,
+            heightCm: initial.heightCm,
+          };
+        }}
       >
         {/* The dim is on the CARD, so every row fades together as one surface
             rather than six things fading at slightly different times. */}
@@ -312,7 +351,7 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
                 />
               </span>
             ) : (
-              <ReadValue>{initial.displayName ?? "—"}</ReadValue>
+              <ReadValue>{initial.displayName ?? NOT_SET}</ReadValue>
             )}
           </Row>
 
@@ -347,7 +386,7 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
           {/* Read-only in both states — see the component docstring. */}
           <Divider />
           <Row label="Age">
-            <ReadValue>{initial.age != null ? `${initial.age} yrs` : "—"}</ReadValue>
+            <ReadValue>{initial.age != null ? `${initial.age} yrs` : NOT_SET}</ReadValue>
           </Row>
 
           <Divider />
@@ -417,7 +456,7 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
               </span>
             ) : (
               <ReadValue>
-                {initial.goal ? (GOAL_LABELS.get(initial.goal) ?? capital(initial.goal)) : "—"}
+                {initial.goal ? (GOAL_LABELS.get(initial.goal) ?? capital(initial.goal)) : NOT_SET}
               </ReadValue>
             )}
           </Row>
@@ -443,7 +482,7 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
                   ? "Imperial"
                   : initial.unitsPreference === "metric"
                     ? "Metric"
-                    : "—"}
+                    : NOT_SET}
               </ReadValue>
             )}
           </Row>
@@ -497,66 +536,45 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
           untouched. Removing a deliberate guard on an ambiguous line would be
           the larger mistake, so it stays and is flagged for Adrian.
 
-          Portaled to <body> for the same reason as the sign-out confirm: a fixed
-          overlay inside a transformed ancestor is trapped in its stacking
-          context and lands behind the bottom nav. */}
-      {pendingSex !== null &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[60] grid place-items-center bg-overlay-backdrop p-6 animate-in fade-in-0 duration-150 motion-reduce:animate-none"
+          It is the one pop-up (build-brief-final §3.16), which renders on
+          <body> outside a sheet: a fixed overlay inside a transformed ancestor
+          is trapped in its stacking context and lands behind the bottom nav. */}
+      <PopDialog
+        open={pendingSex !== null}
+        onClose={() => setPendingSex(null)}
+        title={
+          // "Change to" only when there is something to change FROM. A profile
+          // that predates the welcome quiz has no sex at all, and was being
+          // asked to confirm a change away from a value it never had.
+          `${initial.sex === "male" || initial.sex === "female" ? "Change to" : "Set to"} ${askedSex === "female" ? "female" : "male"}?`
+        }
+      >
+        <p className="mt-1.5 text-sm text-text-muted">
+          Your injection-site map will show the{" "}
+          {askedSex === "female" ? "female" : "male"} body. Your logged sites,
+          markers and history stay exactly as they are.
+        </p>
+        <div className="mt-5 flex gap-2">
+          {/* Focus lands on the first button, the non-destructive choice. */}
+          <button
+            type="button"
             onClick={() => setPendingSex(null)}
+            className={cn(SECONDARY_BUTTON, "flex-1")}
           >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="sex-confirm-title"
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-xs rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
-            >
-              <h2 id="sex-confirm-title" className="text-base font-medium text-foreground">
-                {/* "Change to" only when there is something to change FROM. A
-                    profile that predates the welcome quiz has no sex at all, and
-                    was being asked to confirm a change away from a value it
-                    never had. */}
-                {initial.sex === "male" || initial.sex === "female"
-                  ? "Change to "
-                  : "Set to "}
-                {pendingSex === "female" ? "female" : "male"}?
-              </h2>
-              <p className="mt-1.5 text-sm text-text-muted">
-                Your injection-site map will show the{" "}
-                {pendingSex === "female" ? "female" : "male"} body. Your logged
-                sites, markers and history stay exactly as they are.
-              </p>
-              <div className="mt-5 flex gap-3">
-                <button
-                  type="button"
-                  // Focus lands INSIDE the dialog on open, and on the
-                  // non-destructive choice. Without it `document.activeElement`
-                  // stayed on <body> and the first Tab went straight into the
-                  // form behind the overlay.
-                  autoFocus
-                  onClick={() => setPendingSex(null)}
-                  className="flex-1 rounded-xl border border-border-strong py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text-primary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSex(pendingSex);
-                    setPendingSex(null);
-                  }}
-                  className="flex-1 inst-btn py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (pendingSex !== null) setSex(pendingSex);
+              setPendingSex(null);
+            }}
+            className={cn(PRIMARY_BUTTON, "flex-1")}
+          >
+            Confirm
+          </button>
+        </div>
+      </PopDialog>
     </div>
   );
 }
@@ -584,7 +602,7 @@ function Divider() {
   return <div className="mx-4 hairline-t" aria-hidden />;
 }
 
-const capital = (v?: string | null) => (v ? v[0].toUpperCase() + v.slice(1) : "—");
+const capital = (v?: string | null) => (v ? v[0].toUpperCase() + v.slice(1) : NOT_SET);
 
 // Storage is metric; show in the user's preferred units (imperial = display
 // only). perImperialUnit = metric units per 1 imperial unit.
@@ -595,9 +613,9 @@ function formatMeasure(
   imperialUnit: string,
   perImperialUnit: number,
 ): string {
-  if (value == null) return "—";
+  if (value == null) return NOT_SET;
   const n = Number(value);
-  if (Number.isNaN(n)) return "—";
+  if (Number.isNaN(n)) return NOT_SET;
   const v = imperial ? n / perImperialUnit : n;
   const rounded = Math.round(v * 10) / 10;
   const text = rounded % 1 === 0 ? String(rounded) : rounded.toFixed(1);

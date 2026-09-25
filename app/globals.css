@@ -1732,20 +1732,6 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
     transform: none;
   }
 }
-.hl-glance-up {
-  background: rgb(0 0 0 / 0.28);
-  opacity: 0;
-  transform: rotate(-180deg) scale(0.6);
-  pointer-events: none;
-  transition:
-    opacity 300ms ease 50ms,
-    transform 550ms var(--hl-spring);
-}
-.hl-glance-card[data-open="true"] .hl-glance-up {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
-}
 /* The pager: short bars, the current one longer and white. */
 .hl-pager-bar {
   width: 14px;

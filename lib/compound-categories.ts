@@ -154,7 +154,7 @@ export function unitOptionsFor(unit: string): string[] {
 
 export const ROUTE_OPTIONS = [
   { value: "im", label: "IM" },
-  { value: "subq", label: "SubQ" },
+  { value: "subq", label: "Sub-Q" },
   { value: "po", label: "Oral" },
   { value: "nasal", label: "Nasal" },
 ] as const
@@ -164,6 +164,6 @@ export const INVENTORY_TYPE_OPTIONS = [
   { value: "preconcentrated", label: "Oil (pre-mixed)" },
   { value: "oral_solid", label: "Tabs / caps" },
   // A liquid by the mL or the drop (Adrian, 2026-09-24): research liquids and
-  // vitamin drops. Its stock is added from Protocol → Stock.
+  // vitamin drops. Its stock is added from its sheet on Protocol.
   { value: "dropper", label: "Dropper" },
 ] as const

@@ -2,13 +2,7 @@
 
 import { memo, useState } from "react"
 
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { useSheetDrag } from "@/components/home/useSheetDrag"
+import { BottomSheet } from "@/components/layout/BottomSheet"
 import { AnimatedContainer } from "@/components/containers"
 import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
 import { usePadSession } from "@/components/feel/usePadSession"
@@ -31,7 +25,7 @@ import {
   shownUnit,
 } from "@/lib/protocol/mixDraw"
 import { showToast } from "@/lib/toast"
-import { PRESS, PRIMARY_BUTTON, SHEET_TITLE, STOCK_FIELD_LABEL } from "@/lib/ui-presets"
+import { FIELD_LABEL, PRESS, PRIMARY_BUTTON, SHEET_TITLE } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 
 /** How long the vial takes to fill. Slower than a level quietly correcting
@@ -75,42 +69,55 @@ export function MixVialSheet({
   /** After a mix, and again after its Undo, so the caller can re-read stock. */
   onMixed?: () => void
 }) {
-  const { cardRef, handleProps, cardStyle } = useSheetDrag(() => onOpenChange(false), open)
-
+  const onClose = () => onOpenChange(false)
+  // Every open is a fresh mix: the sheet stays mounted while it slides away,
+  // so the body is keyed on the open as well as the spare.
+  const [session, setSession] = useState(0)
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setSession((n) => n + 1)
+  }
+  // THE ONE SHEET FRAME (consistency fix #1), with its Cancel / Title bar: the
+  // title and the compound on the left, "Cancel" at top right (brief §3.12).
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="rail"
-        side="bottom"
-        showCloseButton={false}
-        className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
-      >
-        <div
-          ref={cardRef}
-          style={cardStyle}
-          className="flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
-        >
-          <div
-            {...handleProps}
-            className="flex h-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
-          >
-            <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Mix a vial"
+      description={compound.name}
+      desktop="rail"
+      header={
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p aria-hidden className={SHEET_TITLE}>Mix a vial</p>
+            <p className="truncate text-sm text-text-muted">{compound.name}</p>
           </div>
-
-          {/* Remounts on every open (the sheet's content unmounts when it
-              closes), so each mix starts from a dry vial and fresh fields. */}
-          <MixBody
-            key={spare.id}
-            compound={compound}
-            spare={spare}
-            lastWaterMl={lastWaterMl}
-            todayKey={todayKey}
-            onMixed={onMixed}
-            onClose={() => onOpenChange(false)}
-          />
+          <button
+            type="button"
+            onClick={onClose}
+            className={cn(
+              PRESS.text,
+              "-mt-2 -mr-2 flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+            )}
+          >
+            Cancel
+          </button>
         </div>
-      </SheetContent>
-    </Sheet>
+      }
+    >
+      {/* Remounts for each open and each spare, so each mix starts from a dry
+          vial and fresh fields. */}
+      <MixBody
+        key={`${spare.id}:${session}`}
+        compound={compound}
+        spare={spare}
+        lastWaterMl={lastWaterMl}
+        todayKey={todayKey}
+        onMixed={onMixed}
+        onClose={onClose}
+      />
+    </BottomSheet>
   )
 }
 
@@ -202,28 +209,8 @@ function MixBody({
 
   return (
     <>
-      <div className="flex shrink-0 items-center justify-between gap-3 px-5">
-        <SheetTitle className={SHEET_TITLE}>Mix a vial</SheetTitle>
-        <button
-          type="button"
-          onClick={onClose}
-          className={cn(
-            PRESS.text,
-            "-mr-2 flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-          )}
-        >
-          Cancel
-        </button>
-      </div>
-      <SheetDescription className="shrink-0 px-5 text-sm text-text-muted">
-        {compound.name}
-      </SheetDescription>
-
       {/* The sections rise in as the sheet lands (feel pass §4). */}
-      <div
-        data-sheet-body
-        className="flex-1 overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
-      >
+      <div data-sheet-body>
         <MixVial
           name={compound.name}
           category={compound.category}
@@ -233,7 +220,7 @@ function MixBody({
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <label className="block min-w-0">
-            <span className={STOCK_FIELD_LABEL}>Powder</span>
+            <span className={FIELD_LABEL}>Powder</span>
             <PadInput
               {...pad.bind("powder")}
               value={powder}
@@ -244,7 +231,7 @@ function MixBody({
             />
           </label>
           <label className="block min-w-0">
-            <span className={STOCK_FIELD_LABEL}>Water</span>
+            <span className={FIELD_LABEL}>Water</span>
             <PadInput
               {...pad.bind("water")}
               value={water}
@@ -365,6 +352,6 @@ async function undoMix(
   if (undone.ok && restorePowder != null) {
     await updateStockItem(spare.id, unmixedRow(spare, restorePowder))
   }
-  if (!undone.ok) showToast("Couldn’t undo the mix.")
+  if (!undone.ok) showToast("Couldn’t undo. Try again.")
   onMixed?.()
 }

@@ -7,6 +7,7 @@ import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
 import { activePause } from "@/lib/home/pauses"
 import { runsDryText } from "@/lib/protocol/stockPage"
+import { containerNoun } from "@/lib/containers/labels"
 
 export const CARD_W = "w-[112px]"
 
@@ -55,7 +56,14 @@ export function CompoundStorageCard({
       ? Math.max(0, Math.min(1, stock.remainingBase / stock.totalBase))
       : 1
   const dry = stock && !paused ? runsDryText(stock.daysToEmpty ?? null, todayKey) : null
-  const noun = inventoryType === "oral_solid" ? "bottle" : inventoryType === "bulk_powder" ? "tub" : "vial"
+  // The shared noun (a dropper is a dropper, a counted oral a bottle), not a
+  // local guess that called every dropper a vial.
+  const noun = containerNoun({
+    inventoryType: stock?.inventoryType ?? inventoryType,
+    totalAmountUnit: stock?.totalAmountUnit,
+    category: compound.category,
+    name: compound.name,
+  })
 
   return (
     <div className={cn(CARD_W, "inst-card flex shrink-0 flex-col items-center gap-1.5 px-2 pt-3 pb-2.5")}>
@@ -76,7 +84,7 @@ export function CompoundStorageCard({
           <span className="line-clamp-2 text-center text-[12px] leading-tight text-foreground">{compound.name}</span>
         </span>
         {stock && others > 0 ? (
-          <span className="font-mono text-[10.5px] text-text-muted">
+          <span className="font-mono text-[11px] text-text-muted">
             +{others} {noun}
             {others === 1 ? "" : "s"}
           </span>
@@ -86,7 +94,7 @@ export function CompoundStorageCard({
         <span aria-hidden className="h-4" />
       ) : stock ? (
         dry ? (
-          <span className={cn("font-mono text-[10.5px]", dry.low ? "text-accent-amber" : "text-text-muted")}>{dry.text}</span>
+          <span className={cn("font-mono text-[11px]", dry.low ? "text-accent-amber" : "text-text-muted")}>{dry.text}</span>
         ) : (
           <span aria-hidden className="h-4" />
         )
@@ -95,7 +103,7 @@ export function CompoundStorageCard({
           type="button"
           onClick={onAddStock}
           aria-label={`Add stock for ${compound.name}`}
-          className={cn(PRESS.text, "px-1 font-mono text-[10.5px] text-text-muted")}
+          className={cn(PRESS.text, "px-1 font-mono text-[11px] text-text-muted")}
         >
           Add stock
         </button>

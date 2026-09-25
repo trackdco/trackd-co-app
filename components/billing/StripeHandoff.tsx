@@ -63,7 +63,7 @@ const CONTINUE = "Continue";
  * `ui-context.md` asks of error copy, and it never strands somebody wondering
  * whether they are mid-flight to another site.
  */
-const HANDOFF_FAILED = "We couldn't open Stripe just now. Please try again.";
+const HANDOFF_FAILED = "Couldn't open Stripe. Try again.";
 
 /** Which row, which words. `08` decides the labels; the icons follow the row. */
 export type HandoffRowKey = "both" | "card" | "receipts";

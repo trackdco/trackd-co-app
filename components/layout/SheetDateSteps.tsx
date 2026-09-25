@@ -131,7 +131,7 @@ export function SheetDateSteps({
             type="button"
             onClick={() => onStepChange(true)}
             aria-expanded={step}
-            aria-label={`Change the date — currently ${formatDateKeyNumeric(value)}`}
+            aria-label={`Change the date. Currently ${formatDateKeyNumeric(value)}`}
             className={cn(
               PRESS.field,
               "flex min-h-11 items-center gap-2 rounded-xl px-3 outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-accent-amber/50",

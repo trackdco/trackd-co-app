@@ -2,13 +2,9 @@
 
 import { useState } from "react";
 
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/layout/BottomSheet";
+import { PRESS, PRIMARY_BUTTON } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { OpenInSafariPrompt } from "@/components/pwa/OpenInSafariPrompt";
 import { useMounted } from "@/components/home/useMounted";
@@ -98,22 +94,15 @@ export function InstallHomeScreenPopup({
   if (!freshSignIn || platform === null) return null;
 
   return (
-    <Sheet
+    <BottomSheet
       open={!closed}
       onOpenChange={(o) => {
         if (!o) dismiss();
       }}
+      title="Add Trakabl to your Home Screen"
+      hideTitle
+      description="Install Trakabl as an app on your Home Screen."
     >
-      <SheetContent
-        data-desktop="dialog"
-        side="bottom"
-        className="gap-0 rounded-t-3xl border-border-default bg-bg-surface px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
-      >
-        <SheetTitle className="sr-only">Add Trakabl to your Home Screen</SheetTitle>
-        <SheetDescription className="sr-only">
-          Install Trakabl as an app on your Home Screen.
-        </SheetDescription>
-
         {platform === "android" ? (
           <>
             <div className="flow-card inst-card p-5">
@@ -128,17 +117,13 @@ export function InstallHomeScreenPopup({
                 heading above lands with it. */}
             <div data-sheet-body>
               <div className="mt-4 flex items-center gap-3">
-                <Button
-                  type="button"
-                  onClick={install}
-                  className="h-11 flex-1 rounded-xl"
-                >
+                <button type="button" onClick={install} className={cn(PRIMARY_BUTTON, "flex-1")}>
                   Add to Home Screen
-                </Button>
+                </button>
                 <button
                   type="button"
                   onClick={dismiss}
-                  className="px-3 text-sm text-text-muted transition-colors hover:text-foreground"
+                  className={cn(PRESS.text, "min-h-11 px-3 text-sm text-text-muted transition-colors hover:text-foreground")}
                 >
                   Not now
                 </button>
@@ -154,18 +139,13 @@ export function InstallHomeScreenPopup({
                 below it rises (feel pass §4). */}
             <div data-sheet-body>
               <div>
-                <Button
-                  type="button"
-                  onClick={dismiss}
-                  className="mt-4 h-11 w-full rounded-xl"
-                >
+                <button type="button" onClick={dismiss} className={cn(PRIMARY_BUTTON, "mt-4 w-full")}>
                   Got it
-                </Button>
+                </button>
               </div>
             </div>
           </>
         )}
-      </SheetContent>
-    </Sheet>
+    </BottomSheet>
   );
 }

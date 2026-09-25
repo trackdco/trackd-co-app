@@ -147,7 +147,7 @@ export function ScheduleGrid({
                   )}
                 >
                   <span className="text-[10px]">{DAY_INITIALS[i]}</span>
-                  {dates && <span className="mt-1 text-[9.5px]">{d.getDate()}</span>}
+                  {dates && <span className="mt-1 text-[10px]">{d.getDate()}</span>}
                 </span>
               )
             })}
@@ -197,7 +197,7 @@ export function ScheduleGrid({
       </div>
 
       {hidden > 0 && (
-        <p className="mt-1.5 font-mono text-[10.5px] tabular-nums text-text-muted">
+        <p className="mt-1.5 font-mono text-[11px] tabular-nums text-text-muted">
           +{hidden} more
         </p>
       )}
@@ -262,7 +262,7 @@ function Key({ showPaused }: { showPaused: boolean }) {
           <span className="flex h-3 w-3 items-center justify-center">
             <Mark state={i.state} colour="var(--text-primary)" />
           </span>
-          <span className="text-[10.5px] text-text-muted">{i.label}</span>
+          <span className="text-[11px] text-text-muted">{i.label}</span>
         </li>
       ))}
     </ul>

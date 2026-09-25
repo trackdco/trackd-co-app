@@ -12,7 +12,8 @@ import {
   DELETE_ACCOUNT_MONEY_LINE,
   deletionConfirmed,
 } from "@/lib/account/deleteCopy";
-import { DANGER_ROW } from "@/lib/ui-presets";
+import { DANGER_ROW, FIELD_LABEL, PRESS, SECONDARY_BUTTON } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 
 /**
  * ⚠️ ACCOUNT DELETION. The last screen a leaving user reads.
@@ -376,7 +377,7 @@ export function DeleteAccountDialog({
 
               <label
                 htmlFor="delete-account-confirm"
-                className="mt-5 block text-xs font-medium text-text-muted"
+                className={cn(FIELD_LABEL, "mt-5")}
               >
                 {COPY.inputLabel}
               </label>
@@ -437,7 +438,7 @@ export function DeleteAccountDialog({
                   type="button"
                   onClick={close}
                   disabled={pending}
-                  className="min-h-11 flex-1 rounded-xl border border-border-strong py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text-primary disabled:opacity-50"
+                  className={cn(SECONDARY_BUTTON, "flex-1")}
                 >
                   {COPY.dismiss}
                 </button>
@@ -446,7 +447,9 @@ export function DeleteAccountDialog({
                   type="button"
                   onClick={submit}
                   disabled={!armed || pending}
-                  className="min-h-11 flex-1 rounded-xl bg-accent-destructive py-2.5 text-center text-sm font-medium text-text-primary transition-opacity hover:opacity-90 disabled:opacity-40"
+                  // The red of the one confirm (`ConfirmDialog`), at the white
+                  // button's size (consistency fixes #2, #5).
+                  className={cn(PRESS.button, "flex min-h-11 flex-1 items-center justify-center rounded-lg bg-accent-destructive px-4 py-3 text-center text-sm font-medium text-text-primary transition-opacity hover:opacity-90 disabled:opacity-40")}
                 >
                   {pending ? "Deleting…" : COPY.confirm}
                 </button>

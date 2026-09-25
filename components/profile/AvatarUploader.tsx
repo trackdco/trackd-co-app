@@ -8,13 +8,11 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { clearAvatar, setAvatarPath } from "@/app/(app)/profile/actions";
 import { PhotoAdjustSheet } from "@/components/media/PhotoAdjustSheet";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { BottomSheet } from "@/components/layout/BottomSheet";
+import { ConfirmDialog } from "@/components/feel/ConfirmDialog";
 import { AVATAR_ASPECT } from "@/lib/media/framing";
+import { PRESS } from "@/lib/ui-presets";
+import { showToast } from "@/lib/toast";
 
 /**
  * An error whose message was WRITTEN for the user.
@@ -108,6 +106,7 @@ export function AvatarUploader({
   const [adjusting, setAdjusting] = useState<File | null>(null);
   /** The change-or-remove sheet. Only ever opened when a photo exists. */
   const [choosing, setChoosing] = useState(false);
+  const [askingRemove, setAskingRemove] = useState(false);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -144,6 +143,9 @@ export function AvatarUploader({
       const res = await setAvatarPath(path);
       if (!res.ok) throw new AvatarMessage(res.error ?? "Couldn't save your photo.");
       router.refresh();
+      // Every save says so in the one toast (consistency fix #27). The old
+      // photo is overwritten in place, so there is no Undo to offer.
+      showToast("Photo saved");
     } catch (err) {
       console.error("avatar update failed", err);
       setError(
@@ -159,8 +161,11 @@ export function AvatarUploader({
     setError(null);
     const res = await clearAvatar();
     setBusy(false);
-    if (res.ok) router.refresh();
-    else setError(res.error ?? "Couldn't remove your photo.");
+    if (res.ok) {
+      router.refresh();
+      // The photo is gone from storage, so there is no Undo to offer.
+      showToast("Photo removed");
+    } else setError(res.error ?? "Couldn't remove your photo.");
   }
 
   return (
@@ -170,7 +175,7 @@ export function AvatarUploader({
         onClick={() => (signedUrl ? setChoosing(true) : fileRef.current?.click())}
         disabled={busy}
         aria-label={signedUrl ? "Change or remove your profile photo" : "Add a profile photo"}
-        className="group relative h-28 w-28 overflow-hidden rounded-full border border-border-strong bg-bg-surface-raised outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+        className={cn(PRESS.card, "group relative h-28 w-28 overflow-hidden rounded-full border border-border-strong bg-bg-surface-raised outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base")}
       >
         {signedUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -246,47 +251,49 @@ export function AvatarUploader({
 
       {/* Change or remove — only reachable when there IS a photo, so it never
           offers to remove nothing. */}
-      <Sheet open={choosing} onOpenChange={setChoosing}>
-        <SheetContent
-          data-desktop="dialog"
-          side="bottom"
-          showCloseButton={false}
-          className="gap-0 rounded-t-3xl p-0"
-        >
-          <SheetTitle className="sr-only">Profile photo</SheetTitle>
-          <SheetDescription className="sr-only">
-            Choose a new profile photo, or remove the current one.
-          </SheetDescription>
-          {/* The two choices rise in as the sheet lands (feel pass §4). */}
-          <div
-            data-sheet-body
-            className="flex flex-col p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+      {/* THE ONE SHEET FRAME (consistency fix #1): a handle, no ×. */}
+      <BottomSheet
+        open={choosing}
+        onOpenChange={setChoosing}
+        title="Profile photo"
+        hideTitle
+        description="Choose a new profile photo, or remove the current one."
+      >
+        {/* The two choices rise in as the sheet lands (feel pass §4). */}
+        <div data-sheet-body className="flex flex-col">
+          <button
+            type="button"
+            onClick={() => {
+              setChoosing(false);
+              fileRef.current?.click();
+            }}
+            className={cn(PRESS.row, "flex items-center gap-3 rounded-xl px-4 py-3.5 text-left text-sm text-foreground transition-colors hover:bg-bg-surface-raised")}
           >
-            <button
-              type="button"
-              onClick={() => {
-                setChoosing(false);
-                fileRef.current?.click();
-              }}
-              className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-left text-sm text-foreground transition-colors hover:bg-bg-surface-raised"
-            >
-              <Camera className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-              Choose a new photo
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setChoosing(false);
-                void handleRemove();
-              }}
-              className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-left text-sm font-medium text-accent-destructive transition-colors hover:bg-accent-destructive/10"
-            >
-              <Trash className="h-4 w-4 shrink-0" aria-hidden />
-              Remove photo
-            </button>
-          </div>
-        </SheetContent>
-      </Sheet>
+            <Camera className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+            Choose a new photo
+          </button>
+          {/* Removing deletes the photo for good, so it asks first (fix #5). */}
+          <button
+            type="button"
+            onClick={() => {
+              setChoosing(false);
+              setAskingRemove(true);
+            }}
+            className={cn(PRESS.row, "flex items-center gap-3 rounded-xl px-4 py-3.5 text-left text-sm font-medium text-accent-destructive-on-surface transition-colors hover:bg-accent-destructive/10")}
+          >
+            <Trash className="h-4 w-4 shrink-0" aria-hidden />
+            Remove photo
+          </button>
+        </div>
+      </BottomSheet>
+
+      <ConfirmDialog
+        open={askingRemove}
+        onClose={() => setAskingRemove(false)}
+        title="Remove your photo?"
+        confirmLabel="Remove"
+        onConfirm={() => void handleRemove()}
+      />
 
       {error && <p className="mt-2 text-xs text-state-error">{error}</p>}
     </div>

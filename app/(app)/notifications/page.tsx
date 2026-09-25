@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ListBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons";
 import { NotificationsToggle } from "@/components/settings/NotificationsToggle";
+import { PUSHED_PAGE, PushedPageHead } from "@/components/settings/PushedPage";
 import { ReminderSettings } from "@/components/settings/ReminderSettings";
-import { PAGE_TITLE } from "@/lib/ui-presets";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -55,27 +54,29 @@ export default async function NotificationsSettingsPage() {
     <div
       data-screen="notifications"
       data-desktop-layout="column"
-      className="relative mx-auto w-full max-w-md px-5 pt-4 pb-5"
+      className={PUSHED_PAGE}
     >
-      {/* The title and its line fade without moving; only the cards rise. When
-          the route skeleton was just on screen they were already there. */}
+      {/* The way back, the title and its line fade without moving; only the
+          cards rise. When the route skeleton was just on screen they were
+          already there. Back is at the TOP (consistency fix #23). */}
       <RouteTitle id="notifications">
-        <h1 className={PAGE_TITLE}>Notifications</h1>
-        <p className="mt-2 text-sm leading-relaxed text-text-muted">
-          Reminders for your protocol, sent to this device.
-        </p>
+        <PushedPageHead
+          back={{ href: "/profile", label: "Profile" }}
+          title="Notifications"
+          subtitle="Reminders for your protocol, sent to this device."
+        />
       </RouteTitle>
 
       <RouteHandoff id="notifications">
         <ListBlocks cards={3} />
       </RouteHandoff>
-      <div className="animate-home-up mt-6" style={{ animationDelay: "0ms" }}>
+      <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
         <NotificationsToggle
           initialEnabled={Boolean(profile?.notifications_enabled)}
         />
       </div>
-      {/* ReminderSettings carries its own `mt-3`; it collapses through this
-          wrapper, so the gap is unchanged. */}
+      {/* ReminderSettings carries its own `mt-3`, which the scaffold's gap
+          swallows (the larger margin wins). */}
       <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
         <ReminderSettings
           currentTimezone={(profile?.timezone as string | null) ?? null}
@@ -91,14 +92,6 @@ export default async function NotificationsSettingsPage() {
         />
       </div>
 
-      <div
-        className="animate-home-up mt-10 text-sm text-text-muted"
-        style={{ animationDelay: "110ms" }}
-      >
-        <Link href="/profile" className="hover:text-foreground">
-          ← Back to profile
-        </Link>
-      </div>
     </div>
   );
 }

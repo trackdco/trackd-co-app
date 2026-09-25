@@ -19,7 +19,7 @@ export function Toast() {
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 z-[50] flex justify-center px-4"
+      className="pointer-events-none fixed inset-x-0 z-[70] flex justify-center px-4"
       style={{ bottom: "calc(9.25rem + env(safe-area-inset-bottom))" }}
     >
       {toast ? (

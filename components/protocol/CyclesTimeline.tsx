@@ -28,7 +28,7 @@ import {
   type TimelineZoom,
 } from "@/lib/protocol/cycleTimeline"
 import { CATEGORY_GLYPH } from "@/lib/solidGlyphs"
-import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
+import { CARD_EYEBROW, SEGMENTED_ITEM, SEGMENTED_TRACK } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 
 export interface TimelineCycle {
@@ -89,7 +89,7 @@ export function CyclesTimeline({
           thumbClassName="inst-thumb"
           role="group"
           aria-label="Range"
-          className="flex gap-0.5 inst-rail p-[3px]"
+          className={cn(SEGMENTED_TRACK, "gap-0.5")}
         >
           {TIMELINE_ZOOMS.map((z) => (
             <button
@@ -98,8 +98,8 @@ export function CyclesTimeline({
               aria-pressed={zoom === z.key}
               onClick={() => setZoom(z.key)}
               className={cn(
-                PRESS.pill,
-                "rounded-sm px-2.5 py-1 font-mono text-[11px] transition-colors duration-300",
+                SEGMENTED_ITEM,
+                "font-mono",
                 zoom === z.key ? "text-bg-base" : "text-text-muted",
               )}
             >
@@ -130,10 +130,10 @@ export function CyclesTimeline({
                     aria-expanded={open}
                     className="block w-full text-left"
                   >
-                    <span className="mb-1 flex items-center gap-1.5 text-[11.5px] text-foreground">
+                    <span className="mb-1 flex items-center gap-1.5 text-[12px] text-foreground">
                       <SolidIcon name={CATEGORY_GLYPH[k] ?? "catPeptide"} size={12} hue={`var(--cat-${k})`} />
                       {CATEGORY_META[k].label}
-                      <span className="font-mono text-[10.5px] text-text-muted">{idx.length}</span>
+                      <span className="font-mono text-[11px] text-text-muted">{idx.length}</span>
                     </span>
                     <Bar
                       on={counts.map((n) => n > 0)}
@@ -169,9 +169,9 @@ export function CyclesTimeline({
                     aria-expanded={open}
                     className="block w-full text-left"
                   >
-                    <span className="mb-1 flex items-baseline justify-between gap-2 text-[11.5px]">
+                    <span className="mb-1 flex items-baseline justify-between gap-2 text-[12px]">
                       <span className="truncate text-foreground">{c.compound.name}</span>
-                      <span className="shrink-0 font-mono text-[10.5px] text-text-muted">
+                      <span className="shrink-0 font-mono text-[11px] text-text-muted">
                         {nowWords(c.rule, c.compound.pauses, todayKey)}
                       </span>
                     </span>
@@ -186,7 +186,7 @@ export function CyclesTimeline({
                         [onToday ? "Next off" : "Back on", turn ?? "None"],
                         ["Pattern", cyclePatternText(c.rule.pattern)],
                       ].map(([label, value]) => (
-                        <div key={label} className="flex items-center justify-between gap-3 px-3 py-2 text-[12.5px]">
+                        <div key={label} className="flex items-center justify-between gap-3 px-3 py-2 text-[12px]">
                           <span className="text-text-muted">{label}</span>
                           <span className="font-mono text-[12px] text-foreground">{value}</span>
                         </div>

@@ -3,12 +3,7 @@
 import { useState } from "react";
 import { CaretRight, DeviceMobile } from "@/components/icons";
 
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { BottomSheet } from "@/components/layout/BottomSheet";
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { PhoneHandoffPrompt } from "@/components/desktop/PhoneHandoffPrompt";
 import { useIsDesktop } from "@/lib/desktop/breakpoint";
@@ -16,7 +11,7 @@ import { OpenInSafariPrompt } from "@/components/pwa/OpenInSafariPrompt";
 import { useMounted } from "@/components/home/useMounted";
 import { usePwaInstall } from "@/components/pwa/usePwaInstall";
 import { getCapability } from "@/lib/push/pushService";
-import { PRESS } from "@/lib/ui-presets";
+import { PRESS, ROW_CHEVRON } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 /**
@@ -89,39 +84,34 @@ export function InstallAppRow() {
         <span className="flex-1 text-sm text-foreground">
           {mode === "desktop" ? "Get it on your phone" : "Add to Home Screen"}
         </span>
-        <CaretRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+        <CaretRight className={ROW_CHEVRON} aria-hidden />
       </button>
 
+      {/* THE ONE SHEET FRAME (consistency fix #1): a handle to drag down, no
+          ×. The prompts carry their own headings, so the title is for screen
+          readers. */}
       {mode === "desktop" && (
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetContent
-            data-desktop="dialog"
-            side="bottom"
-            className="gap-0 rounded-t-3xl border-border-default bg-bg-surface px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
-          >
-            <SheetTitle className="sr-only">Get Trakabl on your phone</SheetTitle>
-            <SheetDescription className="sr-only">
-              Scan this code with your phone camera to open Trakabl there.
-            </SheetDescription>
-            <PhoneHandoffPrompt />
-          </SheetContent>
-        </Sheet>
+        <BottomSheet
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          title="Get Trakabl on your phone"
+          hideTitle
+          description="Scan this code with your phone camera to open Trakabl there."
+        >
+          <PhoneHandoffPrompt />
+        </BottomSheet>
       )}
 
       {(mode === "ios" || mode === "ios-other") && (
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetContent
-            data-desktop="dialog"
-            side="bottom"
-            className="gap-0 rounded-t-3xl border-border-default bg-bg-surface px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
-          >
-            <SheetTitle className="sr-only">Add Trakabl to your Home Screen</SheetTitle>
-            <SheetDescription className="sr-only">
-              How to install Trakabl as an app on your iPhone Home Screen.
-            </SheetDescription>
-            {mode === "ios" ? <AddToHomeScreenPrompt /> : <OpenInSafariPrompt />}
-          </SheetContent>
-        </Sheet>
+        <BottomSheet
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          title="Add Trakabl to your Home Screen"
+          hideTitle
+          description="How to install Trakabl as an app on your iPhone Home Screen."
+        >
+          {mode === "ios" ? <AddToHomeScreenPrompt /> : <OpenInSafariPrompt />}
+        </BottomSheet>
       )}
     </>
   );
