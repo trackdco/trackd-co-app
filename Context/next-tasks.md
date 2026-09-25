@@ -16,13 +16,22 @@ low-stock bodies, and a switch on the redesigned page (task 3). Read the new col
 in its own tolerant query, as `courtesy.ts` does, so a deploy before the migration
 cannot break the runner.
 
-### 3. Redesign the Notifications settings page (Adrian asked)
-Mockup first, in an artifact, scored with ux-heuristics before he sees it.
+### 3. Redesign the Notifications settings page (Adrian picked A)
+Mockup: https://claude.ai/artifact/1WFRxirrZWVBhmGFUfgsiC (his pick and note are in its
+`decision` collection). A = a live lock-screen preview at the top that shows the
+notification for whichever row you touched, then the master switch, one card of
+reminders (dose time, "Don't forget" after N hr, low stock, check-ins), one card with
+"Hide compound names" and quiet hours. Everything saves as you go; the old "Save
+reminders" button goes, because the master switch saved instantly and the rest did
+not, so a flipped switch could be lost.
 
-### 4. New notifications (Adrian choosing)
-Six plain ideas and eight "cheeky" ones in Kyle's voice are cards in the editor
-artifact. The cheeky ones break the no-chirp rule in `ui-context.md`; if Adrian
-keeps any, record them there as a sanctioned exception, as onboarding's were.
+### 4. New check-up notifications (Adrian swiping)
+53 candidates in a swipe deck: https://claude.ai/artifact/EbADnYs8aQLuEFXQUxWbYA (his
+verdicts and notes are its `votes` collection, each with the trigger in `when`).
+No Kyle by name: users don't know him yet (Adrian, 2026-09-25). A few he edited in the
+copy editor's `custom` collection too, two with an emoji. The cheeky ones break the
+no-chirp and no-emoji rules in `ui-context.md`; whatever he keeps gets recorded there
+as a sanctioned exception, as onboarding's were.
 
 ## 🟢 WHO OPERATES TRAKABL — MERGED AND APPLIED (2026-09-24)
 
