@@ -125,6 +125,28 @@ Built on `design/half-life-motion` in the worktree; nothing pushed, no migration
   with the type rail and a sideways row; a new account gets "Your first photos" (three frames, a quiet "+"), "None
   yet" with a plus on each empty section, and Consistency "Starts with your first dose". Preview states:
   `/preview/progress?photos=more|odd|one`, `?fresh=1`, `?poses=many`.
+- **Phase 8, app-wide: DONE.** The 30 consistency fixes (Context/consistency-review.md), on shared parts built first
+  (ui-context "The consistency primitives"): one confirm (`ConfirmDialog`), one sheet frame (`BottomSheet`: handle,
+  drag to close, no ×; a title with Cancel + primary, or a Cancel / Title / Verb bar), one close arrow
+  (`CloseArrow`), one way back (`BackLink` at the top of every pushed page), button / chip / segmented / label /
+  note presets, `lib/format/dose.ts` and `lib/format/date.ts`. Applied across Home, Calendar, Weight, Protocol,
+  Stacks, Cycles, Half-life, Progress, Blocks, Profile, Notifications, Billing (three builder agents by directory,
+  then checked here in both engines). #0: Quick log and the Calendar's day sheet use Home's own row, panel and Track
+  bar; `LogDoseSheet` is deleted. Toasts with Undo: Unticked, Skipped, Paused, Resumed, Saved (profile, reminders,
+  stock edit), a deleted weight, a deleted journal entry (no photos), Mixed, Discarded, Stack deleted, Cycle ended /
+  restarted / deleted. Toasts sit above an open sheet, and an Undo there no longer closes the sheet; Escape in a
+  confirm closes only the confirm. The public site's app previews (the phone screens, Kyle's pieces) take the app's
+  look through `[data-app-look]`; the rest of the site is as shipped. Reduced motion: the fan fades in place, folds
+  open at once, pop-ups fade. No page scrolls sideways at 375px (every main route checked in WebKit 375x548).
+  `npm run check`: 141 files, 2468 tests.
+  - Deliberately not changed, for Adrian: the stock verbs stay "Correct" and "Discard" (the brief, §3.7) where the
+    review said "Edit"; "Trakabl is going paid!" keeps its "!" (a test pins it; his call); onboarding's "exactly
+    that!" is marked in the code as his choice; EmptyLogCard's step 1 now reads "Tap Add compound below." (the old
+    "Tap the white + …" pointed at a + the brief hides until the first dose); on Stacks the add-compound menu still
+    opens over the Edit stack sheet (closing that sheet first would lose what was typed).
+  - My mistake, test account only (again): three overlay checks opened preview pages while SIGNED IN, and the
+    previews' sync pushed mock compounds (MK-677, Enclomiphene and others) into the burner. Cleared through the app
+    in the sample-user walk. Previews are opened signed out only.
 
 
 ## 🗳 FINAL CHECK, ROUND FOUR — ANSWERED 2026-09-25 14:13 UTC. DESIGN CLOSED. NEXT: A NEW BUILDER CHAT RUNS `Context/PROMPT-build-final.md`
