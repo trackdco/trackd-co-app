@@ -12,6 +12,8 @@ import { ProtocolScreen } from "@/components/protocol/ProtocolScreen"
 import { StacksScreen } from "@/components/protocol/pages/StacksScreen"
 import { CyclesScreen } from "@/components/protocol/pages/CyclesScreen"
 import { EndedCyclesScreen } from "@/components/protocol/pages/EndedCyclesScreen"
+import { HalfLifeScreen } from "@/components/protocol/pages/HalfLifeScreen"
+import { HalfLifeCompoundScreen } from "@/components/protocol/pages/HalfLifeCompoundScreen"
 import { ScheduleScreen } from "@/components/protocol/pages/ScheduleScreen"
 import { saveStacks, notifyStacksChanged, type Stack } from "@/lib/home/stacks"
 import {
@@ -385,7 +387,15 @@ function buildMock(demo = 0): { stack: StackCompound[]; stock: StockItem[]; logs
   return { stack, stock, logs, stacks, read }
 }
 
-export function ProtocolPreview({ page, demo = 0 }: { page?: "stacks" | "cycles" | "ended" | "schedule"; demo?: number }) {
+export function ProtocolPreview({
+  page,
+  demo = 0,
+  compoundId,
+}: {
+  page?: "stacks" | "cycles" | "ended" | "schedule" | "half-life" | "half-life-compound"
+  demo?: number
+  compoundId?: string
+}) {
   const mounted = useMounted()
   const { stack, stock, logs, stacks, read } = useMemo(() => buildMock(demo), [demo])
 
@@ -424,6 +434,10 @@ export function ProtocolPreview({ page, demo = 0 }: { page?: "stacks" | "cycles"
           <StacksScreen userId={USER} backHref="/preview/protocol" />
         ) : page === "cycles" ? (
           <CyclesScreen userId={USER} backHref="/preview/protocol" endedHref="/preview/protocol/ended" />
+        ) : page === "half-life" ? (
+          <HalfLifeScreen userId={USER} backHref="/preview/protocol" hrefBase="/preview/protocol/half-life" />
+        ) : page === "half-life-compound" ? (
+          <HalfLifeCompoundScreen userId={USER} compoundId={compoundId ?? ""} backHref="/preview/protocol/half-life" />
         ) : page === "ended" ? (
           <EndedCyclesScreen userId={USER} backHref="/preview/protocol/cycles" />
         ) : page === "schedule" ? (

@@ -222,6 +222,49 @@ export function runStartH(doses: readonly Dose[], nowH: number, halfLifeH: numbe
   return start
 }
 
+/** One unbroken stretch of taken doses: the Past runs list (build-brief-final §3.11). */
+export interface DoseRun {
+  /** The first dose. */
+  fromH: number
+  /** The last dose. */
+  toH: number
+  /** How many doses it had. */
+  count: number
+  /** Still going: its last dose is recent enough that the next would join it. */
+  current: boolean
+}
+
+/** A run in the Past runs list survives any gap up to a week: a missed dose
+ *  or two is not a new run to the person who took them. */
+export const RUN_BREAK_MIN_H = 7 * 24
+
+/**
+ * The doses taken by `nowH`, split into runs at a BREAK: the gap
+ * {@link runStartH} uses (more than three half-lives and more than 1.75 × the
+ * usual interval), and never less than {@link RUN_BREAK_MIN_H}. Unlike the
+ * steady-state run, a change of amount does NOT split a run here: titrating is
+ * one run to the person who did it. Oldest first.
+ */
+export function doseRuns(doses: readonly Dose[], nowH: number, halfLifeH: number): DoseRun[] {
+  const past = doses.filter((d) => d.atH <= nowH).sort((a, b) => a.atH - b.atH)
+  if (past.length === 0) return []
+  const gap = Math.max(RUN_BREAK_MIN_H, breakGap(past, halfLifeH))
+  const runs: DoseRun[] = []
+  let cur: DoseRun = { fromH: past[0].atH, toH: past[0].atH, count: 1, current: false }
+  for (const d of past.slice(1)) {
+    if (d.atH - cur.toH > gap) {
+      runs.push(cur)
+      cur = { fromH: d.atH, toH: d.atH, count: 1, current: false }
+    } else {
+      cur.toH = d.atH
+      cur.count += 1
+    }
+  }
+  cur.current = nowH - cur.toH <= gap
+  runs.push(cur)
+  return runs
+}
+
 /** "Steady": reached, reached in some hours, or not meaningful. */
 export type Steady =
   | { kind: "reached" }

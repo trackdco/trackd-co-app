@@ -94,8 +94,23 @@ Built on `design/half-life-motion` in the worktree; nothing pushed, no migration
   - NOT BUILT, waiting on a trigger: the Paused move animation (dim, slide into Paused, flash). Pausing happens on
     Home, and the Cycles page's own Pause button is the event-actions spec (out of scope), so nothing can pause a
     cycle while this page is on screen. The group and its look are built.
+- **Phase 6, Half-life pages: DONE.** The list (`/protocol/half-life`, "Half-life ?"): grouped by type with the
+  category mark, blends as their own group, each row the name, what is circulating ("Cleared" once it has, "No
+  doses yet" before one) and a full-width sparkline; a tap opens the compound's page. The compound page
+  (`/protocol/half-life/[id]`, "‹ Half-life"): the curve mark in the category colour before the name, a "?" that
+  opens "Reading the curve"; the card leads with "In you now" (28px) and "Next dose" ("Clears in" once nothing is
+  due); the graph shades the likely range IN PLACE of the fill (×1.14/×0.86 at Now widening to ×1.30/×0.76 six
+  days out; `HalfLifeGraph band`), past solid, ahead dashed, Now a thin line, dose ticks, the ½ line; rows Level,
+  Peaks in / Next peak in (the drawn curve's top, `peakCountdown`), Half-life ("est."); then "Usually peaks ~X
+  after a dose and clears ~Y after the last." Past runs: each stretch of doses (split only at a break of a week or
+  more, `doseRuns`), "This run · From 18 Jul" or "Ended · 9 Sep to 16 Sep", opening IN PLACE onto its own graph
+  with Length, Doses and Peak. A blend's page has a rail of its parts. The guide (`CurveGuide`): the chart with
+  straight vertical leaders to labels along the top and bottom (Likely range, Now, Ahead / Your doses, Peak, ½ Last
+  dose half gone), two lanes a side so none overlap, "Got it"; checked on Test E, Retatrutide and Ipamorelin, all
+  six labels in both engines. The old Protocol half-life and blends cards, the old row kit in `Subpage.tsx` and
+  their CSS (57 rules) are removed; nothing used them. `npm run check`: 130 files, 2382 tests.
   - Done in parallel by sub-agents and waiting for their phases: the containers (set B, phase 7), the syringe
-    (phase 7), the half-life page helpers (phase 6).
+    (phase 7).
 
 
 ## 🗳 FINAL CHECK, ROUND FOUR — ANSWERED 2026-09-25 14:13 UTC. DESIGN CLOSED. NEXT: A NEW BUILDER CHAT RUNS `Context/PROMPT-build-final.md`

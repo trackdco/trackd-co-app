@@ -1476,14 +1476,9 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
 }
 
 /* ---------------------------------------------------------------------------
-   THE HALF-LIFE CARD'S ROWS (ui-context → "The half-life card and Today's Log",
-   motion from the preview, https://claude.ai/artifact/6TdUNo2Mq56JnNARqnZ7Cw, and
-   the open from Picks & Motion round two, O2 "Unfold").
-   Tap a header to open its row and again to close it. Open is springy and
-   slower, close is fast and flat, and the rows you are not reading CONDENSE:
-   a smaller container, a dimmed name, no detail line, the sparkline shrunk but
-   kept. No blur on these surfaces: blur on a large surface is what made the
-   first builds choppy. The contents tip down from the header like a flap.
+   THE MOTION CURVES that open things in place (the half-life glance, the fold
+   on Protocol's pages, the log panel's swaps): open is springy and slower,
+   close is fast and flat.
    --------------------------------------------------------------------------- */
 :root {
   --hl-ease: cubic-bezier(0.32, 0.72, 0, 1);
@@ -1491,109 +1486,7 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
   --hl-settle: cubic-bezier(0.22, 1, 0.36, 1);
   --hl-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
-.hl-row {
-  transition: opacity 300ms ease;
-}
-.hl-row[data-mini="true"] {
-  opacity: 0.72;
-}
-.hl-head {
-  min-height: 56px;
-  padding-block: 11px;
-  transition:
-    min-height 420ms var(--hl-ease),
-    padding 420ms var(--hl-ease);
-}
-.hl-row[data-mini="true"] .hl-head {
-  min-height: 34px;
-  padding-block: 4px;
-}
-.hl-cont {
-  width: 18px;
-  height: 30px;
-  transition:
-    width 420ms var(--hl-ease),
-    height 420ms var(--hl-ease);
-}
-.hl-row[data-mini="true"] .hl-cont {
-  width: 11px;
-  height: 18px;
-}
-.hl-name {
-  font-size: 14px;
-  transition:
-    font-size 420ms var(--hl-ease),
-    color 300ms ease;
-}
-.hl-row[data-mini="true"] .hl-name {
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-.hl-meta {
-  max-height: 15px;
-  overflow: hidden;
-  transition:
-    max-height 420ms var(--hl-ease),
-    opacity 250ms ease;
-}
-.hl-row[data-mini="true"] .hl-meta {
-  max-height: 0;
-  opacity: 0;
-}
-.hl-spark {
-  transform-origin: right center;
-  transition:
-    opacity 250ms ease,
-    transform 420ms var(--hl-ease);
-}
-.hl-row[data-open="true"] .hl-spark {
-  opacity: 0;
-}
-.hl-row[data-mini="true"] .hl-spark {
-  opacity: 0.55;
-  transform: scale(0.72);
-}
-.hl-body {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 280ms var(--hl-close);
-}
-.hl-row[data-open="true"] .hl-body {
-  grid-template-rows: 1fr;
-  transition: grid-template-rows 500ms var(--hl-ease);
-}
-.hl-body > div {
-  overflow: hidden;
-  min-height: 0;
-}
-.hl-row[data-open="true"] .hl-pad {
-  animation: hl-unfold 550ms var(--hl-settle) both;
-  transform-origin: top center;
-}
-@keyframes hl-unfold {
-  from {
-    transform: perspective(700px) rotateX(-16deg);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
-/* The one close control every card shares: the up arrow fades and spins in
-   while its card is open (preview v2, "all up-arrows spin in the same way"). */
-.hl-up {
-  opacity: 0;
-  transform: rotate(-180deg) scale(0.6);
-  transition:
-    opacity 300ms ease 50ms,
-    transform 550ms var(--hl-spring);
-}
-.hl-row[data-open="true"] .hl-up {
-  opacity: 1;
-  transform: none;
-}
-/* A swapped block of figures (a blend's tabs) rises 3px as it lands. */
+/* A swapped block (the log panel's site line) rises 3px as it lands. */
 .animate-hl-swap {
   animation: hl-swap 260ms var(--hl-settle) both;
 }
@@ -1607,84 +1500,10 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
     transform: none;
   }
 }
-/* The figure tiles: the compound's hue at 12%, brightening slightly toward
-   the bottom (round 13), and the figure in the hue lifted toward white. */
-.hl-tile {
-  background: linear-gradient(
-    0deg,
-    color-mix(in srgb, var(--hue) 21%, var(--bg-surface-raised)) 0%,
-    color-mix(in srgb, var(--hue) 12%, var(--bg-surface-raised)) 70%
-  );
-}
-.hl-tile-flat {
-  background: color-mix(in srgb, var(--hue) 12%, var(--bg-surface-raised));
-}
-.hl-tile-none {
-  background: color-mix(in srgb, var(--hue) 4%, var(--bg-surface-raised));
-}
-.hl-figure {
-  color: color-mix(in srgb, var(--hue) 70%, var(--accent-primary));
-}
 /* ---------------------------------------------------------------------------
-   PROTOCOL'S THREE PAGES: Stock, Stacks, Cycles (Adrian, 2026-09-24).
-   Ported from the Stock/Stacks/Cycles preview. Rows open IN PLACE: the body
-   unfolds under the header, the others condense, the figure gives way to the
-   up arrow, which spins in. A destructive action turns into two pills.
+   PROTOCOL'S PAGES (final design, 2026-09-26): what opens in place, and the
+   Cycles page's strips and timeline bars. Stacks' overlapping containers.
    --------------------------------------------------------------------------- */
-.xrow + .xrow {
-  border-top: 0.5px solid var(--border-default);
-}
-.xrow-head {
-  padding-block: 12px;
-  transition: padding 450ms var(--hl-settle);
-}
-.xrow-ic {
-  transform-origin: left center;
-  transition: transform 450ms var(--hl-settle);
-}
-.xrow-sub {
-  max-height: 18px;
-  overflow: hidden;
-  transition:
-    opacity 300ms ease,
-    max-height 400ms ease;
-}
-.xrow-fig {
-  transition: opacity 300ms ease;
-}
-.xrow[data-open="true"] .xrow-fig {
-  display: none;
-}
-.xrow-up {
-  display: none;
-}
-.xrow[data-open="true"] .xrow-up {
-  display: flex;
-  animation: xrow-spin-in 550ms var(--hl-spring) 80ms both;
-}
-@keyframes xrow-spin-in {
-  from {
-    opacity: 0;
-    transform: rotate(-180deg) scale(0.6);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.xrow[data-mini="true"] .xrow-head {
-  padding-block: 7px;
-}
-.xrow[data-mini="true"] .xrow-ic {
-  transform: scale(0.72);
-}
-.xrow[data-mini="true"] .xrow-sub {
-  opacity: 0;
-  max-height: 0;
-}
-.xrow[data-mini="true"] .xrow-fig {
-  opacity: 0.55;
-}
 /* Opens in place (Stacks cards, Cycles rows and types, Ended rows). */
 .fold {
   display: grid;
@@ -1754,86 +1573,8 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
   border-radius: 4px;
   background: var(--hue);
 }
-.xrow-body {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 500ms var(--hl-ease);
-}
-.xrow[data-open="true"] .xrow-body {
-  grid-template-rows: 1fr;
-}
-.xrow-body > div {
-  overflow: hidden;
-  min-height: 0;
-}
-.xrow[data-open="true"] .xrow-pad {
-  animation: hl-unfold 550ms var(--hl-settle) both;
-  transform-origin: top center;
-}
-/* A figure tile on these pages: the hue at 12% on raised, the figure in the
-   hue lifted toward white; amber when a runway is short. */
-.x-ftile {
-  background: color-mix(in srgb, var(--hue) 12%, var(--bg-surface-raised));
-}
-.x-ftile b {
-  color: color-mix(in srgb, var(--hue) 70%, var(--accent-primary));
-}
-.x-ftile[data-low="true"] b {
-  color: var(--accent-amber);
-}
-/* The containers strip: three across, snapping, no scrollbar. */
-.x-vscroll {
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  overscroll-behavior-x: contain;
-}
-.x-vscroll::-webkit-scrollbar {
-  display: none;
-}
-.x-vcard {
-  flex: 0 0 calc(33.33% - 6px);
-  scroll-snap-align: start;
-  transition:
-    border-color 350ms ease,
-    opacity 350ms ease,
-    transform 500ms var(--hl-spring);
-}
-.x-vcard[data-group="true"] {
-  flex: 0 0 auto;
-  min-width: calc(33.33% - 6px);
-}
-.x-vcard[aria-pressed="false"] {
-  transform: scale(0.97);
-}
-.x-vcard:active {
-  transform: scale(0.96);
-}
-.x-stackv > * + * {
-  margin-left: -15px;
-}
 .x-clus > * + * {
   margin-left: -9px;
-}
-/* The day-by-day rhythm of a cycle: a cell a day, today ringed; a long cycle
-   is one proportional bar with a tick for today. */
-.x-rhy i {
-  display: block;
-  height: 6px;
-  border-radius: 2px;
-  background: var(--bg-surface-raised);
-}
-.x-rhy i[data-on="true"] {
-  background: var(--hue);
-}
-.x-rhy i[data-now="true"] {
-  box-shadow: 0 0 0 1.5px var(--text-primary);
-}
-@media (prefers-reduced-motion: reduce) {
-  .xrow *,
-  .x-vcard {
-    animation: none !important;
-    transition: none !important;
-  }
 }
 /* HOME'S HALF-LIFE GLANCE (H5): a card per compound that you swipe through.
    The card nearest the centre opens IN PLACE: its sparkline grows into the
@@ -2188,11 +1929,6 @@ body[data-log-open="true"] .shortcuts-layer {
     0 10px 22px -14px rgb(0 0 0 / 0.9);
 }
 @media (prefers-reduced-motion: reduce) {
-  .hl-row,
-  .hl-row * {
-    transition: none !important;
-    animation: none !important;
-  }
   .animate-hl-swap {
     animation: none;
   }

@@ -8,6 +8,7 @@ import {
   amountAt,
   curvePoints,
   formatAmount,
+  rangeBand,
   type CurvePoint,
   type Dose,
 } from "@/lib/halflife/model"
@@ -18,6 +19,74 @@ const W = 270
 const H = 92
 const PAD = 8
 const IH = H - PAD * 2
+/** The whole drawing, with the TODAY label under it: the guide's leaders are
+ *  laid out against this box. */
+export const GRAPH_VIEW = { w: W, h: H + 14 }
+
+/** The top of the scale: the highest the curves reach, with room above; with
+ *  the likely range shown, room for its top edge (×1.30) too. */
+function graphTop(lines: readonly GraphLine[], t0: number, t1: number, band: boolean): number {
+  let mx = 0
+  for (const l of lines) {
+    const doses = [...l.taken, ...l.toCome]
+    for (const [, v] of curvePoints(doses, t0, t1, 200, l.source.halfLifeH, l.source.route)) mx = Math.max(mx, v)
+  }
+  return (mx || 1) * (band ? 1.36 : 1.15)
+}
+
+/** Where the guide's leaders point, in the drawing's units. */
+export interface GraphAnchors {
+  band: [number, number] | null
+  now: [number, number] | null
+  ahead: [number, number] | null
+  doses: [number, number] | null
+  peak: [number, number] | null
+  half: [number, number] | null
+}
+
+/**
+ * The marks the "Reading the curve" guide names (build-brief-final §3.11), on
+ * the same scale the graph draws: the range's top edge in the past, Now on the
+ * curve, a point on the dashed line ahead, the first dose tick, the upcoming
+ * peak, and the top of the ½ line. A mark the graph does not draw is null.
+ */
+export function graphAnchors({
+  lines,
+  t0,
+  t1,
+  nowH,
+  band = false,
+  halfAtH = null,
+  peakAtH = null,
+}: {
+  lines: readonly GraphLine[]
+  t0: number
+  t1: number
+  nowH: number
+  band?: boolean
+  halfAtH?: number | null
+  peakAtH?: number | null
+}): GraphAnchors {
+  const l = lines[0]
+  if (!l) return { band: null, now: null, ahead: null, doses: null, peak: null, half: null }
+  const top = graphTop(lines, t0, t1, band)
+  const X = (t: number) => ((t - t0) / (t1 - t0)) * W
+  const Y = (v: number) => PAD + IH - (v / top) * IH
+  const all = [...l.taken, ...l.toCome]
+  const at = (t: number) => amountAt(t <= nowH ? l.taken : all, t, l.source.halfLifeH, l.source.route)
+  const inView = (t: number | null): t is number => t != null && t > t0 && t < t1
+  const bandT = nowH - (nowH - t0) * 0.55
+  const aheadT = nowH + (t1 - nowH) * 0.55
+  const firstTick = l.taken.find((d) => d.atH >= t0 && d.atH <= t1)
+  return {
+    band: band ? [X(bandT), Y(at(bandT) * rangeBand([[bandT, 1]], nowH)[0][2])] : null,
+    now: inView(nowH) ? [X(nowH), Y(at(nowH))] : null,
+    ahead: l.toCome.length > 0 && inView(aheadT) ? [X(aheadT), Y(at(aheadT))] : null,
+    doses: firstTick ? [X(firstTick.atH), H - 4] : null,
+    peak: inView(peakAtH) && peakAtH > nowH ? [X(peakAtH), Y(at(peakAtH))] : null,
+    half: inView(halfAtH) ? [X(halfAtH), PAD + 2] : null,
+  }
+}
 
 /** The feel-pass tracer (ui-context → Charts): the line sweeps in over 1470ms
  *  on a quintic ease-out, a 7px ring rides the tip and fades over 320ms, and
@@ -96,6 +165,8 @@ export function HalfLifeGraph({
   halfAtH = null,
   doseTicks = false,
   keyed = false,
+  band = false,
+  showNow = true,
 }: {
   lines: readonly GraphLine[]
   t0: number
@@ -115,18 +186,26 @@ export function HalfLifeGraph({
   doseTicks?: boolean
   /** The graph's own top strip, on black, with a circled "?" that opens the key. */
   keyed?: boolean
+  /** The likely range (×1.14 / ×0.86 at Now, widening to ×1.30 / ×0.76 six
+   *  days out) shaded around the line, in place of the fill (§3.11). */
+  band?: boolean
+  /** A past run's graph ends before today: no Now line, no TODAY. */
+  showNow?: boolean
 }) {
   const [keyOpen, setKeyOpen] = useState(false)
   const uid = useId().replace(/:/g, "")
-  const top = useMemo(() => {
-    let mx = 0
-    for (const l of lines) {
-      const doses = [...l.taken, ...l.toCome]
-      for (const [, v] of curvePoints(doses, t0, t1, 200, l.source.halfLifeH, l.source.route)) mx = Math.max(mx, v)
-    }
-    return (mx || 1) * 1.15
-  }, [lines, t0, t1])
+  const top = useMemo(() => graphTop(lines, t0, t1, band), [lines, t0, t1, band])
   const built = useMemo(() => lines.map((l) => build(l, t0, t1, nowH, top)), [lines, t0, t1, nowH, top])
+  // The likely range around the isolated line (or the only one).
+  const bandPath = useMemo(() => {
+    if (!band) return null
+    const b = built[selected ?? 0]
+    if (!b || b.pts.length === 0) return null
+    const X = (t: number) => (((t - t0) / (t1 - t0)) * W).toFixed(1)
+    const Y = (v: number) => (PAD + IH - (v / top) * IH).toFixed(1)
+    const r = rangeBand(b.pts, nowH)
+    return "M" + r.map(([t, , hi]) => `${X(t)} ${Y(hi)}`).join("L") + "L" + [...r].reverse().map(([t, lo]) => `${X(t)} ${Y(lo)}`).join("L") + "Z"
+  }, [band, built, selected, t0, t1, top, nowH])
   const tx = ((Math.min(nowH, t1) - t0) / (t1 - t0)) * W
 
   // ---- the tracer: per-frame attribute writes, never React state ----
@@ -270,7 +349,8 @@ export function HalfLifeGraph({
               className="transition-opacity duration-300 ease-out"
               style={{ opacity: dim ? 0.14 : 1 }}
             >
-              {filled && b.area ? <path data-fade="" d={b.area} fill={`url(#${uid}g${i})`} /> : null}
+              {filled && bandPath ? <path data-fade="" d={bandPath} style={{ fill: lines[i].hue }} fillOpacity="0.2" /> : null}
+              {filled && b.area && !band ? <path data-fade="" d={b.area} fill={`url(#${uid}g${i})`} /> : null}
               {b.future ? (
                 <path
                   data-fade=""
@@ -331,7 +411,7 @@ export function HalfLifeGraph({
             )
           : null}
         {/* Now: a thin line, no dot. */}
-        {tx > 0 && tx <= W ? (
+        {showNow && tx > 0 && tx <= W ? (
           <line x1={tx} x2={tx} y1="2" y2={H} stroke="var(--text-primary)" strokeOpacity="0.6" strokeWidth="1" />
         ) : null}
         <circle
@@ -355,17 +435,19 @@ export function HalfLifeGraph({
             />
           </>
         ) : null}
-        <text
-          x={tx.toFixed(1)}
-          y={H + 12}
-          textAnchor="middle"
-          className="font-mono"
-          fontSize="9"
-          letterSpacing="0.08em"
-          fill="var(--text-muted)"
-        >
-          TODAY
-        </text>
+        {showNow ? (
+          <text
+            x={tx.toFixed(1)}
+            y={H + 12}
+            textAnchor="middle"
+            className="font-mono"
+            fontSize="9"
+            letterSpacing="0.08em"
+            fill="var(--text-muted)"
+          >
+            TODAY
+          </text>
+        ) : null}
       </svg>
 
       {scrubLine != null ? (

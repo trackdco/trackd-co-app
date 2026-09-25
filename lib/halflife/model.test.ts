@@ -5,6 +5,7 @@ import {
   amountAt,
   clearsAfterH,
   curvePoints,
+  doseRuns,
   figuresAt,
   formatAmount,
   formatClearsIn,
@@ -569,5 +570,29 @@ describe("the general line", () => {
         clearsAfter: formatDuration(clearsAfterH(c.halfLifeH, c.route)),
       })
     }
+  })
+})
+
+describe("dose runs", () => {
+  const weekly = (fromDay: number, n: number): Dose[] =>
+    Array.from({ length: n }, (_, i) => ({ atH: (fromDay + i * 7) * 24, amount: 2 }))
+
+  it("splits taken doses at a break, keeps a titration in one run, and marks the current one", () => {
+    const doses = [...weekly(0, 4), ...weekly(80, 3).map((d, i) => ({ ...d, amount: 2 + i }))]
+    const runs = doseRuns(doses, 96 * 24, 6 * 24)
+    expect(runs.map((r) => [r.fromH / 24, r.toH / 24, r.count, r.current])).toEqual([
+      [0, 21, 4, false],
+      [80, 94, 3, true],
+    ])
+  })
+
+  it("keeps a daily compound's run whole across a missed day", () => {
+    const daily: Dose[] = [0, 1, 2, 4, 5, 6].map((d) => ({ atH: d * 24, amount: 1 }))
+    expect(doseRuns(daily, 6.5 * 24, 2).length).toBe(1)
+  })
+
+  it("has no current run once the last dose is long past, and none at all before a dose", () => {
+    expect(doseRuns(weekly(0, 3), 200 * 24, 6 * 24).at(-1)?.current).toBe(false)
+    expect(doseRuns([], 10, 6)).toEqual([])
   })
 })
