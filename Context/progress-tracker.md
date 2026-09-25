@@ -1,5 +1,37 @@
 # Progress Tracker
 
+## 🗳 ROUND TWO, PART TWO — ANSWERED (2026-09-25, 03:46 UTC). NOTHING IS BUILT.
+
+Adrian: "wait for everything. I want a finalised view of everything in ONE artifact at the end,
+then I will get another handover prompt to build it and I'll review it." So: a round-three page
+for what is still open, then one consolidated final artifact, then a build handover. His answers
+are in https://claude.ai/artifact/KzqihDUTkdJoJJvqbUCGgc (`part2/answers`).
+
+**Decided in part two:**
+- Migrations: HOLD 025 and 026 until the branch merges (`mig2 = merge`), with the embeds hinted.
+- Half-life card: A1 "Level, then the facts" (Level / Half-life / Next dose; Clears in only once
+  stopped), with Climbing / Steady / Dropping. He asks whether people would want more data.
+- Past levels: range tabs AND past runs (he asks where they live). The half-life gets its OWN PAGE
+  from a fourth Protocol tile; Protocol loses the card (`a_where2 = page`).
+- Compound sheet: the half-life beside the type in the header, "formatted to look better".
+- Home: H1 the sliding chip rail, showing only the types you run. The count dots are REMOVED
+  (nothing replaces Today ring / Next dose). Log folding: F4 dim, close to today's look, plus a
+  tap on a type's title folds it to one line (only when tapped).
+- Consistency review: fix ALL 30 findings (`Context/consistency-review.md`).
+- Journal markers: the slider, redesigned; he asks how to delete a marker and what the Markers tile
+  shows.
+- Cycles: Y1 (cycle cards, then the live timeline), with a new top card and rounded-square buttons.
+- Stock: T1 the shelf (unsure); he asks what opens on a tap; the empty state previews the shelf
+  instead of Kyle.
+- Empty states: E3 "the next step first", as a "Let's get you started" flow that ends once the
+  first compound is logged.
+- Icons: SOLID, glyphs anabolic = drop, peptide = chain, blend = two circles, SARM = hexagon,
+  oral = capsule, ancillary = cross, thyroid = butterfly, stimulant = burst. Supplements NOT picked.
+  Protocol's foot tiles (and other icons) should move to this style.
+- Running: opens to a shelf, which he'd like side-scrolling.
+- Add compound: today's sheet with the new marks, but the icons on the compound rows should differ.
+- Progress: a whole remake of the empty cards.
+
 ## 🗳 ROUND TWO — PICKS IN, PART TWO IN DESIGN, NOTHING BUILT YET (2026-09-25)
 
 Adrian's round-two brief (8 fixes + calls a–j) went on one decisions page before any
