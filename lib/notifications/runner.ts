@@ -1170,7 +1170,7 @@ export async function runForUser(
    * gates never open at once and the reminder is never sent, on any day, with no
    * error anywhere. Three trial days were walked and zero pushes went out.
    *
-   * It is reachable: `ReminderSettings` offers three unconstrained time inputs
+   * It is reachable: the Notifications page offers three unconstrained time inputs
    * and `prefsActions` validates only the HH:MM shape.
    *
    * The dose reminders can live with this — they come round again tomorrow. This

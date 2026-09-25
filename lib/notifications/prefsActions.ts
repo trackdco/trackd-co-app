@@ -65,6 +65,13 @@ export interface ReminderPrefsInput {
   reminderTime: string; // "HH:MM"
   quietStart: string; // "HH:MM"
   quietEnd: string; // "HH:MM"
+  /**
+   * The two `supabase/notifications/007` switches. OPTIONAL, and written in their
+   * own update below: the page leaves them out when it could not read them (007
+   * not applied), so a missing column can never fail the rest of the save.
+   */
+  hideNames?: boolean;
+  checkinsOn?: boolean;
 }
 
 /** The `unlogged_wait` enum labels, in the order the settings screen offers them. */
@@ -102,6 +109,17 @@ export async function saveReminderPrefs(
       })
       .eq("user_id", user.id);
     if (error) return { ok: false };
+
+    if (input.hideNames !== undefined || input.checkinsOn !== undefined) {
+      const patch: Record<string, boolean> = {};
+      if (input.hideNames !== undefined) patch.hide_compound_names = Boolean(input.hideNames);
+      if (input.checkinsOn !== undefined) patch.checkins_on = Boolean(input.checkinsOn);
+      const { error: privacyError } = await supabase
+        .from("notification_preferences")
+        .update(patch)
+        .eq("user_id", user.id);
+      if (privacyError) return { ok: false };
+    }
 
     revalidatePath("/notifications");
     return { ok: true };

@@ -85,7 +85,8 @@ export function useSlidingThumb(
       thumb.style.height = `${b.height}px`
       thumb.style.opacity = "1"
       // Until this is set (a server render, before hydration) the group can
-      // paint its own selection; see ReminderSettings.
+      // paint its own selection (the `[&:not([data-thumb-ready])>[aria-checked=true]]`
+      // class on the group, as the segmented rails use it).
       container.dataset.thumbReady = "true"
       if (instant) {
         // Read once so the jump commits before the transition comes back.

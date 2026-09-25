@@ -147,7 +147,7 @@ export function AutoRefresh() {
         Auto
       </span>
       {/* Geometry copied from the three shipped switches
-          (`components/settings/NotificationsToggle.tsx` and friends), which are
+          (`components/settings/NotificationSettings.tsx` and friends), which are
           identical to each other by deliberate decision. ui-context.md: "No
           exceptions, and no per-screen variants." */}
       <button

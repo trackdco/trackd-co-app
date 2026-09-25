@@ -737,6 +737,19 @@ Found along the way:
 
 ## 🟡 NOTIFICATIONS — ON BRANCH `notifications/copy-refresh`, NOT MERGED (2026-09-25/26)
 
+### The Notifications page, layout A (2026-09-26, branch `notifications/settings-page`)
+
+- Built on half-life's look: `PushedPageHead`, `CARD` + `ROWS`, the amber switch, the toast.
+  `NotificationSettings.tsx` replaces `NotificationsToggle` + `ReminderSettings` (deleted).
+- **Saves as you go**, one save per 600ms pause, with "Saved" + Undo; a change still pending
+  when you leave the page is saved on the way out. The "Save reminders" button is gone.
+- **The preview** (`NotificationPreview.tsx`) shows the notification for the row last touched,
+  worded by the runner's own builders from the user's own compounds, "Trakabl • " only on
+  iPhone. "Send me a test" sits under it.
+- **Check-ins and Hide compound names** are read in their own query and only drawn when 007
+  can be read, so a missing migration hides two rows instead of resetting the page.
+- A quiet-hours note appears when the reminder time falls inside quiet hours.
+
 ### The check-up engine and hide-names (2026-09-26)
 
 - **51 check-ups signed off** in the swipe-deck artifact

@@ -223,12 +223,11 @@ Adds `hide_compound_names`, `checkins_on`, `last_checkup_on` and the
 `notification_log` table, and adds `last_checkup_on` to the stamp guard. VERIFY
 block at the foot of the file.
 
-### 3. The Notifications page, layout A (next, on top of half-life)
-Mockup: https://claude.ai/artifact/1WFRxirrZWVBhmGFUfgsiC. Live lock-screen preview,
-master switch, one reminders card (dose time, "Don't forget" after N hr, low stock,
-Check-ins), one card with "Hide compound names" and quiet hours, saving as you go
-with half-life's "Saved" toast and Undo. `prefsActions.ts` needs the two new
-switches (written in their own update so a missing 007 cannot fail the rest).
+### 3. The Notifications page, layout A — BUILT on `notifications/settings-page` (2026-09-26)
+Branched from `design/half-life-motion` (1f77303) with `notifications/copy-refresh` merged
+in, so it merges AFTER half-life. `npm run check` green (2526 tests). Seen at 390x844 on a
+dev server with push faked on (preview, rows, hidden names, low-stock preview). Still to
+see on a real phone: the native time pickers, and the page with 007 applied on the burner.
 
 ### 4. Turn check-ups on: `NOTIFICATION_CHECKUPS=on` in Vercel
 Only once task 3 has shipped and 007 is applied: the Check-ins switch has to exist
