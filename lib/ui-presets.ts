@@ -148,15 +148,17 @@ export const DANGER_ROW =
  * against `px-2.5 py-1`. Same fields, same units, same task — so one definition.
  * Add-a-compound's version won, because it is the one most people meet first.
  */
-export const STOCK_FIELD_LABEL = "mb-1 block text-xs text-text-muted"
+/** Every field's label, in every form (consistency fix #19). */
+export const FIELD_LABEL = "mb-1 block text-xs text-text-muted"
+/** @deprecated The stock form's name for {@link FIELD_LABEL}. */
+export const STOCK_FIELD_LABEL = FIELD_LABEL
 /** Pair with the `Input` component, which supplies the base. */
 export const STOCK_FIELD =
   "h-11 min-w-0 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input"
-export const STOCK_PILL = "rounded-lg border px-2.5 py-1 text-sm transition-colors"
-export const STOCK_PILL_ON =
-  "border-transparent bg-accent-primary font-medium text-bg-base"
-export const STOCK_PILL_OFF =
-  "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
+/** @deprecated Use CHIP / CHIP_ON / CHIP_OFF (fix #20). Kept as aliases. */
+export const STOCK_PILL = "press-pill rounded-lg border px-2.5 py-1 text-sm transition-colors"
+export const STOCK_PILL_ON = "border-transparent inst-thumb font-medium text-bg-base"
+export const STOCK_PILL_OFF = "border-border-default bg-bg-input text-text-muted hover:text-text-primary"
 
 /**
  * The app's primary confirm button — "Save", "Add to log", "Resume now".
@@ -175,7 +177,7 @@ export const STOCK_PILL_OFF =
  * applies `:active` too late for a quick tap to show it at all.
  */
 export const PRIMARY_BUTTON =
-  "press-button inst-btn flex items-center justify-center gap-2 px-4 py-3 " +
+  "press-button inst-btn flex min-h-11 items-center justify-center gap-2 px-4 py-3 " +
   "text-sm font-medium text-bg-base transition-opacity hover:opacity-90 " +
   "disabled:pointer-events-none disabled:opacity-50"
 
@@ -197,9 +199,54 @@ export const ROWS = "inst-rows"
 
 /** The quiet button beside a white one (Cancel, Edit, Mix one). Radius 9. */
 export const GHOST_BUTTON =
-  "press-button inst-ghost flex items-center justify-center gap-2 px-4 py-3 " +
+  "press-button inst-ghost flex min-h-11 items-center justify-center gap-2 px-4 py-3 " +
   "text-sm font-medium text-text-primary transition-opacity hover:opacity-90 " +
   "disabled:pointer-events-none disabled:opacity-50"
+
+/** Every Cancel / Go back beside a white button (consistency fix #2). In the
+ *  Instrument look it IS the ghost button. */
+export const SECONDARY_BUTTON = GHOST_BUTTON
+
+/** A white action INSIDE a row or card ("Mix one", "Add stock"): the primary
+ *  button at a row's size. */
+export const PRIMARY_PILL =
+  "press-button inst-btn inline-flex min-h-9 items-center justify-center gap-1.5 px-4 py-2 " +
+  "text-[13px] font-medium text-bg-base disabled:pointer-events-none disabled:opacity-50"
+
+/** The small "+" at a page's or sheet header's top right, and in a row: a
+ *  rounded square, radius 10 (build-brief-final §2.4). */
+export const ADD_ACTION =
+  "press-button inst-btn flex h-[34px] w-[34px] shrink-0 items-center justify-center text-bg-base"
+
+/** A choice among a few (mg / mcg, a unit, a pose), not on a rail: rounded
+ *  rectangles, outlined off, white on (consistency fix #20). */
+export const CHIP =
+  "press-pill inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors"
+export const CHIP_ON = "border-transparent inst-thumb font-medium text-bg-base"
+export const CHIP_OFF = "border-border-default text-text-muted hover:text-text-primary"
+
+/** Two to four choices side by side: the rail and its sliding thumb
+ *  (ThumbGroup). Card-header size, and a sheet size. */
+export const SEGMENTED_TRACK = "inst-rail flex p-[3px]"
+export const SEGMENTED_ITEM =
+  "press-pill flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 py-1 text-[11.5px] transition-colors duration-300"
+export const SEGMENTED_ITEM_LG =
+  "press-pill flex flex-1 items-center justify-center gap-1.5 rounded-sm px-3 py-2 text-sm transition-colors duration-300"
+
+/** A warning or note inside a sheet: a muted line, at most one amber glyph,
+ *  no box (consistency fix #27). */
+export const INLINE_NOTE = "flex items-start gap-2 text-[12.5px] leading-snug text-text-muted"
+
+/** A list row's name, its mono metadata line, and a tile's label (fix #15). */
+export const ROW_NAME = "truncate text-[14px] text-foreground"
+export const ROW_META = "font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted"
+export const TILE_LABEL = "text-[11px] text-text-muted"
+
+/** The chevron on a row that GOES somewhere (fix #11). An icon, so subtle. */
+export const ROW_CHEVRON = "h-4 w-4 shrink-0 text-text-subtle"
+
+/** Corners INSIDE a card: never rounder than the card (fix #9). */
+export const INNER_RADIUS = "rounded-xl"
 
 /** A chip rail or switch track, and the thumb that slides in it. */
 export const CHIP_RAIL = "inst-rail"

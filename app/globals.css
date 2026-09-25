@@ -417,6 +417,36 @@
   --border-strong: #3e3e3a;
 }
 
+/* The public site's APP PREVIEWS (the phone screens, Kyle's pieces of the app)
+   take the app's look inside the pinned page: the app's own values again,
+   scoped to `[data-app-look]` (build-brief-final §3.16: "leave landing alone
+   except the app previews inside its sections"). */
+[data-app-look] {
+  --font-app-sans: var(--font-plex-sans);
+  --font-app-mono: var(--font-plex-mono);
+  --r-sm: 8px;
+  --r-md: 9px;
+  --r-lg: 10px;
+  --r-xl: 12px;
+  --r-2xl: 20px;
+  --bg-input: #282725;
+  --bg-inset: #131211;
+  --bg-inset-deep: #100f0e;
+  --text-primary: #f5f3f0;
+  --accent-amber: #d0802b;
+  --cat-anabolic: #d0802b;
+  --muscle-region: #32312f;
+  --bg-surface-done: #141312;
+  --bg-base: #050504;
+  --bg-surface: #191918;
+  --bg-surface-raised: #222120;
+  --text-muted: #8d8b89;
+  --text-subtle: #4f4d4a;
+  --border-default: #2b2a28;
+  --border-strong: #3d3b39;
+  font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
 /* ---------------------------------------------------------------------------
    Tailwind v4 theme. `inline` keeps the var() reference so utilities resolve
    against the tokens above (and the next/font variables on <html>) at runtime.
@@ -1681,6 +1711,26 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
   transition:
     opacity 300ms ease 180ms,
     transform 450ms var(--hl-settle) 180ms;
+}
+/* The one close arrow (components/feel/CloseArrow.tsx): turned and small while
+   its panel is shut, spinning in as it opens. */
+.close-arrow {
+  transition:
+    opacity 300ms ease 50ms,
+    transform 550ms var(--hl-spring);
+}
+.close-arrow[data-shown="false"] {
+  opacity: 0;
+  transform: rotate(-180deg) scale(0.6);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .close-arrow {
+    transition: opacity 150ms ease;
+  }
+  .close-arrow[data-shown="false"] {
+    transform: none;
+  }
 }
 .hl-glance-up {
   background: rgb(0 0 0 / 0.28);

@@ -1,14 +1,14 @@
 "use client"
 
-import Link from "next/link"
 import type { ReactNode } from "react"
 
-import { ArrowLeft, Plus } from "@/components/icons"
+import { Plus } from "@/components/icons"
+import { BackLink } from "@/components/feel/BackLink"
 import { SolidIcon } from "@/components/feel/SolidIcon"
 import type { GlyphName } from "@/lib/solidGlyphs"
 import { cn } from "@/lib/utils"
 import { ExplainerButton, type ExplainerTopic } from "@/components/protocol/Explainer"
-import { PAGE_TITLE, PRESS, TILE } from "@/lib/ui-presets"
+import { ADD_ACTION, PAGE_TITLE, PRESS, TILE } from "@/lib/ui-presets"
 
 /**
  * A Protocol page's frame: the back link, the title with its explainer "?"
@@ -49,13 +49,7 @@ export function SubpageShell({
       className="subpage-in mx-auto w-full max-w-md space-y-4 px-5 pt-4 pb-5"
     >
       <div>
-        <Link
-          href={backHref}
-          className="-ml-2 inline-flex min-h-11 items-center gap-2 px-2 text-sm text-text-muted transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden />
-          {backLabel}
-        </Link>
+        <BackLink href={backHref} label={backLabel} />
         <div className="mt-1 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
             {mark}
@@ -81,7 +75,7 @@ export function SubpageShell({
               onClick={action.onClick}
               disabled={action.disabled}
               aria-label={action.label}
-              className={cn(PRESS.button, "inst-btn flex h-[34px] w-[34px] shrink-0 items-center justify-center text-bg-base disabled:opacity-40")}
+              className={cn(ADD_ACTION, "disabled:opacity-40")}
             >
               <Plus className="h-4 w-4" aria-hidden />
             </button>

@@ -1,16 +1,18 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
 
-import { Calculator, ChartLine, Plus, SquaresFour, Syringe, User } from "@/components/icons";
+import { Plus } from "@/components/icons";
+import { SolidIcon } from "@/components/feel/SolidIcon";
+import type { GlyphName } from "@/lib/solidGlyphs";
 import { cn } from "@/lib/utils";
 
 /** The app's five tabs, in the app's order (`components/navigation/bottom-nav.tsx`). */
 const TABS = [
-  { key: "dashboard", label: "Dashboard", Icon: SquaresFour },
-  { key: "protocol", label: "Protocol", Icon: Syringe },
-  { key: "calculator", label: "Calculator", Icon: Calculator },
-  { key: "progress", label: "Progress", Icon: ChartLine },
-  { key: "profile", label: "Profile", Icon: User },
+  { key: "dashboard", label: "Dashboard", glyph: "navDashboard" },
+  { key: "protocol", label: "Protocol", glyph: "navProtocol" },
+  { key: "calculator", label: "Calculator", glyph: "navCalculator" },
+  { key: "progress", label: "Progress", glyph: "navProgress" },
+  { key: "profile", label: "Profile", glyph: "navProfile" },
 ] as const;
 
 export type PhoneTab = (typeof TABS)[number]["key"];
@@ -87,7 +89,10 @@ export function Phone({
               what lets a screen reuse the app's real (interactive) components.
               `text-[16px]`: the app's base size in px, so a large monitor's
               bigger root size does not reach inside (see `.lp-phone-logical`). */}
-          <div inert className="lp-phone-logical relative overflow-hidden bg-bg-base text-left text-[16px]">
+          {/* `data-app-look`: the screen inside the phone is the APP, so it takes
+              the app's look (Plex, the deeper black, the new corners), while
+              the page around it keeps the public site's (build-brief-final §3.16). */}
+          <div inert data-app-look="" className="lp-phone-logical relative overflow-hidden bg-bg-base text-left text-[16px]">
             <StatusBar />
             <AppHeader />
             <div className="relative">{children}</div>
@@ -156,15 +161,15 @@ function TabBar({ tab }: { tab: PhoneTab }) {
   return (
     <div className="absolute inset-x-0 bottom-0 border-t-[0.5px] border-border-default bg-bg-base/90 pb-[34px] backdrop-blur">
       <div className="grid h-16 grid-cols-5 items-center px-2">
-        {TABS.map(({ key, label, Icon }) => (
+        {TABS.map(({ key, label, glyph }) => (
           <span
             key={key}
             className={cn(
               "flex flex-col items-center justify-center gap-1 py-1",
-              key === tab ? "text-foreground" : "text-text-subtle",
+              key === tab ? "text-foreground" : "text-text-muted",
             )}
           >
-            <Icon className="h-5 w-5" />
+            <SolidIcon name={glyph as GlyphName} size={21} tone={key === tab ? "on" : "off"} />
             <span className="text-[10px] font-medium tracking-wide">{label}</span>
           </span>
         ))}

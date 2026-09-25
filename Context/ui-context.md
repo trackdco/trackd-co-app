@@ -73,6 +73,23 @@ delete it from here. Line numbers (Lnnn) are to this file as it was before this 
   fix #5, use it for every delete and end); the toast `lib/toast.ts` + `components/feel/Toast.tsx` (Undo where it can
   undo); `Fold` (opens in place, 420ms open / 280ms shut) and `SquareActions` (rounded-square buttons, Solid mark
   over the word, destructive in red) in `components/protocol/pages/Subpage.tsx`; `TypeRail` for types.
+- **The consistency primitives (built 2026-09-26, phase 8; Context/consistency-review.md):**
+  - Buttons: `PRIMARY_BUTTON` (white) and `SECONDARY_BUTTON` (= `GHOST_BUTTON`) are 44px tall at least; a
+    white action inside a row is `PRIMARY_PILL`; the top-right or in-row "+" is `ADD_ACTION` (radius 10).
+  - Confirm: `components/feel/ConfirmDialog.tsx` (question, one line, Cancel + red `bg-accent-destructive`). The
+    red for a destructive BUTTON is `--accent-destructive`; red TEXT on a surface is
+    `--accent-destructive-on-surface`. `--state-error` is for errors, never for a delete.
+  - Sheets: `components/layout/BottomSheet.tsx` (grab handle, drag to close, no ×). Header: a `SHEET_TITLE` with
+    a footer of Cancel + primary, or a Cancel / Title / Verb bar (Add, Log).
+  - Opening in place: `components/feel/CloseArrow.tsx` (30px, radius 9, spins in). `CaretRight` + `ROW_CHEVRON`
+    only for a row that goes somewhere.
+  - Back: `components/feel/BackLink.tsx` at the top of every pushed page; never a "Back to …" at the foot.
+  - Words and figures: `FIELD_LABEL` for every field label; `CHIP`/`CHIP_ON`/`CHIP_OFF` for a choice not on a
+    rail; `SEGMENTED_TRACK` + `SEGMENTED_ITEM`(`_LG` in a sheet) on a ThumbGroup; `INLINE_NOTE` for a note in a
+    sheet; `ROW_NAME`, `ROW_META`, `TILE_LABEL`; `INNER_RADIUS` (12) inside a card. Doses through
+    `lib/format/dose.ts` ("1.125 mg"); dates through `lib/format/date.ts` (`dayLong` "Tue 3 Sep", `dayShort`
+    "3 Sep", `dayRange` "3 to 9 Sep"; the numeric title stays `formatDateKeyNumeric`).
+  - Toasts: `showToast(text, { undo })` for every save, pause, mix and delete; never a banner or an alert.
 - Unchanged and still binding: no suggested site, ever (L205); readable text never in subtle; state colours
   never on health data; amber for one or two beats per screen.
 

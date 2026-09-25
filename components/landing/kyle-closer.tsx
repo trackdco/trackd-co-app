@@ -129,6 +129,7 @@ function Card({
       style={{ transitionDelay: `${delay}ms` }}
     >
       <div
+        data-app-look=""
         className="lp-drift flow-card rounded-2xl bg-bg-surface p-3.5"
         style={{ "--drift-x": drift[0], "--drift-y": drift[1], "--drift-ms": drift[2] } as CSSProperties}
       >
@@ -164,7 +165,7 @@ function Orb({
         className="lp-drift flex flex-col items-center gap-1.5"
         style={{ "--drift-x": drift[0], "--drift-y": drift[1], "--drift-ms": drift[2] } as CSSProperties}
       >
-        <span className="flow-card flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-bg-surface ring-1 ring-inset ring-text-primary/8">
+        <span data-app-look="" className="flow-card flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-bg-surface ring-1 ring-inset ring-text-primary/8">
           {children}
         </span>
         <span className="text-[10px] uppercase tracking-[0.14em] text-text-secondary">{label}</span>
