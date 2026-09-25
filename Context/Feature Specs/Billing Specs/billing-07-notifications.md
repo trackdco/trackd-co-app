@@ -162,6 +162,14 @@ test.
 The entitlements query is issued only when the gate switch is on, and the write
 decision defaults to true when it is off, which is today's world.
 
+> **Copy superseded 2026-09-25 (Adrian, branch `notifications/copy-refresh`).** The
+> three variants now read: trial "Your Trial Ends Soon" / "It's day 5 of 7. Your free
+> trial ends on [date], and your Pro plan starts then."; grace "Free Access Ends Soon"
+> with the body below unchanged; courtesy "Free Access Ends Soon" / "Your free month
+> ends [date]. Your Pro plan will continue as usual." All three open `/billing`, and
+> iPhone shows the titles with a "Trakabl • " prefix. What this section says about
+> WHICH variant goes to whom still stands.
+
 ### 3.4 ⚠️ Three endings, three variants, and the one that would lie
 
 Every ending is handed to the sender in the same shape — a status, an end date, no

@@ -242,7 +242,7 @@ export function shiftDateKey(dateKey: string, days: number): string {
 }
 
 /** ISO weekday (Mon=1 … Sun=7) for a YYYY-MM-DD. */
-function isoWeekday(dateKey: string): number {
+export function isoWeekday(dateKey: string): number {
   const [y, m, d] = dateKey.split("-").map(Number);
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun … 6=Sat
   return dow === 0 ? 7 : dow;
@@ -427,29 +427,75 @@ export function lowStock(
  */
 const NAME_LIST_MAX = 3;
 
-/** "Doses due today" digest. Lists names when few, else just the count. */
-export function doseReminderMessage(due: ReminderCompound[]): PushMessage | null {
+/**
+ * "A & B", or "A, B & C". Adrian's rule (2026-09-25), used wherever a push lists
+ * names, so the dose digest and the low-stock list read the same way.
+ */
+export function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
+}
+
+/*
+ * The titles carry no "Trakabl • " prefix. iPhone shows no app name on a
+ * notification, so public/sw.js adds it there; Android and desktop print the
+ * name in their own header, where a prefix would say it twice.
+ *
+ * No line ends in a full stop (Adrian, 2026-09-25): a stop stays only between
+ * two sentences on the same line. `\n` splits a body where a line would otherwise
+ * wrap and leave its last word, or its emoji, alone on the next one.
+ */
+
+/**
+ * How a message may speak about the user's compounds.
+ *
+ * `hideNames` is the lock-screen privacy setting (`notification_preferences.
+ * hide_compound_names`, Adrian 2026-09-25). A peptide or hormone name on a lock
+ * screen tells whoever is holding the phone what somebody is taking, so with it
+ * on every body is written from counts alone. It is not a softer version of the
+ * same message: nothing that names a compound may slip through, so each builder
+ * takes the flag and has its own count-only wording, rather than a filter
+ * scrubbing names out afterwards and missing one.
+ */
+export interface MessageOptions {
+  hideNames?: boolean;
+}
+
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
+/** Morning digest of what is due. Lists names when few, else just the count. */
+export function doseReminderMessage(
+  due: ReminderCompound[],
+  opts: MessageOptions = {},
+): PushMessage | null {
   if (due.length === 0) return null;
   const names = due.map((c) => c.name);
-  const body =
-    names.length === 1
-      ? `${names[0]} is due today.`
-      : names.length <= NAME_LIST_MAX
-        ? `Due today: ${names.join(", ")}.`
-        : `You have ${names.length} doses due today.`;
-  return { title: "Doses due today", body, url: "/dashboard", tag: "trackd-dose-daily" };
+  const n = names.length;
+  const body = opts.hideNames
+    ? `You have ${n} ${plural(n, "dose", "doses")} due today`
+    : n === 1
+      ? `${names[0]} is due today`
+      : n <= NAME_LIST_MAX
+        ? `${joinNames(names)} are all due today`
+        : `You have ${n} doses due today`;
+  return { title: "Dose Reminder", body, url: "/dashboard", tag: "trackd-dose-daily" };
 }
 
 /** Later-in-the-day nudge for due doses still unlogged. */
-export function missedNudgeMessage(due: ReminderCompound[]): PushMessage | null {
+export function missedNudgeMessage(
+  due: ReminderCompound[],
+  opts: MessageOptions = {},
+): PushMessage | null {
   if (due.length === 0) return null;
   const n = due.length;
   return {
-    title: "Don't forget",
+    title: "Don't Forget",
     body:
       n === 1
-        ? `${due[0].name} is still unlogged today.`
-        : `${n} doses are still unlogged today.`,
+        ? opts.hideNames
+          ? "1 dose is still unlogged today"
+          : `${due[0].name} is still unlogged today`
+        : `${n} doses are still unlogged today`,
     url: "/dashboard",
     tag: "trackd-missed",
   };
@@ -462,25 +508,31 @@ export function missedNudgeMessage(due: ReminderCompound[]): PushMessage | null 
  * itself — the same rule `doseReminderMessage` uses, so the three messages read
  * as one voice. Joining every name grew without bound: ten low items produced a
  * 146-character body that the notification shade truncates mid-list anyway.
+ *
+ * "compounds", not "vials". The feeding query (`runner.ts`) selects
+ * `inventory_items` with NO `inventory_type` filter, so tubs and bottles are in
+ * scope — a user low on creatine and vitamin D3 was told "2 vials are running
+ * low", naming two things that are neither. There is no per-item form here to
+ * word it from (`LowStockItem` is a name and a runway), and the message covers a
+ * mixed set anyway, so it uses the one noun that is true of all of them.
  */
-export function lowStockMessage(items: LowStockItem[]): PushMessage | null {
+export function lowStockMessage(
+  items: LowStockItem[],
+  opts: MessageOptions = {},
+): PushMessage | null {
   if (items.length === 0) return null;
+  const n = items.length;
+  // Under one dose left reads as "≈0 doses", so it takes the line with no count.
+  const left =
+    n === 1 && items[0].dosesRemaining != null ? Math.floor(items[0].dosesRemaining) : 0;
+  const who = opts.hideNames ? "1 compound" : items[0].name;
   const body =
-    items.length === 1
-      ? `${items[0].name} is running low${
-          items[0].dosesRemaining != null
-            ? `. About ${Math.floor(items[0].dosesRemaining)} doses left.`
-            : "."
-        }`
-      : items.length <= NAME_LIST_MAX
-        ? // "compounds", not "vials". The feeding query (`runner.ts`) selects
-          // `inventory_items` with NO `inventory_type` filter, so tubs and
-          // bottles are in scope — a user low on creatine and vitamin D3 was
-          // told "2 vials are running low", naming two things that are neither.
-          // There is no per-item form here to word it from (`LowStockItem` is a
-          // name and a runway), and the message covers a mixed set anyway, so it
-          // uses the one noun that is true of all three.
-          `${items.length} compounds are running low: ${items.map((i) => i.name).join(", ")}.`
-        : `${items.length} compounds are running low.`;
-  return { title: "Running low", body, url: "/protocol", tag: "trackd-lowstock" };
+    n === 1
+      ? left >= 1
+        ? `${who} is running low on stock\n(≈${left} ${plural(left, "dose", "doses")} left)`
+        : `${who} is running low`
+      : n <= NAME_LIST_MAX && !opts.hideNames
+        ? `${n} compounds are running low on stock\n(${joinNames(items.map((i) => i.name))})`
+        : `${n} compounds are running low on stock`;
+  return { title: "Low Stock", body, url: "/protocol", tag: "trackd-lowstock" };
 }

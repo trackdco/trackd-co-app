@@ -1845,6 +1845,16 @@ feels off even when it looks right.
   rather than system copy. The ban exists so an INSTRUMENT does not chirp at
   you about your own data; neither of those is the instrument talking. Nothing
   inside the app gets one.
+  **A third, for PUSH NOTIFICATIONS only (Adrian, 2026-09-25/26):** the
+  check-ups and the rotating reminder wordings may be cheeky and may carry an
+  emoji, "very selectively" — only the emoji in the signed-off set in
+  `lib/notifications/checkups.ts`, never one added to a line that did not have
+  it. Still no exclamation marks and no em dashes. A push arrives on a lock
+  screen with nothing around it, which is why it may speak where the app does
+  not. Notification wording also follows two rules of its own: **no line ends
+  in a full stop** (a stop only between two sentences on a line; Clean Sweep's
+  "Frame it." is his one exception), and titles are Title Case with no app
+  name, because `public/sw.js` adds "Trakabl • " on iPhone only.
 - **Never an em dash.** Not in any user-facing string, anywhere in the app
   (Adrian, 2026-07-30). Use a full stop and a second sentence, a colon where
   one clause introduces another, or a comma. An em dash reads as an aside the

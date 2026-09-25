@@ -18,6 +18,7 @@
  *   public/splash/apple-splash-*.png                        9 iOS launch images
  *   public/icon-192.png, public/icon-maskable.png           PWA icons
  *   app/icon.png, app/apple-icon.png, app/favicon.ico       Next icon conventions
+ *   public/notification-badge.png                           Android notification icon
  *
  * ## Why the poses share ONE crop box
  *
@@ -132,6 +133,10 @@ const ICONS = [
 
 /** favicon.ico — 48px, the size Next's convention ships. */
 const FAVICON_SIZE = 48;
+
+// Android's notification small icon. 96px is the xxxhdpi size of its 24dp
+// slot; the silhouette fills most of it because the slot is already tiny.
+const BADGE = { size: 96, ratio: 0.9 };
 
 /** Alpha bounding box of one PNG, in its own pixel coordinates. */
 async function bbox(file) {
@@ -279,6 +284,33 @@ async function main() {
     .toBuffer();
   await fs.writeFile(path.join(appDir, "favicon.ico"), pngToIco(favPng, FAVICON_SIZE));
   console.log(`icon → app/favicon.ico (${FAVICON_SIZE}x${FAVICON_SIZE}, PNG-in-ICO)`);
+
+  // 5) The notification badge — Kyle's silhouette in white on nothing.
+  //
+  // Android draws a notification's small icon (status bar, and beside the app
+  // name in the shade) from the ALPHA CHANNEL ONLY, tinted one colour. The
+  // service worker used to pass icon-192.png, whose #111110 square is fully
+  // opaque, so every notification wore a plain white square. Only the shape
+  // survives, so the shape is all this carries.
+  const { size: bs, ratio: br } = BADGE;
+  const shape = await sharp(cut[HERO_POSE])
+    .trim({ threshold: 1 })
+    .resize({ width: Math.round(bs * br), height: Math.round(bs * br), fit: "inside" })
+    .png()
+    .toBuffer();
+  const sm = await sharp(shape).metadata();
+  const alpha = await sharp(shape).extractChannel("alpha").raw().toBuffer();
+  const white = await sharp({
+    create: { width: sm.width, height: sm.height, channels: 3, background: "#ffffff" },
+  })
+    .joinChannel(alpha, { raw: { width: sm.width, height: sm.height, channels: 1 } })
+    .png()
+    .toBuffer();
+  await sharp({ create: { width: bs, height: bs, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: white, left: Math.round((bs - sm.width) / 2), top: Math.round((bs - sm.height) / 2) }])
+    .png({ compressionLevel: 9 })
+    .toFile(path.join(pub, "notification-badge.png"));
+  console.log(`badge → public/notification-badge.png (${bs}x${bs}, white on transparent)`);
 }
 
 main().catch((err) => {

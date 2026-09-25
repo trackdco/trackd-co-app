@@ -79,15 +79,31 @@ export const LEGAL_ENTITY = "Trackd Co Pty Ltd";
 /** Australian Company Number, in ASIC's own spacing. */
 export const ACN = "698 405 462";
 
+/** Australian Business Number. Its last nine digits are the ACN. */
+export const ABN = "35 698 405 462";
+
 /**
- * How the product and the company relate, for the surfaces that have to say it
- * out loud: the rebrand notice, the landing footer and the legal preamble.
+ * Who operates the product, for the surfaces that have to say it out loud: the
+ * landing footer and the rebrand notice. The legal documents open with the same
+ * sentence (`supabase/legal/018`).
  *
- * Written once here because it is a CLAIM ABOUT A LEGAL RELATIONSHIP and three
- * surfaces making it in three slightly different ways is how a disclosure ends
+ * ⚠️ THIS EXACT SENTENCE, full stop included (Adrian, 2026-09-24). It replaced
+ * "trakabl.app is operated by Trackd Co Pty Ltd, ACN 698 405 462." in the footer
+ * and "Trakabl is a business name of Trackd Co Pty Ltd (ACN 698 405 462)" in the
+ * notice. Written once here because it is a CLAIM ABOUT A LEGAL RELATIONSHIP and
+ * two surfaces making it in two slightly different ways is how a disclosure ends
  * up inaccurate in one of them.
+ *
+ * Held in two parts so a surface can keep the number on one line
+ * (`whitespace-nowrap` on the second). Joined with one space they are the
+ * sentence, and `brand.test.ts` pins the join character for character.
  */
-export const TRADING_AS = `${BUSINESS_NAME} is a business name of ${LEGAL_ENTITY} (ACN ${ACN})`;
+export const OPERATED_BY_PARTS = [
+  `${PRODUCT_NAME} is operated by ${LEGAL_ENTITY}`,
+  `(ABN ${ABN}).`,
+] as const;
+
+export const OPERATED_BY = OPERATED_BY_PARTS.join(" ");
 
 /**
  * TWO ORIGINS, AND THE APP IS NOT MOVING OFF THE OLD ONE.

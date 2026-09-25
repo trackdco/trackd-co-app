@@ -330,8 +330,8 @@ describe("trialNoticeLine", () => {
 describe("trialReminderMessage", () => {
   it("states the day and the date in the user's own zone", () => {
     const m = trialReminderMessage(trial(), SYD)!;
-    expect(m.title).toBe("Your free trial ends soon");
-    expect(m.body).toContain(`Day ${REMINDER_DAY} of ${TRIAL_DAYS}`);
+    expect(m.title).toBe("Your Trial Ends Soon");
+    expect(m.body).toContain(`day ${REMINDER_DAY} of ${TRIAL_DAYS}`);
     expect(m.body).toContain("15 Aug"); // the 15th in Sydney
     expect(m.tag).toBe("trackd-trial-ending");
   });
@@ -473,7 +473,7 @@ describe("the banner's three variants", () => {
 describe("the push's three variants", () => {
   it("⚠️ never tells a grace user that billing starts", () => {
     const m = trialReminderMessage(trial(), SYD, { kind: "grace" })!;
-    expect(m.title).toBe("Your free access ends soon");
+    expect(m.title).toBe("Free Access Ends Soon");
     expect(m.body).not.toContain("billing");
     expect(m.body).not.toContain("trial");
     expect(m.body).not.toContain(`Day ${REMINDER_DAY}`);
@@ -481,16 +481,33 @@ describe("the push's three variants", () => {
 
   it("⚠️ never calls a courtesy period a trial, and says the plan resumes", () => {
     const m = trialReminderMessage(trial(), SYD, { kind: "courtesy", noun: "month" })!;
-    expect(m.body).toBe("Your free month ends 15 Aug. Your plan starts then.");
+    expect(m.body).toBe("Your free month ends 15 Aug\nYour Pro plan will continue as usual");
     expect(m.body).not.toContain("trial");
     // A two-year customer must never read a day count from a seven-day shape.
-    expect(m.body).not.toContain(`Day ${REMINDER_DAY} of ${TRIAL_DAYS}`);
+    expect(m.body.toLowerCase()).not.toContain(`day ${REMINDER_DAY} of ${TRIAL_DAYS}`);
   });
 
-  it("keeps the approved trial push unchanged, and defaults to it", () => {
+  it("still says the plan starts when the trial ends", () => {
+    // The paywall promises this reminder "before anything changes". A trial
+    // that ends into a paid plan is money about to move, so the push says so.
     const m = trialReminderMessage(trial(), SYD)!;
-    expect(m.title).toBe("Your free trial ends soon");
-    expect(m.body).toContain(`Day ${REMINDER_DAY} of ${TRIAL_DAYS}`);
+    expect(m.body).toBe("It's day 5 of 7. Your free trial ends on 15 Aug, and your Pro plan starts then");
+  });
+
+  it("opens Billing from all three variants", () => {
+    for (const ending of [
+      { kind: "trial" as const },
+      { kind: "grace" as const },
+      { kind: "courtesy" as const, noun: "week" as const },
+    ]) {
+      expect(trialReminderMessage(trial(), SYD, ending)!.url).toBe("/billing");
+    }
+  });
+
+  it("keeps the trial push as the default", () => {
+    const m = trialReminderMessage(trial(), SYD)!;
+    expect(m.title).toBe("Your Trial Ends Soon");
+    expect(m.body).toContain(`day ${REMINDER_DAY} of ${TRIAL_DAYS}`);
   });
 
   it("carries no em dash in any variant", () => {

@@ -205,6 +205,55 @@ top of `progress-tracker.md`.
   undecided.
 
 
+## 🟡 NOTIFICATIONS (2026-09-26)
+
+Two branches. `notifications/copy-refresh` (off `main`) has everything below the
+page: the new wording, the iPhone prefix, the Android icon, hide-names, and the
+check-up engine. The settings page is task 3, on a branch off
+`design/half-life-motion`, because half-life restyles that exact page. Details in
+`progress-tracker.md`.
+
+### 1. Merge `notifications/copy-refresh` (Adrian says when)
+`npm run check` green (2219 tests). Safe to deploy before 007: the new columns are
+read on their own. After it deploys, check one real push on an iPhone and an
+Android: the prefix only on iPhone, Kyle in the Android status bar.
+
+### 2. Apply `supabase/notifications/007_privacy_and_checkups.sql` (Adrian, or Claude via MCP on his word)
+Adds `hide_compound_names`, `checkins_on`, `last_checkup_on` and the
+`notification_log` table, and adds `last_checkup_on` to the stamp guard. VERIFY
+block at the foot of the file.
+
+### 3. The Notifications page, layout A (next, on top of half-life)
+Mockup: https://claude.ai/artifact/1WFRxirrZWVBhmGFUfgsiC. Live lock-screen preview,
+master switch, one reminders card (dose time, "Don't forget" after N hr, low stock,
+Check-ins), one card with "Hide compound names" and quiet hours, saving as you go
+with half-life's "Saved" toast and Undo. `prefsActions.ts` needs the two new
+switches (written in their own update so a missing 007 cannot fail the rest).
+
+### 4. Turn check-ups on: `NOTIFICATION_CHECKUPS=on` in Vercel
+Only once task 3 has shipped and 007 is applied: the Check-ins switch has to exist
+before anybody gets a check-up. The dry run (`/api/notifications/run?dryRun=1`) reports
+`checkup: would-send:<key>` per user, so the first day can be read before it sends.
+
+### 5. The app shows no streak (Adrian to decide)
+"Your 12-day streak ends at midnight", "New Record" and "100 Days" talk about a
+streak the app never displays (Progress shows a consistency %). Either the app
+gets a streak somewhere, or those three stay as the only place it appears.
+
+## 🟢 WHO OPERATES TRAKABL — MERGED AND APPLIED (2026-09-24)
+
+Details in `progress-tracker.md`. Legal docs are live at terms/privacy/CHD 2.3
+and disclaimer 2.2. The PostHog Privacy/CHD update is now 2.4, not 2.3.
+
+### 1. Purge the Vercel cache tag `legal-documents` (Adrian)
+Until then `/terms`, `/privacy`, `/medical-disclaimer` and
+`/consumer-health-data` keep showing the previous version. `/terms/2.3` etc.
+already show the new text.
+
+### 2. One open call (Adrian)
+`lib/billing/signed/grace-ending.txt` still thanks users for making "Trackd Co".
+It is signed and carries no operator wording, so it was left alone.
+
 ## 🟢 LANDING PAGE — LIVE AND CURRENT (2026-09-19)
 
 Four rounds of Adrian's copy review are on trackdco.app. The reviews section is

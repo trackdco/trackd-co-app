@@ -414,9 +414,12 @@ function formatDateKey(dateKey: string): string {
  * currency, and a figure invented here could contradict the one the user
  * actually agreed to at checkout.
  *
- * No "cancel" either, though `/billing` can now do it (2026-08-12). Tapping the
- * push lands on Profile, a step from Billing; the notification's job is to make
- * sure the date is not a surprise, not to walk somebody towards the exit.
+ * No "cancel" either. Tapping the push opens `/billing` (Adrian, 2026-09-25),
+ * which shows the date and the price and can cancel, so the choice is one tap
+ * away without the notification pushing anybody towards it.
+ *
+ * The titles carry no "Trakabl • " prefix; `public/sw.js` adds it on iPhone
+ * only. See `doseReminderMessage`.
  *
  * No em dashes, per the house rule.
  */
@@ -458,50 +461,42 @@ export function trialReminderMessage(
   }).format(endsAt);
 
   /**
-   * D33's courtesy push. The BODY is signed verbatim in `07` §3.4.
-   *
-   * ⚠️ THE TITLE IS NOT IN THE SPEC, AND IS NOT INVENTED HERE.
-   *
-   * §3.4 signs a title for the trial ("Your trial ends soon") and for the grace
-   * ("Your free access ends soon") but gives the courtesy variant only its body.
-   * Rather than write one, this REUSES the grace title, which is already approved
-   * and is true of this cohort: their free access does end soon. It is the same
-   * move `02b` §3.2 made when it reused an approved button label rather than
-   * inventing a second one.
-   *
-   * **Flagged for sign-off.** If the founder wants its own title, this is the one
-   * line that changes.
+   * D33's courtesy push: somebody who took the save offer's free week or
+   * month. Title and body are Adrian's (2026-09-25), replacing `07` §3.4's.
+   * It shares the grace title, as it always has: their free access does end.
+   * "Pro plan" is spelt as the rest of the app spells it ("Keep my Pro plan").
    */
   if (ending.kind === "courtesy") {
     return {
-      title: "Your free access ends soon",
-      body: `Your free ${ending.noun} ends ${when}. Your plan starts then.`,
-      url: "/profile",
+      title: "Free Access Ends Soon",
+      body: `Your free ${ending.noun} ends ${when}\nYour Pro plan will continue as usual`,
+      url: "/billing",
       tag: "trackd-trial-ending",
     };
   }
 
   if (isBetaGrace) {
     return {
-      title: "Your free access ends soon",
+      title: "Free Access Ends Soon",
       /**
        * No day count: "day 5 of 7" is the trial's shape and the grace is
        * fourteen days. No "billing starts then", because it does not. What
        * happens instead is stated plainly, in the same words the notice and the
        * pop-up use, so the three surfaces agree.
        */
-      body: `Trakabl stays free until ${when}. After that you can still read everything, but not log anything new.`,
-      url: "/profile",
+      body: `Trakabl stays free until ${when}. After that you can still read everything, but not log anything new`,
+      url: "/billing",
       tag: "trackd-trial-ending",
     };
   }
 
   return {
-    title: "Your free trial ends soon",
-    body: `Day ${REMINDER_DAY} of ${TRIAL_DAYS}. Your trial ends on ${when}, and billing starts then.`,
-    // Profile is where the Billing row states the plan. It is the closest thing
-    // to a destination that exists today.
-    url: "/profile",
+    title: "Your Trial Ends Soon",
+    // Adrian's wording (2026-09-25). It still says what happens at the end,
+    // because this is the reminder the paywall promises "before anything
+    // changes", and a trial that ends into a paid plan is money about to move.
+    body: `It's day ${REMINDER_DAY} of ${TRIAL_DAYS}. Your free trial ends on ${when}, and your Pro plan starts then`,
+    url: "/billing",
     tag: "trackd-trial-ending",
   };
 }

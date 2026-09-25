@@ -271,7 +271,7 @@ export async function sendTestNotification(): Promise<Ok> {
 
     const body = JSON.stringify({
       title: "Trakabl",
-      body: "Test notification. Push is working.",
+      body: "Test notification. Push is working",
       url: "/dashboard",
       tag: "trackd-test",
     });

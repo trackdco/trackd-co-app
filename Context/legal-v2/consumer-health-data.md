@@ -1,7 +1,7 @@
 Consumer Health Data Privacy Policy
-VERSION 2.2 · EFFECTIVE 22 September 2026
+VERSION 2.3 · EFFECTIVE 24 September 2026
 
-This is the consumer health data notice for Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), trading as Trakabl, covering the Trakabl application and the website at trackdco.app. It is published separately so that you can find it easily, and the same text appears as Section 16 of our Privacy Policy. Read it alongside the full Privacy Policy, which describes everything else we do with your information.
+Trakabl is operated by Trackd Co Pty Ltd (ABN 35 698 405 462). This is the consumer health data notice for Trackd Co Pty Ltd (ACN 698 405 462, ABN 35 698 405 462), covering the Trakabl application and the website at trackdco.app. It is published separately so that you can find it easily, and the same text appears as Section 16 of our Privacy Policy. Read it alongside the full Privacy Policy, which describes everything else we do with your information.
 
 Some US states have consumer-health-data laws, including Washington's My Health My Data Act, Nevada's SB 370, and the Connecticut Data Privacy Act. Where one of those laws applies to you, this notice is our consumer health data privacy policy.
 

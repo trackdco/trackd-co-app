@@ -735,6 +735,60 @@ Found along the way:
   detail surface.
 
 
+## 🟡 NOTIFICATIONS — ON BRANCH `notifications/copy-refresh`, NOT MERGED (2026-09-25/26)
+
+### The check-up engine and hide-names (2026-09-26)
+
+- **51 check-ups signed off** in the swipe-deck artifact
+  (https://claude.ai/artifact/EbADnYs8aQLuEFXQUxWbYA, final list in its
+  `final/checkups` doc). Decisions in `lib/notifications/checkups.ts` (pure,
+  tested); reads in `checkupFacts.ts`; wired in `runner.ts`.
+- **Three kinds.** Swaps reword a reminder that was going out anyway, on about half
+  the days (dose, don't-forget, low stock). The streak alert takes the don't-forget
+  slot, so never lands on top of one. Check-ups proper: at most one a day
+  (`last_checkup_on`), one-offs once ever (`notification_log`), highest priority
+  among those whose hour has come.
+- **Reads once an hour, not every tick**, on the first UTC tick of the hour (local
+  minutes would never match for Adelaide or India). Dose history is paged past
+  PostgREST's 1,000-row cap. Every read fails on its own: a null fact leaves its
+  check-ups out, never a dose reminder.
+- **"Giving You Space" pauses the dose, don't-forget and low-stock reminders** until
+  the next log, because it says so. Trial and grace warnings are not paused.
+- **Hide compound names** words every reminder by count ("You have 2 doses due
+  today"); anything that names a compound is simply not sent as a check-up.
+- **Off until `NOTIFICATION_CHECKUPS=on`**, which waits for the Check-ins switch on
+  the new page. Needs `supabase/notifications/007` applied.
+- **No full stop at the end of a line**, now across every push. The voice
+  exception is recorded in `ui-context.md`.
+- Choices made along the way: a week with nothing logged gets no recap (the quiet
+  spell ones speak to it); "New Record" only past 13 days and past their own best;
+  "Off Week"/"Back On" only for breaks of 7 days or more, so a 5-on/2-off weekend
+  cycle is not announced every week; weight "toward your goal" only with a known
+  goal (a block's weight target, else cut/bulk from onboarding), in kg or lbs.
+
+### The wording (2026-09-25)
+
+Adrian rewrote every push in an editor artifact
+(https://claude.ai/artifact/QF1fs1YkV1UgVpq3qcK9Yr, his edits are its `edits`
+collection, new ideas in `custom`). Built from `main` in a worktree.
+
+- **Titles are Title Case and carry no app name** ("Dose Reminder", "Don't Forget",
+  "Low Stock", "Your Trial Ends Soon", "Free Access Ends Soon"). `public/sw.js` adds
+  "Trakabl • " on iPhone only, because iPhone shows no app name and Android and
+  desktop already print it in their header (Adrian's pick). Decided on the device
+  because one account can hold an iPhone and an Android subscription.
+- **Names join as "A & B" / "A, B & C"** (`joinNames`), in the dose digest and the
+  low-stock list. Low stock puts the names or the dose count on a second line;
+  "≈1 dose" is singular, and under one dose drops the count.
+- **Trial push still says the plan starts** ("… and your Pro plan starts then").
+  Adrian had dropped "billing starts then"; kept a plan-starts line because the
+  paywall promises this reminder "before anything changes".
+- **All three billing pushes open `/billing`** (were `/profile`).
+- **Android small icon fixed.** It was `icon-192.png`, an opaque square, which
+  Android paints as a white square. Now `public/notification-badge.png`, Kyle's
+  silhouette, made by `scripts/brand/kyle.mjs` (the other generated files came
+  out byte-identical).
+
 ## ✅ THE FEEL PASS — MERGED TO `main` (2026-09-18)
 
 The brief is `Context/Feature Specs/wave 3/feel-pass.md` (6 prototype rounds,
@@ -6577,3 +6631,27 @@ rebrand hold a `trackd-splash-v2` cache; if the prune filter stops matching it,
 the old splash poster leaks on those phones permanently and invisibly. It has to
 outlive the domain move too, since an installed PWA stays scoped to the origin
 it was installed from.
+
+## Who operates Trakabl, in one sentence (2026-09-24)
+
+Merged to `main` and applied, 2026-09-24. Adrian's wording, exactly:
+"Trakabl is operated by Trackd Co Pty Ltd (ABN 35 698 405 462)."
+
+- `OPERATED_BY` in `lib/brand.ts` holds it (plus `ABN`), pinned in
+  `brand.test.ts`. The landing footer and the rebrand notice render it; it
+  replaced "trakabl.app is operated by ... ACN ..." and "Trakabl is a business
+  name of ... (ACN ...), which remains the company behind the app". The unused
+  `TRADING_AS` is gone.
+- `supabase/legal/018_legal_operated_by.sql` publishes the next version of all
+  four legal documents with that sentence in the preamble and ", trading as
+  Trakabl" removed; the contracting party and its defined terms are unchanged.
+  Tested first against a local copy of the live rows (pglite): only the
+  intended lines change, and a second run refuses. Applied to production the
+  same night: terms, privacy and CHD 2.3, disclaimer 2.2.
+- The rebrand notice lost its em dash: "You're now using Trakabl. Same app,
+  same account, same everything you've logged."
+- Checked first: a new current version makes nobody re-accept and costs nobody
+  access. The only gate is `is_18_plus AND tos_accepted_at`; nothing compares a
+  user's accepted version with the current one.
+- No brand mention was spelled "Trakable" or "Trackable". No signed string
+  carried the operator wording, so no pin moved.
