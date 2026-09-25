@@ -109,3 +109,35 @@ const SITE_LABELS: Record<string, string> = Object.fromEntries(
 export function siteLabel(id: string): string {
   return SITE_LABELS[id] ?? id
 }
+
+/**
+ * A site's full name in the app's words: "Side Abdomen, Left" (build-brief-final
+ * §3.4: no spaced dash). The catalogue, and the database's `injection_sites`,
+ * keep "Side Abdomen – Left"; this is the one place it is reworded for display.
+ */
+export function siteDisplayName(label: string): string {
+  return label.replace(/\s+[–—-]\s+/, ", ")
+}
+
+/** Where a longer region needs its own short form. */
+const SHORT_REGION: Record<string, string> = {
+  "Outer Thigh – Upper": "Upper Thigh",
+  "Outer Thigh – Lower": "Lower Thigh",
+  "Back of Arm": "Back Arm",
+}
+
+/**
+ * The SHORT name, for the Track bar and the Site tile: "Side Abdomen L",
+ * "Delt R", "Upper Thigh R" (consistency fix #28; lists keep the full name).
+ * `label` is the catalogue's own label when the caller has it (the database's
+ * row), else the bundled one.
+ */
+export function siteShortLabel(id: string, label?: string): string {
+  const full = (label ?? siteLabel(id)).trim()
+  const m = full.match(/^(.*?)\s+[–—-]\s+(Upper |Lower )?(Right|Left)$/)
+  if (!m) return full
+  const [, region, tier, side] = m
+  const key = tier ? `${region} – ${tier.trim()}` : region
+  const short = SHORT_REGION[key] ?? (tier ? `${tier.trim()} ${region}` : region)
+  return `${short} ${side === "Right" ? "R" : "L"}`
+}

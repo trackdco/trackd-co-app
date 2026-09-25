@@ -5,16 +5,7 @@ import { listBlocks } from "@/lib/db/blocks";
 import { createClient } from "@/lib/supabase/server";
 import { toDateKey } from "@/lib/home/mockHomeData";
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
-import {
-  customMarkerKey,
-  wordFor,
-  type EntryMarker,
-  type JournalAttachment,
-  type JournalEntry,
-  type MarkerCatalogueItem,
-  type MarkerOption,
-} from "@/lib/progress/journal";
-import { markerAppliesTo } from "@/lib/progress/markerApplicability";
+import { readJournal } from "@/lib/db/journalRead";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
 
@@ -40,12 +31,8 @@ export default async function ProgressPage() {
     { data: profile },
     { data: weightData },
     { data: panelData },
-    { data: markerData },
-    { data: entryData },
-    { data: readingData },
-    { data: userMarkerData },
     { data: photoData },
-    { data: attachmentData },
+    journal,
   ] = await Promise.all([
     supabase
       // `sex` rides along on the read the page already makes — the same column the
@@ -66,28 +53,13 @@ export default async function ProgressPage() {
       .not("source_file_path", "is", null)
       .order("drawn_on", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
-    // The global marker catalogue (read-only) for the dialer.
-    supabase
-      .from("markers")
-      .select("id, name, polarity, is_default, tier_labels")
-      .order("name", { ascending: true }),
-    supabase
-      .from("journal_entries")
-      .select("id, entry_date, free_text")
-      .order("entry_date", { ascending: false }),
-    supabase.from("marker_readings").select("entry_id, user_marker_id, tier_value"),
-    supabase
-      .from("user_markers")
-      .select("id, marker_id, custom_name, custom_tier_labels, custom_polarity, is_active"),
     supabase
       .from("progress_photos")
       .select("id, pose, taken_on, created_at, storage_path, note")
       .order("taken_on", { ascending: false })
       .order("created_at", { ascending: false }),
-    supabase
-      .from("journal_attachments")
-      .select("id, journal_entry_id, storage_path")
-      .order("created_at", { ascending: false }),
+    // The journal (entries, markers, photos), the same read Home's journal uses.
+    readJournal(supabase, user.id),
   ]);
 
   const weight = (weightData ?? []).map((r) => ({
@@ -122,135 +94,7 @@ export default async function ProgressPage() {
     };
   });
 
-  // ── Journal: stitch entries ← readings ← user_markers ← (catalogue | custom) ──
-  const markerCatalogue: MarkerCatalogueItem[] = (markerData ?? []).map((m) => ({
-    id: m.id as string,
-    name: m.name as string,
-    polarity: m.polarity as string,
-    isDefault: Boolean(m.is_default),
-    tierLabels: (m.tier_labels as string[] | null) ?? [],
-  }));
-  const catalogueById = new Map(markerCatalogue.map((m) => [m.id, m]));
-
-  // A user_markers row resolves to a dialer/reading identity — either a catalogue
-  // marker (marker_id set) or the user's OWN custom marker (custom_* columns). We
-  // resolve BOTH; custom markers resolve regardless of is_active so a soft-removed
-  // marker's PAST readings still render (Spec 22 · 1: removing keeps history).
-  const resolvedUserMarker = new Map<
-    string,
-    { key: string; name: string; tierLabels: string[] }
-  >();
-  const customOptions: MarkerOption[] = [];
-  for (const um of userMarkerData ?? []) {
-    if (um.marker_id) {
-      const cat = catalogueById.get(um.marker_id as string);
-      if (cat) {
-        resolvedUserMarker.set(um.id as string, {
-          key: cat.id,
-          name: cat.name,
-          tierLabels: cat.tierLabels,
-        });
-      }
-      continue;
-    }
-    if (um.custom_name) {
-      const key = customMarkerKey(um.id as string);
-      const tierLabels = (um.custom_tier_labels as string[] | null) ?? [];
-      resolvedUserMarker.set(um.id as string, {
-        key,
-        name: um.custom_name as string,
-        tierLabels,
-      });
-      customOptions.push({
-        id: key,
-        name: um.custom_name as string,
-        polarity: (um.custom_polarity as string | null) ?? "neutral",
-        tierLabels,
-        isDefault: false,
-        kind: "custom",
-        addable: Boolean(um.is_active),
-      });
-    }
-  }
-
-  // What the dialer offers: the catalogue + the user's own custom markers, with the
-  // handful of sex-specific markers marked NOT ADDABLE for the other sex (Spec 04).
-  // A profile with no sex set gets the shared ones only — no guess at male, which is
-  // why this reads `profiles.sex` raw rather than through `bodySexFor`. Custom
-  // markers are the user's own creation and are never filtered.
-  //
-  // `addable: false` rather than dropping the option, because it does BOTH jobs at
-  // once: every add path (Common, More, search) filters on `addable`, so the marker
-  // is genuinely absent — not greyed out, not listed as unavailable — while the
-  // dialer can still RESOLVE it by id to render a reading the user already logged.
-  // Dropping it outright would blank an existing entry's dial for anyone who
-  // changed their profile sex. This is the same mechanic a soft-removed custom
-  // marker already uses (Spec 22 · 1).
-  //
-  // History (`markersByEntry` below) is built from `marker_readings` and is not
-  // filtered at all, so a sex change can never hide, alter or delete an entry.
-  const profileSex = (profile?.sex as string | null) ?? null;
-  const markerOptions: MarkerOption[] = [
-    ...markerCatalogue.map((m) => ({
-      id: m.id,
-      name: m.name,
-      polarity: m.polarity,
-      tierLabels: m.tierLabels,
-      isDefault: m.isDefault,
-      kind: "catalogue" as const,
-      addable: markerAppliesTo(m.name, profileSex),
-    })),
-    ...customOptions,
-  ];
-
-  const markersByEntry = new Map<string, EntryMarker[]>();
-  for (const r of readingData ?? []) {
-    const resolved = resolvedUserMarker.get(r.user_marker_id as string);
-    if (!resolved) continue; // an orphaned reading (marker hard-removed) — skip
-    const tierValue = Number(r.tier_value);
-    const arr = markersByEntry.get(r.entry_id as string) ?? [];
-    arr.push({
-      markerId: resolved.key,
-      name: resolved.name,
-      tierValue,
-      word: wordFor(resolved.tierLabels, tierValue),
-    });
-    markersByEntry.set(r.entry_id as string, arr);
-  }
-  // ── Journal attachments: sign each path (private `journal` bucket) ──
-  const attachmentRows = attachmentData ?? [];
-  const attachmentPaths = attachmentRows
-    .map((a) => a.storage_path as string | null)
-    .filter((p): p is string => Boolean(p));
-  const attachmentSigned = new Map<string, string>();
-  if (attachmentPaths.length > 0) {
-    const { data: signed } = await supabase.storage
-      .from("journal")
-      .createSignedUrls(attachmentPaths, SIGNED_URL_TTL);
-    for (const s of signed ?? []) {
-      if (s.path && s.signedUrl) attachmentSigned.set(s.path, s.signedUrl);
-    }
-  }
-  const attachmentsByEntry = new Map<string, JournalAttachment[]>();
-  for (const a of attachmentRows) {
-    const entryId = a.journal_entry_id as string;
-    const arr = attachmentsByEntry.get(entryId) ?? [];
-    arr.push({
-      id: a.id as string,
-      url: attachmentSigned.get(a.storage_path as string) ?? null,
-    });
-    attachmentsByEntry.set(entryId, arr);
-  }
-
-  const journalEntries: JournalEntry[] = (entryData ?? []).map((e) => ({
-    id: e.id as string,
-    date: e.entry_date as string,
-    body: (e.free_text as string | null) ?? null,
-    markers: (markersByEntry.get(e.id as string) ?? []).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    ),
-    attachments: attachmentsByEntry.get(e.id as string) ?? [],
-  }));
+  const { entries: journalEntries, options: markerOptions } = journal;
 
   // ── Progress photos: sign each path (private bucket) ──
   const photoRows = photoData ?? [];

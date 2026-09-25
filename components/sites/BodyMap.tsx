@@ -70,6 +70,12 @@ interface BodyMapProps {
   arrive?: boolean
   /** The log sheet draws the map on the raised surface, which needs its own paint. */
   tone?: "default" | "raised" | "lifted"
+  /** Controlled Front / Back, for a parent that draws the switch itself (the
+   *  dose row's Site panel puts it in its header row, beside the arrow). */
+  aspect?: InjectionSiteAspect
+  onAspectChange?: (aspect: InjectionSiteAspect) => void
+  /** The parent draws the Front / Back switch; the map draws none of its own. */
+  hideSwitch?: boolean
 }
 
 const ASPECTS: { key: InjectionSiteAspect; label: string }[] = [
@@ -92,6 +98,9 @@ export function BodyMap({
   freshestId = null,
   arrive = false,
   tone = "default",
+  aspect: aspectProp,
+  onAspectChange,
+  hideSwitch = false,
 }: BodyMapProps) {
   const active = new Set(activeIds ?? [])
   const interactive = Boolean(onTapSite) && !disabled && mode !== "recency"
@@ -101,9 +110,16 @@ export function BodyMap({
 
   // Front / back share one view, switched by a pill toggle with a cross-FADE. Both
   // panels stay mounted (stacked); only the visible one is interactive.
-  const [aspect, setAspect] = useState<InjectionSiteAspect>("anterior")
+  const [ownAspect, setOwnAspect] = useState<InjectionSiteAspect>("anterior")
+  const aspect = aspectProp ?? ownAspect
   // The chips wait for the arrival only the first time; a flip shows them at once.
-  const [flipped, setFlipped] = useState(false)
+  const [flippedHere, setFlipped] = useState(false)
+  const [firstAspect] = useState(aspect)
+  const flipped = flippedHere || aspect !== firstAspect
+  const setAspect = (next: InjectionSiteAspect) => {
+    if (onAspectChange) onAspectChange(next)
+    else setOwnAspect(next)
+  }
 
   /** Shaded history in the picker (feel pass §5). */
   const historyHeat = (siteId: string): number => {
@@ -122,34 +138,17 @@ export function BodyMap({
     >
       {/* Front / Back pills on the shared sliding thumb (feel pass §6). Only the
           pill slides; the bodies keep their crossfade. */}
-      <div className="mb-4 flex justify-center">
-        <ThumbGroup
-          selection={aspect}
-          thumbClassName="inst-thumb"
-          className="inline-flex inst-rail p-0.5 text-sm"
-          role="group"
-          aria-label="Body view"
-        >
-          {ASPECTS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                if (key !== aspect) setFlipped(true)
-                setAspect(key)
-              }}
-              aria-pressed={aspect === key}
-              className={cn(
-                PRESS.pill,
-                "rounded-sm px-5 py-1.5 font-medium transition-colors duration-300 ease-out",
-                aspect === key ? "text-bg-base" : "text-text-muted",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </ThumbGroup>
-      </div>
+      {hideSwitch ? null : (
+        <div className="mb-4 flex justify-center">
+          <BodyAspectSwitch
+            aspect={aspect}
+            onChange={(key) => {
+              if (key !== aspect) setFlipped(true)
+              setAspect(key)
+            }}
+          />
+        </div>
+      )}
 
       {/* Crossfade: front + back stacked in one cell; the active one fades in. */}
       <div className="grid">
@@ -190,7 +189,7 @@ export function BodyMap({
                           mode={mode}
                           active={active.has(r.siteId)}
                           heat={
-                            mode === "pick" ? historyHeat(r.siteId) : (heat?.[r.siteId] ?? 0)
+                            mode === "pick" || history ? historyHeat(r.siteId) : (heat?.[r.siteId] ?? 0)
                           }
                           interactive={interactive && isActive}
                           onTap={onTapSite}
@@ -207,6 +206,47 @@ export function BodyMap({
           })}
       </div>
     </div>
+  )
+}
+
+/**
+ * Front / Back on the Instrument rail. Exported so a parent can put it in its own
+ * header row (the dose row's Site panel), where the map then draws none.
+ */
+export function BodyAspectSwitch({
+  aspect,
+  onChange,
+  small = false,
+}: {
+  aspect: InjectionSiteAspect
+  onChange: (aspect: InjectionSiteAspect) => void
+  small?: boolean
+}) {
+  return (
+    <ThumbGroup
+      selection={aspect}
+      thumbClassName="inst-thumb"
+      className={cn("inline-flex inst-rail p-0.5", small ? "text-[12px]" : "text-sm")}
+      role="group"
+      aria-label="Body view"
+    >
+      {ASPECTS.map(({ key, label }) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          aria-pressed={aspect === key}
+          className={cn(
+            PRESS.pill,
+            "rounded-sm font-medium transition-colors duration-300 ease-out",
+            small ? "px-3.5 py-1" : "px-5 py-1.5",
+            aspect === key ? "text-bg-base" : "text-text-muted",
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </ThumbGroup>
   )
 }
 

@@ -18,6 +18,37 @@ Built on `design/half-life-motion` in the worktree; nothing pushed, no migration
     installed PWA). WebKit checks run with `PushManager` removed by an init script.
   - The dev server served stale CSS to some routes after the token change (the known Turbopack cache issue): a
     cold restart with `.next/dev/cache/turbopack` moved aside fixed it.
+- **Phase 2, Home part one: DONE.** The dose row's panels have ONE header row and no empty band (Site = Front /
+  Back switch + arrow, the map on the Instrument inset; Stock = the container in use only, no arrow, the row closes
+  it; Note = "Add a Note" + arrow, "Anything to remember?"); the same tile closes its panel; switching cross-fades
+  (110ms out 4px down, height 280ms, 240ms in, recorded per frame in both engines); the Site panel closes 0.5s after a
+  pick. Solid tile icons with a sub-line (Pick one / Vial / Added). The dose figure opens the Trakabl pad
+  (`PadInput`); `stepFor` steps whole units for tab, capsule and drop. The tick: due = a white ring, logged = the
+  `#C9C8C2` fill, the gentle lift .8 → 1.04 → 1 over 360ms with the check drawn 240ms after 100ms, no ring pulse. A
+  logged circle un-logs with the bottom toast "Unticked" + Undo (3s), which restores the very same dose. The Today
+  ring / Next dose widgets are gone (round two "none"). FIRST RUN: the "Tap the circle to log it." bubble on the first
+  due row until the first tap (device flag), the + hidden until the first log, and the "First Dose Logged" pop-up on
+  the very first dose (the brief's timings; never for an account whose history comes back from the cloud). The
+  journal opens IN PLACE on Home (`HomeJournal`: the day, the note, Markers / Photos / Date tiles with the same
+  header-row panels, Save), reading the same journal as Progress (`lib/db/journalRead.ts`, moved verbatim out of the
+  Progress page, plus the ungated read action `readJournalForHome`). Markers (`MarkerDialer`, rebuilt): tick
+  several, "Add N" adds them 60ms apart, rate on the unchanged steps, "Add more markers", "Use my last", "Search N
+  markers", Yours with Edit (× + Undo toast). Short site names in the Track bar ("Side Abdomen L"); full names lose
+  the spaced dash ("Side Abdomen, Left"). A global bottom toast (`lib/toast.ts`, `components/feel/Toast.tsx`).
+- **Phase 3, Home part two: DONE.** The half-life rail: a type chip rail (All = four squares, Solid category marks in
+  colour) over 84% cards with a down chevron; ANY card centres and opens; every card grows to the full rail over
+  460ms while the rail is held on the open one every frame (recorded: 260 → 310px, left edge fixed); swiping while
+  open switches compound; the up arrow closes. The open graph has its own black top strip with a circled "?" that
+  opens the key as a pop-up ("Reading the graph"; `PopDialog`, the shared pop-up with the brief's dialog motion), a
+  thin Now line, dose ticks, and the dashed ½ line where "Of last dose left" crosses 50% (`halfGoneAtH`, 1.136 × the
+  half-life after an injection). Rows: Level (Climbing / Holding / Dropping), Half-life with "est.", Next dose in
+  days, Clears in once stopped; no "—" rows. Figures ROLL (`RollNumber`) only on a new log and only on screen.
+  Nothing scrolls after Track. The sites sheet draws the log sheet's map (day chips, 1px leaders, the freshest chip
+  amber, the OKLCH ramp) and its Last logged dots are ramp steps, never amber at an opacity.
+  `npm run check`: 127 files, 2347 tests. One read action added to the gate manifest (ungated, deliberately).
+  - Done in parallel by sub-agents and waiting for their phases: the containers (set B, phase 7), the syringe
+    (phase 7), `restoreStack` and the derived Ended cycles (phase 5), the half-life page helpers (phase 6).
+
 
 ## 🗳 FINAL CHECK, ROUND FOUR — ANSWERED 2026-09-25 14:13 UTC. DESIGN CLOSED. NEXT: A NEW BUILDER CHAT RUNS `Context/PROMPT-build-final.md`
 

@@ -1,6 +1,7 @@
 "use client"
 
-import { CaretDown, Check, DotsThree, Minus, Pause, Plus } from "@/components/icons"
+import { CaretDown, DotsThree, Minus, Pause, Plus } from "@/components/icons"
+import { FirstRunBubble } from "@/components/home/FirstRunBubble"
 
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
@@ -404,35 +405,37 @@ function DoseTick({
       // target for the same action.
       className={cn(
         PRESS.tick,
-        "relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
-        pop && "animate-home-tick-pop",
+        "inst-tick relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ease-out",
+        pop && "tick-lift",
         skipped
           ? // A skipped dose is RESOLVED but not taken, so it gets neither the
             // filled tick (which would claim it was) nor the empty ring (which
             // would claim nothing happened). A minus says both.
             "border-border-strong text-text-muted"
           : logged
-            ? "border-accent-primary bg-accent-primary text-bg-base"
-            : "border-border-strong text-transparent hover:border-text-primary"
+            ? "log-tick-on"
+            : "log-tick-due"
       )}
     >
       {skipped ? (
         <Minus className="h-3.5 w-3.5" aria-hidden />
       ) : (
-        <Check className="h-3.5 w-3.5" aria-hidden />
+        <TickMark draw={Boolean(pop)} />
       )}
-      {pop ? <TickRing key={pop} /> : null}
-    </button>
+          </button>
   )
 }
 
-/** The single ring pulse around a tick that has just been tracked. */
-function TickRing() {
+/**
+ * The tick's check, drawn in when a dose is tracked (240ms after 100ms), inside
+ * the gentle lift. No ring pulse: the fill and the lift are the whole moment
+ * (Adrian, final check round four: "the spring is too strong", then "perfect").
+ */
+function TickMark({ draw }: { draw: boolean }) {
   return (
-    <span
-      aria-hidden
-      className="animate-home-tick-ring pointer-events-none absolute -inset-px rounded-full border-[1.5px] border-accent-primary"
-    />
+    <svg viewBox="0 0 24 24" className={cn("h-3.5 w-3.5", draw && "tick-draw")} aria-hidden>
+      <path d="M5.5 12.6l4.1 4.1L18.6 7.6" pathLength={1} fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
@@ -645,18 +648,17 @@ function FlowSlotRow({
           data-logged={log ? "" : undefined}
           className={cn(
             PRESS.tick,
-            "log-tick relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border",
-            pop && "animate-home-tick-pop",
+            "log-tick inst-tick relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border",
+            pop && "tick-lift",
             skipped
               ? "border-border-strong text-text-muted"
               : log
-                ? "border-accent-primary bg-accent-primary text-bg-base"
-                : "border-border-strong text-transparent",
+                ? "log-tick-on"
+                : "log-tick-due",
           )}
         >
-          {skipped ? <Minus className="h-3.5 w-3.5" aria-hidden /> : <Check className="h-3.5 w-3.5" aria-hidden />}
-          {pop ? <TickRing key={pop} /> : null}
-        </button>
+          {skipped ? <Minus className="h-3.5 w-3.5" aria-hidden /> : <TickMark draw={Boolean(pop)} />}
+                  </button>
         <button
           type="button"
           onClick={() => flow.onOpen(dose, slot)}
@@ -684,6 +686,7 @@ function FlowSlotRow({
           </button>
         )}
       </div>
+      {flow.firstRunKey === key && !open ? <FirstRunBubble /> : null}
       <div className="log-body" aria-hidden={!open}>
         <div>{drawn ? flow.renderPanel(dose, slot) : null}</div>
       </div>
@@ -814,22 +817,21 @@ function DoseRow({
         aria-label={log ? `Untick ${dose.name}` : `Log ${dose.name}`}
         className={cn(
           PRESS.tick,
-        "relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
-          pop && "animate-home-tick-pop",
+        "inst-tick relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ease-out",
+          pop && "tick-lift",
           log?.status === "skipped"
             ? "border-border-strong text-text-muted"
             : log
-              ? "border-accent-primary bg-accent-primary text-bg-base"
-              : "border-border-strong text-transparent hover:border-text-primary"
+              ? "log-tick-on"
+              : "log-tick-due"
         )}
       >
         {log?.status === "skipped" ? (
           <Minus className="h-3.5 w-3.5" aria-hidden />
         ) : (
-          <Check className="h-3.5 w-3.5" aria-hidden />
+          <TickMark draw={Boolean(pop)} />
         )}
-        {pop ? <TickRing key={pop} /> : null}
-      </button>
+              </button>
 
       {/* Title first, specs below — the name stays fully readable (never squeezed by
           the figures). Tapping the name or the specs opens the compound detail, where
@@ -1314,9 +1316,9 @@ function StackDoseRow({
             aria-label={`Untick the ${unlogTargets.length} logged ${
               unlogTargets.length === 1 ? "dose" : "doses"
             } in ${stack.name}`}
-            className={cn(PRESS.tick, "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base transition-all duration-200 ease-out")}
+            className={cn(PRESS.tick, "inst-tick log-tick-on flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ease-out")}
           >
-            <Check className="h-3.5 w-3.5" aria-hidden />
+            <TickMark draw={false} />
           </button>
         ) : complete ? (
           // Complete with nothing the bulk control may touch — every live
@@ -1324,9 +1326,9 @@ function StackDoseRow({
           // rather than becoming a button that does nothing.
           <span
             aria-hidden
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-bg-base"
+            className="inst-tick log-tick-on flex h-6 w-6 shrink-0 items-center justify-center rounded-full border"
           >
-            <Check className="h-3.5 w-3.5" />
+            <TickMark draw={false} />
           </span>
         ) : (
           <button
@@ -1339,18 +1341,18 @@ function StackDoseRow({
             }
             className={cn(
               PRESS.tick,
-        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ease-out",
+        "inst-tick flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ease-out",
               // Partway through reads as partway through: the ring goes white
               // (the settled accent) without filling, rather than jumping
               // straight to done. NOT the stack's own colour — `colour` is in
               // scope here and is deliberately not used, because a palette ring
               // would read as decoration rather than as progress.
               partial
-                ? "border-accent-primary text-transparent"
-                : "border-border-strong text-transparent hover:border-text-primary"
+                ? "border-text-primary text-transparent"
+                : "log-tick-due"
             )}
           >
-            <Check className="h-3.5 w-3.5" aria-hidden />
+            <TickMark draw={false} />
           </button>
         )}
 

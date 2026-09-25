@@ -683,3 +683,27 @@ export async function deleteProgressPhoto(
   revalidatePath("/progress");
   return { ok: true };
 }
+
+/**
+ * The journal, read for Home's in-place journal (build-brief-final §3.5): the
+ * same read the Progress page makes, fetched only when the card is opened so
+ * Home's own load does not pay for it. Identity comes from the session; RLS
+ * scopes every row. A failed read is `{ ok: false }`, never an empty journal.
+ */
+export async function readJournalForHome(): Promise<
+  | { ok: true; entries: import("@/lib/progress/journal").JournalEntry[]; options: import("@/lib/progress/journal").MarkerOption[] }
+  | { ok: false }
+> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false };
+    const { readJournal } = await import("@/lib/db/journalRead");
+    const { entries, options } = await readJournal(supabase, user.id);
+    return { ok: true, entries, options };
+  } catch {
+    return { ok: false };
+  }
+}

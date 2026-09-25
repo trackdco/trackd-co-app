@@ -1,32 +1,36 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 
 import { Container } from "@/components/containers"
-import { BodyMap } from "@/components/sites/BodyMap"
+import { NumberPad, PadInput } from "@/components/feel/NumberPad"
+import { SolidIcon } from "@/components/feel/SolidIcon"
+import { usePadSession } from "@/components/feel/usePadSession"
+import { BodyAspectSwitch, BodyMap } from "@/components/sites/BodyMap"
 import { cn } from "@/lib/utils"
 import { PRESS } from "@/lib/ui-presets"
 import type { StockItem, StockRead } from "@/lib/db/inventory"
-import type { BodySex, InjectionSiteRow } from "@/lib/db/types"
+import type { BodySex, InjectionSiteAspect, InjectionSiteRow } from "@/lib/db/types"
 import { unitFamilyOk } from "@/lib/db/doseUnits"
 import { containerColour } from "@/lib/containers/colour"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { containerNounTitle } from "@/lib/containers/labels"
 import { readDoseSheet } from "@/lib/home/doseSheetRead"
 import { decayWindow } from "@/lib/home/siteRecency"
-import { siteLabel, sitesForSex } from "@/lib/home/siteCatalog"
+import { siteLabel, siteShortLabel, sitesForSex } from "@/lib/home/siteCatalog"
 import { formatTimeLabel, isInjectable, type StackCompound } from "@/lib/home/stack"
 import { formatDateKeyShort } from "@/lib/home/stack"
 import { clockHHMM, formatStepAmount, stepFor, type RowDraft } from "@/lib/home/logDraft"
 import { containersOf } from "@/lib/protocol/stockView"
-import { mixWaterDefault } from "@/lib/protocol/stockPage"
-import { mixStockItem } from "@/lib/db/inventory"
-import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 
 export type LogTile = "site" | "stock" | "note"
 
 /** What the Track bar covers at the bottom of the screen, with a little air. */
 const TRACK_BAR_CLEAR_PX = 104
+/** A picked site closes its panel this long after the pick (build-brief-final §3.2). */
+const SITE_AUTOCLOSE_MS = 500
+/** The house settle curve, as numbers (WAAPI keyframes must not hold `var()`). */
+const EASE = "cubic-bezier(0.22, 1, 0.36, 1)"
 
 /** What the row knows about this compound's containers. */
 type StockState =
@@ -40,33 +44,18 @@ type StockState =
       dateVialId?: string | null
     }
 
-/* ------------------------------------------------------------------ icons */
-
-/** The Site tile's figure; its dot is always amber, brighter once a site is set. */
-function FigureIcon({ set }: { set: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="4.5" r="2.6" fill="currentColor" />
-      <path d="M7.5 9.5c0-1.2 1-2 2.2-2h4.6c1.2 0 2.2.8 2.2 2V15h-2v6.5h-5V15h-2z" fill="currentColor" opacity=".5" />
-      <circle cx="12" cy="12.2" r="2.1" fill="var(--accent-amber)" opacity={set ? 1 : 0.7} />
-    </svg>
-  )
-}
-
-/** The Note tile's card. */
-function NoteIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-      <rect x="4.5" y="3.5" width="15" height="17" rx="2.5" opacity=".6" />
-      <path d="M8 8.5h8M8 12h8M8 15.5h5" />
-    </svg>
-  )
-}
-
 function UpArrow() {
   return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6 14.5l6-6 6 6" />
+    </svg>
+  )
+}
+
+function Plus() {
+  return (
     <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-      <path d="M2.5 7.5L6 4l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   )
 }
@@ -74,11 +63,19 @@ function UpArrow() {
 /* ----------------------------------------------------------------- panel */
 
 /**
- * The row of a Today's Log dose, OPEN (Flow B, Adrian 2026-09-24): Dose on a
- * stepper, Time, then Site / Stock / Note tiles. A tile LIFTS (K3) and opens
- * its panel in place, in the inset; switching tiles drops the old content and
- * raises the new (S4) inside a panel that stays open, which closes only by its
- * up arrow (D2, the misclick guard). Nothing is logged until Track.
+ * The row of a Today's Log dose, OPEN (Flow B; the final design, Adrian,
+ * 2026-09-26): Dose (tap the figure to type it, or step it), Time, then Site /
+ * Stock / Note tiles. A tile opens its panel in the inset; the SAME tile closes
+ * it again. Every panel starts with ONE header row and no empty band:
+ *
+ * - Site: the Front / Back switch and the arrow on one line, the map below. It
+ *   closes itself half a second after a site is picked. Never a suggested site.
+ * - Stock: the container in use, and nothing else. No arrow: tapping the row
+ *   (or "No stock yet") closes the panel, as the Stock tile does.
+ * - Note: "Add a Note" and the arrow, the field below. The note survives closing.
+ *
+ * Switching tiles cross-fades the header, the body and the arrow while the
+ * panel's height eases to the new one. Nothing is logged until Track.
  */
 export function LogRowPanel({
   compound,
@@ -119,13 +116,6 @@ export function LogRowPanel({
 
   /* ---- stock, read once when the row opens ---- */
   const [stock, setStock] = useState<StockState>({ kind: "loading" })
-  // Mix 2 (Adrian, 2026-09-24): tap the unmixed vials, then Mix. The water
-  // starts at what this compound was last mixed with and can be changed.
-  const { guard } = useWriteAccess()
-  const [armed, setArmed] = useState(false)
-  const [water, setWater] = useState<string | null>(null)
-  const [mixing, setMixing] = useState(false)
-  const [mixTick, setMixTick] = useState(0)
   // The site list when the server's read came back empty: fetched here, as the
   // Log sheet did, so one failed read does not cost every dose its site.
   const [fetchedCatalogue, setFetchedCatalogue] = useState<InjectionSiteRow[] | null>(null)
@@ -150,19 +140,25 @@ export function LogRowPanel({
         }
         const { open, spares } = containersOf(read.stock.items, compound.id)
         const fit = (v: StockItem) => unitFamilyOk(v.baseUnit, compound.unit)
-        // A back-dated day offers only the container in use THEN, as the Log
-        // sheet did: one started later would be dropped by the server, and a
-        // spare started on a past day would take every later dose.
+        // A back-dated day offers only the container in use THEN: one started
+        // later would be dropped by the server, and a spare started on a past
+        // day would take every later dose.
         const dateVialId = read.dateVialId ?? null
         const next = onToday
           ? { kind: "ready" as const, open: open.filter(fit), spares: spares.filter(fit) }
           : { kind: "ready" as const, open: open.filter((v) => v.id === dateVialId), spares: [], dateVialId }
         setStock(next)
         // Undecided stays undecided unless there is an obvious answer: today,
-        // the container in use; a back-dated day, the one in use then.
+        // the container in use (the oldest open one), or with none open an
+        // unopened spare, which Track then starts; a back-dated day, the one
+        // in use then. A powder vial is never picked unmixed.
         if (draftRef.current.inventoryItemId === undefined) {
-          const pick = onToday ? next.open[0]?.id : (read.dateVialId ?? undefined)
-          if (pick) onDraft({ inventoryItemId: pick })
+          const sealed = next.spares.find((v) => v.inventoryType !== "reconstituted")
+          const pick = onToday ? (next.open[0]?.id ?? sealed?.id) : (read.dateVialId ?? undefined)
+          if (pick) {
+            onDraft({ inventoryItemId: pick })
+            if (onToday && !next.open[0] && sealed) onSpare(sealed.id)
+          }
         }
       })
       .catch(() => {
@@ -173,9 +169,9 @@ export function LogRowPanel({
     }
     // Read once per open row; a draft change must not re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compound.id, dateKey, readKey, mixTick])
+  }, [compound.id, dateKey, readKey])
 
-  /* ---- keep the open row in view, above the Track bar ---- */
+  /* ---- keep the open row in view, above the Track bar (on opening only) ---- */
   const rootRef = useRef<HTMLDivElement>(null)
   const bringIntoView = (delay: number) => {
     window.setTimeout(() => {
@@ -191,65 +187,87 @@ export function LogRowPanel({
   }
   // The row has opened (its body grows over 450ms).
   useEffect(() => {
-    // Once, when the row opens.
     bringIntoView(470)
   }, [])
 
-  /* ---- the tile and its panel, with the S4 swap ---- */
+  /* ---- the tile and its panel ---- */
   const [tile, setTile] = useState<LogTile | null>(null)
   const [shown, setShown] = useState<LogTile | null>(null)
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const innerRef = useRef<HTMLDivElement>(null)
+  const panRef = useRef<HTMLDivElement>(null)
   const swapFrom = useRef<number | null>(null)
+  const siteTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(siteTimer.current), [])
 
+  const parts = () =>
+    Array.from(panRef.current?.querySelectorAll<HTMLElement>("[data-pan-part]") ?? [])
+
+  const close = () => {
+    window.clearTimeout(siteTimer.current)
+    setTile(null)
+    onTileChange(false)
+  }
   const choose = (next: LogTile) => {
-    if (next === tile) return // only the up arrow closes a panel
+    // The same tile again closes its panel.
+    if (next === tile) {
+      close()
+      return
+    }
+    window.clearTimeout(siteTimer.current)
     onTileChange(true)
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    if (tile && shown && innerRef.current && wrapRef.current && !reduce) {
-      // S4: the old content drops away, then the new settles in from above.
-      swapFrom.current = wrapRef.current.offsetHeight
+    const pan = panRef.current
+    if (tile && shown && pan && !reduce) {
+      // Switching: the header, body and arrow fade 4px down (110ms), the
+      // height eases to the new one (280ms), the new ones rise in (240ms).
+      swapFrom.current = pan.getBoundingClientRect().height
       setTile(next)
-      const out = innerRef.current.animate(
-        [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(10px)" }],
-        { duration: 130, easing: "ease-in", fill: "forwards" },
+      Promise.all(
+        parts().map(
+          (p) =>
+            p.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(4px)" }], {
+              duration: 110,
+              easing: "ease-in",
+              fill: "forwards",
+            }).finished,
+        ),
       )
-      out.finished
-        .then(() => {
-          setShown(next)
-          out.cancel()
-        })
+        .then(() => setShown(next))
         .catch(() => {})
       return
     }
     setTile(next)
     setShown(next)
-    // A panel growing below the fold is brought up once it has (600ms).
-    bringIntoView(620)
+    // A panel growing below the fold is brought up once it has (450ms).
+    bringIntoView(470)
   }
-  const close = () => {
-    setTile(null)
-    onTileChange(false)
-  }
-  // The new content is in: ease the panel to its new height and raise it in.
-  useLayoutEffect(() => {
+  // The new content is in: ease the height, raise the new parts in.
+  useEffect(() => {
     const from = swapFrom.current
-    const wrap = wrapRef.current
-    const inner = innerRef.current
-    if (from == null || !wrap || !inner) return
+    const pan = panRef.current
+    if (from == null || !pan) return
     swapFrom.current = null
-    const to = wrap.scrollHeight
-    wrap.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 380, easing: "cubic-bezier(0.32, 0.72, 0, 1)" })
-    inner.animate(
-      [{ opacity: 0, transform: "translateY(-10px)" }, { opacity: 1, transform: "none" }],
-      { duration: 340, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-    )
+    for (const p of parts()) p.getAnimations().forEach((a) => a.cancel())
+    const to = pan.getBoundingClientRect().height
+    if (Math.abs(to - from) > 1) {
+      pan.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 280, easing: EASE })
+    }
+    for (const p of parts()) {
+      p.animate([{ opacity: 0, transform: "translateY(-4px)" }, { opacity: 1, transform: "none" }], {
+        duration: 240,
+        easing: EASE,
+      })
+    }
   }, [shown])
 
   /* ---- dose and time ---- */
-  // From the PLAN, so the step does not drift as the amount changes.
-  const step = stepFor(compound.dose)
+  // From the PLAN, so the step does not drift as the amount changes; whole
+  // steps for things you count.
+  const step = stepFor(compound.dose, draft.unit)
+  const counted = step === 1 && (draft.unit === "tab" || draft.unit === "capsule" || draft.unit === "drop")
   const setAmount = (n: number) => onDraft({ amount: Math.max(0, Number(n.toFixed(3))) })
+  const pad = usePadSession()
+  const [padText, setPadText] = useState<string | null>(null)
+  const amountText = padText ?? (draft.amount > 0 ? formatStepAmount(draft.amount) : "")
   const [clock, setClock] = useState(() => clockHHMM(new Date()))
   useEffect(() => {
     if (draft.time24 || !onToday) return
@@ -272,48 +290,124 @@ export function LogRowPanel({
     if (!freshest || days < freshest.days) freshest = { id, days }
   }
   const siteName = (id: string) => cat.find((s) => s.id === id)?.label ?? siteLabel(id)
+  const [aspect, setAspect] = useState<InjectionSiteAspect>("anterior")
+  const pickSite = (id: string) => {
+    const next = id === draft.siteId ? null : id
+    onDraft({ siteId: next })
+    window.clearTimeout(siteTimer.current)
+    // A pick closes the panel half a second later; an un-pick leaves it open.
+    if (next) siteTimer.current = window.setTimeout(close, SITE_AUTOCLOSE_MS)
+  }
 
-  /* ---- stock ---- */
-  /** A past day whose container in use then is no longer held: a card for it. */
-  const pastOnly = stock.kind === "ready" && !onToday && stock.open.length === 0
-  const noStock =
-    stock.kind === "ready" && stock.open.length === 0 && stock.spares.length === 0 && !(pastOnly && stock.dateVialId)
-  const notCounted = draft.inventoryItemId === null
-  const picked =
-    stock.kind === "ready" ? [...stock.open, ...stock.spares].find((v) => v.id === draft.inventoryItemId) : undefined
+  /* ---- stock: the container in use, and only it ---- */
+  const ready = stock.kind === "ready" ? stock : null
+  const inUse: StockItem | undefined = ready
+    ? ([...ready.open, ...ready.spares].find((v) => v.id === draft.inventoryItemId) ?? ready.open[0])
+    : undefined
+  const onlyUnmixed =
+    ready !== null && !inUse && ready.spares.length > 0 && ready.spares.every((v) => v.inventoryType === "reconstituted")
+  const pastNone = ready !== null && !onToday && !inUse
+  const noStock = ready !== null && !inUse && !onlyUnmixed && !pastNone
+  const nounOf = (v: StockItem) =>
+    containerNounTitle({ inventoryType: v.inventoryType, totalAmountUnit: v.totalAmountUnit, category: compound.category, name: compound.name })
   const fillOf = (v?: StockItem) =>
     v && v.remainingBase != null && v.totalBase ? Math.max(0, Math.min(1, v.remainingBase / v.totalBase)) : 0.5
+  const inUseName = inUse
+    ? !onToday
+      ? `${nounOf(inUse)} in use then`
+      : inUse.acquiredOn == null
+        ? `Unopened ${nounOf(inUse).toLowerCase()}`
+        : `Current ${nounOf(inUse).toLowerCase()}`
+    : ""
+  const dosesLeft =
+    inUse?.dosesRemaining != null ? `${inUse.dosesRemaining} ${inUse.dosesRemaining === 1 ? "dose" : "doses"} left` : null
 
-  const stockFace: ReactNode = noStock ? (
-    <span className="opacity-[0.45]">
-      <Container name={compound.name} inventoryType={inventoryType} category={compound.category} fill={0} size={24} />
-    </span>
-  ) : notCounted ? (
-    <span className="relative">
-      <Container name={compound.name} inventoryType={inventoryType} category={compound.category} fill={0.5} size={24} />
-      <svg aria-hidden viewBox="0 0 60 96" className="absolute inset-0 h-full w-full overflow-visible">
-        <line className="animate-strike" x1="6" y1="90" x2="54" y2="8" pathLength={1} stroke="var(--state-error)" strokeWidth="6" strokeLinecap="round" />
-      </svg>
-    </span>
-  ) : (
-    <Container name={compound.name} inventoryType={inventoryType} category={compound.category} fill={fillOf(picked)} size={24} />
-  )
-
-  const tiles: { key: LogTile; icon: ReactNode; label: string; set: boolean }[] = [
+  /* ---- the tiles ---- */
+  const tiles: { key: LogTile; glyph: "site" | "stock" | "note"; label: string; sub: string; set: boolean }[] = [
     ...(injectable
-      ? [{ key: "site" as const, icon: <FigureIcon set={Boolean(draft.siteId)} />, label: draft.siteId ? siteName(draft.siteId) : "Site", set: Boolean(draft.siteId) }]
+      ? [{
+          key: "site" as const,
+          glyph: "site" as const,
+          label: "Site",
+          sub: draft.siteId ? siteShortLabel(draft.siteId, siteName(draft.siteId)) : "Pick one",
+          set: Boolean(draft.siteId),
+        }]
       : []),
-    { key: "stock", icon: stockFace, label: noStock ? "No stock" : notCounted ? "Not counted" : "Stock", set: !noStock },
-    { key: "note", icon: <NoteIcon />, label: draft.note.trim() || "Note", set: Boolean(draft.note.trim()) },
+    {
+      key: "stock",
+      glyph: "stock",
+      label: "Stock",
+      sub: stock.kind === "loading" ? " " : inUse ? nounOf(inUse) : "None",
+      set: Boolean(inUse),
+    },
+    { key: "note", glyph: "note", label: "Note", sub: draft.note.trim() ? "Added" : "Add", set: Boolean(draft.note.trim()) },
   ]
 
-  const noun = (i: number, v: StockItem) =>
-    `${containerNounTitle({ inventoryType: v.inventoryType, totalAmountUnit: v.totalAmountUnit, category: compound.category, name: compound.name })} ${i + 1}`
-
-  const panel = (kind: LogTile) => {
+  /** A panel's header row (left) and body. The Stock panel has no body. */
+  const headerOf = (kind: LogTile): ReactNode => {
+    if (kind === "site") {
+      return <BodyAspectSwitch aspect={aspect} onChange={setAspect} small />
+    }
+    if (kind === "note") {
+      return <span className="text-[13px] text-foreground">Add a Note</span>
+    }
+    // Stock: the row IS the header, and tapping it closes the panel.
+    if (stock.kind === "loading") {
+      return <span aria-hidden className="sk h-[34px] w-full rounded-xl bg-bg-surface-raised" />
+    }
+    if (stock.kind === "failed") {
+      return (
+        <button type="button" onClick={close} className="min-w-0 flex-1 py-1.5 text-left text-[13px] text-text-muted">
+          Couldn&apos;t load your stock
+        </button>
+      )
+    }
+    if (noStock) {
+      return (
+        <span className="flex min-w-0 flex-1 items-center gap-2.5">
+          <button type="button" onClick={close} className="min-w-0 flex-1 py-1.5 text-left text-[13px] text-text-muted">
+            No stock yet
+          </button>
+          <button
+            type="button"
+            onClick={onAddStock}
+            aria-label="Add stock"
+            className={cn(PRESS.button, "inst-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-bg-base")}
+          >
+            <Plus />
+          </button>
+        </span>
+      )
+    }
+    if (onlyUnmixed || pastNone) {
+      return (
+        <button type="button" onClick={close} className="min-w-0 flex-1 py-1.5 text-left text-[13px] text-text-muted">
+          {pastNone ? "No container was in use that day" : "No mixed vial yet"}
+        </button>
+      )
+    }
+    return (
+      <button type="button" onClick={close} className={cn(PRESS.rowPart, "flex min-w-0 flex-1 items-center gap-2.5 text-left")}>
+        <span className="flex shrink-0">
+          <Container
+            name={compound.name}
+            inventoryType={inUse?.inventoryType ?? inventoryType}
+            category={compound.category}
+            fill={inUse?.acquiredOn == null ? 1 : fillOf(inUse)}
+            size={30}
+          />
+        </span>
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-[13px] text-foreground">{inUseName}</span>
+          {dosesLeft ? <span className="block font-mono text-[11px] text-text-muted">{dosesLeft}</span> : null}
+        </span>
+      </button>
+    )
+  }
+  const bodyOf = (kind: LogTile): ReactNode => {
     if (kind === "site") {
       return (
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-1.5">
           {sites.length === 0 ? (
             <p className="py-6 text-sm text-text-muted">Couldn&apos;t load the body map. You can still log the dose.</p>
           ) : (
@@ -327,11 +421,18 @@ export function LogRowPanel({
               dayChips
               freshestId={freshest?.id ?? null}
               tone="lifted"
-              onTapSite={(id) => onDraft({ siteId: id === draft.siteId ? null : id })}
+              aspect={aspect}
+              onAspectChange={setAspect}
+              hideSwitch
+              onTapSite={pickSite}
             />
           )}
-          <p key={draft.siteId ?? "none"} className="animate-hl-swap min-h-5 text-center text-sm text-foreground">
-            {draft.siteId ? siteName(draft.siteId) : " "}
+          <p key={draft.siteId ?? "none"} className="animate-hl-swap min-h-5 text-center text-[13px]">
+            {draft.siteId ? (
+              <span className="text-foreground">{siteName(draft.siteId)}</span>
+            ) : (
+              <span className="text-text-muted">Tap where you injected</span>
+            )}
           </p>
         </div>
       )
@@ -341,216 +442,73 @@ export function LogRowPanel({
         <textarea
           value={draft.note}
           onChange={(e) => onDraft({ note: e.target.value.slice(0, 500) })}
-          placeholder="Anything to remember"
+          placeholder="Anything to remember?"
           aria-label="Note"
-          className="min-h-[80px] w-full resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-text-muted"
+          rows={2}
+          className="inset-focus block w-full resize-none rounded-[10px] bg-bg-input px-2.5 py-2 text-[13px] text-foreground outline-none placeholder:text-text-muted"
         />
       )
     }
-    if (stock.kind === "loading") {
-      return <div aria-hidden className="sk h-[118px] rounded-xl bg-bg-surface-raised" />
-    }
-    if (stock.kind === "failed") {
-      return <p className="py-6 text-center text-sm text-text-muted">Couldn&apos;t load your stock.</p>
-    }
-    if (pastOnly) {
-      // A past day: the container in use then, if it has since been finished
-      // and put away, or none at all.
-      const thenId = stock.dateVialId
-      return thenId ? (
-        <div>
-          <button
-            type="button"
-            aria-pressed={!notCounted}
-            onClick={() => onDraft({ inventoryItemId: thenId })}
-            className={cn(
-              "log-vcard mx-auto flex w-[calc(50%-4px)] flex-col items-center gap-1.5 rounded-xl border bg-bg-surface px-2 pt-3 pb-2.5 text-[12.5px] text-foreground",
-              notCounted ? "border-transparent opacity-30" : "border-text-primary",
-            )}
-          >
-            <Container name={compound.name} inventoryType={inventoryType} category={compound.category} size={52} />
-            In use then
-          </button>
-          <button
-            type="button"
-            onClick={() => onDraft({ inventoryItemId: notCounted ? thenId : null })}
-            className={cn(
-              PRESS.text,
-              "mx-auto mt-3 block rounded-lg px-2.5 py-1.5 text-[12.5px] transition-colors",
-              notCounted ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
-            )}
-          >
-            {notCounted ? "Count it" : "Don’t count this dose"}
-          </button>
-        </div>
-      ) : (
-        <p className="py-6 text-center text-sm text-text-muted">No {compound.name} container was in use that day.</p>
-      )
-    }
-    if (noStock) {
-      return (
-        <div className="flex flex-col items-center gap-2.5 py-2.5">
-          <span className="opacity-[0.45]">
-            <Container name={compound.name} inventoryType={inventoryType} category={compound.category} fill={0} size={56} />
-          </span>
-          <p className="text-[13px] text-text-muted">No {compound.name} stock yet</p>
-          <button
-            type="button"
-            onClick={onAddStock}
-            className={cn(PRESS.button, "inst-btn px-[18px] py-[9px] text-[13px] font-medium text-bg-base")}
-          >
-            Add stock
-          </button>
-        </div>
-      )
-    }
-    // Spares are GROUPED, one card per kind ("9 · Mix first"): nine identical
-    // cards to swipe past say nothing one card does not. Picking the unopened
-    // group takes the oldest, which Track then starts.
-    const dryOnes = stock.spares.filter((v) => v.inventoryType === "reconstituted")
-    const waterShown = water ?? String(mixWaterDefault([...stock.open, ...stock.spares]))
-    const waterWidth = waterShown.length
-    const sealed = stock.spares.filter((v) => v.inventoryType !== "reconstituted")
-    const group = (vs: StockItem[], dry: boolean) =>
-      vs.length === 0
-        ? []
-        : [{ v: vs[0], ids: vs.map((x) => x.id), name: vs.length === 1 ? "Spare" : "Spares", sub: `${vs.length} · ${dry ? "Mix first" : "Unopened"}`, dry }]
-    const cards = [
-      ...stock.open.map((v, i) => ({ v, ids: [v.id], name: noun(i, v), sub: v.dosesRemaining != null ? `${v.dosesRemaining} ${v.dosesRemaining === 1 ? "dose" : "doses"} left` : "Open", dry: false })),
-      ...group(sealed, false),
-      ...group(dryOnes, true),
-    ]
-    return (
-      <div>
-        <div className={cn("log-vcards -mx-0.5 flex gap-2 overflow-x-auto p-0.5", notCounted && "log-vcards-off")}>
-          {cards.map(({ v, ids, name, sub, dry }) => {
-            const on = !notCounted && draft.inventoryItemId != null && ids.includes(draft.inventoryItemId)
-            return (
-              <button
-                key={v.id}
-                type="button"
-                aria-pressed={on}
-                aria-expanded={dry ? armed : undefined}
-                onClick={() => {
-                  if (dry) {
-                    setArmed((a) => !a)
-                    return
-                  }
-                  setArmed(false)
-                  onDraft({ inventoryItemId: v.id })
-                  onSpare(v.acquiredOn == null ? v.id : null)
-                }}
-                className={cn(
-                  "log-vcard flex flex-[0_0_calc(50%-4px)] flex-col items-center gap-1.5 rounded-xl border bg-bg-surface px-2 pt-3 pb-2.5 text-[12.5px] text-foreground",
-                  on || (dry && armed) ? "border-text-primary" : "border-transparent",
-                  dry && !armed && "opacity-55",
-                )}
-              >
-                <Container
-                  name={compound.name}
-                  inventoryType={v.inventoryType}
-                  category={compound.category}
-                  fill={v.acquiredOn == null ? (dry ? 0 : 1) : fillOf(v)}
-                  size={52}
-                />
-                {name}
-                <small className="font-mono text-[9.5px] tracking-[0.06em] text-text-muted uppercase">{sub}</small>
-              </button>
-            )
-          })}
-        </div>
-        {armed && dryOnes.length > 0 ? (
-          <div className="animate-hl-swap mt-3 flex items-center justify-center gap-2">
-            <label className="flex items-center gap-1 rounded-lg border border-border-strong px-2.5 py-[5px] font-mono text-[11px] text-foreground">
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                step={0.5}
-                value={waterShown}
-                onChange={(e) => setWater(e.target.value)}
-                aria-label="BAC water, mL"
-                style={{ width: `${Math.max(1, waterWidth)}ch` }}
-                className="min-w-0 bg-transparent text-right outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-              />
-              mL
-            </label>
-            <button
-              type="button"
-              disabled={mixing || !(Number.parseFloat(waterShown) > 0)}
-              onClick={() =>
-                guard(() => {
-                  const target = dryOnes[0]
-                  const ml = Number.parseFloat(waterShown)
-                  if (!target || !(ml > 0)) return
-                  setMixing(true)
-                  void mixStockItem(target.id, ml, todayKey)
-                    .then((r) => {
-                      if (!r.ok) return
-                      setArmed(false)
-                      onSpare(null)
-                      onDraft({ inventoryItemId: target.id })
-                      setMixTick((t) => t + 1)
-                    })
-                    .finally(() => setMixing(false))
-                })
-              }
-              className={cn(PRESS.button, "inst-btn px-3.5 py-[5px] text-[12.5px] font-medium text-bg-base disabled:opacity-50")}
-            >
-              Mix
-            </button>
-          </div>
-        ) : (
-        <button
-          type="button"
-          onClick={() => {
-            if (notCounted) {
-              onDraft({ inventoryItemId: onToday ? stock.open[0]?.id : (stock.dateVialId ?? undefined) })
-            } else {
-              onDraft({ inventoryItemId: null })
-              onSpare(null)
-            }
-          }}
-          className={cn(
-            PRESS.text,
-            "mx-auto mt-3 block rounded-lg px-2.5 py-1.5 text-[12.5px] transition-colors",
-            notCounted ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
-          )}
-        >
-          {notCounted ? "Count it" : "Don’t count this dose"}
-        </button>
-        )}
-      </div>
-    )
+    return null
   }
+
+  const hasArrow = shown !== "stock"
+  const body = shown ? bodyOf(shown) : null
 
   return (
     <div ref={rootRef} className="flex flex-col pb-3" style={{ "--hue": hue } as CSSProperties}>
       <div className="hairline-t flex items-center justify-between gap-2.5 py-[9px]">
         <span className="text-[13px] text-text-muted">Dose</span>
-        <span className="flex items-center gap-2.5">
+        <span className="flex items-center gap-2">
           <button
             type="button"
             aria-label="Less"
             onClick={() => setAmount(draft.amount - step)}
-            className={cn(PRESS.icon, "flex h-[30px] w-[30px] items-center justify-center rounded-full bg-bg-surface-raised text-base text-foreground")}
+            className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] items-center justify-center rounded-lg text-base text-foreground")}
           >
             −
           </button>
-          <b className="min-w-[38px] text-center font-mono text-[17px] font-light text-foreground">
-            {draft.amount > 0 ? formatStepAmount(draft.amount) : "—"}
-          </b>
-          <small className="-ml-1.5 text-[11px] text-text-muted">{draft.unit}</small>
+          {/* Tap the figure to type it on the Trakabl pad. */}
+          <PadInput
+            {...pad.bind("dose")}
+            value={amountText}
+            label={`${compound.name} dose`}
+            unit={draft.unit}
+            align="center"
+            className="h-9 w-[104px] px-2 text-[17px] font-light"
+            suffix={<small className="font-sans text-[11px] text-text-muted">{draft.unit}</small>}
+          />
           <button
             type="button"
             aria-label="More"
             onClick={() => setAmount(draft.amount + step)}
-            className={cn(PRESS.icon, "flex h-[30px] w-[30px] items-center justify-center rounded-full bg-bg-surface-raised text-base text-foreground")}
+            className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] items-center justify-center rounded-lg text-base text-foreground")}
           >
             +
           </button>
         </span>
       </div>
+      <NumberPad
+        {...pad.padProps([
+          {
+            id: "dose",
+            label: `${compound.name} dose`,
+            unit: draft.unit,
+            value: amountText,
+            decimal: !counted,
+            onChange: (v) => {
+              setPadText(v)
+              const n = Number.parseFloat(v)
+              onDraft({ amount: Number.isFinite(n) && n > 0 ? Number(n.toFixed(3)) : 0 })
+            },
+          },
+        ])}
+        onClose={() => {
+          setPadText(null)
+          pad.close()
+        }}
+        selectOnOpen
+      />
       <div className="hairline-t flex items-center justify-between gap-2.5 py-[9px]">
         <span className="text-[13px] text-text-muted">Time</span>
         {/* The time opens the phone's own picker: a native time input laid
@@ -574,14 +532,19 @@ export function LogRowPanel({
             type="button"
             onClick={() => choose(t.key)}
             aria-pressed={tile === t.key}
+            aria-expanded={tile === t.key}
             data-on={tile === t.key ? "true" : "false"}
             className={cn(
-              "log-tile flex min-h-[72px] min-w-0 flex-1 flex-col items-center justify-center gap-[7px] rounded-[14px] bg-bg-surface-raised px-1.5 pt-3 pb-2.5 text-[11.5px]",
-              t.set || tile === t.key ? "text-foreground" : "text-text-muted",
+              PRESS.card,
+              "log-tile inst-tile flex min-h-[68px] min-w-0 flex-1 flex-col items-center justify-center gap-[5px] px-1 pt-[9px] pb-2",
+              tile === t.key ? "bg-bg-input text-foreground" : "bg-bg-surface-raised text-text-muted",
             )}
           >
-            {t.icon}
-            <span className="max-w-full truncate">{t.label}</span>
+            <span className="log-tile-icon flex">
+              <SolidIcon name={t.glyph} size={20} tone={tile === t.key || t.set ? "on" : "off"} />
+            </span>
+            <span className="text-[11.5px] leading-[1.1]">{t.label}</span>
+            <span className="max-w-full truncate font-mono text-[9.5px] leading-none text-text-muted">{t.sub}</span>
           </button>
         ))}
       </div>
@@ -590,18 +553,28 @@ export function LogRowPanel({
           inert, so none of it can still be tabbed to or read out. */}
       <div className="log-panel" data-open={tile ? "true" : "false"} inert={!tile}>
         <div>
-          <div ref={wrapRef} className="inset-surface relative mt-2.5 overflow-hidden rounded-[14px] px-3 pt-11 pb-3">
-            {tile ? (
-              <button
-                type="button"
-                onClick={close}
-                aria-label="Close"
-                className={cn(PRESS.icon, "log-panel-close absolute top-2 right-2 z-10 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-bg-surface-raised text-foreground")}
-              >
-                <UpArrow />
-              </button>
+          <div ref={panRef} className="inset-surface relative mt-2.5 overflow-hidden pt-2 pr-2.5 pb-2.5 pl-3">
+            <div className="flex min-h-8 items-center gap-2.5">
+              <div data-pan-part className="flex min-w-0 flex-1 items-center gap-2.5">
+                {shown ? headerOf(shown) : null}
+              </div>
+              {hasArrow ? (
+                <button
+                  data-pan-part
+                  type="button"
+                  onClick={close}
+                  aria-label="Close"
+                  className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md text-foreground")}
+                >
+                  <UpArrow />
+                </button>
+              ) : null}
+            </div>
+            {body ? (
+              <div data-pan-part className="mt-2.5">
+                {body}
+              </div>
             ) : null}
-            <div ref={innerRef}>{shown ? panel(shown) : null}</div>
           </div>
         </div>
       </div>

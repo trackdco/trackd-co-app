@@ -19,6 +19,8 @@ import type {
 import { BodyMap } from "@/components/sites/BodyMap"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
 import { decayWindow, siteHeat } from "@/lib/home/siteRecency"
+import { siteDisplayName } from "@/lib/home/siteCatalog"
+import { rampFill } from "@/lib/sites/recencyRamp"
 
 interface RecentSite {
   siteLabel: string | null
@@ -96,6 +98,19 @@ export function InjectionSitesSheet({
     }
     return heat
   }, [routeSites, daysSince, route])
+
+  // The day chips: days since each site on this route, and the freshest one.
+  const { routeHistory, freshestId } = useMemo(() => {
+    const out: Record<string, number> = {}
+    let best: { id: string; d: number } | null = null
+    for (const s of routeSites) {
+      const d = daysSince[s.id]
+      if (d === undefined) continue
+      out[s.id] = d
+      if (!best || d < best.d) best = { id: s.id, d }
+    }
+    return { routeHistory: out, freshestId: best?.id ?? null }
+  }, [routeSites, daysSince])
 
   // The most-recent muscles on this route, each with the compound(s) put there.
   const recentForRoute = recentSites.filter((s) => s.route === route)
@@ -249,11 +264,18 @@ export function InjectionSitesSheet({
               onPointerLeave={endScrub}
               onPointerCancel={endScrub}
             >
+              {/* The log sheet's map (build-brief-final §3.4): day chips in the
+                  margins on 1px leaders, the freshest chip amber, the sites in
+                  solid steps of the amber ramp. It reports; it never suggests. */}
               <BodyMap
                 sites={routeSites}
                 mode="recency"
                 sex={bodySex}
                 heat={heat}
+                history={routeHistory}
+                historyWindow={decayWindow(route)}
+                dayChips
+                freshestId={freshestId}
                 inspectable
               />
 
@@ -263,7 +285,7 @@ export function InjectionSitesSheet({
                   style={{ left: pointer.x, top: pointer.y - 12 }}
                 >
                   <p className="whitespace-nowrap text-xs font-medium text-foreground">
-                    {inspected.label}
+                    {siteDisplayName(inspected.label)}
                   </p>
                   <p
                     className={cn(
@@ -297,14 +319,13 @@ export function InjectionSitesSheet({
                         aria-hidden
                         className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
                         style={{
-                          background: "var(--accent-amber)",
-                          opacity: Math.max(0.4, siteHeat(s.daysAgo, route)),
+                          background: rampFill(Math.max(0.4, siteHeat(s.daysAgo, route))) ?? "var(--muscle-region)",
                         }}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-3">
                           <span className="min-w-0 truncate text-sm text-foreground">
-                            {s.siteLabel ?? "No site"}
+                            {s.siteLabel ? siteDisplayName(s.siteLabel) : "No site"}
                           </span>
                           <span className="shrink-0 font-mono text-xs text-text-muted">
                             {agoLabel(s.daysAgo)}

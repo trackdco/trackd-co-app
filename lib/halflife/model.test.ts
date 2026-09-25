@@ -11,10 +11,21 @@ import {
   formatDuration,
   formatHalfLife,
   formatHalfLifeShort,
+  formatPeak,
+  formatPeakIn,
   formatPercent,
   formatSteady,
+  formatUsual,
+  halfGoneAfterH,
+  halfGoneAtH,
   lastDoseLeft,
   peakAfterH,
+  peakCountdown,
+  RANGE_AT_NOW,
+  RANGE_FAR,
+  RANGE_WIDEN_H,
+  rangeBand,
+  rangeFactorsAt,
   routeFor,
   runStartH,
   sampleTimes,
@@ -340,5 +351,223 @@ describe("formatting", () => {
     expect(formatHalfLifeShort(144)).toBe("6.0D")
     expect(formatHalfLifeShort(2.5)).toBe("2.5H")
     expect(formatHalfLifeShort(0.5)).toBe("30MIN")
+  })
+})
+
+describe("the ½ line", () => {
+  it("falls where Of last dose left crosses half: about 1.14 half-lives after an injection", () => {
+    for (const hl of [2, 4, 108, 144]) {
+      const h = halfGoneAfterH(hl, "injection")
+      expect(h / hl, `${hl} h`).toBeCloseTo(1.136, 3)
+      expect(lastDoseLeft(h, hl, "injection")).toBeCloseTo(0.5, 9)
+      expect(lastDoseLeft(h - hl * 1e-6, hl, "injection")).toBeGreaterThan(0.5)
+    }
+  })
+
+  it("is NOT the last dose plus one half-life: the depot holds it back", () => {
+    // At one half-life 55% of a weekly injection is still left.
+    expect(lastDoseLeft(144, 144, "injection")).toBeGreaterThan(0.54)
+    expect(halfGoneAfterH(144, "injection")).toBeGreaterThan(144 + 19)
+  })
+
+  it("lands just past the half-life for an oral dose, whose depot empties in minutes", () => {
+    const h = halfGoneAfterH(48, "oral")
+    expect(h / 48).toBeGreaterThan(1)
+    expect(h / 48).toBeLessThan(1.02)
+  })
+
+  it("waits for absorption when the half-life is shorter than it", () => {
+    // A 6-minute half-life still absorbs over 0.35 h, so it cannot be half gone
+    // in 6 minutes.
+    const h = halfGoneAfterH(0.1, "oral")
+    expect(h).toBeGreaterThan(0.35)
+    expect(lastDoseLeft(h, 0.1, "oral")).toBeCloseTo(0.5, 9)
+  })
+
+  it("sits after the LAST dose taken, where the tile reads 50%", () => {
+    const last = at(26)
+    const half = halfGoneAtH(RETA.doses, NOW_H, 144, "injection")!
+    // The doses still to come in the same list move nothing.
+    expect(half).toBe(last + halfGoneAfterH(144, "injection"))
+    // With no dose taken in between, the tile reads 50% at the line.
+    const taken = RETA.doses.filter((d) => d.atH <= NOW_H)
+    const f = figuresAt({ doses: taken, halfLifeH: 144, route: "injection", nowH: half, nextDoseAtH: null })
+    expect(formatPercent(f.lastDoseLeft!)).toBe("50")
+  })
+
+  it("has no ½ line before the first dose", () => {
+    expect(halfGoneAtH([], NOW_H, 144, "injection")).toBeNull()
+    expect(halfGoneAtH([{ atH: NOW_H + 5, amount: 2 }], NOW_H, 144, "injection")).toBeNull()
+  })
+})
+
+describe("the peak the drawn curve reaches", () => {
+  /** The highest the curve gets between `from` and `to`, walked finely. */
+  const walkedTop = (doses: Dose[], from: number, to: number, hl: number, route: AbsorptionRoute) => {
+    let top = 0
+    for (let t = from; t <= to; t += (to - from) / 5000) top = Math.max(top, amountAt(doses, t, hl, route))
+    return top
+  }
+
+  it("counts to the top of the stacked curve between the last dose and the next", () => {
+    // Retatrutide, 6 h after the day-26 dose; the next is day 29.
+    const now = at(26) + 6
+    const p = peakCountdown(RETA.doses, now, 144, "injection")
+    expect(p.kind).toBe("ahead")
+    if (p.kind !== "ahead") return
+    expect(p.inH).toBeCloseTo(p.atH - now, 12)
+    const top = amountAt(RETA.doses, p.atH, 144, "injection")
+    expect(top).toBeGreaterThanOrEqual(walkedTop(RETA.doses, at(26), at(29), 144, "injection") - 1e-9)
+    for (const [t, v] of curvePoints(RETA.doses, at(26), at(29), 200, 144, "injection")) {
+      expect(v, `at ${t}`).toBeLessThanOrEqual(top + 1e-9)
+    }
+    // The earlier doses, still falling, pull the top ahead of one dose's own peak.
+    expect(p.atH).toBeLessThan(at(26) + peakAfterH(144, "injection"))
+    expect(formatPeak(p)).toEqual({ label: "Peaks in", value: "23h" })
+  })
+
+  it("switches to the next dose's own peak the moment the top has passed", () => {
+    const top = peakCountdown(RETA.doses, at(26) + 6, 144, "injection")
+    if (top.kind !== "ahead") throw new Error("expected a peak ahead")
+    const before = peakCountdown(RETA.doses, top.atH - 0.01, 144, "injection")
+    expect(before.kind).toBe("ahead")
+    expect(before.kind === "ahead" && before.atH).toBeCloseTo(top.atH, 6)
+
+    const after = peakCountdown(RETA.doses, top.atH + 0.01, 144, "injection")
+    expect(after.kind).toBe("next")
+    if (after.kind !== "next") return
+    // The day-29 dose's window runs to the day-33 dose.
+    expect(after.atH).toBeGreaterThan(at(29))
+    expect(after.atH).toBeLessThan(at(33))
+    const nextTop = amountAt(RETA.doses, after.atH, 144, "injection")
+    expect(nextTop).toBeGreaterThanOrEqual(walkedTop(RETA.doses, at(29), at(33), 144, "injection") - 1e-9)
+    expect(formatPeak(after)?.label).toBe("Next peak in")
+  })
+
+  it("reads Next peak in at the preview's Now, two days after the day-26 top", () => {
+    const p = peakCountdown(RETA.doses, NOW_H, 144, "injection")
+    expect(p.kind).toBe("next")
+    expect(formatPeak(p)).toEqual({ label: "Next peak in", value: "2 days" })
+  })
+
+  it("finds a short half-life's spike exactly, which even samples miss", () => {
+    // TB-500, 2 h: yesterday's dose is 12 half-lives gone, so the top is this
+    // dose's own peak, 41 minutes after it.
+    const soon = peakCountdown(TB.doses, at(28) + 0.2, 2, "injection")
+    expect(soon.kind).toBe("ahead")
+    expect(soon.kind === "ahead" && soon.atH).toBeCloseTo(at(28) + peakAfterH(2, "injection"), 3)
+    expect(formatPeak(soon)).toEqual({ label: "Peaks in", value: "<1h" })
+
+    const later = peakCountdown(TB.doses, at(28) + 3, 2, "injection")
+    expect(later.kind).toBe("next")
+    expect(later.kind === "next" && later.atH).toBeCloseTo(at(29) + peakAfterH(2, "injection"), 3)
+    expect(formatPeak(later)).toEqual({ label: "Next peak in", value: "22h" })
+  })
+
+  it("peaks within hours of an oral dose", () => {
+    const p = peakCountdown(ANAS.doses, at(26) + 1, 48, "oral")
+    expect(p.kind).toBe("ahead")
+    if (p.kind !== "ahead") return
+    expect(p.atH).toBeGreaterThan(at(26) + 1)
+    expect(p.atH).toBeLessThanOrEqual(at(26) + peakAfterH(48, "oral") + 1e-9)
+    expect(formatPeak(p)).toEqual({ label: "Peaks in", value: "1h" })
+  })
+
+  it("a stopped compound: counts to its last top, then reads Peak · Passed", () => {
+    // The last dose is day 19 and nothing is to come.
+    const stopped = monThu(5, 20, 2)
+    const early = peakCountdown(stopped, at(19) + 5, 144, "injection")
+    const late = peakCountdown(stopped, NOW_H, 144, "injection")
+    if (early.kind !== "ahead" || late.kind !== "passed") throw new Error(`${early.kind} then ${late.kind}`)
+    // The same top, counted to and then passed.
+    expect(late.atH).toBeCloseTo(early.atH, 6)
+    expect(late.atH).toBeLessThan(NOW_H)
+    expect(formatPeak(late)).toEqual({ label: "Peak", value: "Passed" })
+  })
+
+  it("has no peak before the first dose, even with doses to come", () => {
+    expect(peakCountdown([], NOW_H, 144, "injection")).toEqual({ kind: "none" })
+    expect(peakCountdown([{ atH: NOW_H + 20, amount: 2 }], NOW_H, 144, "injection")).toEqual({ kind: "none" })
+    expect(formatPeak({ kind: "none" })).toBeNull()
+  })
+})
+
+describe("the peak countdown's wording", () => {
+  it("is whole days from a day, then hours, then <1h", () => {
+    expect(formatPeakIn(0.4)).toBe("<1h")
+    expect(formatPeakIn(0.99)).toBe("<1h")
+    expect(formatPeakIn(1)).toBe("1h")
+    expect(formatPeakIn(5.2)).toBe("5h")
+    expect(formatPeakIn(23.4)).toBe("23h")
+    expect(formatPeakIn(24)).toBe("1 day")
+    expect(formatPeakIn(35)).toBe("1 day")
+    expect(formatPeakIn(47)).toBe("2 days")
+    expect(formatPeakIn(72)).toBe("3 days")
+  })
+
+  it("never says 24h: hours that round to a day read as one", () => {
+    expect(formatPeakIn(23.6)).toBe("1 day")
+  })
+})
+
+describe("the likely range", () => {
+  it("is the curve ×1.14 above and ×0.86 below at Now", () => {
+    expect(rangeFactorsAt(NOW_H, NOW_H)).toEqual({ upper: 1.14, lower: 0.86 })
+    expect(RANGE_AT_NOW).toEqual({ upper: 1.14, lower: 0.86 })
+  })
+
+  it("is halfway to its widest three days either side", () => {
+    for (const t of [NOW_H - 72, NOW_H + 72]) {
+      const k = rangeFactorsAt(t, NOW_H)
+      expect(k.upper).toBeCloseTo(1.22, 12)
+      expect(k.lower).toBeCloseTo(0.81, 12)
+    }
+  })
+
+  it("widens in a straight line with the distance from Now", () => {
+    const k = rangeFactorsAt(NOW_H + 36, NOW_H)
+    expect(k.upper).toBeCloseTo(1.18, 12)
+    expect(k.lower).toBeCloseTo(0.835, 12)
+  })
+
+  it("is ×1.30 and ×0.76 at six days, and holds there at ten", () => {
+    expect(RANGE_WIDEN_H).toBe(144)
+    expect(rangeFactorsAt(NOW_H + 144, NOW_H)).toEqual({ upper: 1.3, lower: 0.76 })
+    expect(rangeFactorsAt(NOW_H + 240, NOW_H)).toEqual(RANGE_FAR)
+    expect(rangeFactorsAt(NOW_H - 240, NOW_H)).toEqual(RANGE_FAR)
+  })
+
+  it("brackets every point of the drawn curve", () => {
+    const pts = curvePoints(RETA.doses, NOW_H - 240, NOW_H + 144, 200, 144, "injection")
+    const band = rangeBand(pts, NOW_H)
+    expect(band).toHaveLength(pts.length)
+    band.forEach(([t, lo, hi], i) => {
+      const [pt, v] = pts[i]
+      expect(t).toBe(pt)
+      const k = rangeFactorsAt(t, NOW_H)
+      expect(lo).toBeCloseTo(v * k.lower, 12)
+      expect(hi).toBeCloseTo(v * k.upper, 12)
+      expect(lo).toBeLessThanOrEqual(v)
+      expect(hi).toBeGreaterThanOrEqual(v)
+    })
+  })
+})
+
+describe("the general line", () => {
+  it("words one dose's peak and clearing time as durations", () => {
+    expect(formatUsual(144, "injection")).toEqual({ peaksAfter: "2 days", clearsAfter: "31 days" })
+    expect(formatUsual(108, "injection")).toEqual({ peaksAfter: "37h", clearsAfter: "23 days" })
+    expect(formatUsual(4, "injection")).toEqual({ peaksAfter: "1h", clearsAfter: "21h" })
+    expect(formatUsual(2, "injection")).toEqual({ peaksAfter: "41 min", clearsAfter: "10h" })
+    expect(formatUsual(48, "oral")).toEqual({ peaksAfter: "3h", clearsAfter: "10 days" })
+  })
+
+  it("is the model's own single-dose figures, not a separate estimate", () => {
+    for (const c of [RETA, TEST_E, ANAS, BPC, TB]) {
+      expect(formatUsual(c.halfLifeH, c.route)).toEqual({
+        peaksAfter: formatDuration(peakAfterH(c.halfLifeH, c.route)),
+        clearsAfter: formatDuration(clearsAfterH(c.halfLifeH, c.route)),
+      })
+    }
   })
 })

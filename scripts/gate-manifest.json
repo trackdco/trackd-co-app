@@ -56,6 +56,7 @@
     "app/(app)/progress/actions.ts#deleteBloodworkPhoto",
     "app/(app)/progress/actions.ts#deleteJournalEntry",
     "app/(app)/progress/actions.ts#deleteProgressPhoto",
+    "app/(app)/progress/actions.ts#readJournalForHome",
     "app/(app)/progress/actions.ts#removeCustomMarker",
     "app/(app)/weight/actions.ts#deleteWeight",
     "app/forgot-password/actions.ts#requestPasswordReset",

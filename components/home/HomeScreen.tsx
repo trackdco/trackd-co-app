@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { CalendarDots, CaretDown, NotePencil, User } from "@/components/icons"
-import { requestProgressAction } from "@/lib/progress/progressAction"
-import { computeNextDose } from "@/lib/home/nextDose"
+import { CalendarDots, CaretDown, User } from "@/components/icons"
 import { belongsInDayLog, ringCounts } from "@/lib/home/dayDoses"
-import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
+import { PRESS } from "@/lib/ui-presets"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { cn } from "@/lib/utils"
+import { showToast } from "@/lib/toast"
+import { bubbleSeen, celebrated, hasAnyLog, markBubbleSeen, markCelebrated } from "@/lib/home/firstRun"
+import { FirstDoseModal } from "@/components/home/FirstDoseModal"
+import { HomeJournal } from "@/components/home/HomeJournal"
 
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { SkeletonSwap } from "@/components/feel/Skeleton"
@@ -31,7 +33,7 @@ import { SAVE_CONFIRM_MS, TrackBar } from "@/components/home/log/TrackBar"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
 import { draftToLog, initialDraft, trackLabel, type RowDraft } from "@/lib/home/logDraft"
 import { openStockItem, type StockRead } from "@/lib/db/inventory"
-import { siteLabel } from "@/lib/home/siteCatalog"
+import { siteShortLabel } from "@/lib/home/siteCatalog"
 import {
   getOneOffsSnapshot,
   oneOffsOn,
@@ -45,10 +47,6 @@ import {
   subscribeStacks,
   type Stack,
 } from "@/lib/home/stacks"
-import {
-  DayStatusWidgets,
-  type NextDoseInfo,
-} from "@/components/home/DayStatusWidgets"
 import { EmptyLogCard } from "@/components/home/EmptyLogCard"
 import { InjectionSitesGlanceCard } from "@/components/home/InjectionSitesGlanceCard"
 import { InjectionSitesSheet } from "@/components/home/InjectionSitesSheet"
@@ -613,24 +611,6 @@ export function HomeScreen({
     }),
   )
 
-  // The soonest UNLOGGED dose on the selected day, through the SHARED resolver.
-  // A local sort here got this wrong: `timeOfDay` may legitimately be `""`, which
-  // string-compares below every real time, so an untimed compound sorted FIRST and
-  // sat permanently in the slot hiding every dose that did have a time.
-  // `computeNextDose` already handles that (and resolves the dose as it was on the
-  // day), and is pinned by a regression test.
-  const next = computeNextDose(stack, logs, selectedKey, selectedDate)
-  // "Everything is logged" and "nothing was ever scheduled" need different words,
-  // so they are told apart by whether anything is DUE that day — not by whether a
-  // log exists. `dueDoses` also contains compounds that merely have a log (kept as
-  // history after a schedule change), which would otherwise read as "you're clear".
-  const anyScheduled = dueCompounds.some(
-    (c) => !c.archived && isDueOnFor(c, selectedDate)
-  )
-  const nextDoseInfo: NextDoseInfo = next
-    ? { kind: "due", next }
-    : { kind: "none", scheduledAny: anyScheduled }
-
   const dueIdsKey = dueDoses.map((d) => d.id).sort().join(",")
   const drawKey = `${selectedKey}|${dueIdsKey}`
   useEffect(() => {
@@ -817,7 +797,16 @@ export function HomeScreen({
      * route into the sheet, including ones added later.
      */
     if (!guard(() => {})) return
+    // The very first dose of this account opens "First Dose Logged", once. Read
+    // BEFORE the write, and only once the cloud history has settled, so a
+    // returning user on a new phone is never greeted as new.
+    const firstEver = hydration === "done" && !hasAnyLog(logs) && !celebrated(userId)
     commitDoseOn(userId, compoundId, log, landsOn, openedOn, slot)
+    if (firstEver) {
+      markCelebrated(userId)
+      // After the tick's lift, so the row reads as logged under the scrim.
+      window.setTimeout(() => setFirstDoseOpen(true), 420)
+    }
     // The row's tick pops once the sheet has gone (feel pass §8).
     trackedRef.current = { id: compoundId, slot, day: landsOn }
     // Follow the dose to its new day — but only AFTER the sheet has closed. The
@@ -836,6 +825,9 @@ export function HomeScreen({
    * played on close, cleared once the ring has finished.
    */
   const trackedRef = useRef<{ id: string; slot: number; day: string } | null>(null)
+  const [firstDoseOpen, setFirstDoseOpen] = useState(false)
+  // First run: the bubble goes after the first tap and never comes back.
+  const [bubbleGone, setBubbleGone] = useState(() => typeof window !== "undefined" && bubbleSeen(userId))
   const [popKey, setPopKey] = useState<string | null>(null)
   const popTimer = useRef<number | undefined>(undefined)
   useEffect(() => () => window.clearTimeout(popTimer.current), [])
@@ -948,17 +940,32 @@ export function HomeScreen({
     playTrackedPop()
   }
 
+  // FIRST RUN (build-brief-final §3.1): nobody has logged a dose on this
+  // account yet, and the cloud history has settled, so the first due row's
+  // circle gets the bubble. Today only.
+  const firstDue = dueDoses.find((d) => !d.log && !d.paused)
+  const firstRunKey =
+    hydration === "done" && isToday && !bubbleGone && !hasAnyLog(logs) && firstDue ? rowKey(firstDue.id, 0) : null
+
   const logFlow: LogFlow = {
     openKey: liveRow ? rowKey(liveRow.dose.id, liveRow.slot) : null,
     closingKey: closingRow ? rowKey(closingRow.dose.id, closingRow.slot) : null,
     condensed: liveRow !== null && rowPanelOpen,
     draft: liveRow?.draft ?? null,
+    firstRunKey,
     onTick: (dose, slot) => {
+      if (firstRunKey) {
+        markBubbleSeen(userId)
+        setBubbleGone(true)
+      }
       const log = logs[selectedKey]?.[slotKey(dose.id, slot)]
-      // A LOGGED dose's tick un-logs it (the tick only).
+      // A LOGGED dose's tick un-logs it (the tick only), with a 3s Undo that
+      // puts back the very same dose: its amount, time, site and container.
       if (log) {
         if (isOpenRow(dose.id, slot)) closeLogRow()
-        handleRemove(dose.id, selectedKey, slot)
+        const day = selectedKey
+        handleRemove(dose.id, day, slot)
+        showToast("Unticked", { undo: () => handleTracked(dose.id, log, day, day, slot) })
         return
       }
       // The first tap opens the row, the second logs it.
@@ -1012,9 +1019,10 @@ export function HomeScreen({
       )
     },
   }
+  // The Track bar names the site SHORT ("Abdomen L"), consistency fix #28.
   const trackSiteName =
     liveRow?.draft.siteId
-      ? (injectionCatalogue.find((s) => s.id === liveRow.draft.siteId)?.label ?? siteLabel(liveRow.draft.siteId))
+      ? siteShortLabel(liveRow.draft.siteId, injectionCatalogue.find((s) => s.id === liveRow.draft.siteId)?.label)
       : null
 
   /**
@@ -1270,30 +1278,9 @@ export function HomeScreen({
           <HalfLifeGlance compounds={runningNow} logs={logs} userId={userId} />
         </div>
 
-        {/* */}
-        {/* The day's status — ring + next dose, both scoped to the SELECTED day
-            (Spec 02). Always rendered: on a day with nothing scheduled the cards
-            say so, which is information; a missing card is not. */}
-        <div data-area="status" className="animate-home-up" style={{ animationDelay: "55ms" }}>
-          <DayStatusWidgets
-            // The card is selected-day scoped, so it names the day it is showing
-            // rather than always saying "Today".
-            title={isToday ? "Today" : WEEKDAYS[selectedDate.getDay()]}
-            logged={selectedLogged}
-            // DOSES, not compounds. `dueDoses.length` counted compounds while
-            // `logged` and `dots` counted doses, so a twice-daily compound with
-            // its morning dose ticked read "1 of 1" at 100% while the row below
-            // it correctly said "1 of 2" — and a stack with a paused member
-            // could never reach 100% at all. `dayDots` is built from exactly the
-            // set `logged` is counted over, so using its length makes the three
-            // agree by construction.
-            due={dayDots.length}
-            dots={dayDots}
-            next={nextDoseInfo}
-            paused={logTarget !== null}
-          />
-        </div>
-
+        {/* The Today ring and Next dose widgets are gone (Adrian, round two:
+            "none"; the final design has nothing between the half-life rail and
+            the sites). The day's counts still fill the Log card's edge. */}
 
         {/* Injection sites — the muscle map at a glance (IM / Sub-Q); tap to choose
             your sites or see where you last pinned. */}
@@ -1327,24 +1314,15 @@ export function HomeScreen({
             still scrolls forward; it is only journalling the server rejects. */}
         {selectedKey <= todayKey && (
         <div data-area="journal" className="animate-home-up" style={{ animationDelay: "165ms" }}>
-          <section className="flow-card inst-card p-5">
-            <h2 className={CARD_EYEBROW}>Journal</h2>
-            <button
-              type="button"
-              onClick={() => {
-                requestProgressAction("journal-write", selectedKey)
-                router.push("/progress")
-              }}
-              className={cn(PRESS.field, "mt-3 flex w-full items-center gap-3 rounded-xl bg-bg-input px-4 py-3 text-left")}
-            >
-              <NotePencil className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
-              <span className="text-sm text-text-muted">How did today go?</span>
-            </button>
-          </section>
+          {/* The journal opens IN PLACE (build-brief-final §3.5), for the selected
+              day; a new day starts it afresh. */}
+          <HomeJournal key={selectedKey} userId={userId} dayKey={selectedKey} todayKey={todayKey} />
         </div>
         )}
         </SkeletonSwap>
       </div>
+
+      <FirstDoseModal open={firstDoseOpen} onClose={() => setFirstDoseOpen(false)} />
 
       {/* The open row's action (A1). */}
       <TrackBar

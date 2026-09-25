@@ -291,6 +291,194 @@ export function figuresAt({ doses, halfLifeH, route, nowH, nextDoseAtH }: Figure
   }
 }
 
+/* ------------------------------------------------ the graph's marks and rows */
+
+/** The last dose taken by `nowH`, in hours, or null before the first. */
+function lastTakenH(doses: readonly Dose[], nowH: number): number | null {
+  let last: number | null = null
+  for (const d of doses) if (d.atH <= nowH && (last === null || d.atH > last)) last = d.atH
+  return last
+}
+
+/**
+ * Hours from a dose until "Of last dose left" first falls to half: where the ½
+ * line sits. It is the model's own fraction (the depot plus what is
+ * circulating), so after an injection it lands about 1.14 half-lives on, NOT
+ * at one half-life. Found by bisection, which works because the fraction only
+ * ever falls.
+ */
+export function halfGoneAfterH(halfLifeH: number, route: AbsorptionRoute): number {
+  let lo = 0
+  let hi = Math.max(halfLifeH, absHalfH(halfLifeH, route))
+  for (let i = 0; i < 64 && lastDoseLeft(hi, halfLifeH, route) > 0.5; i++) {
+    lo = hi
+    hi *= 2
+  }
+  for (let i = 0; i < 64; i++) {
+    const mid = (lo + hi) / 2
+    if (lastDoseLeft(mid, halfLifeH, route) > 0.5) lo = mid
+    else hi = mid
+  }
+  return hi
+}
+
+/**
+ * The ½ line on the chart's own axis: the last dose taken by `nowH` plus
+ * {@link halfGoneAfterH}, or null before the first dose. Doses after `nowH`
+ * have not been taken and move nothing, so the graph's taken-and-to-come list
+ * can be passed as it is.
+ */
+export function halfGoneAtH(
+  doses: readonly Dose[],
+  nowH: number,
+  halfLifeH: number,
+  route: AbsorptionRoute,
+): number | null {
+  const last = lastTakenH(doses, nowH)
+  return last === null ? null : last + halfGoneAfterH(halfLifeH, route)
+}
+
+/** Even samples across a window when finding its top (the mock's 160). */
+const PEAK_SAMPLES = 160
+/** With no dose after it, a window runs this many single-dose peak times on. */
+const PEAK_WINDOW_PEAKS = 3
+/** Golden-section steps that settle the top to the exact instant. */
+const PEAK_REFINE_STEPS = 80
+
+/**
+ * The instant the stacked curve is highest between `from` and `to`: the top of
+ * the DRAWN line, not one dose's own peak (earlier doses, still falling, pull
+ * it earlier). Even samples plus every dose's own peak find the highest
+ * stretch, and a golden-section search settles the instant, so a short
+ * half-life's spike is not lost between samples. A refined point is kept only
+ * if it is higher, so the answer is never lower than the best sample.
+ */
+function topBetween(
+  doses: readonly Dose[],
+  from: number,
+  to: number,
+  halfLifeH: number,
+  route: AbsorptionRoute,
+): number {
+  const f = (t: number) => amountAt(doses, t, halfLifeH, route)
+  let bestT = from
+  let bestV = -Infinity
+  const consider = (t: number) => {
+    const v = f(t)
+    if (v > bestV) {
+      bestV = v
+      bestT = t
+    }
+  }
+  const step = (to - from) / PEAK_SAMPLES
+  for (let i = 0; i <= PEAK_SAMPLES; i++) consider(from + step * i)
+  const peak = peakAfterH(halfLifeH, route)
+  for (const d of doses) {
+    const p = d.atH + peak
+    if (p > from && p < to) consider(p)
+  }
+  const g = (Math.sqrt(5) - 1) / 2
+  let a = Math.max(from, bestT - step)
+  let b = Math.min(to, bestT + step)
+  let c = b - g * (b - a)
+  let e = a + g * (b - a)
+  let fc = f(c)
+  let fe = f(e)
+  for (let i = 0; i < PEAK_REFINE_STEPS; i++) {
+    if (fc > fe) {
+      b = e
+      e = c
+      fe = fc
+      c = b - g * (b - a)
+      fc = f(c)
+    } else {
+      a = c
+      c = e
+      fc = fe
+      e = a + g * (b - a)
+      fe = f(e)
+    }
+  }
+  consider((a + b) / 2)
+  return bestT
+}
+
+/** The Peaks in row: which peak it counts to, and when. */
+export type PeakCountdown =
+  /** The top between the last dose and the next is still ahead: "Peaks in". */
+  | { kind: "ahead"; atH: number; inH: number }
+  /** That top has passed; this is the next dose's own: "Next peak in". */
+  | { kind: "next"; atH: number; inH: number }
+  /** That top has passed and no dose is to come: "Peak" · "Passed". */
+  | { kind: "passed"; atH: number }
+  /** No dose taken yet. */
+  | { kind: "none" }
+
+/**
+ * The peak the drawn curve reaches (build-brief-final §3.11): the top of the
+ * stacked curve between the last dose taken and the next one, or, with none to
+ * come, over three single-dose peak times after the last. Once that top has
+ * passed, the next dose's own window (to the dose after it, or three peak
+ * times) gives the next peak.
+ *
+ * `doses` is what the graph draws: taken doses and the ones still to come. A
+ * next dose beyond that list is not seen, so it must reach at least the next
+ * dose (and the one after, for its window's end).
+ */
+export function peakCountdown(
+  doses: readonly Dose[],
+  nowH: number,
+  halfLifeH: number,
+  route: AbsorptionRoute,
+): PeakCountdown {
+  const last = lastTakenH(doses, nowH)
+  if (last === null) return { kind: "none" }
+  const ahead = [...new Set(doses.filter((d) => d.atH > nowH).map((d) => d.atH))].sort((a, b) => a - b)
+  const span = PEAK_WINDOW_PEAKS * peakAfterH(halfLifeH, route)
+  const top = topBetween(doses, last, ahead[0] ?? last + span, halfLifeH, route)
+  if (top > nowH) return { kind: "ahead", atH: top, inH: top - nowH }
+  if (ahead.length === 0) return { kind: "passed", atH: top }
+  const next = topBetween(doses, ahead[0], ahead[1] ?? ahead[0] + span, halfLifeH, route)
+  return { kind: "next", atH: next, inH: next - nowH }
+}
+
+/** The likely range at Now: the curve ×1.14 above and ×0.86 below… */
+export const RANGE_AT_NOW: Readonly<RangeFactors> = { upper: 1.14, lower: 0.86 }
+/** …widening evenly to ×1.30 and ×0.76 by {@link RANGE_WIDEN_H} either side. */
+export const RANGE_FAR: Readonly<RangeFactors> = { upper: 1.3, lower: 0.76 }
+/** How far from Now the range reaches its widest, in hours (six days). */
+export const RANGE_WIDEN_H = 6 * 24
+
+/** What the curve is multiplied by for the top and bottom of the range. */
+export interface RangeFactors {
+  upper: number
+  lower: number
+}
+
+/**
+ * The likely-range shading's factors at `tH` (build-brief-final §3.11):
+ * narrowest at Now, widening in a straight line with the distance from Now,
+ * past or ahead, and holding at their widest beyond six days.
+ */
+export function rangeFactorsAt(tH: number, nowH: number): RangeFactors {
+  const far = Math.min(1, Math.abs(tH - nowH) / RANGE_WIDEN_H)
+  return {
+    upper: RANGE_AT_NOW.upper * (1 - far) + RANGE_FAR.upper * far,
+    lower: RANGE_AT_NOW.lower * (1 - far) + RANGE_FAR.lower * far,
+  }
+}
+
+/** One point of the range: `[hours, bottom, top]`. */
+export type RangePoint = [number, number, number]
+
+/** The range around a drawn curve, point for point. */
+export function rangeBand(points: readonly CurvePoint[], nowH: number): RangePoint[] {
+  return points.map(([t, v]) => {
+    const k = rangeFactorsAt(t, nowH)
+    return [t, v * k.lower, v * k.upper]
+  })
+}
+
 /* --------------------------------------------------------------- formatting */
 
 /** A duration: under 1 h in minutes, under 48 h in hours, else days. */
@@ -341,4 +529,39 @@ export function formatSteady(steady: Steady): string | null {
   if (steady.kind === "reached") return "Yes"
   if (steady.kind === "in") return formatDuration(steady.hours)
   return null
+}
+
+/**
+ * The peak countdown: whole days from a day, then whole hours, then "<1h":
+ * "3 days" · "1 day" · "5h" · "<1h". Hours that round to 24 read as "1 day",
+ * never "24h".
+ */
+export function formatPeakIn(h: number): string {
+  if (h < 1) return "<1h"
+  if (Math.round(h) < 24) return `${Math.round(h)}h`
+  const days = Math.round(h / 24)
+  return days === 1 ? "1 day" : `${days} days`
+}
+
+/** The Peaks in row as a label and a value; null before the first dose. */
+export function formatPeak(p: PeakCountdown): { label: string; value: string } | null {
+  if (p.kind === "ahead") return { label: "Peaks in", value: formatPeakIn(p.inH) }
+  if (p.kind === "next") return { label: "Next peak in", value: formatPeakIn(p.inH) }
+  if (p.kind === "passed") return { label: "Peak", value: "Passed" }
+  return null
+}
+
+/**
+ * The two durations in the page's line "Usually peaks ~X after a dose and
+ * clears ~Y after the last.", for ONE dose: {@link peakAfterH} and
+ * {@link clearsAfterH}, each worded by {@link formatDuration}.
+ */
+export function formatUsual(
+  halfLifeH: number,
+  route: AbsorptionRoute,
+): { peaksAfter: string; clearsAfter: string } {
+  return {
+    peaksAfter: formatDuration(peakAfterH(halfLifeH, route)),
+    clearsAfter: formatDuration(clearsAfterH(halfLifeH, route)),
+  }
 }

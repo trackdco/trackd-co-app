@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 
+import { PopDialog } from "@/components/feel/PopDialog"
 import { cn } from "@/lib/utils"
 import {
   amountAt,
@@ -92,6 +93,9 @@ export function HalfLifeGraph({
   drawKey,
   selected = null,
   className,
+  halfAtH = null,
+  doseTicks = false,
+  keyed = false,
 }: {
   lines: readonly GraphLine[]
   t0: number
@@ -104,7 +108,15 @@ export function HalfLifeGraph({
   /** The isolated line, or null for all. */
   selected?: number | null
   className?: string
+  /** Where "Of last dose left" crosses 50% (the model's depot-plus-curve point,
+   *  about 1.14 × the half-life after an injection): a dashed ½ line there. */
+  halfAtH?: number | null
+  /** The doses as short ticks along the bottom: taken white, to come grey. */
+  doseTicks?: boolean
+  /** The graph's own top strip, on black, with a circled "?" that opens the key. */
+  keyed?: boolean
 }) {
+  const [keyOpen, setKeyOpen] = useState(false)
   const uid = useId().replace(/:/g, "")
   const top = useMemo(() => {
     let mx = 0
@@ -213,7 +225,19 @@ export function HalfLifeGraph({
   const DAY_TICKS = useMemo(() => [1, 2].map((j) => (PAD + (IH * j) / 3).toFixed(1)), [])
 
   return (
-    <div className={cn("inset-graph relative rounded-[13px] px-2.5 pt-2.5 pb-1.5", className)}>
+    <div className={cn("inset-graph relative rounded-[13px] px-2.5 pt-2.5 pb-1.5", keyed && "pt-0", className)}>
+      {keyed ? (
+        <div className="relative z-10 -mx-2.5 mb-2 flex h-9 items-center justify-end rounded-t-[13px] bg-black px-2">
+          <button
+            type="button"
+            onClick={() => setKeyOpen(true)}
+            aria-label="Reading the graph"
+            className="flex h-[26px] w-[26px] items-center justify-center rounded-full text-[12px] font-medium text-foreground shadow-[inset_0_0_0_1.2px_var(--text-muted)] transition-colors"
+          >
+            ?
+          </button>
+        </div>
+      ) : null}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H + 14}`}
@@ -275,8 +299,40 @@ export function HalfLifeGraph({
             </g>
           )
         })}
+        {halfAtH != null && halfAtH > t0 && halfAtH < t1 ? (
+          (() => {
+            const hx = ((halfAtH - t0) / (t1 - t0)) * W
+            return (
+              <g aria-hidden>
+                <line x1={hx} x2={hx} y1={PAD} y2={PAD + IH} stroke="var(--text-primary)" strokeOpacity="0.8" strokeDasharray="2 3" />
+                <text x={hx + 4} y={PAD + 9} className="font-mono" fontSize="9" fill="var(--text-muted)">
+                  ½
+                </text>
+              </g>
+            )
+          })()
+        ) : null}
+        {doseTicks
+          ? lines.flatMap((l, i) =>
+              (selected != null && selected !== i) ? [] :
+              [...l.taken.map((d) => ({ d, taken: true })), ...l.toCome.map((d) => ({ d, taken: false }))]
+                .filter(({ d }) => d.atH >= t0 && d.atH <= t1)
+                .map(({ d, taken }, j) => (
+                  <rect
+                    key={`${i}-${j}`}
+                    x={(((d.atH - t0) / (t1 - t0)) * W - 1).toFixed(1)}
+                    y={H - 7}
+                    width="2"
+                    height="6"
+                    rx="1"
+                    style={{ fill: taken ? "var(--text-primary)" : "var(--border-strong)" }}
+                  />
+                )),
+            )
+          : null}
+        {/* Now: a thin line, no dot. */}
         {tx > 0 && tx <= W ? (
-          <line x1={tx} x2={tx} y1="2" y2={H} stroke="var(--text-primary)" strokeOpacity="0.14" />
+          <line x1={tx} x2={tx} y1="2" y2={H} stroke="var(--text-primary)" strokeOpacity="0.6" strokeWidth="1" />
         ) : null}
         <circle
           data-tip=""
@@ -314,7 +370,7 @@ export function HalfLifeGraph({
 
       {scrubLine != null ? (
         <div
-          className="absolute inset-x-2.5 top-2.5 bottom-5 cursor-ew-resize touch-none"
+          className={cn("absolute inset-x-2.5 bottom-5 cursor-ew-resize touch-none", keyed ? "top-[46px]" : "top-2.5")}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId)
             scrubAt(e.clientX)
@@ -338,6 +394,46 @@ export function HalfLifeGraph({
           {scrub.value}
         </div>
       ) : null}
+      {keyed ? <GraphKey open={keyOpen} onClose={() => setKeyOpen(false)} /> : null}
     </div>
+  )
+}
+
+/**
+ * THE KEY, as a pop-up (build-brief-final §3.3; Adrian, round four: "make it a
+ * pop-up instead of a drop-down"). Only the marks the graph really draws.
+ */
+export function GraphKey({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const item = (mark: ReactNode, words: string) => (
+    <li className="flex items-center gap-3 text-[13.5px] text-foreground">
+      <span className="flex w-5 justify-center">{mark}</span>
+      {words}
+    </li>
+  )
+  return (
+    <PopDialog open={open} onClose={onClose} title="Reading the graph">
+      <ul className="mt-4 space-y-3">
+        {item(
+          <svg width="8" height="14" viewBox="0 0 8 14" aria-hidden><line x1="4" y1="0" x2="4" y2="14" stroke="var(--text-primary)" strokeOpacity="0.8" strokeDasharray="2 2" /></svg>,
+          "½ Last dose half gone",
+        )}
+        {item(
+          <svg width="8" height="14" viewBox="0 0 8 14" aria-hidden><line x1="4" y1="0" x2="4" y2="14" stroke="var(--text-primary)" strokeOpacity="0.6" /></svg>,
+          "Now",
+        )}
+        {item(
+          <svg width="6" height="14" viewBox="0 0 6 14" aria-hidden><rect x="2" y="6" width="2" height="7" rx="1" style={{ fill: "var(--text-primary)" }} /></svg>,
+          "Your doses",
+        )}
+        {item(
+          <svg width="18" height="14" viewBox="0 0 18 14" aria-hidden><line x1="1" y1="7" x2="17" y2="7" stroke="var(--text-muted)" strokeWidth="1.8" strokeDasharray="2.5 2.5" strokeLinecap="round" /></svg>,
+          "Ahead",
+        )}
+      </ul>
+      <p className="mt-4 text-[13px] leading-snug text-text-muted">Estimated from your doses and your schedule.</p>
+      <button type="button" onClick={onClose} className="press-button inst-btn mt-4 w-full py-2.5 text-sm font-medium text-bg-base">
+        Got it
+      </button>
+    </PopDialog>
   )
 }

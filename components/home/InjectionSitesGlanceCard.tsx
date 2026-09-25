@@ -11,6 +11,7 @@ import type {
   InjectionSiteRoute,
 } from "@/lib/db/types"
 import { siteHeat } from "@/lib/home/siteRecency"
+import { siteDisplayName } from "@/lib/home/siteCatalog"
 import { BodySilhouette } from "@/components/sites/BodySilhouette"
 import { routeRegions, routeTransform } from "@/components/sites/bodyArtwork"
 
@@ -127,7 +128,7 @@ export function InjectionSitesGlanceCard({
                   <li key={i} className="min-w-0">
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 truncate text-sm text-foreground">
-                        {s.siteLabel ?? "No site"}
+                        {s.siteLabel ? siteDisplayName(s.siteLabel) : "No site"}
                       </span>
                       <span className="shrink-0 font-mono text-[0.7rem] text-text-muted">
                         {s.daysAgo === 0 ? "today" : `${s.daysAgo}d`}

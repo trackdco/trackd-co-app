@@ -26,6 +26,8 @@ export interface LogFlow {
   onOpen: (dose: StackCompound, slot: number) => void
   /** The open row's panel. */
   renderPanel: (dose: StackCompound, slot: number) => ReactNode
+  /** First run: the row whose circle the "Tap the circle" bubble points at. */
+  firstRunKey?: string | null
 }
 
 export const LogFlowContext = createContext<LogFlow | null>(null)

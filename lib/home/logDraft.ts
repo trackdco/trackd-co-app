@@ -114,12 +114,18 @@ export function draftToLog(
 /** Nice steps, smallest first. */
 const STEPS = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250]
 
+/** Units counted in whole things: a stepper never offers 1.05 tablets. */
+const COUNT_UNITS = new Set(["tab", "capsule", "drop"])
+
 /**
  * The stepper's step for a dose: about a quarter of it (0.5 for 2 mg), or a
  * twenty-fifth from 50 up (5 for 125 mg), rounded down to a nice number, so a
  * few taps reach any sensible change without a hundred taps for a big dose.
+ * Whole steps for tablets, capsules and drops (build-brief-final §3.2: it went
+ * "1 → 1.05 pills").
  */
-export function stepFor(dose: number): number {
+export function stepFor(dose: number, unit?: string): number {
+  if (unit && COUNT_UNITS.has(unit)) return 1
   if (!(dose > 0)) return 1
   const target = dose >= 50 ? dose / 25 : dose / 4
   let step = STEPS[0]

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { BottomNav } from "@/components/navigation/bottom-nav";
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab";
+import { Toast } from "@/components/feel/Toast";
 import { ReadOnlyProvider } from "@/components/billing/ReadOnlyGate";
 import { SignedImageRecovery } from "@/components/media/SignedImageRecovery";
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm";
@@ -162,6 +163,8 @@ export default async function AppLayout({
           returns early unless the desktop query matches. */}
       <DesktopKeyboard />
       <SyncStatusNotice />
+      {/* The bottom toast with Undo (build-brief-final §3.16), one for the app. */}
+      <Toast />
       {/* Re-signs a storage image whose five-minute URL expired while the tab
           sat open. Error-driven, never scheduled — see the component. */}
       <SignedImageRecovery />

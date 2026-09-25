@@ -79,6 +79,11 @@ describe("the stepper and the bar", () => {
     expect(stepFor(125)).toBe(5)
     expect(stepFor(0.5)).toBe(0.1)
     expect(stepFor(250)).toBe(10)
+    // Counted things step whole.
+    expect(stepFor(1, "tab")).toBe(1)
+    expect(stepFor(2, "capsule")).toBe(1)
+    expect(stepFor(3, "drop")).toBe(1)
+    expect(stepFor(2, "mg")).toBe(0.5)
   })
 
   it("reads Track with the site, or Save when editing", () => {

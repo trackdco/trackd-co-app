@@ -1,10 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
+import { getDoseLogsSnapshot, subscribeDoseLogs } from "@/lib/home/doseLog"
+import { hasAnyLog } from "@/lib/home/firstRun"
 import { PRESS } from "@/lib/ui-presets"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { LogWeightPad } from "@/components/weight/LogWeightPad"
@@ -94,6 +96,11 @@ export function QuickActionsFab({
 
   // Which child flow is open (only one at a time).
   const [quickTrackOpen, setQuickTrackOpen] = useState(false)
+  const loggedEver = useSyncExternalStore(
+    subscribeDoseLogs,
+    () => hasAnyLog(getDoseLogsSnapshot(userId)),
+    () => true,
+  )
   const [addOpen, setAddOpen] = useState(false)
   const [weightOpen, setWeightOpen] = useState(false)
 
@@ -250,6 +257,10 @@ export function QuickActionsFab({
   }
 
   const mounted = open || closing
+
+  // FIRST RUN (build-brief-final §3.1): the + stays hidden until the first dose
+  // is logged, so a new account has one thing to do. Read live from the log.
+  if (!loggedEver) return null
 
   return (
     <>

@@ -271,6 +271,10 @@
   --r-xl: 12px;
   --r-2xl: 20px;
 
+  /* A logged dose's tick (build-brief-final §3.2): a warm light grey, so a
+     finished row reads as done and never outshines a due one. */
+  --tick-logged: #c9c8c2;
+
   /* The Solid marks (build-brief-final §3.6). A button icon and the active
      tab fall from near-white to a light grey; an inactive tab sits a step down.
      Round four's values, so the nav reads exactly as approved. */
@@ -278,6 +282,37 @@
   --glyph-on-bottom: #bdbcb5;
   --glyph-off-top: #9a9992;
   --glyph-off-bottom: #6e6d67;
+
+  /* The calculator's syringe (build-brief-final §3.13). Clear glass (a faint
+     light, not a grey), the amber draw lit from the top, a dark stopper, and a
+     top-to-bottom fall on each grey part so it reads as moulded plastic. The
+     ticks are engraved: a dark cut and a lit edge beside it. */
+  --syringe-fill-top: #e7a15a;
+  --syringe-fill-bottom: var(--accent-amber);
+  --syringe-glass: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  --syringe-glint: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --syringe-edge: var(--border-strong);
+  --syringe-tick: var(--bg-base);
+  --syringe-tick-lit: color-mix(in srgb, var(--text-primary) 16%, transparent);
+  --syringe-stopper: var(--bg-input);
+  --syringe-needle: var(--text-muted);
+  --syringe-part-top: color-mix(in srgb, var(--text-primary) 18%, var(--border-strong));
+  --syringe-part-bottom: color-mix(in srgb, #000 35%, var(--border-strong));
+  --syringe-rod-top: color-mix(in srgb, var(--text-primary) 16%, var(--bg-input));
+  --syringe-rod-bottom: color-mix(in srgb, #000 35%, var(--bg-input));
+
+  /* The containers (build-brief-final §3.14): set B on this ground. Glass sits
+     a step above the card and its edge a step above `--border-strong`, where set
+     B had them on the old ground; mixed from the palette so a retune carries
+     them. The two solids are the tablets and the powder, white and a grey:
+     never the compound's colour, which goes on a solid's body instead. */
+  --container-glass: color-mix(in srgb, var(--bg-surface) 60%, var(--bg-surface-raised));
+  --container-edge: color-mix(in srgb, var(--border-strong) 88%, var(--text-muted));
+  --container-rule: var(--border-default);
+  --container-raised: var(--bg-surface-raised);
+  --container-collar: color-mix(in srgb, var(--border-default) 50%, var(--border-strong));
+  --container-solid: #edebe3;
+  --container-solid-shade: #b8b5aa;
 
   /* Corner radius base (cards = rounded-2xl); shadcn derives sm/md/lg/xl */
   --radius: 1rem;
@@ -1317,6 +1352,87 @@ svg ::-moz-selection {
     0 2px 4px -1px rgb(0 0 0 / 0.6);
 }
 
+/* THE LOG TICK (build-brief-final §3.2). Due is a WHITE ring (the amber due
+   ring is retired); logged fills with the warm grey and a dark check. */
+.log-tick-due {
+  border-color: var(--text-primary);
+  color: transparent;
+}
+.log-tick-on {
+  border-color: var(--tick-logged);
+  background-color: var(--tick-logged);
+  color: var(--bg-base);
+}
+/* Tracked: a gentle lift (.8 → 1.04 → 1, 360ms), no big bounce, no ring pulse. */
+.tick-lift {
+  animation: tick-lift 360ms cubic-bezier(0.3, 1.1, 0.5, 1) both;
+}
+@keyframes tick-lift {
+  0% { transform: scale(0.8); }
+  60% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+/* ...and the check draws in, 240ms after 100ms. */
+.tick-draw path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: tick-draw 240ms cubic-bezier(0.65, 0, 0.35, 1) 100ms forwards;
+}
+@keyframes tick-draw {
+  to { stroke-dashoffset: 0; }
+}
+/* FIRST RUN (build-brief-final §3.1): the bubble arrives a beat after Home,
+   and its preview taps the circle on a loop. */
+.first-run-bubble {
+  animation: toast-in 320ms cubic-bezier(0.22, 1, 0.36, 1) 420ms both;
+}
+.first-run-tap {
+  animation: first-run-tap 1800ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.first-run-ring {
+  animation: first-run-ring 1800ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes first-run-tap {
+  0%, 30% { transform: scale(0); opacity: 0; }
+  42% { transform: scale(1); opacity: 1; }
+  62% { transform: scale(1); opacity: 1; }
+  80%, 100% { transform: scale(1.6); opacity: 0; }
+}
+@keyframes first-run-ring {
+  0%, 36% { transform: scale(1); }
+  46% { transform: scale(0.86); }
+  60%, 100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .first-run-bubble { animation: toast-fade 200ms ease-out 200ms both; }
+  .first-run-tap, .first-run-ring { animation: none; }
+  .first-run-tap { transform: scale(0.6); }
+}
+
+/* The bottom toast rises 8px as it fades in. */
+.toast-in {
+  animation: toast-in 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tick-lift { animation: none; }
+  .tick-draw path { animation: none; stroke-dashoffset: 0; }
+  .toast-in { animation: toast-fade 160ms ease-out both; }
+}
+@keyframes toast-fade {
+  from { opacity: 0; }
+}
+
+/* A field's focus ring sits INSIDE it (inset 1.2px, muted), so a panel's
+   overflow can never clip it (build-brief-final §3.5). */
+.inset-focus:focus,
+.inset-focus:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.2px var(--text-muted);
+}
+
 /* The log tick's ring: a 1px edge sunk into the row. */
 .inst-tick {
   border-width: 1px;
@@ -1643,10 +1759,50 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
 .hl-swipe::-webkit-scrollbar {
   display: none;
 }
+/* 84% wide closed; tapped, every card grows to the full rail (460ms) while the
+   rail is held on the open one, so the graph grows out of it lined up. */
 .hl-glance-card {
-  flex: 0 0 calc(100% - 26px);
+  flex: 0 0 84%;
   scroll-snap-align: center;
   background: color-mix(in srgb, var(--hue) 9%, var(--bg-surface-raised));
+  transition: flex-basis 460ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hl-swipe[data-open="true"] .hl-glance-card {
+  flex-basis: 100%;
+}
+.hl-chips {
+  scrollbar-width: none;
+}
+.hl-chips::-webkit-scrollbar {
+  display: none;
+}
+/* The closed card's down chevron; the open card has its up arrow instead. */
+.hl-glance-chev {
+  transition: opacity 250ms ease;
+}
+.hl-glance-card[data-open="true"] .hl-glance-chev {
+  opacity: 0;
+}
+/* FIGURES ROLL (RollNumber): a changed digit's column slides from old to new. */
+.roll-col {
+  display: inline-flex;
+  flex-direction: column;
+  height: 1em;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+.roll-strip {
+  display: flex;
+  flex-direction: column;
+  animation: roll-digit 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.roll-strip > span {
+  height: 1em;
+  line-height: 1;
+}
+@keyframes roll-digit {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
 }
 .hl-glance-graph {
   height: 40px;
@@ -1661,6 +1817,9 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
 }
 .hl-glance-full {
   opacity: 0;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
 }
 .hl-glance-card[data-open="true"] .hl-glance-spark {
   opacity: 0;
@@ -1768,10 +1927,8 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
 .log-row[data-mini="true"] .log-tick {
   transform: scale(0.8);
 }
-/* The due ring: amber on an open row's tick until it is logged. */
-.log-row[data-open="true"] .log-tick:not([data-logged]) {
-  border-color: var(--accent-amber);
-}
+/* The due ring stays WHITE on an open row too: the amber due ring is retired
+   (build-brief-final §3.2). */
 /* A row is open: the + steps aside, as it does for an inline edit, so it never
    sits on the row's tiles. The Track bar is the action now. */
 body[data-log-open="true"] .shortcuts-layer {
@@ -1791,24 +1948,24 @@ body[data-log-open="true"] .shortcuts-layer {
   overflow: hidden;
   min-height: 0;
 }
+/* A tile: the open one is lit; while one is open, the others' marks step back
+   (their words stay readable). */
 .log-tile {
   transition:
-    transform 450ms cubic-bezier(0.34, 1.5, 0.64, 1),
-    opacity 300ms ease,
-    box-shadow 300ms ease,
-    color 300ms ease;
+    background-color 250ms ease,
+    color 250ms ease;
 }
-.log-tiles[data-focus="true"] .log-tile:not([data-on="true"]) {
-  opacity: 0.5;
+.log-tile-icon {
+  transition: opacity 250ms ease;
 }
-.log-tile[data-on="true"] {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 24px -12px rgb(0 0 0);
+.log-tiles[data-focus="true"] .log-tile:not([data-on="true"]) .log-tile-icon {
+  opacity: 0.45;
 }
+/* Panels open and close with a 450ms grid-rows ease. */
 .log-panel {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 600ms var(--hl-ease);
+  transition: grid-template-rows 450ms var(--hl-ease);
 }
 .log-panel[data-open="true"] {
   grid-template-rows: 1fr;
@@ -1823,9 +1980,6 @@ body[data-log-open="true"] .shortcuts-layer {
 }
 .log-panel[data-open="true"] .inset-surface > div {
   transition: opacity 300ms ease 80ms;
-}
-.log-panel-close {
-  animation: log-spin-in 550ms var(--hl-spring) 120ms both;
 }
 @keyframes log-spin-in {
   from {
@@ -1930,7 +2084,6 @@ body[data-log-open="true"] .shortcuts-layer {
   .log-edge * {
     transition: none !important;
   }
-  .log-panel-close,
   .animate-track-confirm {
     animation: none;
   }
@@ -2150,15 +2303,21 @@ body[data-log-open="true"] .shortcuts-layer {
    `motion-reduce:transition-none` utility, so the reduce opt-out would silently
    never apply. Owning the transition here keeps both on the same specificity
    footing and puts the opt-out below, with every other animation's. */
-/* 420ms on the house ease (feel pass §3): the draw settles as you type on the
-   Calculator's pad, with the stopper on the same clock. */
+/* 550ms on the settle curve (build-brief-final §3.13): the draw eases to its
+   new length as you type, and to its new fraction when the barrel changes, with
+   the plunger (stopper, rod and thumb rest) on the same clock so the stopper's
+   face never leaves the draw's edge. The printed scale cross-fades in 200ms
+   when the barrel changes. */
 .transition-syringe-fill {
   transform-box: fill-box;
   transform-origin: left;
-  transition: transform 420ms var(--motion-ease);
+  transition: transform 550ms var(--hl-settle);
 }
-.transition-syringe-stopper {
-  transition: transform 420ms var(--motion-ease);
+.transition-syringe-plunger {
+  transition: transform 550ms var(--hl-settle);
+}
+.transition-syringe-scale {
+  transition: opacity 200ms ease;
 }
 
 /* The Calculator's Draw section while the pad is open: pinned under the
@@ -2192,8 +2351,10 @@ body[data-log-open="true"] .shortcuts-layer {
 
 /* Respect users who opt out of motion — no entrance/ripple/fade for them. */
 @media (prefers-reduced-motion: reduce) {
+  /* The syringe's fill and plunger jump; its scale still cross-fades, which
+     is a fade and not movement. */
   .transition-syringe-fill,
-  .transition-syringe-stopper {
+  .transition-syringe-plunger {
     transition: none;
   }
 

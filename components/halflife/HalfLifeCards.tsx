@@ -24,11 +24,9 @@ import {
   figuresAt,
   formatAmount,
   formatClearsIn,
-  formatDuration,
   formatHalfLife,
   formatHalfLifeShort,
   formatPercent,
-  formatSteady,
   type HalfLifeFigures,
 } from "@/lib/halflife/model"
 
@@ -168,9 +166,16 @@ function FigureTiles({ hue, figures, unit }: { hue: string; figures: HalfLifeFig
   )
 }
 
-/** The raised grey card of rows: Half-life, Next dose, Steady, Clears in. */
+/**
+ * The open card's rows (build-brief-final §3.3): Level (the word only),
+ * Half-life ("est." where the catalogue says so), Next dose ("X days"), and
+ * "Clears in" once nothing more is due. A row with no value is not drawn: a
+ * dash where a fact should be tells the reader nothing (consistency fix #10).
+ */
 export function FigureRows({ source, figures }: { source: HalfLifeSource; figures: HalfLifeFigures }) {
+  const stopped = figures.nextDoseInH == null
   const rows: [string, ReactNode][] = [
+    ["Level", levelWord(figures)],
     [
       "Half-life",
       <>
@@ -178,20 +183,31 @@ export function FigureRows({ source, figures }: { source: HalfLifeSource; figure
         {source.estimated ? <span className="ml-1 font-sans text-[11.5px] text-text-muted">est.</span> : null}
       </>,
     ],
-    ["Next dose", figures.nextDoseInH == null ? "—" : formatDuration(figures.nextDoseInH)],
-    ["Steady", formatSteady(figures.steady) ?? "—"],
-    ["Clears in", figures.clearsInH == null ? "—" : formatClearsIn(figures.clearsInH)],
+    ...(figures.nextDoseInH == null ? [] : ([["Next dose", nextDoseWords(figures.nextDoseInH)]] as [string, ReactNode][])),
+    ...(stopped && figures.clearsInH != null ? ([["Clears in", formatClearsIn(figures.clearsInH)]] as [string, ReactNode][]) : []),
   ]
   return (
-    <div className="lifted-card rounded-xl px-3 py-0.5">
-      {rows.map(([label, value], i) => (
-        <div key={label} className={cn("flex items-baseline justify-between py-[9px]", i > 0 && "hairline-t")}>
+    <div className="inst-rows px-3 py-0.5">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline justify-between py-[9px]">
           <span className="text-[13px] text-text-muted">{label}</span>
           <span className="font-mono text-[13.5px] text-foreground">{value}</span>
         </div>
       ))}
     </div>
   )
+}
+
+/** Level, the word only (round one: Climbing / Holding / Dropping). */
+export function levelWord(figures: HalfLifeFigures): string {
+  if (figures.nextDoseInH == null) return "Dropping"
+  return figures.steady.kind === "in" ? "Climbing" : "Holding"
+}
+
+/** Next dose as days: "Today", "1 day", "3 days". */
+export function nextDoseWords(h: number): string {
+  const d = Math.round(h / 24)
+  return d <= 0 ? "Today" : d === 1 ? "1 day" : `${d} days`
 }
 
 /* ------------------------------------------------------------------ rows */
