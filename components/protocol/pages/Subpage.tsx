@@ -58,7 +58,7 @@ export function XList({
 }) {
   return (
     <div
-      className="flow-card animate-home-up rounded-2xl bg-bg-surface px-[15px] py-0.5"
+      className="flow-card animate-home-up inst-card px-[15px] py-0.5"
       style={{ animationDelay: `${delay}ms` }}
     >
       {label && <p className={cn(CARD_EYEBROW, "pt-3")}>{label}</p>}
@@ -247,7 +247,7 @@ export function QButtons({ actions }: { actions: QAction[] }) {
         <button
           type="button"
           onClick={() => setConfirming(null)}
-          className={cn(PRESS.pill, "rounded-full border border-border-strong px-4 py-[7px] text-[12.5px] text-foreground")}
+          className={cn(PRESS.pill, "rounded-lg border border-border-strong px-4 py-[7px] text-[12.5px] text-foreground")}
         >
           Cancel
         </button>
@@ -258,7 +258,7 @@ export function QButtons({ actions }: { actions: QAction[] }) {
             setConfirming(null)
             a.onClick()
           }}
-          className={cn(PRESS.pill, "rounded-full border border-state-error bg-state-error px-4 py-[7px] text-[12.5px] font-medium text-foreground")}
+          className={cn(PRESS.pill, "rounded-lg border border-state-error bg-state-error px-4 py-[7px] text-[12.5px] font-medium text-foreground")}
         >
           {confirming.label}
         </button>
@@ -299,7 +299,7 @@ export function WhitePill({
       disabled={disabled}
       className={cn(
         PRESS.button,
-        "self-center rounded-full bg-accent-primary px-5 py-[9px] text-[13px] font-medium text-bg-base disabled:opacity-50",
+        "self-center inst-btn px-5 py-[9px] text-[13px] font-medium text-bg-base disabled:opacity-50",
       )}
     >
       {children}

@@ -235,7 +235,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
       {/* ── Track your weight ─────────────────────────────────────── */}
       <section
-        className="flow-card animate-home-up relative rounded-2xl bg-bg-surface p-5"
+        className="flow-card animate-home-up relative inst-card p-5"
         style={{ animationDelay: "0ms" }}
       >
         <h2 className={CARD_EYEBROW}>Track your weight</h2>
@@ -310,7 +310,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
           type="button"
           onClick={() => guard(handleSave)}
           disabled={saving}
-          className={cn(PRESS.button, "mt-4 w-full rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-60")}
+          className={cn(PRESS.button, "mt-4 w-full inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-60")}
         >
           {saving
             ? "Saving…"
@@ -323,7 +323,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
         {savedFlash && (
           <div
             aria-hidden
-            className="animate-shortcut-fade pointer-events-none absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-accent-green/15 px-2.5 py-1 text-xs font-medium text-accent-green"
+            className="animate-shortcut-fade pointer-events-none absolute right-5 top-5 flex items-center gap-1.5 rounded-lg bg-accent-green/15 px-2.5 py-1 text-xs font-medium text-accent-green"
           >
             <Check className="h-3.5 w-3.5" /> Saved
           </div>
@@ -345,7 +345,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
 
       {/* ── Entry log ─────────────────────────────────────────────── */}
       <section
-        className="flow-card animate-home-up rounded-2xl bg-bg-surface p-5"
+        className="flow-card animate-home-up inst-card p-5"
         style={{ animationDelay: "110ms" }}
       >
         <h2 className={CARD_EYEBROW}>Entry log</h2>
@@ -360,7 +360,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
                 <h3 className={cn("px-1 pb-2", CARD_EYEBROW)}>
                   {group.label}
                 </h3>
-                <ul className="overflow-hidden rounded-2xl bg-bg-surface-raised">
+                <ul className="overflow-hidden inst-rows">
                   {group.rows.map((entry, i) => (
                     <li
                       key={entry.key}

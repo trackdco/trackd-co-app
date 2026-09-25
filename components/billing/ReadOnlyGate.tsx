@@ -400,7 +400,7 @@ function ReadOnlyPopup({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-2xl border border-border-default py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex-1 inst-ghost py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
           >
             {READ_ONLY_POPUP.dismiss}
           </button>

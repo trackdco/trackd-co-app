@@ -238,7 +238,7 @@ export function StruggleScreen() {
               placeholder="What is it? Optional."
               aria-label="What else keeps going wrong"
               autoComplete="off"
-              className="mt-2 h-12 w-full rounded-xl bg-bg-input px-4 text-sm text-foreground outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-2 h-12 w-full rounded-xl bg-bg-input px-4 text-sm text-foreground outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
         </div>

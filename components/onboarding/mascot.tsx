@@ -163,7 +163,7 @@ export function Mascot({
         width={size * 0.34}
         height={size * 0.54}
         aria-hidden
-        className="text-text-subtle"
+        className="text-text-muted"
       >
         <rect x="19" y="2" width="22" height="13" rx="2.5" fill="currentColor" opacity="0.35" />
         <rect x="21.5" y="13" width="17" height="5" rx="1" fill="currentColor" opacity="0.5" />
@@ -179,7 +179,7 @@ export function Mascot({
           strokeDasharray="3 3"
         />
       </svg>
-      <p className="text-[9px] font-sans uppercase tracking-[0.18em] text-text-subtle">
+      <p className="text-[9px] font-sans uppercase tracking-[0.18em] text-text-muted">
         Kyle · {pose}
       </p>
     </div>

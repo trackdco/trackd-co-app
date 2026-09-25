@@ -310,7 +310,7 @@ export default async function PreviewProgressPage({
           height={200}
           className="h-4 w-auto"
         />
-        <span className="rounded-full bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
+        <span className="rounded-lg bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
           Preview · Progress
         </span>
       </header>

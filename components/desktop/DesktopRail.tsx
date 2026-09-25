@@ -316,7 +316,7 @@ export function DesktopRail({
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="font-mono text-[0.6875rem] tabular-nums text-foreground">
               {loggedCount}
-              <span className="text-text-subtle">/{dueCount}</span>
+              <span className="text-text-muted">/{dueCount}</span>
             </span>
           </div>
         </div>
@@ -357,7 +357,7 @@ export function DesktopRail({
             <button
               type="button"
               onClick={() => guard(() => setQuickTrackOpen(true))}
-              className="mt-3.5 w-full rounded-full bg-accent-primary px-4 py-2 text-[0.8125rem] font-medium text-bg-base transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-3.5 w-full inst-btn px-4 py-2 text-[0.8125rem] font-medium text-bg-base transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Log it
             </button>

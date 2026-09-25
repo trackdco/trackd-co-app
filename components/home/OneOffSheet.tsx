@@ -164,7 +164,7 @@ function OneOffBody({
   const pill = (active: boolean) =>
     cn(
       PRESS.pill,
-      "rounded-full px-3 py-1.5 text-sm transition-colors",
+      "rounded-lg px-3 py-1.5 text-sm transition-colors",
       active
         ? "bg-accent-primary text-bg-base"
         : "bg-bg-surface-raised text-text-muted hover:text-foreground"
@@ -248,7 +248,7 @@ function OneOffBody({
           </label>
 
           {results.length > 0 && (
-            <div className="overflow-hidden rounded-2xl bg-bg-surface-raised">
+            <div className="overflow-hidden inst-rows">
               {results.map((c) => (
                 <button
                   key={c.name}
@@ -272,7 +272,7 @@ function OneOffBody({
           )}
 
           {query.trim() !== "" && results.length === 0 && (
-            <p className="rounded-2xl bg-bg-surface-raised px-4 py-5 text-center text-sm text-text-muted">
+            <p className="inst-rows px-4 py-5 text-center text-sm text-text-muted">
               Nothing by that name. Make it a compound first, then log it here.
             </p>
           )}
@@ -333,7 +333,7 @@ function OneOffBody({
                 filled: a fill would hide the thumb as it passes beneath. */}
             <ThumbGroup
               selection={unit}
-              thumbClassName="rounded-full bg-accent-primary"
+              thumbClassName="inst-thumb"
               role="group"
               aria-label="Unit"
               className="flex flex-wrap gap-2"
@@ -346,7 +346,7 @@ function OneOffBody({
                   aria-pressed={unit === u}
                   className={cn(
                     PRESS.pill,
-                    "rounded-full border px-3 py-1.5 text-sm transition-colors duration-300",
+                    "rounded-lg border px-3 py-1.5 text-sm transition-colors duration-300",
                     unit === u
                       ? "border-transparent text-bg-base"
                       : "border-border-default text-text-muted hover:text-foreground",
@@ -368,7 +368,7 @@ function OneOffBody({
             />
           </label>
 
-          <p className="text-xs leading-relaxed text-text-subtle">
+          <p className="text-xs leading-relaxed text-text-muted">
             This is recorded on its own. It does not affect your stock, your
             schedule or your consistency.
           </p>
@@ -395,7 +395,7 @@ function OneOffBody({
             }}
             className={cn(
               PRESS.button,
-              "w-full rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90",
+              "w-full inst-btn px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90",
             )}
           >
             Log it

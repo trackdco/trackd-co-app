@@ -32,7 +32,7 @@ export function WelcomeEffectPicker() {
   return (
     <div className="flow-canvas flow-viewport flex flex-col">
       <div className="shrink-0 border-b-[0.5px] border-border-default px-5 py-3">
-        <p className="text-[10px] font-sans uppercase tracking-[0.18em] text-text-subtle">
+        <p className="text-[10px] font-sans uppercase tracking-[0.18em] text-text-muted">
           Welcome effect · pick one
         </p>
         <div className="mt-2 flex gap-1.5">
@@ -59,7 +59,7 @@ export function WelcomeEffectPicker() {
           onChange={(e) => setName(e.target.value)}
           placeholder="Try a name"
           aria-label="Sample name"
-          className="mt-2 h-10 w-full rounded-lg bg-bg-input px-3 text-sm text-foreground outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-2 h-10 w-full rounded-lg bg-bg-input px-3 text-sm text-foreground outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
 

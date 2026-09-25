@@ -102,7 +102,7 @@ export function JournalFeedSheet({
                 type="button"
                 onClick={() => setBranchOpen((o) => !o)}
                 aria-expanded={branchOpen}
-                className="flex items-center gap-1.5 rounded-full border border-border-strong px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
+                className="flex items-center gap-1.5 rounded-lg border border-border-strong px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
               >
                 <Plus className="h-4 w-4" aria-hidden />
                 New
@@ -210,7 +210,7 @@ export function JournalFeedSheet({
                               <button
                                 type="button"
                                 onClick={() => onEdit(e)}
-                                className="flex w-full items-start gap-3 rounded-2xl border border-border-default bg-bg-surface-raised px-4 py-3.5 text-left transition-colors hover:border-border-strong"
+                                className="flex w-full items-start gap-3 inst-ghost px-4 py-3.5 text-left transition-colors hover:border-border-strong"
                               >
                                 <span className="min-w-0 flex-1">
                                   <span className="block text-sm font-medium text-foreground">
@@ -227,7 +227,7 @@ export function JournalFeedSheet({
                                         <MarkerChip key={m.markerId} name={m.name} word={m.word} />
                                       ))}
                                       {e.markers.length > 3 && (
-                                        <span className="self-center text-[11px] text-text-subtle">
+                                        <span className="self-center text-[11px] text-text-muted">
                                           +{e.markers.length - 3}
                                         </span>
                                       )}
@@ -243,7 +243,7 @@ export function JournalFeedSheet({
                                       className="h-12 w-9 rounded-lg border border-border-default object-cover object-top"
                                     />
                                     {e.attachments.length > 1 && (
-                                      <span className="absolute -right-1 -bottom-1 rounded-full border border-border-strong bg-bg-surface px-1 text-[10px] leading-tight text-text-muted">
+                                      <span className="absolute -right-1 -bottom-1 rounded-lg border border-border-strong bg-bg-surface px-1 text-[10px] leading-tight text-text-muted">
                                         {e.attachments.length}
                                       </span>
                                     )}
@@ -291,14 +291,14 @@ function MonthOption({
       <span className={cn("min-w-0 truncate font-medium", active ? "text-foreground" : "text-text-muted")}>
         {label}
       </span>
-      <span className="shrink-0 font-mono text-xs text-text-subtle">{count}</span>
+      <span className="shrink-0 font-mono text-xs text-text-muted">{count}</span>
     </button>
   );
 }
 
 function MarkerChip({ name, word }: { name: string; word: string }) {
   return (
-    <span className="rounded-full bg-bg-input px-2 py-0.5 text-[11px]">
+    <span className="rounded-lg bg-bg-input px-2 py-0.5 text-[11px]">
       <span className="text-text-muted">{name}</span>{" "}
       <span className="text-foreground">{word}</span>
     </span>

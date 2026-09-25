@@ -79,7 +79,7 @@ export function ReminderSettings({
   }
 
   return (
-    <div className="flow-card mt-3 rounded-2xl bg-bg-surface p-5">
+    <div className="flow-card mt-3 inst-card p-5">
       <p className={CARD_EYEBROW}>Reminders</p>
       <p className="mt-1 text-sm leading-relaxed text-text-muted">
         Choose what we remind you about and when.
@@ -148,7 +148,7 @@ export function ReminderSettings({
               className={TIME_INPUT_CLASS}
             />
           </div>
-          <p className="mt-2 text-xs text-text-subtle">
+          <p className="mt-2 text-xs text-text-muted">
             Nothing is sent during this window.
           </p>
         </div>
@@ -159,7 +159,7 @@ export function ReminderSettings({
           type="button"
           onClick={save}
           disabled={pending}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent-primary px-5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="inline-flex h-11 items-center justify-center gap-2 inst-btn px-5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {pending ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : null}
           {pending ? "Saving…" : "Save reminders"}
@@ -196,12 +196,12 @@ function SwitchRow({
         aria-checked={on}
         aria-label={label}
         onClick={onToggle}
-        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 ${
-          on ? "bg-accent-amber" : "bg-bg-input border border-border-strong"
+        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-[11px] transition-colors duration-200 ${
+          on ? "bg-accent-amber" : "inst-rail"
         }`}
       >
         <span
-          className={`pointer-events-none inline-block size-5 rounded-full bg-primary shadow-sm transition-transform duration-200 ${
+          className={`pointer-events-none inline-block size-5 inst-knob transition-transform duration-200 ${
             on ? "translate-x-6" : "translate-x-1"
           }`}
         />
@@ -240,7 +240,7 @@ function ChoiceRow({
           the thumb as it passes beneath them. */}
       <ThumbGroup
         selection={value}
-        thumbClassName="rounded-full bg-accent-primary"
+        thumbClassName="inst-thumb"
         role="radiogroup"
         aria-label={label}
         // Server-rendered: until the thumb is placed, the chosen pill carries
@@ -258,7 +258,7 @@ function ChoiceRow({
               onClick={() => onChange(o.value)}
               className={cn(
                 PRESS.pill,
-                "flex-1 rounded-full border px-3 py-2 font-mono text-xs tabular-nums transition-colors duration-300",
+                "flex-1 rounded-sm border px-3 py-2 font-mono text-xs tabular-nums transition-colors duration-300",
                 on
                   ? "border-transparent text-bg-base"
                   : "border-border-default text-text-muted hover:text-foreground",
@@ -269,7 +269,7 @@ function ChoiceRow({
           );
         })}
       </ThumbGroup>
-      {hint ? <p className="mt-2 text-xs text-text-subtle">{hint}</p> : null}
+      {hint ? <p className="mt-2 text-xs text-text-muted">{hint}</p> : null}
     </div>
   );
 }

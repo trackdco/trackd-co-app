@@ -170,7 +170,7 @@ export function FirstRunDisclaimer() {
           ref={buttonRef}
           type="button"
           onClick={dismiss}
-          className="mt-5 w-full rounded-xl bg-accent-primary py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+          className="mt-5 w-full inst-btn py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
         >
           Got it
         </button>

@@ -160,7 +160,7 @@ export function ComparePhotosSheet({
                  thumb never lands on them. */
               <ThumbGroup
                 selection={poseFilter}
-                thumbClassName="rounded-full border border-border-strong bg-bg-surface-raised"
+                thumbClassName="inst-thumb"
                 role="group"
                 aria-label="Pose"
                 className="mt-3 flex flex-wrap gap-2 pb-1"
@@ -173,9 +173,9 @@ export function ComparePhotosSheet({
                     aria-pressed={poseFilter === id}
                     className={cn(
                       PRESS.pill,
-                      "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-300",
+                      "shrink-0 rounded-sm border px-3 py-1.5 text-xs font-medium transition-colors duration-300",
                       poseFilter === id
-                        ? "border-transparent text-foreground"
+                        ? "border-transparent text-bg-base"
                         : "border-border-default text-text-muted hover:text-foreground",
                     )}
                   >
@@ -186,7 +186,7 @@ export function ComparePhotosSheet({
                   <button
                     type="button"
                     onClick={() => setPosesExpanded(true)}
-                    className="shrink-0 rounded-full border border-dashed border-border-strong px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
+                    className="shrink-0 rounded-sm border border-dashed border-border-strong px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
                   >
                     {hiddenPoses} more
                   </button>
@@ -195,7 +195,7 @@ export function ComparePhotosSheet({
                   <button
                     type="button"
                     onClick={() => setPosesExpanded(false)}
-                    className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:text-foreground"
+                    className="shrink-0 rounded-sm px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:text-foreground"
                   >
                     Fewer
                   </button>
@@ -270,7 +270,7 @@ function PhotoStrip({
 }) {
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">
         {heading}
       </p>
       <div className="flex gap-2 overflow-x-auto pb-1">

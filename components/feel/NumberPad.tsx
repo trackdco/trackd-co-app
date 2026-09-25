@@ -361,10 +361,10 @@ export function NumberPad({
   const unitCtl = field.unitOptions ? (
     <ThumbGroup
       selection={field.unitOptions.value}
-      thumbClassName="rounded-full bg-bg-surface-raised"
+      thumbClassName="inst-thumb"
       role="group"
       aria-label={`${field.label} unit`}
-      className="flex shrink-0 self-center rounded-full border border-border-default bg-bg-input p-0.5 text-[13px]"
+      className="flex shrink-0 self-center inst-rail p-0.5 text-[13px]"
     >
       {field.unitOptions.options.map((u) => {
         const on = field.unitOptions?.value === u
@@ -376,8 +376,8 @@ export function NumberPad({
             onClick={() => field.unitOptions?.onChange(u)}
             className={cn(
               PRESS.pill,
-              "rounded-full px-3 py-2 font-medium transition-colors duration-300 ease-out",
-              on ? "text-foreground" : "text-text-muted",
+              "rounded-sm px-3 py-2 font-medium transition-colors duration-300 ease-out",
+              on ? "text-bg-base" : "text-text-muted",
             )}
           >
             {u}
@@ -427,7 +427,7 @@ export function NumberPad({
           {compact ? (
             <ThumbGroup
               selection={index}
-              thumbClassName="rounded-[14px] bg-accent-primary"
+              thumbClassName="inst-thumb"
               role="group"
               aria-label="Fields"
               className="mb-2 grid grid-cols-3 gap-1.5"
@@ -450,7 +450,7 @@ export function NumberPad({
               {multi ? (
                 <ThumbGroup
                   selection={index}
-                  thumbClassName="rounded-full bg-accent-primary"
+                  thumbClassName="inst-thumb"
                   role="group"
                   aria-label="Fields"
                   className="mb-2.5 flex flex-wrap justify-center gap-1.5"
@@ -537,7 +537,7 @@ function PadChip({
       onClick={onClick}
       className={cn(
         PRESS.pill,
-        "rounded-full border px-3 py-1.5 text-xs transition-colors duration-300",
+        "rounded-lg border px-3 py-1.5 text-xs transition-colors duration-300",
         on ? "border-transparent text-bg-base" : "border-border-default text-text-muted",
       )}
     >
@@ -619,7 +619,7 @@ export function PadInput({
       <span ref={fitRef} className={cn("pad-value min-w-0 whitespace-nowrap", align === "left" && "flex-1")}>
         {value}
         {!value && placeholder && !active ? (
-          <span className="font-sans text-sm text-text-subtle">{placeholder}</span>
+          <span className="font-sans text-sm text-text-muted">{placeholder}</span>
         ) : null}
         {active ? <span aria-hidden className="pad-caret" /> : null}
       </span>

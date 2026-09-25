@@ -1327,7 +1327,7 @@ export function HomeScreen({
             still scrolls forward; it is only journalling the server rejects. */}
         {selectedKey <= todayKey && (
         <div data-area="journal" className="animate-home-up" style={{ animationDelay: "165ms" }}>
-          <section className="flow-card rounded-2xl bg-bg-surface p-5">
+          <section className="flow-card inst-card p-5">
             <h2 className={CARD_EYEBROW}>Journal</h2>
             <button
               type="button"

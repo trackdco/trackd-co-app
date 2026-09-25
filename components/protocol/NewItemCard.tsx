@@ -58,7 +58,7 @@ export function NewItemCard({
         PRESS.card,
         "hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default py-5 transition",
         disabled
-          ? "text-text-subtle"
+          ? "text-text-muted"
           : "text-text-muted hover:text-foreground"
       )}
     >
@@ -76,7 +76,7 @@ export function NewItemCard({
           <span className="text-sm">{disabled && hint ? hint : label}</span>
         </span>
         {description && (
-          <span className="text-center text-xs text-text-subtle">
+          <span className="text-center text-xs text-text-muted">
             {description}
           </span>
         )}

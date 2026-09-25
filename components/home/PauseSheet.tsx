@@ -348,7 +348,7 @@ function PauseBody({
   const chip = (active: boolean) =>
     cn(
       PRESS.pill,
-      "rounded-full border px-3 py-1.5 text-sm transition-colors duration-300",
+      "rounded-lg border px-3 py-1.5 text-sm transition-colors duration-300",
       active
         ? "border-transparent text-bg-base"
         : "border-border-default text-text-muted hover:text-foreground"
@@ -358,7 +358,7 @@ function PauseBody({
     <span
       aria-hidden
       className={cn(
-        "flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors",
+        "flex h-6 w-11 shrink-0 items-center rounded-[10px] px-0.5 transition-colors",
         // Amber marks what is LIVE (`ui-context.md` → "a switch that is ON is amber").
         //
         // OFF now carries a border and a lighter track. `bg-bg-surface-raised`
@@ -367,13 +367,13 @@ function PauseBody({
         // (Adrian, 2026-08-07). Bigger too: 5x9 was under the tap-target floor.
         on
           ? "bg-accent-amber"
-          : "border border-border-strong bg-bg-input"
+          : "inst-rail"
       )}
     >
       <span
         className={cn(
-          "h-5 w-5 rounded-full transition-transform",
-          on ? "translate-x-5 bg-bg-base" : "bg-text-muted"
+          "h-5 w-5 rounded-[7px] transition-transform",
+          on ? "translate-x-5 bg-bg-base" : "inst-knob"
         )}
       />
     </span>
@@ -566,7 +566,7 @@ function PauseBody({
         <Drawer open={openRow === "length"}>
           <ThumbGroup
             selection={duration}
-            thumbClassName="rounded-full bg-accent-primary"
+            thumbClassName="inst-thumb"
             role="group"
             aria-label="How long"
             className="flex flex-wrap gap-2 py-2.5"

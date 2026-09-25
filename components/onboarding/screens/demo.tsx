@@ -475,7 +475,7 @@ function CompoundCard({
   return (
     <div
       className={cn(
-        "flow-card shrink-0 rounded-2xl bg-bg-surface p-5",
+        "flow-card shrink-0 inst-card p-5",
         CARD_MOTION,
         receded && RECEDED,
       )}
@@ -560,7 +560,7 @@ function StockCard({
     <div
       ref={cardRef}
       className={cn(
-        "animate-flow-in flow-card shrink-0 rounded-2xl bg-bg-surface p-5",
+        "animate-flow-in flow-card shrink-0 inst-card p-5",
         CARD_MOTION,
         receded && RECEDED,
       )}
@@ -592,7 +592,7 @@ function StockCard({
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             "motion-reduce:transition-none",
             empty
-              ? "bg-bg-base text-text-subtle"
+              ? "bg-bg-base text-text-muted"
               : "bg-bg-surface-raised text-foreground active:scale-[0.98]",
           )}
         >
@@ -649,7 +649,7 @@ function SiteCard({
     // before the body map has to (see the cap in `DemoBody`).
     <div
       ref={cardRef}
-      className="animate-flow-in flow-card flex shrink-0 flex-col rounded-2xl bg-bg-surface px-5"
+      className="animate-flow-in flow-card flex shrink-0 flex-col inst-card px-5"
       style={{ gap: fit(16, 8, 6), paddingBlock: fit(20, 12, 10) }}
     >
       <Segmented
@@ -734,7 +734,7 @@ function DemoWeightCard({ style }: { style: CSSProperties }) {
   const delta = last - shown[0];
 
   return (
-    <div className="animate-flow-in flow-card flex flex-col rounded-2xl bg-bg-surface p-4" style={style}>
+    <div className="animate-flow-in flow-card flex flex-col inst-card p-4" style={style}>
       <p className={CARD_EYEBROW}>Weight</p>
 
       <p className="mt-2 font-mono text-xl font-light tabular-nums leading-none text-foreground">
@@ -840,13 +840,13 @@ function HistoryPanel({ cardRef }: { cardRef?: React.Ref<HTMLDivElement> }) {
 
   return (
     <div ref={cardRef} className="space-y-3">
-      <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-5" style={rise(0)}>
+      <div className="animate-flow-in flow-card inst-card p-5" style={rise(0)}>
         <p className={CARD_EYEBROW}>Progress photos</p>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {DEMO_PHOTO_WEEKS.map((week, i) => (
             <div key={week} className="space-y-1.5">
               <MirrorPhoto index={i} />
-              <p className="text-center text-[9px] font-sans uppercase tracking-[0.12em] text-text-subtle">
+              <p className="text-center text-[9px] font-sans uppercase tracking-[0.12em] text-text-muted">
                 {week}
               </p>
             </div>
@@ -859,7 +859,7 @@ function HistoryPanel({ cardRef }: { cardRef?: React.Ref<HTMLDivElement> }) {
           the amount right-railed in mono, each row on its own raised pill rather
           than separated by a hairline. A demo that shows a Running list the user
           will not recognise an hour later is the one thing a demo must not do. */}
-      <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-5" style={rise(1)}>
+      <div className="animate-flow-in flow-card inst-card p-5" style={rise(1)}>
         <p className={CARD_EYEBROW}>Running</p>
         <ul className="mt-2 space-y-1.5">
           {DEMO_RUNNING.map((c) => (
@@ -888,14 +888,14 @@ function HistoryPanel({ cardRef }: { cardRef?: React.Ref<HTMLDivElement> }) {
             a day with nothing due as the small `border-default` tick rather
             than a hollow ring. Half a phone wide, so the compound name sits
             above its row instead of in the app's 38% left column. */}
-        <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-4" style={rise(3)}>
+        <div className="animate-flow-in flow-card inst-card p-4" style={rise(3)}>
           <p className={CARD_EYEBROW}>Schedule</p>
 
           <div className="mt-3 grid grid-cols-7 gap-1">
             {DAY_INITIALS.map((d, i) => (
               <span
                 key={i}
-                className="text-center text-[9px] font-medium uppercase tracking-wide text-text-subtle"
+                className="text-center text-[9px] font-medium uppercase tracking-wide text-text-muted"
               >
                 {d}
               </span>
@@ -905,7 +905,7 @@ function HistoryPanel({ cardRef }: { cardRef?: React.Ref<HTMLDivElement> }) {
           <div className="mt-1.5 space-y-2">
             {DEMO_SCHEDULE.map((row) => (
               <div key={row.name} className="space-y-1">
-                <p className="text-[9px] font-sans uppercase tracking-[0.12em] text-text-subtle">
+                <p className="text-[9px] font-sans uppercase tracking-[0.12em] text-text-muted">
                   {row.name}
                 </p>
                 <div className="grid grid-cols-7 gap-1">
@@ -927,7 +927,7 @@ function HistoryPanel({ cardRef }: { cardRef?: React.Ref<HTMLDivElement> }) {
         </div>
       </div>
 
-      <div className="animate-flow-in flow-card rounded-2xl bg-bg-surface p-5" style={rise(4)}>
+      <div className="animate-flow-in flow-card inst-card p-5" style={rise(4)}>
         <p className={CARD_EYEBROW}>Journal</p>
         <p className="mt-3 text-[0.95rem] leading-relaxed text-foreground">
           &ldquo;{DEMO_JOURNAL.quote}&rdquo;

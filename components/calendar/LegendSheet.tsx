@@ -15,7 +15,7 @@ const RING: Record<CalendarDayStatus, string> = {
   logged: "bg-text-primary text-bg-base font-medium",
   scheduled: "border border-dashed border-border-strong text-text-primary",
   "none-past": "border border-border-strong text-text-muted",
-  "none-future": "border border-border-default text-text-subtle",
+  "none-future": "border border-border-default text-text-muted",
 };
 
 const KEY: { status: CalendarDayStatus; title: string; body: string }[] = [

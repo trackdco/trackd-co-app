@@ -766,10 +766,10 @@ function BrowseBody({
           {/* On the shared sliding thumb (feel pass §6). */}
           <ThumbGroup
             selection={side}
-            thumbClassName="rounded-lg bg-bg-surface-raised"
+            thumbClassName="inst-thumb"
             role="group"
             aria-label="Show compounds or stacks"
-            className="grid grid-cols-2 gap-1 rounded-xl bg-bg-input p-1"
+            className="grid grid-cols-2 gap-1 inst-rail p-1"
           >
             {(["compounds", "stacks"] as const).map((v) => (
               <button
@@ -780,7 +780,7 @@ function BrowseBody({
                 className={cn(
                   PRESS.pill,
                   "rounded-lg py-2 text-sm capitalize transition-colors duration-300",
-                  side === v ? "text-foreground" : "text-text-muted"
+                  side === v ? "text-bg-base" : "text-text-muted"
                 )}
               >
                 {v}
@@ -943,14 +943,14 @@ function CategoryBrowser({
               aria-expanded={isOpen}
               className={cn(
                 PRESS.card,
-                "flex w-full items-center gap-3 rounded-2xl bg-bg-surface-raised px-4 py-3.5 text-left"
+                "flex w-full items-center gap-3 inst-rows px-4 py-3.5 text-left"
               )}
             >
               <CategoryIcon category={category} className="h-3.5 w-3.5" />
               <span className="min-w-0 flex-1 truncate text-base font-medium text-foreground">
                 {meta.label}
               </span>
-              <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">
+              <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
                 {items.length}
               </span>
               <CaretDown
@@ -989,7 +989,7 @@ function RowMain({ compound, query }: { compound: Compound; query?: string }) {
             {compound.name}
           </p>
           {showAka && (
-            <span className="shrink-0 rounded-full border border-border-default px-2 py-0.5 text-xs font-medium text-text-muted">
+            <span className="shrink-0 rounded-lg border border-border-default px-2 py-0.5 text-xs font-medium text-text-muted">
               aka {compound.commonName}
             </span>
           )}
@@ -1029,7 +1029,7 @@ function CompoundList({
   query?: string
 }) {
   return (
-    <ul className="overflow-hidden rounded-2xl bg-bg-surface-raised">
+    <ul className="overflow-hidden inst-rows">
       {items.map((compound, i) => {
         const divider = i > 0 ? "hairline-t" : ""
         if (isCustom(compound)) {
@@ -1337,7 +1337,7 @@ function CompoundForm({
         </p>
       )}
 
-      <p className="px-1 text-xs leading-relaxed text-text-subtle">
+      <p className="px-1 text-xs leading-relaxed text-text-muted">
         Saved to your account. Only you can see it.
       </p>
 
@@ -1411,7 +1411,7 @@ function PillGroup({
           passes beneath. */}
       <ThumbGroup
         selection={value}
-        thumbClassName="rounded-full bg-accent-primary"
+        thumbClassName="inst-thumb"
         role="group"
         aria-label={label}
         className="flex flex-wrap gap-2"
@@ -1426,7 +1426,7 @@ function PillGroup({
               aria-pressed={active}
               className={cn(
                 PRESS.pill,
-                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors duration-300",
+                "flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm transition-colors duration-300",
                 active
                   ? "border-transparent font-medium text-bg-base"
                   : "border-border-default text-text-muted hover:text-text-primary"
@@ -1457,7 +1457,7 @@ function StackReferenceList({ stacks }: { stacks: Stack[] }) {
       {stacks.map((s) => (
         <li
           key={s.id}
-          className="flex items-center gap-3 rounded-2xl bg-bg-surface-raised px-4 py-3"
+          className="flex items-center gap-3 inst-rows px-4 py-3"
         >
           <span
             className="h-3 w-3 shrink-0 rounded-full"

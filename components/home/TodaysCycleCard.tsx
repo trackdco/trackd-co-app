@@ -125,7 +125,7 @@ function PausedRow({
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             aria-label={`${open ? "Hide" : "Show"} the compounds in ${entry.label}`}
-            className={cn(PRESS.rowPart, "-mr-1 shrink-0 rounded-full p-1 text-text-subtle transition-colors hover:text-foreground")}
+            className={cn(PRESS.rowPart, "-mr-1 shrink-0 rounded-full p-1 text-text-muted transition-colors hover:text-foreground")}
           >
             <CaretDown
               className={cn(
@@ -339,7 +339,7 @@ function DrawSlot({
       <button
         type="button"
         onClick={onAddStock}
-        className={cn(PRESS.text, "shrink-0 text-xs text-text-subtle underline decoration-dotted underline-offset-2 transition-colors hover:text-text-muted")}
+        className={cn(PRESS.text, "shrink-0 text-xs text-text-muted underline decoration-dotted underline-offset-2 transition-colors hover:text-text-muted")}
       >
         add stock
       </button>
@@ -954,7 +954,7 @@ export function TodaysCycleCard({
 
   return (
     <section
-      className="flow-card relative rounded-2xl bg-bg-surface p-5"
+      className="flow-card relative inst-card p-5"
       data-log-done={progress && progress.due > 0 && progress.logged >= progress.due ? "true" : undefined}
     >
       {progress ? <LogEdge logged={progress.logged} due={progress.due} /> : null}
@@ -1010,7 +1010,7 @@ export function TodaysCycleCard({
                       {pending} due
                     </span>
                   ) : (
-                    <span className="text-[11px] text-text-subtle">Logged</span>
+                    <span className="text-[11px] text-text-muted">Logged</span>
                   )}
                 </div>
                 <ul className="px-1">
@@ -1033,7 +1033,7 @@ export function TodaysCycleCard({
           })}
         </div>
       ) : (
-        <p className="mt-4 rounded-2xl bg-bg-surface-raised px-4 py-6 text-center text-sm text-text-muted">
+        <p className="mt-4 inst-rows px-4 py-6 text-center text-sm text-text-muted">
           {/* A compound with a FUTURE start date is in the stack but due on no
               day yet, so this card said "nothing scheduled" while the onboarding
               card (gated on an empty stack) had already gone. The compound
@@ -1071,7 +1071,7 @@ export function TodaysCycleCard({
             {/* COMPOUNDS, not entries — a collapsed stack is one row standing
                 for several, and the heading should count the things that are
                 paused rather than the rows drawn. */}
-            <span className="font-mono text-[11px] tabular-nums text-text-subtle">
+            <span className="font-mono text-[11px] tabular-nums text-text-muted">
               {paused.reduce((n, p) => n + p.count, 0)}
             </span>
           </div>
@@ -1268,9 +1268,9 @@ function StackDoseRow({
         {/* A wholly paused stack has NOTHING live in it, so "0 due" in amber
             was nagging about doses nobody is taking. */}
         {total === 0 ? (
-          <span className="text-[11px] text-text-subtle">Paused</span>
+          <span className="text-[11px] text-text-muted">Paused</span>
         ) : complete ? (
-          <span className="text-[11px] text-text-subtle">Logged</span>
+          <span className="text-[11px] text-text-muted">Logged</span>
         ) : (
           <span className="font-mono text-[11px] tabular-nums text-accent-amber">
             {total - logged} due

@@ -22,6 +22,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { PRESS } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
+import { rampFill } from "@/lib/sites/recencyRamp"
 import type {
   BodySex,
   InjectionSiteAspect,
@@ -124,8 +125,8 @@ export function BodyMap({
       <div className="mb-4 flex justify-center">
         <ThumbGroup
           selection={aspect}
-          thumbClassName="rounded-full bg-bg-surface-raised"
-          className="inline-flex rounded-full border border-border-default bg-bg-input p-0.5 text-sm"
+          thumbClassName="inst-thumb"
+          className="inline-flex inst-rail p-0.5 text-sm"
           role="group"
           aria-label="Body view"
         >
@@ -140,8 +141,8 @@ export function BodyMap({
               aria-pressed={aspect === key}
               className={cn(
                 PRESS.pill,
-                "rounded-full px-5 py-1.5 font-medium transition-colors duration-300 ease-out",
-                aspect === key ? "text-foreground" : "text-text-muted",
+                "rounded-sm px-5 py-1.5 font-medium transition-colors duration-300 ease-out",
+                aspect === key ? "text-bg-base" : "text-text-muted",
               )}
             >
               {label}
@@ -209,8 +210,8 @@ export function BodyMap({
   )
 }
 
-/** One selectable region: a lighter base shape + an amber overlay (opacity = 1 when
- *  active/picked, = heat in recency). Interactive only for sites in the shown set;
+/** One selectable region: a lighter base shape + an amber overlay (amber when
+ *  active/picked, a solid ramp step by heat for history). Interactive only for sites in the shown set;
  *  in recency it's tagged for the parent's scrub tooltip and lit on hover. */
 function RegionShape({
   region,
@@ -236,17 +237,13 @@ function RegionShape({
 }) {
   const isInteractive = interactive && Boolean(site)
   const canInspect = Boolean(inspectable) && Boolean(site) && !isInteractive
-  const amberOpacity =
-    mode === "recency"
-      ? heat > 0
-        ? Math.max(0.14, Math.min(1, heat))
-        : 0
-      : active
-        ? 1
-        : // `pick` shades history one step below the picked amber.
-          mode === "pick"
-          ? heat
-          : 0
+  // A picked site is amber; history is a SOLID step of the recency ramp
+  // (build-brief-final §2.5), never amber at an opacity over the grey.
+  const amberFill = active && mode !== "recency"
+    ? "var(--accent-amber)"
+    : mode === "recency" || mode === "pick"
+      ? rampFill(heat)
+      : null
 
   return (
     <g
@@ -289,12 +286,8 @@ function RegionShape({
         d={region.d}
         className={cn("mr-fill", regionNeedsHalo(region.siteId) && "site-hit")}
       />
-      {amberOpacity > 0 && (
-        <path
-          d={region.d}
-          pointerEvents="none"
-          style={{ fill: "var(--accent-amber)", opacity: amberOpacity }}
-        />
+      {amberFill && (
+        <path d={region.d} pointerEvents="none" style={{ fill: amberFill }} />
       )}
       {isInteractive && (
         <path d={region.d} className="mr-focus" pointerEvents="none" />
@@ -465,7 +458,7 @@ function DayChips({
           key={it.id}
           data-chip={it.id}
           className={cn(
-            "absolute -translate-y-1/2 whitespace-nowrap rounded-full bg-bg-surface px-[7px] py-[3px] font-mono text-[10px] tracking-[0.04em]",
+            "absolute -translate-y-1/2 whitespace-nowrap rounded-lg bg-bg-surface px-[7px] py-[3px] font-mono text-[10px] tracking-[0.04em]",
             it.left ? "left-0" : "right-0",
             it.id === spec.freshestId ? "text-accent-amber" : "text-text-muted",
           )}

@@ -1247,7 +1247,7 @@ function AddCompoundBody({
                   setConfirmManyDoses(false)
                   void handleSave(true)
                 }}
-                className="flex-1 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+                className="flex-1 inst-btn px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
               >
                 Yes, save
               </button>
@@ -1327,7 +1327,7 @@ function AddCompoundBody({
             row (the day-of-week picker, the date selects) expands BENEATH its
             row rather than being pulled out into its own section, so the rhythm
             holds and nothing about the field changes. */}
-        <div className="overflow-hidden rounded-2xl bg-bg-surface-raised">
+        <div className="overflow-hidden inst-rows">
           {/* Route — only when the compound supports more than one. */}
           {multiRoute && (
             <>
@@ -1571,7 +1571,7 @@ function AddCompoundBody({
           <FormRow label="Time">
             <div className="flex items-center justify-end gap-2">
               {!hasTime(timeOfDay) && (
-                <span className="text-sm text-text-subtle">Set time</span>
+                <span className="text-sm text-text-muted">Set time</span>
               )}
               <Input
                 type="time"
@@ -1748,7 +1748,7 @@ function AddCompoundBody({
             pills above say the pattern. Proposed wording, flagged for approval:
             the first date, then the next one, and nothing else. */}
         {upcoming.length > 0 ? (
-          <p className="px-1 text-xs text-text-subtle">
+          <p className="px-1 text-xs text-text-muted">
             First dose{" "}
             <span className="font-mono text-text-muted">
               {formatDateKeyShort(upcoming[0])}
@@ -1763,7 +1763,7 @@ function AddCompoundBody({
             )}
           </p>
         ) : (
-          <p className="px-1 text-xs text-text-subtle">
+          <p className="px-1 text-xs text-text-muted">
             Pick days above to preview the dates.
           </p>
         )}
@@ -1781,7 +1781,7 @@ function AddCompoundBody({
             ends, and its colour. Nothing about the RULE changed, only where you
             set it: the draft is a `CycleRule` exactly as before, and Protocol →
             Cycles still uses `CycleRuleSheet` for editing one after the fact. */}
-        <div className="overflow-hidden rounded-2xl bg-bg-surface-raised">
+        <div className="overflow-hidden inst-rows">
           <FormRow label="Cycle this" error={errors.cycle}>
             <button
               type="button"
@@ -1813,15 +1813,15 @@ function AddCompoundBody({
               // exception: a #F0EFE9 knob where the doc says #FFFFFF, no OFF
               // border at all, and a track 4px shorter than every other switch.
               className={cn(
-                "relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200",
+                "relative h-7 w-12 shrink-0 rounded-[11px] transition-colors duration-200",
                 cycleDraft
                   ? "bg-accent-amber"
-                  : "border border-border-strong bg-bg-input",
+                  : "inst-rail",
               )}
             >
               <span
                 className={cn(
-                  "absolute top-1 h-5 w-5 rounded-full bg-primary transition-[left] duration-200 ease-out motion-reduce:transition-none",
+                  "absolute top-1 h-5 w-5 inst-knob transition-[left] duration-200 ease-out motion-reduce:transition-none",
                   cycleDraft ? "left-[1.625rem]" : "left-1",
                 )}
                 aria-hidden
@@ -1858,7 +1858,7 @@ function AddCompoundBody({
             Injectables only (Spec 03's gate, unchanged) — absent entirely
             otherwise rather than shown disabled. */}
         {canStock && (
-          <div className="overflow-hidden rounded-2xl bg-bg-surface-raised">
+          <div className="overflow-hidden inst-rows">
             <FormRow
               label="Stock on hand"
               hint="Optional"
@@ -1892,7 +1892,7 @@ function AddCompoundBody({
                       {/* The conversion, shown as it happens — HGH's box says
                           mg and the row stores iu. */}
                       {stPowderEntryUnit !== stPowderBaseUnit && amt(stPowder) > 0 && (
-                        <p className="mt-1 text-xs text-text-subtle">
+                        <p className="mt-1 text-xs text-text-muted">
                           = {round3(stPowderInBase)} {stPowderBaseUnit}, which is what gets stored.
                         </p>
                       )}
@@ -1962,7 +1962,7 @@ function AddCompoundBody({
                         save, then add it from Protocol.
                       </p>
                     ) : stStrengthRequired && amt(stStrength) <= 0 && amt(stCount) > 0 ? (
-                      <p className="col-span-2 text-xs text-text-subtle">
+                      <p className="col-span-2 text-xs text-text-muted">
                         {source.name} is dosed in {unit}, so state the strength of
                         one {stEffectiveOralForm === "tab" ? "tablet" : "capsule"}.
                       </p>
@@ -2037,7 +2037,7 @@ function AddCompoundBody({
                             )
                           })}
                         </ThumbGroup>
-                        <span className="text-xs text-text-subtle">or</span>
+                        <span className="text-xs text-text-muted">or</span>
                         <PadInput
                           {...fillPad.bind("stExactLeft")}
                           value={stExactLeft}
@@ -2045,14 +2045,14 @@ function AddCompoundBody({
                           unit={stFillUnit}
                           className="h-10 w-16"
                         />
-                        <span className="whitespace-nowrap text-xs text-text-subtle">{stFillUnit} left</span>
+                        <span className="whitespace-nowrap text-xs text-text-muted">{stFillUnit} left</span>
                       </div>
-                      <p className="text-xs text-text-subtle">
+                      <p className="text-xs text-text-muted">
                         ≈ {Math.round(stockFill.percent ?? 100)}% full · counts down as you log doses.
                       </p>
                     </>
                   ) : (
-                    <p className="text-xs text-text-subtle">
+                    <p className="text-xs text-text-muted">
                       Set how full it is. Defaults to full.
                     </p>
                   )}
@@ -2062,7 +2062,7 @@ function AddCompoundBody({
           </div>
         )}
 
-        <p className="px-1 text-xs leading-relaxed text-text-subtle">
+        <p className="px-1 text-xs leading-relaxed text-text-muted">
           Saved to your account. Only you can see it.
         </p>
       </div>
@@ -2180,10 +2180,10 @@ const ROW_PRESSABLE = PRESS.button
 // its own and the others have none either, or the thumb would vanish beneath
 // them as it passes. The stock panel's `STOCK_PILL`s take the same ON/OFF pair
 // for that reason (`STOCK_PILL_OFF` carries a fill).
-const ROW_PILL = `${PRESS.pill} rounded-full border px-3 py-2 text-xs transition-colors duration-300`
+const ROW_PILL = `${PRESS.pill} rounded-lg border px-3 py-2 text-xs transition-colors duration-300`
 const ROW_PILL_ON = "border-transparent font-medium text-bg-base"
 const ROW_PILL_OFF = "border-border-default text-text-muted hover:text-text-primary"
-const PILL_THUMB = "rounded-full bg-accent-primary"
+const PILL_THUMB = "inst-thumb"
 const ROW_SELECT =
   "h-11 min-w-0 rounded-lg border border-border-default bg-bg-input px-2 text-sm text-foreground outline-none transition-[color,box-shadow] [color-scheme:dark] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 
@@ -2242,7 +2242,7 @@ function FormRow({
     <>
       <span className="flex min-w-0 shrink-0 items-baseline gap-1.5">
         <span className="text-sm text-text-muted">{label}</span>
-        {hint && <span className="text-xs text-text-subtle">{hint}</span>}
+        {hint && <span className="text-xs text-text-muted">{hint}</span>}
       </span>
       {children ?? (
         <span className="flex min-w-0 items-center gap-2">
@@ -2418,7 +2418,7 @@ function CycleFields({
                 align="center"
                 className="h-11 w-14 rounded-lg"
               />
-              <span className="text-sm text-text-subtle">/</span>
+              <span className="text-sm text-text-muted">/</span>
               <PadInput
                 {...padBind("cycleOff")}
                 value={numberText("cycleOff", offDays)}

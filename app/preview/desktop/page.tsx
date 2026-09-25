@@ -186,7 +186,7 @@ function ScreenRow({ screen }: { screen: Screen }) {
             href={screen.preview}
             className={cn(
               DATA_MONO,
-              "shrink-0 rounded-full border border-border-default px-2.5 py-1 uppercase tracking-[0.08em] outline-none transition-colors hover:border-border-strong hover:text-foreground focus-visible:text-foreground",
+              "shrink-0 rounded-lg border border-border-default px-2.5 py-1 uppercase tracking-[0.08em] outline-none transition-colors hover:border-border-strong hover:text-foreground focus-visible:text-foreground",
             )}
           >
             no-auth preview

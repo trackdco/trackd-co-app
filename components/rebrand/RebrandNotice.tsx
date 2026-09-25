@@ -175,7 +175,7 @@ export function RebrandNotice({ userId }: { userId: string }) {
           everything you&apos;ve logged.
         </p>
 
-        <p className="mt-4 text-[11px] leading-relaxed text-text-subtle">
+        <p className="mt-4 text-[11px] leading-relaxed text-text-muted">
           By tapping OK you accept the updated{" "}
           <Link
             href="/terms"
@@ -197,7 +197,7 @@ export function RebrandNotice({ userId }: { userId: string }) {
         <button
           type="button"
           onClick={dismiss}
-          className="mt-5 w-full rounded-2xl bg-accent-primary py-3 text-sm font-medium text-bg-base outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-5 w-full inst-btn py-3 text-sm font-medium text-bg-base outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
         >
           OK
         </button>

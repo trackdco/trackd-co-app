@@ -60,7 +60,7 @@ export function BloodworkGallerySheet({
               <button
                 type="button"
                 onClick={onAttach}
-                className="flex items-center gap-1.5 rounded-full border border-border-strong px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
+                className="flex items-center gap-1.5 rounded-lg border border-border-strong px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
               >
                 <Plus className="h-4 w-4" aria-hidden />
                 Attach

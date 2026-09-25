@@ -1,19 +1,47 @@
 import type { Metadata, Viewport } from "next";
-import { Caveat, Geist, Geist_Mono } from "next/font/google";
+import { Caveat, Geist, Geist_Mono, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 
 import { IconProvider } from "@/components/providers/icon-provider";
 import { AppleSplashLinks } from "@/components/pwa/apple-splash-links";
 import { PressFeedback } from "@/components/feel/PressFeedback";
 
+/**
+ * THE APP'S TYPE: IBM Plex Sans for words, IBM Plex Mono for every figure
+ * (Adrian, final check round three, 2026-09-25; build-brief-final §2.2).
+ * Weights 300 / 400 / 500 only, so nothing in the app can reach for a heavier
+ * cut than the look allows. Screens read it through `--font-app-sans` /
+ * `--font-app-mono` (globals.css), never these variables directly.
+ */
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
+  subsets: ["latin"],
+  weight: ["300", "400", "500"],
+});
+
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  subsets: ["latin"],
+  weight: ["300", "400", "500"],
+});
+
+/**
+ * The PUBLIC SITE keeps Geist: "the landing page can stay as is" (Adrian,
+ * round three). `:root:has(.lp-site)` points the app aliases back at these, so
+ * `/` and `/reconstitution-calculator` render exactly as they did. Not
+ * preloaded, because no app screen uses them; the landing page pays the one
+ * request itself.
+ */
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  preload: false,
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 /**
@@ -53,7 +81,7 @@ export const metadata: Metadata = {
 // Native-app wiring: match the status bar to the near-black canvas and enable
 // the safe-area insets the entry screen relies on (viewport-fit=cover).
 export const viewport: Viewport = {
-  themeColor: "#111110",
+  themeColor: "#050504",
   colorScheme: "dark",
   viewportFit: "cover",
   // App feel: no pinch-zoom and, crucially, no iOS auto-zoom when focusing an
@@ -90,7 +118,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${caveat.variable} h-full antialiased`}
+      className={`${plexSans.variable} ${plexMono.variable} ${geistSans.variable} ${geistMono.variable} ${caveat.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* iOS launch images — React hoists these <link> tags into <head>.

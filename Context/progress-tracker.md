@@ -1,5 +1,24 @@
 # Progress Tracker
 
+## 🔨 FINAL BUILD (overnight, 2026-09-26): IN PROGRESS, phase by phase (build-brief-final §7)
+
+Built on `design/half-life-motion` in the worktree; nothing pushed, no migration applied.
+- **Phase 0, baseline:** `npm run check` green before any change: 121 test files, 2243 tests. (Three iCloud
+  duplicate files in `.next/types` ("… 2.ts") broke `tsc` first; deleted, they are generated.)
+- **Phase 1, the look: DONE.** Deeper black palette, IBM Plex Sans / Mono (300/400/500) through `--font-app-*`,
+  the Instrument surfaces as `.inst-*` classes + presets, the radius scale fixed (it ran backwards: `xl` 20 >
+  `2xl` 16, consistency #9), the OKLCH site ramp (`lib/sites/recencyRamp.ts`, drift-tested against the tokens),
+  Solid nav icons (bottom nav and desktop sidebar). Swept: 133 hand-written cards / row blocks / ghost buttons, 40
+  hand-written white buttons, 60 text pills to rounded rectangles, every ThumbGroup to a rail with a white thumb,
+  5 on/off switches, 173 readable `--text-subtle` uses to muted. Onboarding, sign-in, billing and Stripe's font
+  included. The public site (`/`, `/reconstitution-calculator`, `/waitlist`) is pinned to what it shipped.
+  Checked at 390x844 and 375x548 in Chromium and WebKit. `npm run check`: 122 files, 2250 tests.
+  - Found, pre-existing, test-only: headless desktop WebKit deadlocks on `pushManager.getSubscription()` (the
+    dashboard's notifications banner), freezing the page. Not seen on phones (iOS has no PushManager outside an
+    installed PWA). WebKit checks run with `PushManager` removed by an init script.
+  - The dev server served stale CSS to some routes after the token change (the known Turbopack cache issue): a
+    cold restart with `.next/dev/cache/turbopack` moved aside fixed it.
+
 ## 🗳 FINAL CHECK, ROUND FOUR — ANSWERED 2026-09-25 14:13 UTC. DESIGN CLOSED. NEXT: A NEW BUILDER CHAT RUNS `Context/PROMPT-build-final.md`
 
 Round four (`final4/answers`, keys `f9_*`) plus eight questions in chat settled the last calls. Everything is in

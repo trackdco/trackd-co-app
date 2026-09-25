@@ -382,7 +382,7 @@ export function HalfLifeCard({
   const { openId, draws, toggle } = useOpenRow()
   if (singles.length === 0) return null
   return (
-    <section className="flow-card rounded-2xl bg-bg-surface px-5 pt-5 pb-1" aria-label="Half-life">
+    <section className="flow-card inst-card px-5 pt-5 pb-1" aria-label="Half-life">
       <h2 className={CARD_EYEBROW}>Half-life</h2>
       <div className="mt-1.5">
         {singles.map((m, i) => {
@@ -438,7 +438,7 @@ export function BlendsCard({
   const [selected, setSelected] = useState<Record<string, number | null>>({})
   if (blends.length === 0) return null
   return (
-    <section className="flow-card rounded-2xl bg-bg-surface px-5 pt-5 pb-1" aria-label="Blends">
+    <section className="flow-card inst-card px-5 pt-5 pb-1" aria-label="Blends">
       <h2 className={CARD_EYEBROW}>Blends</h2>
       <div className="mt-1.5">
         {blends.map((b, i) => {
@@ -462,10 +462,10 @@ export function BlendsCard({
             >
               <ThumbGroup
                 selection={sel}
-                thumbClassName="rounded-full bg-bg-surface-raised"
+                thumbClassName="inst-thumb"
                 role="group"
                 aria-label={`${b.compound.name} components`}
-                className="flex rounded-full bg-bg-input p-[3px]"
+                className="flex inst-rail p-[3px]"
               >
                 {[null, ...b.drawn.map((_, k) => k)].map((k) => (
                   <button
@@ -475,8 +475,8 @@ export function BlendsCard({
                     onClick={() => setSelected((s) => ({ ...s, [b.compound.id]: k }))}
                     className={cn(
                       PRESS.pill,
-                      "flex flex-1 items-center justify-center gap-[5px] rounded-full px-1 py-1.5 text-[11.5px] transition-colors duration-300 ease-out",
-                      sel === k ? "text-foreground" : "text-text-muted",
+                      "flex flex-1 items-center justify-center gap-[5px] rounded-sm px-1 py-1.5 text-[11.5px] transition-colors duration-300 ease-out",
+                      sel === k ? "text-bg-base" : "text-text-muted",
                     )}
                   >
                     {k == null ? "All" : (

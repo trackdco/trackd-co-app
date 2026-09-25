@@ -302,7 +302,7 @@ export function WeekStrip({
                               selected
                                 ? "font-medium text-foreground"
                                 : nothingScheduled
-                                  ? "text-text-subtle"
+                                  ? "text-text-muted"
                                   : "text-text-muted",
                               isToday && !selected && "text-foreground"
                             )}
@@ -315,8 +315,8 @@ export function WeekStrip({
                               selected
                                 ? "text-foreground"
                                 : nothingScheduled
-                                  ? "text-text-subtle/70"
-                                  : "text-text-subtle"
+                                  ? "text-text-muted/70"
+                                  : "text-text-muted"
                             )}
                           >
                             {DAY_SHORT[date.getDay()]}
@@ -360,7 +360,7 @@ export function WeekStrip({
             <span className="text-text-muted">
               {weekRangeLabel(daysForOffset(weekOffset))}
             </span>
-            <span aria-hidden className="text-text-subtle">·</span>
+            <span aria-hidden className="text-text-muted">·</span>
             <button
               type="button"
               tabIndex={weekOffset === 0 ? -1 : undefined}

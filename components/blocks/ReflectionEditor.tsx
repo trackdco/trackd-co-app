@@ -58,7 +58,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
 
   if (!editing) {
     return (
-      <section className="flow-card rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card inst-card p-5">
         <p className={CARD_EYEBROW}>Your note</p>
         {block.reflection ? (
           <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
@@ -85,7 +85,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
   }
 
   return (
-    <section className="flow-card rounded-2xl bg-bg-surface p-5">
+    <section className="flow-card inst-card p-5">
       <p className={CARD_EYEBROW}>Your note</p>
       <Textarea
         value={draft}
@@ -115,7 +115,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
           disabled={busy}
           className={cn(
             PRESS.button,
-            "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-2.5 min-h-11 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+            "flex flex-1 items-center justify-center gap-2 inst-btn py-2.5 min-h-11 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
           )}
         >
           {busy && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}

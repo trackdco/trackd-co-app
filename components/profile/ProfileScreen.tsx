@@ -105,7 +105,7 @@ export function ProfileScreen({
         ) : null}
 
         {/* Plan status pill — quiet and muted (amber retired on this screen). */}
-        <span className="mt-4 inline-flex items-center rounded-full border border-border-default bg-bg-surface-raised px-3 py-1 text-xs font-medium text-text-muted">
+        <span className="mt-4 inline-flex items-center rounded-lg border border-border-default bg-bg-surface-raised px-3 py-1 text-xs font-medium text-text-muted">
           {planLabel}
         </span>
       </section>
@@ -203,7 +203,7 @@ export function ProfileScreen({
       </div>
 
       <p
-        className="animate-home-up text-center text-xs text-text-subtle"
+        className="animate-home-up text-center text-xs text-text-muted"
         style={{ animationDelay: "220ms" }}
       >
         Trakabl · v0.4 (Beta)

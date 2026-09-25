@@ -475,7 +475,7 @@ export function PaywallScreen() {
                 <Icon
                   className={cn(
                     "h-5 w-5 shrink-0",
-                    beat.lit ? "text-accent-amber" : "text-text-subtle",
+                    beat.lit ? "text-accent-amber" : "text-text-muted",
                   )}
                   aria-hidden
                 />
@@ -565,7 +565,7 @@ export function PaywallScreen() {
                       aria-label="Creator code"
                       autoCapitalize="characters"
                       autoComplete="off"
-                      className="h-12 min-w-0 flex-1 rounded-xl bg-bg-input px-4 font-mono text-sm uppercase text-foreground outline-none placeholder:font-sans placeholder:normal-case placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
+                      className="h-12 min-w-0 flex-1 rounded-xl bg-bg-input px-4 font-mono text-sm uppercase text-foreground outline-none placeholder:font-sans placeholder:normal-case placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-ring"
                     />
                     <button
                       type="button"

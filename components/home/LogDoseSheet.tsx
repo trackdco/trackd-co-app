@@ -884,7 +884,7 @@ function LogDoseBody({
             Rows, matching the add form exactly: label left, control right, one
             height and one divider. */}
         <div
-          className={cn(SHEET_RISE, "mt-5 overflow-hidden rounded-2xl bg-bg-surface-raised")}
+          className={cn(SHEET_RISE, "mt-5 overflow-hidden inst-rows")}
           style={{ "--rise-i": 1 } as React.CSSProperties}
         >
           <LogRow label="Dose">
@@ -944,7 +944,7 @@ function LogDoseBody({
                   ) : drawSource ? (
                     <span key="draw" className="animate-late-in font-mono text-sm text-accent-amber">
                       {draw == null ? (
-                        <span className="text-text-subtle">—</span>
+                        <span className="text-text-muted">—</span>
                       ) : draw.kind === "count" ? (
                         draw.label
                       ) : (
@@ -975,7 +975,7 @@ function LogDoseBody({
           <LogRow label="Date">
             <div className="flex items-center justify-end gap-2">
               {onToday && (
-                <span className="text-sm text-text-subtle">today</span>
+                <span className="text-sm text-text-muted">today</span>
               )}
               <Input
                 type="date"
@@ -1025,7 +1025,7 @@ function LogDoseBody({
           <LogRow label="Time">
             <div className="flex items-center justify-end gap-2">
               {!hasTime(displayTime) && (
-                <span className="text-sm text-text-subtle">Set time</span>
+                <span className="text-sm text-text-muted">Set time</span>
               )}
               <Input
                 type="time"
@@ -1050,7 +1050,7 @@ function LogDoseBody({
             other two states said what the field already showed and are gone. */}
         {liveTracking && (
           <p
-            className={cn(SHEET_RISE, "mt-1.5 px-1 text-xs text-text-subtle")}
+            className={cn(SHEET_RISE, "mt-1.5 px-1 text-xs text-text-muted")}
             style={{ "--rise-i": 2 } as React.CSSProperties}
           >
             Live now, <span className="font-mono text-accent-amber">{toHHMMSS(now)}</span>.
@@ -1069,7 +1069,7 @@ function LogDoseBody({
             the same props it has always had. Injectables only. */}
         {injectable && (
           <div
-            className={cn(SHEET_RISE, "mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised px-4 py-3")}
+            className={cn(SHEET_RISE, "mt-3 overflow-hidden inst-rows px-4 py-3")}
             style={{ "--rise-i": 3 } as React.CSSProperties}
           >
             <div className="flex items-baseline justify-between">
@@ -1142,7 +1142,7 @@ function LogDoseBody({
                   siteLastUsedDays[siteId] < REST_DAYS
                   ? "text-accent-amber"
                   : siteId != null
-                    ? "text-text-subtle"
+                    ? "text-text-muted"
                     : "text-text-muted",
                 !mapSettled && siteId == null && "body-map-late",
               )}
@@ -1181,7 +1181,7 @@ function LogDoseBody({
             behind a second tap is how a field goes unused. It grows with what
             is typed and starts at one line, so it costs nothing when empty. */}
         <div
-          className={cn(SHEET_RISE, "mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised")}
+          className={cn(SHEET_RISE, "mt-3 overflow-hidden inst-rows")}
           style={{ "--rise-i": 4 } as React.CSSProperties}
         >
           <label className="block px-4 py-3">
@@ -1192,7 +1192,7 @@ function LogDoseBody({
               rows={1}
               placeholder="Add a note"
               aria-label="Note about this dose"
-              className="mt-1.5 block max-h-40 min-h-[1.75rem] w-full resize-none bg-transparent text-base text-foreground outline-none placeholder:text-text-subtle"
+              className="mt-1.5 block max-h-40 min-h-[1.75rem] w-full resize-none bg-transparent text-base text-foreground outline-none placeholder:text-text-muted"
               onInput={(e) => {
                 // Grow to fit, up to the max-height, then scroll. `field-sizing`
                 // is not in Safari yet, so this is the portable version.
@@ -1231,14 +1231,14 @@ function LogDoseBody({
         >
           <div className="overflow-hidden" aria-hidden={!vialCard || undefined}>
             {vialCard ? (
-              <div className="animate-late-in mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
+              <div className="animate-late-in mt-3 overflow-hidden inst-rows">
                 {/* The LABEL was the one part of this card still hardcoded, so a tub
                     read "From vial · 1 kg left" with the note directly underneath
                     saying "Comes off the tub…" — the same card contradicting itself
                     (cold review, 2026-08-12). */}
                 <LogRow label={`From ${containerWord}`} value={vialCard.value} />
                 {vialCard.note && (
-                  <p className="px-4 pb-3 text-xs text-text-subtle">{vialCard.note}</p>
+                  <p className="px-4 pb-3 text-xs text-text-muted">{vialCard.note}</p>
                 )}
                 {vialCard.choices && (
                   <>
@@ -1252,7 +1252,7 @@ function LogDoseBody({
                           aria-pressed={c.active}
                           className={cn(
                             PRESS.pill,
-                            "min-h-9 rounded-full border px-3 py-2 font-mono text-xs transition-colors duration-200 ease-out",
+                            "min-h-9 rounded-lg border px-3 py-2 font-mono text-xs transition-colors duration-200 ease-out",
                             c.active
                               ? "border-transparent bg-accent-primary font-medium text-bg-base"
                               : "border-border-default bg-bg-input text-text-muted hover:text-text-primary",
@@ -1278,7 +1278,7 @@ function LogDoseBody({
                 )}
               </div>
             ) : (
-              <div className="mt-3 overflow-hidden rounded-2xl bg-bg-surface-raised">
+              <div className="mt-3 overflow-hidden inst-rows">
                 <LogRow label={`From ${containerWord}`}>
                   <Sk w="88px" h={12} />
                 </LogRow>
@@ -1302,7 +1302,7 @@ function LogDoseBody({
             yours alone: RLS scopes every read to the signed-in user. Flagged for
             Adrian; the same sentence is on two other screens. */}
         <p
-          className={cn(SHEET_RISE, "mt-5 px-1 text-xs leading-relaxed text-text-subtle")}
+          className={cn(SHEET_RISE, "mt-5 px-1 text-xs leading-relaxed text-text-muted")}
           style={{ "--rise-i": 6 } as React.CSSProperties}
         >
           Saved to your account. Only you can see it.

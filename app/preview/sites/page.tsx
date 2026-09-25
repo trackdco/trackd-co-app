@@ -16,7 +16,7 @@ export default function PreviewSitesPage() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-4xl flex-col px-6 py-10">
-      <span className="self-start rounded-full bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium tracking-wider text-text-muted uppercase">
+      <span className="self-start rounded-lg bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium tracking-wider text-text-muted uppercase">
         Preview · injection-site body maps
       </span>
       <h1 className="mt-4 text-[2rem] leading-[1.1] font-light tracking-[-0.02em] text-foreground">

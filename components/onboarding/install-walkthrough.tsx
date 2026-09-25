@@ -171,7 +171,7 @@ export function InstallWalkthrough({ device }: { device: DeviceGuess }) {
             className="absolute inset-0 h-full w-full cursor-grab appearance-none bg-transparent accent-accent-amber active:cursor-grabbing focus-visible:outline-none [&::-moz-range-thumb]:size-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-bg-base [&::-moz-range-thumb]:bg-accent-amber [&::-webkit-slider-thumb]:size-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-bg-base [&::-webkit-slider-thumb]:bg-accent-amber [&::-webkit-slider-thumb]:shadow-[0_2px_8px_rgba(0,0,0,.5)]"
           />
         </div>
-        <p className="text-center text-[0.78rem] text-text-subtle">
+        <p className="text-center text-[0.78rem] text-text-muted">
           {now === last
             ? `Step ${now + 1} of ${steps.length}`
             : `Step ${now + 1} of ${steps.length} \u00b7 drag to move through`}

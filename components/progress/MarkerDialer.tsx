@@ -107,7 +107,7 @@ function WordScale({
             aria-pressed={sel}
             className={cn(
               PRESS.pill,
-              "relative z-10 shrink-0 rounded-full border px-3 py-1.5 text-sm transition-colors duration-300",
+              "relative z-10 shrink-0 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-300",
               sel
                 ? "border-transparent font-medium text-bg-base"
                 : "border-border-default text-text-muted hover:text-foreground",
@@ -273,7 +273,7 @@ export function MarkerDialer({
               <span className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="min-w-0 truncate text-sm font-medium text-foreground">{m.name}</span>
                 {isCustom && (
-                  <span className="shrink-0 rounded-full border border-border-default px-1.5 py-px text-[10px] uppercase tracking-wider text-text-subtle">
+                  <span className="shrink-0 rounded-lg border border-border-default px-1.5 py-px text-[10px] uppercase tracking-wider text-text-muted">
                     custom
                   </span>
                 )}
@@ -343,7 +343,7 @@ export function MarkerDialer({
                 <div className="max-h-56 overflow-y-auto">
                   {addableCustoms.length > 0 && (
                     <>
-                      <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+                      <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">
                         Your markers
                       </p>
                       <div className="space-y-1 px-1 pb-2">
@@ -401,7 +401,7 @@ export function MarkerDialer({
                   )}
                   {addablePresets.length > 0 && (
                     <>
-                      <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+                      <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">
                         Common
                       </p>
                       <div className="flex flex-wrap gap-1.5 px-1 pb-2">
@@ -413,7 +413,7 @@ export function MarkerDialer({
                   )}
                   {addableOptional.length > 0 && (
                     <>
-                      <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+                      <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">
                         More
                       </p>
                       <div className="flex flex-wrap gap-1.5 px-1 pb-1">
@@ -455,7 +455,7 @@ function AddChip({ label, onClick }: { label: string; onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border border-border-default px-3 py-1.5 text-sm text-text-muted transition-colors hover:border-border-strong hover:text-foreground"
+      className="rounded-lg border border-border-default px-3 py-1.5 text-sm text-text-muted transition-colors hover:border-border-strong hover:text-foreground"
     >
       {label}
     </button>
@@ -502,7 +502,7 @@ function CreateMarkerForm({
   return (
     <div className="space-y-3 p-1">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wider text-text-subtle">
+        <p className="text-xs font-medium uppercase tracking-wider text-text-muted">
           New marker
         </p>
         <button
@@ -525,13 +525,13 @@ function CreateMarkerForm({
       />
 
       <div>
-        <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+        <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">
           Scale, low to high
         </p>
         <div className="space-y-1.5">
           {labels.map((l, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <span className="w-4 shrink-0 text-right font-mono text-xs text-text-subtle">
+              <span className="w-4 shrink-0 text-right font-mono text-xs text-text-muted">
                 {i + 1}
               </span>
               <input
@@ -567,13 +567,13 @@ function CreateMarkerForm({
       </div>
 
       <div>
-        <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+        <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">
           Polarity
         </p>
         {/* On a WHITE sliding thumb (feel pass §6): the thumb is the selection. */}
         <ThumbGroup
           selection={polarity}
-          thumbClassName="rounded-lg bg-accent-primary"
+          thumbClassName="inst-thumb"
           role="group"
           aria-label="Polarity"
           className="flex gap-1.5"
@@ -599,7 +599,7 @@ function CreateMarkerForm({
             );
           })}
         </ThumbGroup>
-        <p className="mt-1.5 text-[11px] text-text-subtle">
+        <p className="mt-1.5 text-[11px] text-text-muted">
           Only orients this marker on future charts. Never a score.
         </p>
       </div>
@@ -610,7 +610,7 @@ function CreateMarkerForm({
         type="button"
         onClick={submit}
         disabled={busy}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent-primary py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 inst-btn py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
         {busy ? "Creating…" : "Create marker"}

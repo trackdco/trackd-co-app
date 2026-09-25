@@ -41,10 +41,10 @@ function UnitPill({
   return (
     <ThumbGroup
       selection={unit}
-      thumbClassName="rounded-md bg-bg-input"
+      thumbClassName="inst-thumb"
       role="group"
       aria-label={`${label} unit`}
-      className="flex shrink-0 gap-0.5 rounded-lg bg-bg-surface-raised p-1 text-[11px] leading-none"
+      className="flex shrink-0 gap-0.5 inst-rail p-1 text-[11px] leading-none"
     >
       {(["mg", "mcg"] as const).map((u) => (
         <button
@@ -64,7 +64,7 @@ function UnitPill({
             PRESS.pill,
             "min-h-7 min-w-7 rounded-md px-1.5 font-medium transition-colors duration-300",
             // The sliding thumb is the selection (feel pass §6).
-            unit === u ? "text-foreground" : "text-text-subtle hover:text-text-muted",
+            unit === u ? "text-bg-base" : "text-text-muted hover:text-text-primary",
           )}
         >
           {u}
@@ -158,7 +158,7 @@ function Field({
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             aria-describedby={hint ? hintId : undefined}
-            className="w-full min-w-0 flex-1 bg-transparent font-mono text-base tabular-nums text-foreground outline-none placeholder:text-text-subtle"
+            className="w-full min-w-0 flex-1 bg-transparent font-mono text-base tabular-nums text-foreground outline-none placeholder:text-text-muted"
           />
           {unit && onUnitChange ? (
             <UnitPill unit={unit} onChange={onUnitChange} label={label} />
@@ -204,7 +204,7 @@ function Field({
       {/* Height reserved on the two-unit fields so a row never jumps as you
           type. The mL field has no second unit, so it reserves nothing. */}
       {unit ? (
-        <p id={hintId} className="mt-1 h-4 text-[11px] text-text-subtle">
+        <p id={hintId} className="mt-1 h-4 text-[11px] text-text-muted">
           {hint ? `= ${hint}` : ""}
         </p>
       ) : null}
@@ -226,10 +226,10 @@ export function SyringePills({
   return (
     <ThumbGroup
       selection={sizeId}
-      thumbClassName="rounded-full bg-bg-surface-raised"
+      thumbClassName="inst-thumb"
       role="group"
       aria-label="Syringe size"
-      className="grid grid-cols-3 gap-1 rounded-full border border-border-default bg-bg-input p-0.5"
+      className="grid grid-cols-3 gap-1 inst-rail p-0.5"
     >
       {SYRINGE_SIZES.map((s) => (
         <button
@@ -239,8 +239,8 @@ export function SyringePills({
           onClick={() => onChange(s.id)}
           className={cn(
             PRESS.pill,
-            "rounded-full py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
-            sizeId === s.id ? "text-foreground" : "text-text-muted",
+            "rounded-sm py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
+            sizeId === s.id ? "text-bg-base" : "text-text-muted",
           )}
         >
           {s.label}
@@ -307,7 +307,7 @@ export function CalculatorInputs({
     // `ScheduleGrid`, so the calculator's sections read like the rest of the app.
     <section className="space-y-3">
       <h2 className={cn(CARD_EYEBROW, "px-1")}>Inputs</h2>
-      <div className="flow-card space-y-4 rounded-2xl bg-bg-surface p-5">
+      <div className="flow-card space-y-4 inst-card p-5">
         <div>
           <span className={FIELD_LABEL}>Syringe</span>
           <div className="mt-1.5">

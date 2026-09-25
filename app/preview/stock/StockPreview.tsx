@@ -182,7 +182,7 @@ export function StockPreview() {
         </p>
       </header>
 
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>The seeded compounds</h2>
         <div className="divide-y divide-border-default">
           {SEED.map((c) => (
@@ -202,7 +202,7 @@ export function StockPreview() {
         </div>
       </section>
 
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>What to look for</h2>
         <ul className="space-y-2.5">
           {WHAT_TO_LOOK_FOR.map((row) => (
@@ -220,7 +220,7 @@ export function StockPreview() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="w-full inst-btn px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         Open the add-stock sheet
       </button>
@@ -232,7 +232,7 @@ export function StockPreview() {
           thing worth watching would otherwise be the one thing invisible here
           (Adrian, 2026-08-07). Each button mounts the real card, in the real
           sheet, with the fill it would land on. */}
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>The moment after a save</h2>
         <p className="text-sm text-text-muted">
           The container fills from empty to what was entered, holds half a

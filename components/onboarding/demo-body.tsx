@@ -287,7 +287,7 @@ export function DemoBody({
           >
             <span
               className={cn(
-                "whitespace-nowrap rounded-full bg-bg-surface px-1.5 py-1",
+                "whitespace-nowrap rounded-lg bg-bg-surface px-1.5 py-1",
                 "font-mono text-[9px] tabular-nums tracking-[0.06em]",
                 freshest === id ? "flow-card text-accent-amber" : "text-text-muted",
               )}

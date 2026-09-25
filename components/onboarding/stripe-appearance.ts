@@ -76,7 +76,7 @@ export function paymentAppearance(): Appearance {
       // `ui-context.md` → Typography: two faces, and this is the UI one. The
       // family name is what `next/font` exposes on the CSS variable; the
       // `fonts` array on <Elements> is what actually gets it into the iframe.
-      fontFamily: token("--font-geist-sans", "system-ui, sans-serif"),
+      fontFamily: token("--font-plex-sans", "system-ui, sans-serif"),
       // Inputs are `rounded-xl` throughout the app (see `lib/ui-presets.ts`),
       // which is 12px. Cards are `rounded-2xl`; the Element only draws inputs.
       borderRadius: "12px",

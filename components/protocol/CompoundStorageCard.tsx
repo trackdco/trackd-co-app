@@ -128,7 +128,7 @@ export function CompoundStorageCard({
       className={cn(
         CARD_W,
         CARD_H,
-        "flow-card flex shrink-0 flex-col items-center gap-2 rounded-2xl bg-bg-surface p-4"
+        "flow-card flex shrink-0 flex-col items-center gap-2 inst-card p-4"
       )}
     >
       <button
@@ -216,7 +216,7 @@ export function CompoundStorageCard({
               bar is a colour you have to decode; an amber DATE is the actual
               fact, coloured. Still one amber beat per card. */}
           <span className="mt-0.5 flex w-full flex-col items-center leading-tight">
-            <span className="text-[10px] lowercase text-text-subtle">runs dry</span>
+            <span className="text-[10px] lowercase text-text-muted">runs dry</span>
             {/* Same weight as the "8.5 mL left" line above it (`--text-muted`,
                 what DATA_MONO uses) rather than full white — the card's figures
                 are one family. AMBER once it is inside the reorder window, which
@@ -249,7 +249,7 @@ export function CompoundStorageCard({
                   style={{ width: `${Math.round(fill * 100)}%` }}
                 />
               </span>
-              <span className="shrink-0 font-mono text-[10px] tabular-nums text-text-subtle">
+              <span className="shrink-0 font-mono text-[10px] tabular-nums text-text-muted">
                 {Math.round(fill * 100)}%
               </span>
             </span>

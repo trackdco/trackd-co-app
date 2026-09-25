@@ -71,7 +71,7 @@ export function Chip({
         <span
           className={cn(
             "shrink-0 transition-colors duration-[var(--motion-base)]",
-            selected ? "text-accent-amber" : "text-text-subtle",
+            selected ? "text-accent-amber" : "text-text-muted",
           )}
           aria-hidden
         >
@@ -186,7 +186,7 @@ export function ConsentRow({
   return (
     // 16px all round; the top and bottom give 4px each back on an iPhone SE.
     <div
-      className="flow-card flex items-start gap-3 rounded-2xl bg-bg-surface px-4"
+      className="flow-card flex items-start gap-3 inst-card px-4"
       style={{ paddingBlock: fit(16, 12, 12) }}
     >
       <button

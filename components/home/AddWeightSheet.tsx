@@ -587,7 +587,7 @@ function AddWeightBody({
           onClick={submit}
           // Not the action in view while the calendar is up.
           disabled={pending || saved || dateStep}
-          className="flex-[1.6] rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
+          className="flex-[1.6] inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
         >
           {pending ? "Saving…" : "Log weight"}
         </button>

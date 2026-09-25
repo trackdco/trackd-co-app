@@ -75,7 +75,7 @@ export function RotationNotice() {
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="mt-2 min-h-11 rounded-md px-3 text-sm text-text-subtle underline underline-offset-4 transition-colors hover:text-text-muted"
+        className="mt-2 min-h-11 rounded-md px-3 text-sm text-text-muted underline underline-offset-4 transition-colors hover:text-text-muted"
       >
         Show anyway
       </button>

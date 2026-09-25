@@ -191,7 +191,7 @@ export function DayDetailSheet({
                       type="button"
                       onClick={onOpenOneOffs}
                       aria-label="Log something else on this day"
-                      className="-mr-1 flex h-7 items-center gap-1.5 rounded-full px-2 text-text-muted transition-colors hover:text-text-primary"
+                      className="-mr-1 flex h-7 items-center gap-1.5 rounded-lg px-2 text-text-muted transition-colors hover:text-text-primary"
                     >
                       <DotsThree className="h-4 w-4" aria-hidden />
                     </button>
@@ -225,7 +225,7 @@ export function DayDetailSheet({
                         type="button"
                         onClick={onOpenOneOffs}
                         aria-label={`Manage the ${oneOffs?.length} other things logged on this day`}
-                        className="-mr-1 flex h-7 items-center rounded-full px-2 text-text-muted transition-colors hover:text-text-primary"
+                        className="-mr-1 flex h-7 items-center rounded-lg px-2 text-text-muted transition-colors hover:text-text-primary"
                       >
                         <DotsThree className="h-4 w-4" aria-hidden />
                       </button>
@@ -329,7 +329,7 @@ export function DayDetailSheet({
                     {markers.map((m) => (
                       <span
                         key={m.markerId}
-                        className="rounded-full bg-bg-input px-2.5 py-1 text-xs"
+                        className="rounded-lg bg-bg-input px-2.5 py-1 text-xs"
                       >
                         <span className="text-text-muted">{m.name}</span>{" "}
                         <span className="text-foreground">{m.word}</span>
@@ -375,7 +375,7 @@ export function DayDetailSheet({
                         </span>
                       ))}
                       {photos.length > 4 && (
-                        <span className="self-center text-xs text-text-subtle">
+                        <span className="self-center text-xs text-text-muted">
                           +{photos.length - 4}
                         </span>
                       )}
@@ -417,7 +417,7 @@ function Row({
 }
 
 function Empty() {
-  return <p className="text-sm text-text-subtle">—</p>;
+  return <p className="text-sm text-text-muted">—</p>;
 }
 
 /** A tappable row that deep-links out to an existing editor/view. */

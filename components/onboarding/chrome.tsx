@@ -118,7 +118,7 @@ export function FlowCta({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flow-cta h-13 w-full rounded-2xl bg-accent-primary px-6 text-[0.95rem] font-medium text-bg-base",
+        "flow-cta h-13 w-full inst-btn px-6 text-[0.95rem] font-medium text-bg-base",
         "transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)]",
         "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",

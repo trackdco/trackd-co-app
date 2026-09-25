@@ -167,7 +167,7 @@ export function WeightGraph({
   const [switched, setSwitched] = useState(false);
 
   return (
-    <section className={cn("flow-card rounded-2xl bg-bg-surface p-5", className)} style={style}>
+    <section className={cn("flow-card inst-card p-5", className)} style={style}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className={CARD_EYEBROW}>{mode === "trend" ? "Trend" : "Scale"}</p>
@@ -196,10 +196,10 @@ export function WeightGraph({
         {/* Mode toggle. */}
         <ThumbGroup
           selection={mode}
-          thumbClassName="rounded-full bg-bg-surface-raised"
+          thumbClassName="inst-thumb"
           role="group"
           aria-label="Weight series"
-          className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-xs"
+          className="inline-flex shrink-0 inst-rail p-0.5 text-xs"
         >
           {(["trend", "scale"] as const).map((m) => (
             <button
@@ -209,8 +209,8 @@ export function WeightGraph({
               aria-pressed={mode === m}
               className={cn(
                 PRESS.pill,
-                "rounded-full px-3 py-1 font-medium transition-colors duration-300 ease-out",
-                mode === m ? "text-foreground" : "text-text-muted",
+                "rounded-sm px-3 py-1 font-medium transition-colors duration-300 ease-out",
+                mode === m ? "text-bg-base" : "text-text-muted",
               )}
             >
               {m === "trend" ? "Trend" : "Scale"}
@@ -330,10 +330,10 @@ export function WeightGraph({
       {ranges.length > 1 && (
         <ThumbGroup
           selection={range.id}
-          thumbClassName="rounded-full bg-bg-surface-raised"
+          thumbClassName="inst-thumb"
           role="group"
           aria-label="Range"
-          className="mt-4 grid gap-1 rounded-full border border-border-default bg-bg-input p-0.5"
+          className="mt-4 grid gap-1 inst-rail p-0.5"
           style={{ gridTemplateColumns: `repeat(${ranges.length}, minmax(0, 1fr))` }}
         >
           {ranges.map((r) => (
@@ -347,8 +347,8 @@ export function WeightGraph({
               aria-pressed={range.id === r.id}
               className={cn(
                 PRESS.pill,
-                "rounded-full py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
-                range.id === r.id ? "text-foreground" : "text-text-muted",
+                "rounded-sm py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
+                range.id === r.id ? "text-bg-base" : "text-text-muted",
               )}
             >
               {r.label}

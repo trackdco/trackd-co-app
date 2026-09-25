@@ -83,7 +83,7 @@ export function PresellScreen({ skin }: { skin: Skin }) {
       <div className="flex flex-none flex-col gap-2 px-5 pt-4 pb-[26px]">
         <button
           type="button"
-          className="flex h-13 w-full items-center justify-center rounded-2xl bg-accent-primary px-6 text-[0.95rem] font-medium text-bg-base transition-transform active:scale-[0.98] motion-reduce:active:scale-100"
+          className="flex h-13 w-full items-center justify-center inst-btn px-6 text-[0.95rem] font-medium text-bg-base transition-transform active:scale-[0.98] motion-reduce:active:scale-100"
         >
           Add to home screen
         </button>
@@ -117,7 +117,7 @@ export function OpenSafariScreen() {
         </p>
         <span className="mt-[26px] inline-flex items-center gap-2.5 rounded-full border border-[rgb(240_239_233/0.16)] bg-[rgb(240_239_233/0.05)] py-2.5 pr-2 pl-4 font-mono text-[12.5px] text-[#F0EFE9]">
           trackdco.app
-          <em className="rounded-full bg-accent-amber px-2.5 py-1 text-[9.5px] tracking-[0.14em] text-[#100E09] uppercase not-italic">
+          <em className="rounded-lg bg-accent-amber px-2.5 py-1 text-[9.5px] tracking-[0.14em] text-[#100E09] uppercase not-italic">
             Copied
           </em>
         </span>
@@ -172,7 +172,7 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
             You can close this tab. Open Trakabl from your home screen. That&rsquo;s where
             your reminders come from.
           </p>
-          <span className="mt-5 flex items-center gap-2 font-mono text-[9.5px] tracking-[0.16em] text-text-subtle uppercase">
+          <span className="mt-5 flex items-center gap-2 font-mono text-[9.5px] tracking-[0.16em] text-text-muted uppercase">
             <i className="h-[5px] w-[5px] rounded-full bg-text-subtle" />
             This tab is finished
           </span>
@@ -180,7 +180,7 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
         <div className="flex flex-none flex-col gap-2 px-5 pt-4 pb-[26px]">
           <button
             type="button"
-            className="flex h-13 w-full items-center justify-center rounded-2xl bg-accent-primary px-6 text-[0.95rem] font-medium text-bg-base"
+            className="flex h-13 w-full items-center justify-center inst-btn px-6 text-[0.95rem] font-medium text-bg-base"
           >
             Got it
           </button>
@@ -203,11 +203,11 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
         <div className="flex flex-none flex-col gap-2 px-5 pt-4 pb-[26px]">
           <button
             type="button"
-            className="flex h-13 w-full items-center justify-center rounded-2xl bg-accent-primary px-6 text-[0.95rem] font-medium text-bg-base"
+            className="flex h-13 w-full items-center justify-center inst-btn px-6 text-[0.95rem] font-medium text-bg-base"
           >
             Yes, it&rsquo;s on my Home Screen
           </button>
-          <button type="button" className="mx-auto block rounded-md px-3 py-2 text-[11.5px] text-text-subtle">
+          <button type="button" className="mx-auto block rounded-md px-3 py-2 text-[11.5px] text-text-muted">
             Not yet, show me the steps
           </button>
         </div>
@@ -226,7 +226,7 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
           Look for this icon. This Safari tab is finished, and carrying on here won&rsquo;t
           carry over.
         </p>
-        <span className="mt-5 flex max-w-[20rem] items-start gap-2.5 rounded-2xl border border-border-default bg-bg-surface px-3.5 py-3 text-left">
+        <span className="mt-5 flex max-w-[20rem] items-start gap-2.5 inst-card px-3.5 py-3 text-left">
           <svg viewBox="0 0 24 24" className="mt-0.5 h-[15px] w-[15px] flex-none text-accent-amber" fill="none" aria-hidden>
             <rect x="5" y="10.5" width="14" height="10" rx="2.4" stroke="currentColor" strokeWidth="1.7" />
             <path d="M8.4 10.5V7.6a3.6 3.6 0 0 1 7.2 0v2.9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
@@ -238,7 +238,7 @@ export function ReturnedScreen({ variant }: { variant: ReturnedCase }) {
         </span>
       </div>
       <div className="flex flex-none flex-col gap-2 px-5 pt-4 pb-[26px]">
-        <button type="button" className="mx-auto block rounded-md px-3 py-2 text-[11.5px] text-text-subtle">
+        <button type="button" className="mx-auto block rounded-md px-3 py-2 text-[11.5px] text-text-muted">
           I haven&rsquo;t added it yet
         </button>
       </div>
@@ -266,7 +266,7 @@ export function PresellWithSkins() {
             onClick={() => setSkin(s.id)}
             aria-pressed={skin === s.id}
             className={cn(
-              "rounded-full border px-3 py-1.5 font-mono text-[10px] tracking-wider uppercase",
+              "rounded-lg border px-3 py-1.5 font-mono text-[10px] tracking-wider uppercase",
               skin === s.id
                 ? "border-accent-amber bg-accent-amber text-bg-base"
                 : "border-border-default bg-bg-surface/80 text-text-muted backdrop-blur",
@@ -299,7 +299,7 @@ export function ReturnedWithCases() {
             onClick={() => setVariant(c.id)}
             aria-pressed={variant === c.id}
             className={cn(
-              "rounded-full border px-3 py-1.5 font-mono text-[10px] tracking-wider uppercase",
+              "rounded-lg border px-3 py-1.5 font-mono text-[10px] tracking-wider uppercase",
               variant === c.id
                 ? "border-accent-amber bg-accent-amber text-bg-base"
                 : "border-border-default bg-bg-surface/80 text-text-muted backdrop-blur",

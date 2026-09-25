@@ -53,7 +53,7 @@ export default async function ResetPasswordPage() {
           <div className="mt-10 w-full max-w-[20rem]">
             <Link
               href="/forgot-password"
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 text-[0.95rem] font-medium text-bg-base transition-transform duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base active:scale-[0.98] motion-reduce:active:scale-100"
+              className="flex h-12 w-full items-center justify-center gap-2 inst-btn px-4 text-[0.95rem] font-medium text-bg-base transition-transform duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base active:scale-[0.98] motion-reduce:active:scale-100"
             >
               Request a new link
             </Link>

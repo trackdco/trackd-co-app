@@ -100,7 +100,7 @@ export function WeightGlanceCard({
 
   if (compact) {
     return (
-      <div className="flow-card flex flex-col rounded-2xl bg-bg-surface p-5">
+      <div className="flow-card flex flex-col inst-card p-5">
         <p className={cn(CARD_EYEBROW, "truncate")}>Weight</p>
         {empty ? (
           // Tappable in the EMPTY state too. It used to be a bare paragraph, so
@@ -161,10 +161,10 @@ export function WeightGlanceCard({
                 because a third of a square is not enough for two labels. */}
             <ThumbGroup
               selection={mode}
-              thumbClassName="rounded-full bg-bg-surface-raised"
+              thumbClassName="inst-thumb"
               role="group"
               aria-label="Weight series"
-              className="mt-3 grid grid-cols-2 gap-1 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]"
+              className="mt-3 grid grid-cols-2 gap-1 inst-rail p-0.5 text-[11px]"
             >
               {(["trend", "scale"] as const).map((m) => (
                 <button
@@ -174,12 +174,12 @@ export function WeightGlanceCard({
                   aria-pressed={mode === m}
                   className={cn(
                     PRESS.pill,
-                    "rounded-full py-1 font-medium transition-colors duration-300 ease-out",
+                    "rounded-sm py-1 font-medium transition-colors duration-300 ease-out",
                     // Touch area extended to 44px with a transparent
                     // pseudo-element (25 + 2x10), so the pill keeps its compact
                     // look and stops being a 25px-tall target.
                     "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
-                    mode === m ? "text-foreground" : "text-text-muted",
+                    mode === m ? "text-bg-base" : "text-text-muted",
                   )}
                 >
                   {m === "trend" ? "Trend" : "Scale"}
@@ -203,10 +203,10 @@ export function WeightGlanceCard({
         {!empty && (
           <ThumbGroup
             selection={mode}
-            thumbClassName="rounded-full bg-bg-surface-raised"
+            thumbClassName="inst-thumb"
             role="group"
             aria-label="Weight series"
-            className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]"
+            className="inline-flex shrink-0 inst-rail p-0.5 text-[11px]"
           >
             {(["trend", "scale"] as const).map((m) => (
               <button
@@ -216,9 +216,9 @@ export function WeightGlanceCard({
                 aria-pressed={mode === m}
                 className={cn(
                   PRESS.pill,
-                  "rounded-full px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
+                  "rounded-sm px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
                   "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
-                  mode === m ? "text-foreground" : "text-text-muted",
+                  mode === m ? "text-bg-base" : "text-text-muted",
                 )}
               >
                 {m === "trend" ? "Trend" : "Scale"}

@@ -58,7 +58,7 @@ export function OneOffDaySheet({
               lands with the title. */}
           <div data-sheet-body className="space-y-3">
             {logs.length === 0 ? (
-              <p className="rounded-2xl bg-bg-surface-raised px-4 py-5 text-center text-sm text-text-muted">
+              <p className="inst-rows px-4 py-5 text-center text-sm text-text-muted">
                 Nothing off-plan logged on this day.
               </p>
             ) : (
@@ -83,7 +83,7 @@ export function OneOffDaySheet({
                         {o.label}
                       </span>
                       {o.note && (
-                        <span className="block truncate text-xs text-text-subtle">
+                        <span className="block truncate text-xs text-text-muted">
                           {o.note}
                         </span>
                       )}
@@ -98,7 +98,7 @@ export function OneOffDaySheet({
                       type="button"
                       onClick={() => onRemove(o.id)}
                       aria-label={`Remove ${o.label}`}
-                      className="shrink-0 p-1 text-text-subtle transition-colors hover:text-accent-destructive"
+                      className="shrink-0 p-1 text-text-muted transition-colors hover:text-accent-destructive"
                     >
                       <Trash className="h-4 w-4" aria-hidden />
                     </button>
@@ -111,14 +111,14 @@ export function OneOffDaySheet({
               <button
                 type="button"
                 onClick={onAdd}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+                className="flex w-full items-center justify-center gap-2 inst-btn px-4 py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
               >
                 <Plus className="h-4 w-4" aria-hidden />
                 Log something else
               </button>
             </div>
 
-            <p className="text-xs leading-relaxed text-text-subtle">
+            <p className="text-xs leading-relaxed text-text-muted">
               These are recorded on their own. They do not affect your stock, your
               schedule or your consistency.
             </p>

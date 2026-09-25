@@ -153,7 +153,7 @@ export async function LegalDocument({
       <h1 className={`mt-12 ${PAGE_TITLE}`}>
         {doc.title.replace(/^Trakabl\s*[—-]\s*/, "")}
       </h1>
-      <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-subtle">
+      <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
         Version {doc.version}
         {doc.is_beta ? " · Beta draft" : ""}
         {doc.effective_date

@@ -103,13 +103,13 @@ export default async function LoginPage({
 
         <div className="my-5 flex items-center gap-3" aria-hidden>
           <span className="h-[0.5px] flex-1 bg-border-default" />
-          <span className="text-xs text-text-subtle">or</span>
+          <span className="text-xs text-text-muted">or</span>
           <span className="h-[0.5px] flex-1 bg-border-default" />
         </div>
 
         <EmailPasswordForm next={next} />
 
-        <p className="mt-5 text-[0.7rem] leading-relaxed text-text-subtle">
+        <p className="mt-5 text-[0.7rem] leading-relaxed text-text-muted">
           18+ only. By continuing you agree to our{" "}
           <Link href="/terms" className="text-text-muted hover:text-foreground">
             Terms
@@ -133,7 +133,7 @@ export default async function LoginPage({
 
         {/* The fourth document (v2.0). Named in full — see the note on the
             homepage link in `first-run.tsx` for why the wording is fixed. */}
-        <p className="mt-1.5 text-[0.7rem] leading-relaxed text-text-subtle">
+        <p className="mt-1.5 text-[0.7rem] leading-relaxed text-text-muted">
           <Link
             href="/consumer-health-data"
             className="text-text-muted hover:text-foreground"

@@ -46,7 +46,7 @@ export default function InstallPreviewIndex() {
           <li key={s.href}>
             <Link
               href={s.href}
-              className="block rounded-2xl border border-border-default bg-bg-surface px-5 py-4 transition-colors hover:border-border-strong"
+              className="block inst-card px-5 py-4 transition-colors hover:border-border-strong"
             >
               <span className="block text-[0.98rem] text-foreground">{s.title}</span>
               <span className="mt-1 block text-[0.85rem] leading-relaxed text-text-muted">

@@ -29,7 +29,7 @@ export function FillDemo({ colour }: { colour: string }) {
           <button
             type="button"
             onClick={() => setDosesLeft((d) => Math.max(0, d - 1))}
-            className="rounded-full bg-accent-primary px-4 py-2 text-sm text-bg-base transition active:scale-[0.98] disabled:opacity-40"
+            className="inst-btn px-4 py-2 text-sm text-bg-base transition active:scale-[0.98] disabled:opacity-40"
             disabled={dosesLeft === 0}
           >
             Log
@@ -37,7 +37,7 @@ export function FillDemo({ colour }: { colour: string }) {
           <button
             type="button"
             onClick={() => setDosesLeft(DOSES_PER_VIAL)}
-            className="rounded-full bg-bg-input px-4 py-2 text-sm text-text-muted transition active:scale-[0.98]"
+            className="rounded-lg bg-bg-input px-4 py-2 text-sm text-text-muted transition active:scale-[0.98]"
           >
             Refill
           </button>

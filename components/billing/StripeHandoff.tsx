@@ -289,7 +289,7 @@ export function StripeHandoff({
           className={
             button.tone === "accent"
               ? "flex min-h-11 w-full flex-1 items-center gap-3 rounded-xl border border-accent/45 bg-accent/[0.09] px-3.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.14] focus-visible:ring-2 focus-visible:ring-ring"
-              : "min-h-11 w-full flex-1 rounded-2xl border border-border-default bg-bg-surface-raised px-4 py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+              : "min-h-11 w-full flex-1 inst-ghost px-4 py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring"
           }
         >
           {button.tone === "accent" ? (
@@ -353,7 +353,7 @@ export function StripeHandoff({
                     type="button"
                     disabled={pending}
                     onClick={close}
-                    className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    className="flex-1 inst-ghost py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   >
                     {DISMISS}
                   </button>
@@ -362,7 +362,7 @@ export function StripeHandoff({
                     ref={continueRef}
                     disabled={pending}
                     onClick={go}
-                    className="flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    className="flex-1 inst-ghost py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   >
                     {pending ? "Opening…" : CONTINUE}
                   </button>

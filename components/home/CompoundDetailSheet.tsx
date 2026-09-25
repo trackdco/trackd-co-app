@@ -284,7 +284,7 @@ function DetailBody({
             <p className="font-mono text-sm tabular-nums text-text-muted">
               {formatDose(compound.dose)} {compound.unit}
               {stock?.label != null && (
-                <span className="text-text-subtle">
+                <span className="text-text-muted">
                   {" · "}
                   {stock.label}
                 </span>
@@ -344,7 +344,7 @@ function DetailBody({
             }
             className={cn(
               PRESS.button,
-              "flex w-full items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90",
+              "flex w-full items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90",
             )}
           >
             {/* NO ICON. The filled button is already the loudest thing on the

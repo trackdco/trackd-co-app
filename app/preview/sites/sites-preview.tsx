@@ -60,7 +60,7 @@ export function SitesPreview() {
               onClick={() => setRoute(r.key)}
               aria-pressed={route === r.key}
               className={cn(
-                "rounded-full px-5 py-1.5 font-medium transition-colors duration-200 ease-out",
+                "rounded-lg px-5 py-1.5 font-medium transition-colors duration-200 ease-out",
                 route === r.key
                   ? "bg-bg-surface-raised text-foreground"
                   : "text-text-muted",
@@ -79,7 +79,7 @@ export function SitesPreview() {
           return (
             <section
               key={sex}
-              className="rounded-2xl bg-bg-surface p-4"
+              className="inst-card p-4"
             >
               <div className="mb-3 flex items-baseline justify-between">
                 <h2 className="text-lg font-light capitalize text-foreground">

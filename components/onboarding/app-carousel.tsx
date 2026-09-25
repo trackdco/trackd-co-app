@@ -360,7 +360,7 @@ export function AppCarousel() {
                 key={`${slide.id}-${l.text}`}
                 aria-hidden
                 className={cn(
-                  "carousel-label animate-flow-drift pointer-events-none absolute z-40 flex items-center gap-1.5 rounded-full bg-bg-surface/75 px-2.5 py-1.5 backdrop-blur-md",
+                  "carousel-label animate-flow-drift pointer-events-none absolute z-40 flex items-center gap-1.5 rounded-lg bg-bg-surface/75 px-2.5 py-1.5 backdrop-blur-md",
                   "transition-opacity ease-[var(--motion-ease)] motion-reduce:transition-none",
                   on ? "opacity-100" : "opacity-0",
                   l.className,

@@ -114,8 +114,8 @@ export function IntroScreen() {
         className="flex shrink-0 flex-col items-center"
         style={{ gap: fit(6, 4), paddingTop: fit(12, 6), paddingBottom: FOOTER_BOTTOM }}
       >
-        <p className="text-center text-[0.7rem] leading-relaxed text-text-subtle">Paid plan. 18+ only.</p>
-        <p className="text-center text-[0.6rem] leading-relaxed text-text-subtle">
+        <p className="text-center text-[0.7rem] leading-relaxed text-text-muted">Paid plan. 18+ only.</p>
+        <p className="text-center text-[0.6rem] leading-relaxed text-text-muted">
           {LEGAL.map((doc, i) => (
             <span key={doc.href}>
               {i > 0 ? " · " : null}

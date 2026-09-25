@@ -65,7 +65,7 @@ export function PosePicker({
               <Plus className="h-4 w-4" aria-hidden />
             </span>
             <span className="text-sm text-foreground">
-              Add “{q}” <span className="text-text-subtle">· custom</span>
+              Add “{q}” <span className="text-text-muted">· custom</span>
             </span>
           </button>
         )}

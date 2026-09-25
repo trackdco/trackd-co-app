@@ -45,7 +45,7 @@ export function NotificationsToggle({
   }
 
   return (
-    <section className="flow-card rounded-2xl bg-bg-surface p-5">
+    <section className="flow-card inst-card p-5">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className={CARD_EYEBROW}>Notifications</p>
@@ -60,7 +60,7 @@ export function NotificationsToggle({
       </div>
 
       {status === "loading" && (
-        <p className="mt-3 text-sm text-text-subtle">Checking…</p>
+        <p className="mt-3 text-sm text-text-muted">Checking…</p>
       )}
 
       {status === "unsupported" && (
@@ -117,14 +117,14 @@ function Toggle({
       aria-label="Notifications"
       disabled={busy}
       onClick={onClick}
-      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-60 ${
-        on ? "bg-accent-amber" : "bg-bg-input border border-border-strong"
+      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-[11px] transition-colors duration-200 disabled:opacity-60 ${
+        on ? "bg-accent-amber" : "inst-rail"
       }`}
     >
       {/* Knob: flex-centered vertically; travel is exact so the 4px inset is equal
           on both ends (off → translate-x-1, on → translate-x-6) — no overflow. */}
       <span
-        className={`pointer-events-none inline-block size-5 rounded-full bg-primary shadow-sm transition-transform duration-200 ${
+        className={`pointer-events-none inline-block size-5 inst-knob transition-transform duration-200 ${
           on ? "translate-x-6" : "translate-x-1"
         }`}
       />

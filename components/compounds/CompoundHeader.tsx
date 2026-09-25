@@ -58,7 +58,7 @@ export function CompoundHeader({
           <span className="font-mono">{unit}</span>
         </p>
         {detail && (
-          <p className="truncate font-mono text-xs text-text-subtle">{detail}</p>
+          <p className="truncate font-mono text-xs text-text-muted">{detail}</p>
         )}
       </div>
     </div>

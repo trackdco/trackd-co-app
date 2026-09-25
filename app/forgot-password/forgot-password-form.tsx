@@ -12,7 +12,7 @@ import { CARD_EYEBROW } from "@/lib/ui-presets";
 const initialState: ResetRequestState = {};
 
 const INPUT_CLASS =
-  "h-12 w-full rounded-xl border border-border-default bg-transparent px-4 text-base text-foreground placeholder:text-text-subtle outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong";
+  "h-12 w-full rounded-xl border border-border-default bg-transparent px-4 text-base text-foreground placeholder:text-text-muted outline-none transition-colors [color-scheme:dark] focus-visible:border-border-strong";
 
 /**
  * Requests a password-reset email. On success we swap to a confirmation card —
@@ -29,7 +29,7 @@ export function ForgotPasswordForm() {
       <div
         role="status"
         aria-live="polite"
-        className="flex flex-col items-center gap-3 rounded-2xl bg-bg-surface px-6 py-8 text-center"
+        className="flex flex-col items-center gap-3 inst-card px-6 py-8 text-center"
       >
         <EnvelopeSimpleOpen className="h-6 w-6 text-text-subtle" aria-hidden />
         <p className={CARD_EYEBROW}>Check your inbox</p>
@@ -64,7 +64,7 @@ export function ForgotPasswordForm() {
         type="submit"
         disabled={isPending}
         aria-busy={isPending}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 text-[0.95rem] font-medium text-bg-base transition-transform duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base active:scale-[0.98] disabled:opacity-60 motion-reduce:active:scale-100"
+        className="flex h-12 w-full items-center justify-center gap-2 inst-btn px-4 text-[0.95rem] font-medium text-bg-base transition-transform duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base active:scale-[0.98] disabled:opacity-60 motion-reduce:active:scale-100"
       >
         {isPending ? (
           <CircleNotch className="h-5 w-5 animate-spin" aria-hidden />

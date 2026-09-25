@@ -162,7 +162,7 @@ export function PauseProposals() {
         </p>
       </header>
 
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>Open the sheet</h2>
         <div className="space-y-2">
           {OPENERS.map((o) => (
@@ -184,7 +184,7 @@ export function PauseProposals() {
         </div>
       </section>
 
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>The paused row · date to countdown</h2>
         {/* The crossover is a week: a date while the return is far off, a
             countdown once it is close. */}
@@ -207,7 +207,7 @@ export function PauseProposals() {
       </section>
 
       {log.length > 0 && (
-        <section className="space-y-2 rounded-2xl bg-bg-surface p-5">
+        <section className="space-y-2 inst-card p-5">
           <h2 className={CARD_EYEBROW}>What it would have written</h2>
           {log.map((l, i) => (
             <p key={i} className={DATA_MONO}>

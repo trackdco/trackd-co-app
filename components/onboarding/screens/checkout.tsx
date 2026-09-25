@@ -832,7 +832,7 @@ export function CheckoutScreen() {
           * disagree. Do not "de-duplicate" them by deleting either.
           */}
         {selected && suffix ? (
-          <div className="mb-4 rounded-2xl bg-bg-surface px-5 py-4">
+          <div className="mb-4 inst-card px-5 py-4">
             <div className="flex items-baseline justify-between gap-4">
               <span className={CARD_EYEBROW}>Due today</span>
               <span

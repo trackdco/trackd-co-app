@@ -548,7 +548,7 @@ export function PhysicalCard({ initial }: { initial: PhysicalInitial }) {
                     setSex(pendingSex);
                     setPendingSex(null);
                   }}
-                  className="flex-1 rounded-xl bg-accent-primary py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
+                  className="flex-1 inst-btn py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90"
                 >
                   Confirm
                 </button>

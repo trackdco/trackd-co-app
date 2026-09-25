@@ -120,7 +120,7 @@ export function DeclinedCard({
       {/* Not amber and not destructive. §2: "Do NOT use amber for a button, a tab,
           or a call to action anywhere on this screen." The card is a surface, not
           an alarm, and the state is recoverable by design. */}
-      <div className="rounded-2xl border border-border-default bg-bg-surface p-4">
+      <div className="inst-card p-4">
         <h2 className="text-base font-medium text-foreground">{TITLE}</h2>
         {declinedOn ? (
           <p className="mt-1.5 text-sm leading-relaxed text-text-muted text-pretty">
@@ -154,7 +154,7 @@ export function DeclinedCard({
           <button
             type="button"
             onClick={() => setDismissed(true)}
-            className="min-h-11 flex-1 rounded-2xl border border-border-default px-4 py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-11 flex-1 inst-ghost px-4 py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
           >
             {DISMISS}
           </button>

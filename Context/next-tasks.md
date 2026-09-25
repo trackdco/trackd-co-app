@@ -1,5 +1,18 @@
 # Next Tasks
 
+## 🔨 NOW: THE FINAL BUILD, PHASES 2 TO 9 (build-brief-final §7; state in progress-tracker "FINAL BUILD")
+
+1. ~~Phase 1, the look~~ (done).
+2. Phase 2: Home part one: the dose row, panels (one header row; Stock = the vial row, no arrow), Track, the
+   gentler tick, the edge; the first-run bubble and the First Dose Logged pop-up; Journal and markers.
+3. Phase 3: the half-life rail (chevron, centre and open, ½ line, key pop-up, digits roll); sites.
+4. Phase 4: Protocol owns stock; the compound sheet; Schedule; three tiles; explainers; Add stock and Mix.
+5. Phase 5: Stacks (restoreStack + Undo) and Cycles (Paused last, Ended, Timeline).
+6. Phase 6: Half-life pages.
+7. Phase 7: Progress, the + fan, the syringe, the containers.
+8. Phase 8: app-wide: the 30 fixes, pop-up motion, toasts, reduced motion, site names, landing's app previews.
+9. Phase 9: `next build`, the visual pass, the sample user, three cold-review prompts. Do not push.
+
 ## ✅ NOW: A NEW BUILDER CHAT BUILDS THE FINAL DESIGN (branch `design/half-life-motion`)
 
 1. The design is closed (final check rounds one to four, and the questions after round four).

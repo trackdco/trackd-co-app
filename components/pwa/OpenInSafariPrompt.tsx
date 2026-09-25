@@ -38,7 +38,7 @@ export function OpenInSafariPrompt() {
   }
 
   return (
-    <div className="flow-card rounded-2xl bg-bg-surface p-5">
+    <div className="flow-card inst-card p-5">
       <p className={SHEET_TITLE}>Open in Safari to install</p>
       <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
         Adding Trakabl to your Home Screen only works in Safari on iPhone, not this
@@ -46,7 +46,7 @@ export function OpenInSafariPrompt() {
       </p>
       <ol className="mt-4 space-y-3">
         <li className="flex items-start gap-3">
-          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-muted">
             1
           </span>
           <span className="text-sm leading-snug text-text-muted">
@@ -55,7 +55,7 @@ export function OpenInSafariPrompt() {
           </span>
         </li>
         <li className="flex items-start gap-3">
-          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+          <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-muted">
             2
           </span>
           <span className="text-sm leading-snug text-text-muted">

@@ -13,7 +13,7 @@ export default function PreviewLegalConsentPage() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center px-6 py-16 text-center">
-      <span className="rounded-full bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium tracking-wider text-text-muted uppercase">
+      <span className="rounded-lg bg-bg-surface-raised px-2.5 py-1 text-[11px] font-medium tracking-wider text-text-muted uppercase">
         Preview · signup consent
       </span>
       <h1 className="mt-8 text-2xl font-light tracking-[-0.02em] text-foreground">

@@ -93,7 +93,7 @@ export function StockAddedCard({
           {amountLabel ? `${amountLabel} · ${compoundName}` : compoundName}
         </p>
       </div>
-      <p className="text-xs text-text-subtle">Tap anywhere to close</p>
+      <p className="text-xs text-text-muted">Tap anywhere to close</p>
     </div>
   );
 }

@@ -111,7 +111,7 @@ export function HalfLifeGlance({
   if (singles.length === 0) return null
 
   return (
-    <section className="flow-card rounded-2xl bg-bg-surface px-5 pt-5 pb-4" aria-label="Half-life">
+    <section className="flow-card inst-card px-5 pt-5 pb-4" aria-label="Half-life">
       <h2 className={CARD_EYEBROW}>Half-life</h2>
       <div
         ref={swipeRef}

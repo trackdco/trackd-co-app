@@ -177,7 +177,7 @@ export function DashboardLoading() {
 
 function CompoundCardSk() {
   return (
-    <div className="flow-card flex w-[150px] shrink-0 flex-col items-center gap-3 rounded-2xl bg-bg-surface px-3.5 py-5">
+    <div className="flow-card flex w-[150px] shrink-0 flex-col items-center gap-3 inst-card px-3.5 py-5">
       <Sk w="28px" h={74} className="rounded-lg" />
       <Sk w="70%" h={14} className="mt-2" />
       <div className="flex w-full flex-col items-center gap-2">
@@ -217,7 +217,7 @@ export function ProtocolBlocks() {
       </div>
       <div>
         <Sk w="70px" h={9} className="mx-1" />
-        <section className="flow-card mt-3 rounded-2xl bg-bg-surface p-5">
+        <section className="flow-card mt-3 inst-card p-5">
           <ScheduleRowSk />
           <ScheduleRowSk />
           <ScheduleRowSk />
@@ -257,7 +257,7 @@ export function CalculatorBlocks() {
       </section>
       <div className="space-y-3">
         <Sk w="50px" h={9} className="mx-1" />
-        <section className="flow-card space-y-4 rounded-2xl bg-bg-surface p-5">
+        <section className="flow-card space-y-4 inst-card p-5">
           <Sk h={30} round />
           <div className="grid grid-cols-2 gap-3">
             <Sk h={44} className="rounded-xl" />
@@ -283,7 +283,7 @@ export function CalculatorLoading() {
 
 function MetricCardSk({ graph }: { graph?: number }) {
   return (
-    <section className="flow-card flex flex-col rounded-2xl bg-bg-surface p-4">
+    <section className="flow-card flex flex-col inst-card p-4">
       <Sk w="56%" h={9} />
       <Sk w="62%" h={24} className="mt-3" />
       {graph !== undefined ? (
@@ -303,7 +303,7 @@ export function ProgressBlocks() {
     <>
       {/* The photo card, as the app draws it: a 4:5 frame, its caption, the
           carousel dots and the running list. */}
-      <section className="flow-card rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card inst-card p-5">
         <div className="flex items-center justify-between">
           <Sk w="110px" h={9} />
           <Sk w="10px" h={14} />
@@ -378,7 +378,7 @@ export function ProfileLoading() {
 export function CalendarBlocks() {
   return (
     <>
-      <section className="flow-card rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card inst-card p-5">
         <div className="grid grid-cols-7 gap-y-5">
           {Array.from({ length: 7 * 6 }, (_, i) => (
             <div key={i} className="flex justify-center">
@@ -387,7 +387,7 @@ export function CalendarBlocks() {
           ))}
         </div>
       </section>
-      <section className="flow-card rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card inst-card p-5">
         <Sk w="60px" h={9} />
         <Sk w="70%" h={14} className="mt-4" />
       </section>
@@ -430,7 +430,7 @@ export function CalendarLoading() {
 export function WeightBlocks() {
   return (
     <>
-      <section className="flow-card rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card inst-card p-5">
         <Sk w="120px" h={9} />
         <div className="mt-4 flex gap-3">
           <Sk h={48} className="flex-1 rounded-xl" />
@@ -438,7 +438,7 @@ export function WeightBlocks() {
         </div>
         <Sk h={44} className="mt-4 rounded-xl" />
       </section>
-      <section className="flow-card rounded-2xl bg-bg-surface p-5">
+      <section className="flow-card inst-card p-5">
         <div className="flex items-center justify-between">
           <Sk w="50px" h={9} />
           <Sk w="116px" h={30} round />
@@ -476,7 +476,7 @@ export function ListBlocks({ cards = 2 }: { cards?: number }) {
   return (
     <>
       {Array.from({ length: cards }, (_, i) => (
-        <section key={i} className="flow-card rounded-2xl bg-bg-surface p-5">
+        <section key={i} className="flow-card inst-card p-5">
           <Sk w="96px" h={9} />
           <Sk w="70%" h={14} className="mt-4" />
           <Sk w="54%" h={12} className="mt-2.5" />

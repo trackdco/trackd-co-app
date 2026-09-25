@@ -234,7 +234,7 @@ export function AttachBloodworkSheet({
               {/* Optional note */}
               <label className="mt-5 block">
                 <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
-                  Note <span className="normal-case text-text-subtle">(optional)</span>
+                  Note <span className="normal-case text-text-muted">(optional)</span>
                 </span>
                 <Textarea
                   value={note}
@@ -266,7 +266,7 @@ export function AttachBloodworkSheet({
                   aria-label="Date drawn"
                   className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
                 />
-                <span className="mt-1 block text-xs text-text-subtle">
+                <span className="mt-1 block text-xs text-text-muted">
                   Logging an old panel? Set the date it was drawn so it slots into your
                   history.
                 </span>
@@ -292,7 +292,7 @@ export function AttachBloodworkSheet({
               disabled={busy || !file}
               className={cn(
                 PRESS.button,
-                "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+                "flex flex-1 items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
               )}
             >
               {busy ? (

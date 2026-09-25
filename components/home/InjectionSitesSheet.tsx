@@ -188,7 +188,7 @@ export function InjectionSitesSheet({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="-mr-2 flex h-9 items-center rounded-full px-3 text-sm font-medium text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="-mr-2 flex h-9 items-center rounded-lg px-3 text-sm font-medium text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Done
             </button>
@@ -208,8 +208,8 @@ export function InjectionSitesSheet({
             <div className="flex justify-center">
               <ThumbGroup
                 selection={route}
-                thumbClassName="rounded-full bg-bg-surface-raised"
-                className="inline-flex rounded-full border border-border-default bg-bg-input p-0.5 text-sm"
+                thumbClassName="inst-thumb"
+                className="inline-flex inst-rail p-0.5 text-sm"
                 role="group"
                 aria-label="Route"
               >
@@ -224,8 +224,8 @@ export function InjectionSitesSheet({
                     aria-pressed={route === r.key}
                     className={cn(
                       PRESS.pill,
-                      "rounded-full px-5 py-1.5 font-medium transition-colors duration-300 ease-out",
-                      route === r.key ? "text-foreground" : "text-text-muted",
+                      "rounded-sm px-5 py-1.5 font-medium transition-colors duration-300 ease-out",
+                      route === r.key ? "text-bg-base" : "text-text-muted",
                     )}
                   >
                     {r.label}
@@ -324,14 +324,14 @@ export function InjectionSitesSheet({
               )}
             </div>
 
-            <p className="px-1 text-xs leading-relaxed text-text-subtle">
+            <p className="px-1 text-xs leading-relaxed text-text-muted">
               Brighter is more recent; a site fades to empty {decayWindow(route)}{" "}
               days after its last use. Your call where to inject next.
             </p>
             </div>
 
             {showMirrorTip && (
-              <p className="px-1 text-center text-[0.65rem] leading-relaxed text-text-subtle">
+              <p className="px-1 text-center text-[0.65rem] leading-relaxed text-text-muted">
                 The front view is mirrored, like a selfie: your left is on the
                 left.
               </p>

@@ -103,7 +103,7 @@ export function BlockWeightSheet({
               {newestFirst.length > 0 && (
                 <div className="mt-5">
                   <p className={CARD_EYEBROW}>Readings</p>
-                  <ul className="mt-2 overflow-hidden rounded-2xl bg-bg-surface-raised">
+                  <ul className="mt-2 overflow-hidden inst-rows">
                     {newestFirst.map((p, i) => (
                       <li
                         key={p.key}

@@ -5,15 +5,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSyncExternalStore } from "react"
 
-import {
-  Calculator,
-  CalendarDots,
-  ChartLine,
-  SquaresFour,
-  Syringe,
-  User,
-  type Icon,
-} from "@/components/icons"
+import { SolidIcon } from "@/components/feel/SolidIcon"
+import type { GlyphName } from "@/lib/solidGlyphs"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { SignOutConfirm } from "@/components/auth/sign-out-confirm"
 import { useIsDesktop } from "@/lib/desktop/breakpoint"
@@ -29,7 +22,7 @@ import { cn } from "@/lib/utils"
 
 const EMPTY_STACK: StackCompound[] = []
 
-type Tab = { href: string; label: string; icon: Icon; key: string }
+type Tab = { href: string; label: string; glyph: GlyphName; key: string }
 
 /**
  * SIX, where the phone's bottom bar has five.
@@ -40,12 +33,12 @@ type Tab = { href: string; label: string; icon: Icon; key: string }
  * icon becomes one click in the open. Nothing is removed and no route is new.
  */
 const TABS: Tab[] = [
-  { href: "/dashboard", label: "Dashboard", icon: SquaresFour, key: "1" },
-  { href: "/protocol", label: "Protocol", icon: Syringe, key: "2" },
-  { href: "/calculator", label: "Calculator", icon: Calculator, key: "3" },
-  { href: "/progress", label: "Progress", icon: ChartLine, key: "4" },
-  { href: "/calendar", label: "Calendar", icon: CalendarDots, key: "5" },
-  { href: "/profile", label: "Profile", icon: User, key: "6" },
+  { href: "/dashboard", label: "Dashboard", glyph: "navDashboard", key: "1" },
+  { href: "/protocol", label: "Protocol", glyph: "navProtocol", key: "2" },
+  { href: "/calculator", label: "Calculator", glyph: "navCalculator", key: "3" },
+  { href: "/progress", label: "Progress", glyph: "navProgress", key: "4" },
+  { href: "/calendar", label: "Calendar", glyph: "date", key: "5" },
+  { href: "/profile", label: "Profile", glyph: "navProfile", key: "6" },
 ]
 
 function isActive(pathname: string, href: string): boolean {
@@ -141,7 +134,7 @@ export function DesktopSidebar({
       </Link>
 
       <nav className="flex flex-col gap-0.5">
-        {TABS.map(({ href, label, icon: Ico, key }) => {
+        {TABS.map(({ href, label, glyph, key }) => {
           const active = isActive(pathname, href)
           return (
             <Link
@@ -152,16 +145,16 @@ export function DesktopSidebar({
                 "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.8125rem] transition-colors duration-200",
                 active
                   ? "bg-bg-surface text-foreground"
-                  : "text-text-subtle hover:bg-bg-surface/60 hover:text-text-muted",
+                  : "text-text-muted hover:bg-bg-surface/60 hover:text-foreground",
               )}
             >
-              <Ico className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden />
+              <SolidIcon name={glyph} size={18} tone={active ? "on" : "off"} />
               <span className="flex-1">{label}</span>
               {/* The key that jumps here. Muted to the point of being a detail
                   you find rather than a label you read. */}
               <kbd
                 aria-hidden
-                className="rounded border border-border-default px-1 font-mono text-[0.5625rem] leading-[1.4] text-text-subtle"
+                className="rounded border border-border-default px-1 font-mono text-[0.5625rem] leading-[1.4] text-text-muted"
               >
                 {key}
               </kbd>

@@ -49,14 +49,14 @@ export function MonthGrid({
   cycleBands,
 }: MonthGridProps) {
   return (
-    <section className="flow-card rounded-2xl bg-bg-surface px-3 pt-4 pb-3">
+    <section className="flow-card inst-card px-3 pt-4 pb-3">
       {/* Weekday header (Mon-first). */}
       <div className="grid grid-cols-7 pb-2">
         {WEEKDAY_INITIALS.map((d, i) => (
           <span
             key={i}
             aria-hidden
-            className="text-center text-[11px] font-medium uppercase tracking-wide text-text-subtle"
+            className="text-center text-[11px] font-medium uppercase tracking-wide text-text-muted"
           >
             {d}
           </span>
@@ -86,7 +86,7 @@ export function MonthGrid({
         <button
           type="button"
           onClick={onToday}
-          className="rounded-full px-2 py-1 text-sm font-medium text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-amber/50"
+          className="rounded-lg px-2 py-1 text-sm font-medium text-text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-amber/50"
         >
           Today
         </button>
@@ -107,7 +107,7 @@ const RING: Record<CalendarDayStatus, string> = {
   logged: "bg-text-primary font-medium text-bg-base",
   scheduled: "border border-dashed border-border-strong text-text-primary",
   "none-past": "border border-border-strong text-text-muted",
-  "none-future": "border border-border-default text-text-subtle",
+  "none-future": "border border-border-default text-text-muted",
 };
 
 function DayCell({

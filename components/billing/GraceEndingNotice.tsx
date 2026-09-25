@@ -541,14 +541,14 @@ function GraceEndingDialog({
           <button
             type="button"
             onClick={close}
-            className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex-1 inst-ghost py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
           >
             {P.dismiss}
           </button>
           <button
             type="button"
             onClick={choosePlan}
-            className="flex-1 rounded-2xl bg-accent-primary py-3 text-sm font-medium text-bg-base outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex-1 inst-btn py-3 text-sm font-medium text-bg-base outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
           >
             {P.choose}
           </button>
@@ -566,7 +566,7 @@ function GraceEndingDialog({
           * and only two are described as accepted.
           */}
         <div className="mt-4 border-t border-border-default pt-3">
-          <p className="text-[10px] leading-relaxed text-text-subtle">
+          <p className="text-[10px] leading-relaxed text-text-muted">
             {L.lead} <LegalLink href="/terms">{L.terms}</LegalLink> {L.join}{" "}
             <LegalLink href="/privacy">{L.privacy}</LegalLink>
             {L.mid} <LegalLink href="/medical-disclaimer">{L.disclaimer}</LegalLink> {L.join2}{" "}

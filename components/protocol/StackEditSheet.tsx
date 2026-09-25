@@ -223,7 +223,7 @@ function StackForm({
             Every compound is already in a stack. Add a new one below.
           </p>
         ) : (
-          <div className="divide-y divide-border-default rounded-2xl bg-bg-surface-raised">
+          <div className="inst-rows">
             {offerable.map((c) => {
               const on = members.includes(c.id)
               return (
@@ -324,7 +324,7 @@ function StackForm({
           type="button"
           onClick={save}
           disabled={!valid}
-          className={cn(PRESS.button, "h-11 flex-1 rounded-xl bg-accent-primary text-sm font-medium text-bg-base disabled:opacity-40")}
+          className={cn(PRESS.button, "h-11 flex-1 inst-btn text-sm font-medium text-bg-base disabled:opacity-40")}
         >
           Save
         </button>

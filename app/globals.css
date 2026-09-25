@@ -11,29 +11,36 @@
    :root with no light theme.
    --------------------------------------------------------------------------- */
 :root {
-  /* Surfaces — the "+1" contrast step (Adrian, 2026-09-24, ui-context →
+  /* THE LOOK: "Deeper black" (Adrian, final check round three, 2026-09-25;
+     build-brief-final §2.1). Black, white and amber stay; the greys between
+     them drop and the amber warms (#C8861A → #D0802B, 6.26:1 for dark ink on
+     it). `--text-muted` is the floor for words (5.2:1 on surface);
+     `--text-subtle` is decoration only. The public site keeps its own values
+     (`:root:has(.lp-site)` below); only its app previews take this look.
+
+     Surfaces — the "+1" contrast step (Adrian, 2026-09-24, ui-context →
      Surface treatment): the ground drops and the card surface lifts at the same
      time, so separation grows from both sides. Shipped values were base #111110,
      surface #1c1c1a, raised #242422, borders #2e2e2c / #3e3e3a, muted #7a7a74,
      subtle #4a4a46; the public site keeps them (see `:root:has(.lp-site)`). */
-  --bg-base: #0e0e0d;
-  --bg-surface: #212120;
-  --bg-surface-raised: #2a2a28;
+  --bg-base: #050504;
+  --bg-surface: #191918;
+  --bg-surface-raised: #222120;
   /* Lifted with the step so it keeps its place ABOVE raised (it was #2a2a28
      over a #242422 raised). The dial never set it, and leaving it put it level
      with raised: every sliding thumb (`bg-bg-surface-raised` on a
      `bg-bg-input` track) vanished into its track. */
-  --bg-input: #30302e;
+  --bg-input: #282725;
   /* An INSET: a graph inside a card, and the panel a log tile opens into. They
      sit IN the card rather than on it (ui-context → Surface treatment), so they
      are darker than it; `.inset-surface` / `.inset-graph` add the shading. */
-  --bg-inset: #1a1a19;
-  --bg-inset-deep: #171716;
+  --bg-inset: #131211;
+  --bg-inset-deep: #100f0e;
 
   /* Text */
-  --text-primary: #f0efe9;
-  --text-muted: #8a8982;
-  --text-subtle: #54544f;
+  --text-primary: #f5f3f0;
+  --text-muted: #8d8b89;
+  --text-subtle: #4f4d4a;
 
   /**
    * THE AA-SAFE MUTED, for surfaces that must MEASURE rather than merely look
@@ -59,16 +66,26 @@
 
   /* Accents */
   --accent-primary: #ffffff;
-  --accent-amber: #c8861a;
+  --accent-amber: #d0802b;
   --accent-green: #4ade80;
 
   /* Borders */
-  --border-default: #333331;
-  --border-strong: #45453f;
+  --border-default: #2b2a28;
+  --border-strong: #3d3b39;
 
   /* Injection-site muscle regions (Spec 19) — a step lighter than the body
      (--bg-input), so each injectable muscle reads as a distinct selectable site. */
-  --muscle-region: #3a3a37;
+  --muscle-region: #32312f;
+
+  /* THE AMBER RECENCY RAMP (build-brief-final §2.5). A shaded site is a SOLID
+     step pre-mixed in OKLCH, never amber at an opacity over grey, which drifts
+     olive ("too yellowy", round two). The base is the region grey restated at
+     amber's hue less 4°: its chroma is ~0.004, so it looks the same grey, and a
+     `color-mix(in oklch)` from it moves L and C in a straight line while the hue
+     runs amber−4° → amber, which is the brief's formula exactly. The tone
+     classes below restate it for their own greys. `lib/sites/recencyRamp.test.ts`
+     fails if these drift from `--muscle-region` / `--pick-region*` / amber. */
+  --ramp-base: oklch(31.35% 0.0038 58.41);
 
   /* Data viz + overlays. chart-line = raw scale weight (periwinkle); chart-trend
      = the smoothed trend line (teal) — two harmonious series colours, neither
@@ -82,7 +99,7 @@
   /* Compound-category legend dots — an organisational legend only (one muted hue
      per category), NOT a health-data value (see ui-context.md → "Category dots").
      Restrained, dark-theme-appropriate, deliberately non-alarming. */
-  --cat-anabolic: #c8861a;
+  --cat-anabolic: #d0802b;
   --cat-oral: #b5895c;
   --cat-sarm: #9b7fd4;
   --cat-peptide: #6b7fd4;
@@ -238,6 +255,30 @@
      danger zone, where it is correct and already signed off. */
   --accent-destructive-on-surface: #f87171;
 
+  /* Type: IBM Plex (build-brief-final §2.2). The public site points these back
+     at Geist in `:root:has(.lp-site)`; its app previews point them at Plex again. */
+  --font-app-sans: var(--font-plex-sans);
+  --font-app-mono: var(--font-plex-mono);
+
+  /* Shapes (build-brief-final §2.4). `rounded-2xl` is a CARD (20), `rounded-xl`
+     a row block, tile, inset or field (12), `rounded-lg` a button (10),
+     `rounded-md` a ghost button or the panel arrow (9), `rounded-sm` a thumb (8).
+     Before this the scale ran backwards (`xl` 20 > `2xl` 16), which is how a
+     button ended up rounder than the card around it (consistency fix #9). */
+  --r-sm: 8px;
+  --r-md: 9px;
+  --r-lg: 10px;
+  --r-xl: 12px;
+  --r-2xl: 20px;
+
+  /* The Solid marks (build-brief-final §3.6). A button icon and the active
+     tab fall from near-white to a light grey; an inactive tab sits a step down.
+     Round four's values, so the nav reads exactly as approved. */
+  --glyph-on-top: #f0efe9;
+  --glyph-on-bottom: #bdbcb5;
+  --glyph-off-top: #9a9992;
+  --glyph-off-bottom: #6e6d67;
+
   /* Corner radius base (cards = rounded-2xl); shadcn derives sm/md/lg/xl */
   --radius: 1rem;
 
@@ -269,7 +310,7 @@
   --pick-body-lift: #383834;
   --pick-region-lift: #4f4f49;
   /* A finished Today's Log settles darker and stays (E4 / D1, round 12). */
-  --bg-surface-done: #1b1b1a;
+  --bg-surface-done: #141312;
 
   /* The number pad's scrim: lighter than a sheet's, because the form behind it
      is still the thing being filled in (feel pass §3). */
@@ -316,6 +357,22 @@
    of the half-life build. Pinned here rather than edited there, so moving the
    public site to the new step later is deleting this block. */
 :root:has(.lp-site) {
+  --font-app-sans: var(--font-geist-sans);
+  --font-app-mono: var(--font-geist-mono);
+  --r-sm: 12px;
+  --r-md: 14px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-2xl: 16px;
+  /* The Deeper-black step moved these too; the public site keeps what shipped. */
+  --bg-input: #30302e;
+  --bg-inset: #1a1a19;
+  --bg-inset-deep: #171716;
+  --text-primary: #f0efe9;
+  --accent-amber: #c8861a;
+  --cat-anabolic: #c8861a;
+  --muscle-region: #3a3a37;
+  --bg-surface-done: #1b1b1a;
   --bg-base: #111110;
   --bg-surface: #1c1c1a;
   --bg-surface-raised: #242422;
@@ -430,15 +487,18 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* Radius scale */
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Radius scale. THE SHAPES (build-brief-final §2.4): rounded rectangles
+     everywhere, and a corner inside a card is never rounder than the card.
+     Read through `--r-*` so the public site can keep what it shipped. */
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-2xl: var(--r-2xl);
 
   /* Fonts (next/font sets these on <html>) */
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-app-sans);
+  --font-mono: var(--font-app-mono);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1112,33 +1172,173 @@ svg ::-moz-selection {
   gap: max(4px, calc(0.5rem - var(--flow-short, 0px) * 0.02632));
 }
 
-/* Cards that sit ON the canvas instead of being holes cut out of it: a hairline
-   of light along the top edge where a light source would catch it, and a soft
-   shadow underneath. Both are far weaker than they look written down; the
-   effect is depth, not decoration. */
+/* ---------------------------------------------------------------------------
+   THE INSTRUMENT SURFACES (Adrian, final check round three, 2026-09-25;
+   build-brief-final §2.3). Machined edges: a hairline of light along the top,
+   a faint inner rim, a dark outer line and a soft drop below. Every value is
+   the final-check page's, mixed FROM the tokens so a retune carries.
+   Presets in `lib/ui-presets.ts` (CARD, ROWS, PRIMARY_BUTTON, GHOST_BUTTON,
+   CHIP_RAIL, CHIP_THUMB, TILE, INSET, CARD_EYEBROW, METRIC_VALUE) put these on
+   an element; use a preset rather than the class where one exists.
+   --------------------------------------------------------------------------- */
+
+/* A card. `.flow-card` is the same surface under its older name, so the 100-odd
+   cards already wearing it take the look without a rename. */
+.inst-card,
 .flow-card {
   box-shadow:
-    inset 0 1px 0 0 color-mix(in srgb, var(--text-primary) 5%, transparent),
-    0 10px 30px -18px rgb(0 0 0 / 0.85);
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 3.5%, transparent),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35),
+    0 0 0 1px rgb(0 0 0 / 0.6),
+    0 14px 28px -18px #000;
+}
+.inst-card {
+  border-radius: var(--r-2xl);
+  background-color: var(--bg-surface);
 }
 
-/* THE INSET, the opposite of `.flow-card` (ui-context → Surface treatment,
-   Adrian 2026-09-24). A darker fill, an inner shadow along the top and a 4%
-   highlight along the bottom edge. A darker box WITHOUT the shadow read as
-   "lazy"; the shadow is what makes it read as pressed into the card. The graph
-   version runs darker at the top, where the shadow falls. */
+/* A block of rows (a list inside a card or a sheet). Its rows divide with a
+   dark line and a faint lit edge under it, never a grey hairline. */
+.inst-rows {
+  border-radius: var(--r-xl);
+  background-color: var(--bg-surface-raised);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 3%, transparent),
+    0 0 0 1px rgb(0 0 0 / 0.45);
+}
+.inst-rows > * + * {
+  border-top: 1px solid rgb(0 0 0 / 0.42);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+/* The white button. A machined key: lit top edge, a 6% fall to the bottom. */
+.inst-btn {
+  border-radius: var(--r-lg);
+  background: linear-gradient(
+    180deg,
+    var(--text-primary) 0%,
+    color-mix(in srgb, #000 6%, var(--text-primary)) 100%
+  );
+  color: var(--bg-base);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    inset 0 -1px 0 rgb(0 0 0 / 0.16),
+    0 0 0 1px rgb(0 0 0 / 0.65),
+    0 8px 16px -10px rgb(0 0 0 / 0.9);
+}
+
+/* The quiet button: raised, with the same lit edge at a whisper. */
+.inst-ghost {
+  border-radius: var(--r-md);
+  background-color: var(--bg-surface-raised);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 9%, transparent),
+    inset 0 -1px 0 rgb(0 0 0 / 0.3),
+    0 0 0 1px rgb(0 0 0 / 0.55);
+}
+
+/* A chip rail or switch track: a channel cut into the surface. */
+.inst-rail {
+  border-radius: 11px;
+  background: linear-gradient(180deg, var(--bg-inset-deep) 0%, var(--bg-inset) 100%);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 0.55),
+    inset 0 0 0 1px rgb(0 0 0 / 0.4),
+    0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+/* Its thumb, lit like the white button. */
+.inst-thumb {
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    180deg,
+    var(--text-primary) 0%,
+    color-mix(in srgb, #000 10%, var(--text-primary)) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 0 0 0.5px rgb(0 0 0 / 0.6),
+    0 2px 4px -1px rgb(0 0 0 / 0.6);
+}
+
+/* A tile (the dose row's Site / Stock / Note, the journal's three). Pressed
+   in slightly, so a tile reads as a key rather than a card. */
+.inst-tile {
+  border-radius: var(--r-xl);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 0.45),
+    inset 0 0 0 1px rgb(0 0 0 / 0.22),
+    0 1px 0 color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+
+/* THE INSET: a graph well, and the panel a tile opens into. It sits IN the
+   card, darker at the top where the shadow falls. `.inset-surface` and
+   `.inset-graph` are its older names and take the same surface. */
+.inst-inset,
 .inset-surface,
 .inset-graph {
-  background: var(--bg-inset);
+  border-radius: var(--r-xl);
+  background: linear-gradient(180deg, var(--bg-inset-deep) 0%, var(--bg-inset) 100%);
   box-shadow:
-    inset 0 2px 6px rgb(0 0 0 / 0.45),
-    inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent);
+    inset 0 1px 3px rgb(0 0 0 / 0.55),
+    inset 0 0 0 1px rgb(0 0 0 / 0.4),
+    0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent);
 }
-.inset-graph {
-  background: linear-gradient(180deg, var(--bg-inset-deep), var(--bg-inset));
+
+/* Engraved type: the eyebrow and the big figure are cut into the surface. */
+.inst-engraved {
+  text-shadow:
+    0 -1px 0 rgb(0 0 0 / 0.6),
+    0 1px 0 color-mix(in srgb, var(--text-primary) 3.5%, transparent);
+}
+.inst-figure {
+  font-variant-numeric: tabular-nums slashed-zero;
+  letter-spacing: -0.01em;
+  text-shadow:
+    0 -1px 0 rgb(0 0 0 / 0.6),
+    0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+/* An on/off switch's knob: the thumb's lit key at a switch's size. Its track
+   is `.inst-rail` when off and amber when on. */
+.inst-knob {
+  border-radius: 7px;
+  background: linear-gradient(
+    180deg,
+    var(--text-primary) 0%,
+    color-mix(in srgb, #000 10%, var(--text-primary)) 100%
+  );
   box-shadow:
-    inset 0 2px 6px rgb(0 0 0 / 0.5),
-    inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent);
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 0 0 0.5px rgb(0 0 0 / 0.6),
+    0 2px 4px -1px rgb(0 0 0 / 0.6);
+}
+
+/* The log tick's ring: a 1px edge sunk into the row. */
+.inst-tick {
+  border-width: 1px;
+  box-shadow:
+    inset 0 1px 1px rgb(0 0 0 / 0.4),
+    0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+/* Every figure in Plex Mono is tabular with a slashed zero, so columns rail and
+   a 0 never reads as an O. Not on the public site, which keeps Geist and its
+   own figures; its app previews (`[data-app-look]`) take the app's. */
+html:not(:has(.lp-site)) .font-mono,
+[data-app-look] .font-mono {
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+/* The public site's own eyebrows stay as they shipped (regular, .18em, flat):
+   the engraving and the 500 weight are the app's. */
+html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-shadow: none;
 }
 
 /* ---------------------------------------------------------------------------
@@ -4424,10 +4624,12 @@ body[data-inline-edit="true"] .shortcuts-layer {
 .body-map-raised {
   --body-base: var(--pick-body);
   --muscle-region: var(--pick-region);
+  --ramp-base: oklch(39.19% 0.0115 58.41);
 }
 .body-map-lifted {
   --body-base: var(--pick-body-lift);
   --muscle-region: var(--pick-region-lift);
+  --ramp-base: oklch(42.56% 0.0097 58.41);
 }
 .body-map-arrive {
   animation: shortcut-fade var(--motion-base) ease-out 330ms both;

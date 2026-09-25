@@ -460,7 +460,7 @@ function InstallHowTo({ device }: { device: DeviceGuess }) {
  */
 function InstallSteps({ device }: { device: DeviceGuess }) {
   return (
-    <ol className="flow-card rounded-2xl bg-bg-surface px-5">
+    <ol className="flow-card inst-card px-5">
       {installSteps(device).map((step, i) => (
         <li
           key={step.text}
@@ -469,7 +469,7 @@ function InstallSteps({ device }: { device: DeviceGuess }) {
             i > 0 && "border-t-[0.5px] border-border-default",
           )}
         >
-          <span className={cn(DATA_MONO, "w-3 shrink-0 text-text-subtle")}>
+          <span className={cn(DATA_MONO, "w-3 shrink-0 text-text-muted")}>
             {i + 1}
           </span>
           <span className="flex min-w-0 flex-1 items-center gap-2 text-[0.9rem] text-foreground">

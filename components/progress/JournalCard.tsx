@@ -42,7 +42,7 @@ export function JournalCard({
         type="button"
         onClick={onOpen}
         aria-label="Open journal"
-        className="flow-card flex flex-col rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+        className="flow-card flex flex-col inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
       >
         <span className={`block ${CARD_EYEBROW}`}>Journal</span>
         {latest ? (
@@ -60,13 +60,13 @@ export function JournalCard({
                 {latest.markers.slice(0, 4).map((m) => (
                   <span
                     key={m.markerId}
-                    className="rounded-full bg-bg-input px-1.5 py-0.5 text-[10px] text-foreground"
+                    className="rounded-lg bg-bg-input px-1.5 py-0.5 text-[10px] text-foreground"
                   >
                     {m.word}
                   </span>
                 ))}
                 {latest.markers.length > 4 ? (
-                  <span className="self-center text-[10px] text-text-subtle">
+                  <span className="self-center text-[10px] text-text-muted">
                     +{latest.markers.length - 4}
                   </span>
                 ) : null}
@@ -74,7 +74,7 @@ export function JournalCard({
             ) : null}
             {/* Entry count fills the card's foot with something true rather than
                 whitespace, and is the one number a journal glance wants. */}
-            <span className="mt-auto pt-2 text-[11px] text-text-subtle">
+            <span className="mt-auto pt-2 text-[11px] text-text-muted">
               {entries.length} {entries.length === 1 ? "entry" : "entries"}
             </span>
           </span>
@@ -92,7 +92,7 @@ export function JournalCard({
       type="button"
       onClick={onOpen}
       aria-label="Open journal"
-      className="flow-card flex w-full items-start gap-3.5 rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+      className="flow-card flex w-full items-start gap-3.5 inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
     >
       <span className="min-w-0 flex-1">
         <span className={`block ${CARD_EYEBROW}`}>Journal</span>
@@ -109,14 +109,14 @@ export function JournalCard({
                 {latest.markers.slice(0, 3).map((m) => (
                   <span
                     key={m.markerId}
-                    className="rounded-full bg-bg-input px-2 py-0.5 text-[11px]"
+                    className="rounded-lg bg-bg-input px-2 py-0.5 text-[11px]"
                   >
                     <span className="text-text-muted">{m.name}</span>{" "}
                     <span className="text-foreground">{m.word}</span>
                   </span>
                 ))}
                 {latest.markers.length > 3 && (
-                  <span className="self-center text-[11px] text-text-subtle">
+                  <span className="self-center text-[11px] text-text-muted">
                     +{latest.markers.length - 3}
                   </span>
                 )}
@@ -138,7 +138,7 @@ export function JournalCard({
             className="h-14 w-10 rounded-lg border border-border-default object-cover object-top"
           />
           {(latest?.attachments.length ?? 0) > 1 && (
-            <span className="absolute -right-1 -bottom-1 rounded-full border border-border-strong bg-bg-surface px-1 text-[10px] leading-tight text-text-muted">
+            <span className="absolute -right-1 -bottom-1 rounded-lg border border-border-strong bg-bg-surface px-1 text-[10px] leading-tight text-text-muted">
               {latest?.attachments.length}
             </span>
           )}

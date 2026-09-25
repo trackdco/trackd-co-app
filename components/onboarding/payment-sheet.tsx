@@ -288,9 +288,9 @@ export function PaymentSheet({
          */
         paymentMethodTypes: ["card"],
         appearance: paymentAppearance(),
-        // Geist, into the iframe. Without this the Element falls back to a
+        // IBM Plex Sans, into the iframe. Without this the Element falls back to a
         // system font and reads as a bolted-on third-party control.
-        fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500&display=swap" }],
+        fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500&display=swap" }],
       }}
     >
       <PaymentForm
@@ -602,7 +602,7 @@ function PaymentForm({
          */
         disabled={busy || !ready || !stripe || !elements}
         aria-busy={busy || !ready}
-        className="h-13 w-full rounded-2xl bg-accent-primary px-6 text-[0.95rem] font-medium text-bg-base transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base motion-reduce:transition-none motion-reduce:active:scale-100"
+        className="h-13 w-full inst-btn px-6 text-[0.95rem] font-medium text-bg-base transition-all duration-[var(--motion-base)] ease-[var(--motion-ease)] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base motion-reduce:transition-none motion-reduce:active:scale-100"
       >
         {busy ? (
           <span className="flex items-center justify-center gap-2">

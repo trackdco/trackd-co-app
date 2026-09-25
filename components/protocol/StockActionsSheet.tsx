@@ -147,7 +147,7 @@ export function StockActionsSheet({
           className="space-y-3 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
         >
           <p className={CARD_EYEBROW}>Stock</p>
-          <div className="divide-y divide-border-default rounded-2xl bg-bg-surface-raised">
+          <div className="inst-rows">
             <Row label="Refill" hint={`A new ${noun} replaces this one`} onClick={onRefill} />
             <Row
               label="Correct the amounts"

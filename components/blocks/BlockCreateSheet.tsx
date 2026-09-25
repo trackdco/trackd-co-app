@@ -269,7 +269,7 @@ export function BlockCreateSheet({
                 </label>
                 <label className="block">
                   <span className={FIELD_LABEL}>
-                    Ends <span className="normal-case text-text-subtle">(optional)</span>
+                    Ends <span className="normal-case text-text-muted">(optional)</span>
                   </span>
                   <Input
                     type="date"
@@ -281,7 +281,7 @@ export function BlockCreateSheet({
                   />
                 </label>
               </div>
-              <p className="mt-1.5 text-xs text-text-subtle">
+              <p className="mt-1.5 text-xs text-text-muted">
                 Leave the end open if you do not have one. An off-season does not
                 need a deadline.
               </p>
@@ -293,7 +293,7 @@ export function BlockCreateSheet({
                   behaviour. */}
               <div className="mt-6">
                 <span className={FIELD_LABEL}>
-                  Target <span className="normal-case text-text-subtle">(optional)</span>
+                  Target <span className="normal-case text-text-muted">(optional)</span>
                 </span>
                 {/* The selection is a sliding thumb (feel pass §6), so the
                     selected box carries no border or fill of its own. */}
@@ -460,7 +460,7 @@ export function BlockCreateSheet({
               type="button"
               onClick={save}
               disabled={!canSave || busy}
-              className={cn(PRESS.button, "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50")}
+              className={cn(PRESS.button, "flex flex-1 items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50")}
             >
               {busy ? (
                 <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />

@@ -159,7 +159,7 @@ export function ConsistencyGraph({
   const chartHeight = compact ? CHART_HEIGHT_COMPACT : CHART_HEIGHT;
 
   return (
-    <section className={cn("flow-card flex flex-col rounded-2xl bg-bg-surface p-5")}>
+    <section className={cn("flow-card flex flex-col inst-card p-5")}>
       <p className={CARD_EYEBROW}>Consistency</p>
       {overall != null ? (
         <div className="mt-3 flex items-baseline gap-1.5">
@@ -234,10 +234,10 @@ export function ConsistencyGraph({
       {/* Range selector — match the Weight view. */}
       <ThumbGroup
         selection={rangeId}
-        thumbClassName="rounded-full bg-bg-surface-raised"
+        thumbClassName="inst-thumb"
         role="group"
         aria-label="Range"
-        className="mt-3 grid grid-cols-3 gap-1 rounded-full border border-border-default bg-bg-input p-0.5"
+        className="mt-3 grid grid-cols-3 gap-1 inst-rail p-0.5"
       >
         {RANGES.map((r) => (
           <button
@@ -250,14 +250,14 @@ export function ConsistencyGraph({
             aria-pressed={rangeId === r.id}
             className={cn(
               PRESS.pill,
-              "rounded-full py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
+              "rounded-sm py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
               // The pill stays 28px tall because a segmented control blown up to
               // 44 would dominate a widget that is only 228 tall. The TOUCH area
               // is extended instead, with a transparent pseudo-element that
               // changes no layout: 28 + 16 = 44. This is the corner where "All"
               // already cost a HIGH once, under the FAB.
               "relative before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']",
-              rangeId === r.id ? "text-foreground" : "text-text-muted",
+              rangeId === r.id ? "text-bg-base" : "text-text-muted",
             )}
           >
             {r.label}

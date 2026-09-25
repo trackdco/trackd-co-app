@@ -376,7 +376,7 @@ export function LogRowPanel({
             onClick={() => onDraft({ inventoryItemId: notCounted ? thenId : null })}
             className={cn(
               PRESS.text,
-              "mx-auto mt-3 block rounded-full px-2.5 py-1.5 text-[12.5px] transition-colors",
+              "mx-auto mt-3 block rounded-lg px-2.5 py-1.5 text-[12.5px] transition-colors",
               notCounted ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
             )}
           >
@@ -397,7 +397,7 @@ export function LogRowPanel({
           <button
             type="button"
             onClick={onAddStock}
-            className={cn(PRESS.button, "rounded-full bg-accent-primary px-[18px] py-[9px] text-[13px] font-medium text-bg-base")}
+            className={cn(PRESS.button, "inst-btn px-[18px] py-[9px] text-[13px] font-medium text-bg-base")}
           >
             Add stock
           </button>
@@ -461,7 +461,7 @@ export function LogRowPanel({
         </div>
         {armed && dryOnes.length > 0 ? (
           <div className="animate-hl-swap mt-3 flex items-center justify-center gap-2">
-            <label className="flex items-center gap-1 rounded-full border border-border-strong px-2.5 py-[5px] font-mono text-[11px] text-foreground">
+            <label className="flex items-center gap-1 rounded-lg border border-border-strong px-2.5 py-[5px] font-mono text-[11px] text-foreground">
               <input
                 type="number"
                 inputMode="decimal"
@@ -495,7 +495,7 @@ export function LogRowPanel({
                     .finally(() => setMixing(false))
                 })
               }
-              className={cn(PRESS.button, "rounded-full bg-accent-primary px-3.5 py-[5px] text-[12.5px] font-medium text-bg-base disabled:opacity-50")}
+              className={cn(PRESS.button, "inst-btn px-3.5 py-[5px] text-[12.5px] font-medium text-bg-base disabled:opacity-50")}
             >
               Mix
             </button>
@@ -513,7 +513,7 @@ export function LogRowPanel({
           }}
           className={cn(
             PRESS.text,
-            "mx-auto mt-3 block rounded-full px-2.5 py-1.5 text-[12.5px] transition-colors",
+            "mx-auto mt-3 block rounded-lg px-2.5 py-1.5 text-[12.5px] transition-colors",
             notCounted ? "bg-bg-surface-raised text-foreground" : "text-text-muted",
           )}
         >

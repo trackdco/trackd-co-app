@@ -35,7 +35,7 @@ export default function PreviewContainersPage() {
       </header>
 
       {/* All three fills are real as of Spec w2b-13, Step 3. */}
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>Vial · fill level</h2>
         <div className="flex items-end justify-between gap-2">
           {FILLS.map((fill) => (
@@ -48,7 +48,7 @@ export default function PreviewContainersPage() {
       </section>
 
       {/* The tub's powder level: a surface that falls, like the vial's. */}
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>Tub · fill level</h2>
         <div className="flex items-end justify-between gap-2">
           {FILLS.map((fill) => (
@@ -65,7 +65,7 @@ export default function PreviewContainersPage() {
       </section>
 
       {/* The bottle empties by COUNT — it has no surface to draw. */}
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>Bottle · fill level</h2>
         <div className="flex items-end justify-between gap-2">
           {FILLS.map((fill) => (
@@ -82,7 +82,7 @@ export default function PreviewContainersPage() {
       </section>
 
       {/* Animation + reduced-motion check. */}
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>Fill animation · 400ms ease-out</h2>
         <FillDemo colour="var(--cat-anabolic)" />
         <p className="text-xs text-text-muted">
@@ -91,7 +91,7 @@ export default function PreviewContainersPage() {
       </section>
 
       {/* Every category colour, all three forms. */}
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>Category colours</h2>
         <div className="divide-y divide-border-default">
           {CATEGORIES.map((category) => {
@@ -113,7 +113,7 @@ export default function PreviewContainersPage() {
       </section>
 
       {/* Fallbacks and overrides. */}
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>No category · stack override</h2>
         <div className="divide-y divide-border-default">
           <div className="flex items-center gap-4 py-3">
@@ -140,7 +140,7 @@ export default function PreviewContainersPage() {
       </section>
 
       {/* The resolver: form picks the component, never the category. */}
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>Resolved by form</h2>
         <div className="divide-y divide-border-default">
           {[
@@ -172,7 +172,7 @@ export default function PreviewContainersPage() {
       </section>
 
       {/* Sizing from one viewBox — no small/large variants. */}
-      <section className="space-y-3 rounded-2xl bg-bg-surface p-5">
+      <section className="space-y-3 inst-card p-5">
         <h2 className={CARD_EYEBROW}>Sizes</h2>
         <div className="flex items-end gap-4">
           {[28, 44, 64, 96, 128].map((size) => (

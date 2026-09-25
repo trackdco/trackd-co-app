@@ -124,7 +124,7 @@ export function PlanRows({
             </span>
 
             {id === "yearly" && saving !== null ? (
-              <span className="absolute -top-2 right-3 rounded-full bg-accent-amber px-2 py-0.5 text-[10px] font-medium text-bg-base">
+              <span className="absolute -top-2 right-3 rounded-lg bg-accent-amber px-2 py-0.5 text-[10px] font-medium text-bg-base">
                 Save {saving}%
               </span>
             ) : null}

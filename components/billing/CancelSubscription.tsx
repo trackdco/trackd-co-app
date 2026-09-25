@@ -953,7 +953,7 @@ export function CancelSubscription({
                 {copy.bodyParts ? (
                   <>
                     {copy.bodyParts.before}
-                    <strong className="font-semibold">{copy.bodyParts.date}</strong>
+                    <strong className="font-medium">{copy.bodyParts.date}</strong>
                     {copy.bodyParts.after}
                   </>
                 ) : (
@@ -967,8 +967,8 @@ export function CancelSubscription({
                 <p
                   className={
                     shownPhase === "offer" || shownPhase === "granted"
-                      ? "mt-2 text-center text-xs leading-relaxed text-text-subtle"
-                      : "mt-2 text-xs leading-relaxed text-text-subtle"
+                      ? "mt-2 text-center text-xs leading-relaxed text-text-muted"
+                      : "mt-2 text-xs leading-relaxed text-text-muted"
                   }
                 >
                   {copy.quiet}
@@ -1062,7 +1062,7 @@ export function CancelSubscription({
                           muted sentence. Weight alone is the emphasis; the date
                           inherits `text-text-muted` from the paragraph, matching
                           the cancel confirm's date exactly. */}
-                      <strong className="font-semibold">
+                      <strong className="font-medium">
                         {copy.termsParts.charge.date}
                       </strong>
                       {copy.termsParts.charge.after}
@@ -1109,7 +1109,7 @@ export function CancelSubscription({
                        Nothing is written either way: it was written before this
                        dialog existed. */
                     onClick={shownPhase === "offer" ? () => setPhase("declined") : close}
-                    className="flex-1 rounded-2xl border border-border-default py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    className="flex-1 inst-ghost py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   >
                     {/* On the confirm, the stay-put option keeps its full
                         weight. Not a trick: it is also the shorter path, and it
@@ -1164,7 +1164,7 @@ export function CancelSubscription({
                            pop-up's "Choose a plan", so every amber dialog button
                            in the app now shares one treatment. Tint on hover. */
                         ? "flex-1 rounded-2xl border border-accent/45 py-2.5 text-sm font-medium text-accent outline-none transition-colors hover:bg-accent/[0.09] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                        : "flex-1 rounded-2xl border border-border-default bg-bg-surface-raised py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                        : "flex-1 inst-ghost py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   }
                 >
                   {busy ? "Working…" : copy.confirm}

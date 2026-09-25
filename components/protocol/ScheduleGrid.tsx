@@ -86,7 +86,7 @@ export function ScheduleGrid({
     <section className="space-y-3">
       {!hideHeading && <h2 className={`${CARD_EYEBROW} px-1`}>Schedule</h2>}
 
-      <div className="flow-card rounded-2xl bg-bg-surface p-5">
+      <div className="flow-card inst-card p-5">
       {/* Day header — aligned to the same 7-column track the rows use.
           `schedule-dayhead` is the FAR layer of the week-step parallax (see
           globals.css); the groups below are the near one. */}
@@ -100,7 +100,7 @@ export function ScheduleGrid({
                 key={d.toISOString()}
                 className={cn(
                   "flex flex-col items-center leading-none",
-                  isToday ? "text-text-muted" : "text-text-subtle"
+                  isToday ? "text-text-muted" : "text-text-muted"
                 )}
               >
                 <span className="text-[10px] font-medium uppercase tracking-wide">

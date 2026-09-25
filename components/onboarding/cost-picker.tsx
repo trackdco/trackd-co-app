@@ -20,7 +20,7 @@ export function CostVariantPicker({ yearlyPrice }: { yearlyPrice?: number }) {
       {/* Harness chrome. Deliberately plain so it cannot be mistaken for part
           of the screen being judged. */}
       <div className="shrink-0 border-b-[0.5px] border-border-default px-5 py-3">
-        <p className="text-[10px] font-sans uppercase tracking-[0.18em] text-text-subtle">
+        <p className="text-[10px] font-sans uppercase tracking-[0.18em] text-text-muted">
           Cost screen · pick one
         </p>
         <div className="mt-2 flex gap-1.5">

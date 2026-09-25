@@ -127,7 +127,7 @@ export function BlockBanner({
                 <span className="font-mono text-2xl font-light leading-none text-text-muted">
                   3
                 </span>
-                <span className="text-[11px] text-text-subtle">of 12 weeks</span>
+                <span className="text-[11px] text-text-muted">of 12 weeks</span>
               </span>
               <span className="block h-1 w-full overflow-hidden rounded-full bg-bg-input">
                 <span className="block h-full w-1/4 rounded-full bg-text-subtle" />
@@ -204,7 +204,7 @@ export function BlockBanner({
     <div className="relative">
       <Link
         href="/blocks"
-        className="flow-card block rounded-2xl bg-bg-surface p-5 transition-colors hover:bg-bg-surface-raised/40"
+        className="flow-card block inst-card p-5 transition-colors hover:bg-bg-surface-raised/40"
       >
         <div className="flex items-center gap-3">
           <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Block</span>

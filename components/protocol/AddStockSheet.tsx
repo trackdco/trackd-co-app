@@ -56,7 +56,7 @@ const EMPTY: StackCompound[] = []
  *  `STOCK_PILL_ON`/`_OFF`: those carry fills, and the thumb is the fill here. */
 const PILL_ON = "border-transparent font-medium text-bg-base"
 const PILL_OFF = "border-border-default text-text-muted hover:text-text-primary"
-const PILL_THUMB = "rounded-full bg-accent-primary"
+const PILL_THUMB = "inst-thumb"
 
 /**
  * The four inventory forms, as the picker names them.
@@ -890,7 +890,7 @@ function AddStockForm({
       {/* The fields rise in as the sheet lands (feel pass §4). */}
       <div data-sheet-body className="space-y-4 px-4">
         {compounds.length === 0 ? (
-          <p className="rounded-2xl bg-bg-surface-raised px-4 py-6 text-center text-sm text-text-muted">
+          <p className="inst-rows px-4 py-6 text-center text-sm text-text-muted">
             Add a compound to your cycle first, then add its stock.
           </p>
         ) : (
@@ -950,7 +950,7 @@ function AddStockForm({
                   <p className="min-w-0 text-sm text-foreground">
                     {TYPES.find((t) => t.value === type)?.label}
                     {lockedType && (
-                      <span className="text-text-subtle">
+                      <span className="text-text-muted">
                         {` · same as your current ${lockedNoun}`}
                       </span>
                     )}
@@ -989,7 +989,7 @@ function AddStockForm({
                   ))}
                 </ThumbGroup>
                 <div className="flex items-start justify-between gap-2">
-                  <span className="block text-xs text-text-subtle">
+                  <span className="block text-xs text-text-muted">
                     {picker === "all"
                       ? "Changing the form starts a fresh container of the new type."
                       : ""}
@@ -998,7 +998,7 @@ function AddStockForm({
                     <button
                       type="button"
                       onClick={() => setPicker("all")}
-                      className="shrink-0 text-xs text-text-subtle underline underline-offset-2 transition-colors hover:text-foreground"
+                      className="shrink-0 text-xs text-text-muted underline underline-offset-2 transition-colors hover:text-foreground"
                     >
                       Other form?
                     </button>
@@ -1031,7 +1031,7 @@ function AddStockForm({
                       stores another — this is what keeps that from being
                       something the user has to take on trust. */}
                   {powderEntryUnit !== powderBaseUnit && num(powder) > 0 && (
-                    <p className="mt-1 text-xs text-text-subtle">
+                    <p className="mt-1 text-xs text-text-muted">
                       = {round3(powderInBase)} {powderBaseUnit}, which is what gets stored.
                     </p>
                   )}
@@ -1107,7 +1107,7 @@ function AddStockForm({
                     // are deliberately not interchangeable (016 §3).
                     <p className="text-sm text-foreground">
                       {oralRule.countUnit === "tab" ? "Tablets" : "Capsules"}
-                      <span className="text-text-subtle">
+                      <span className="text-text-muted">
                         {` · how ${selected?.name ?? "this"} is dosed`}
                       </span>
                     </p>
@@ -1156,7 +1156,7 @@ function AddStockForm({
                     to switch.
                   </p>
                 ) : num(strength) <= 0 && num(count) > 0 && strengthRequired ? (
-                  <p className="text-xs text-text-subtle">
+                  <p className="text-xs text-text-muted">
                     {/* Not a preference. The strengthless shape stores the TABLET
                         as the base unit, and that pairs only with a compound
                         dosed in tablets — which is 2 of the catalogue's 125
@@ -1165,7 +1165,7 @@ function AddStockForm({
                     {`${selected?.name ?? "This"} is dosed in ${selected?.unit ?? "mg"}, so state the strength of one ${effectiveOralForm === "tab" ? "tablet" : "capsule"}.`}
                   </p>
                 ) : !strengthRequired && num(count) > 0 ? (
-                  <p className="text-xs text-text-subtle">
+                  <p className="text-xs text-text-muted">
                     {`Doses are counted in ${effectiveOralForm === "tab" ? "tablets" : "capsules"}.`}
                   </p>
                 ) : null}
@@ -1224,14 +1224,14 @@ function AddStockForm({
                       aria-label="Mix one now"
                       onClick={() => setMixNow((m) => !m)}
                       className={cn(
-                        "relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200",
-                        mixNow ? "bg-accent-amber" : "border border-border-strong bg-bg-input",
+                        "relative h-7 w-12 shrink-0 rounded-[11px] transition-colors duration-200",
+                        mixNow ? "bg-accent-amber" : "inst-rail",
                       )}
                     >
                       <span
                         aria-hidden
                         className={cn(
-                          "absolute top-1 h-5 w-5 rounded-full bg-primary transition-[left] duration-200 ease-out motion-reduce:transition-none",
+                          "absolute top-1 h-5 w-5 inst-knob transition-[left] duration-200 ease-out motion-reduce:transition-none",
                           mixNow ? "left-[1.625rem]" : "left-1",
                         )}
                       />
@@ -1275,7 +1275,7 @@ function AddStockForm({
                       )
                     })}
                   </ThumbGroup>
-                  <span className="text-xs text-text-subtle">or</span>
+                  <span className="text-xs text-text-muted">or</span>
                   <div className="flex items-center gap-1.5">
                     <PadInput
                       {...pad.bind("exactLeft")}
@@ -1284,7 +1284,7 @@ function AddStockForm({
                       unit={fillUnit}
                       className="h-10 w-20 px-2"
                     />
-                    <span className="whitespace-nowrap text-xs text-text-subtle">{fillUnit} left</span>
+                    <span className="whitespace-nowrap text-xs text-text-muted">{fillUnit} left</span>
                   </div>
                 </div>
                 {fill.percent != null && (
@@ -1312,7 +1312,7 @@ function AddStockForm({
           type="button"
           onClick={() => void save()}
           disabled={saving || !insert}
-          className={cn(PRESS.button, "flex-1 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50")}
+          className={cn(PRESS.button, "flex-1 inst-btn px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50")}
         >
           {saving ? "Saving…" : editItem ? "Save changes" : "Add stock"}
         </button>

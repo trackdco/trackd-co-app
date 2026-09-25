@@ -115,7 +115,7 @@ export function CostVariantB({ onContinue, yearlyPrice }: CostVariantProps) {
       footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
-        <div className="flow-card rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card inst-card p-5">
           <p className={CARD_EYEBROW}>What a protocol costs</p>
 
           <ul className="mt-4 divide-y divide-border-default">
@@ -146,7 +146,7 @@ export function CostVariantB({ onContinue, yearlyPrice }: CostVariantProps) {
           </div>
         </div>
 
-        <p className="mt-4 text-center text-[0.8rem] leading-relaxed text-text-subtle">
+        <p className="mt-4 text-center text-[0.8rem] leading-relaxed text-text-muted">
           Only one figure on this screen is ours to know.
         </p>
       </div>
@@ -197,7 +197,7 @@ export function CostVariantC({ onContinue, yearlyPrice }: CostVariantProps) {
           </div>
         </div>
 
-        <div className="space-y-4 rounded-2xl bg-bg-surface p-5">
+        <div className="space-y-4 inst-card p-5">
           <p className={CARD_EYEBROW}>Over a year</p>
 
           <div className="space-y-2">
@@ -284,7 +284,7 @@ function DollarFall({
           key={i}
           className={cn(
             "animate-dollar-fall absolute font-mono",
-            amber ? "text-accent-amber" : "text-text-subtle",
+            amber ? "text-accent-amber" : "text-text-muted",
           )}
           style={
             {
@@ -315,7 +315,7 @@ export function CostVariantD({ onContinue }: CostVariantProps) {
   return (
     <StepFrame footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}>
       <div className="flex flex-1 flex-col justify-center">
-        <div className="flow-card rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card inst-card p-5">
           <div className="flex h-56 items-end justify-center gap-10">
             {BARS.map((bar, i) => (
               <div key={bar.label} className="relative flex h-full flex-1 flex-col justify-end">
@@ -353,7 +353,7 @@ export function CostVariantD({ onContinue }: CostVariantProps) {
                 <p
                   className={cn(
                     "mt-3 text-center text-[10px] font-sans uppercase tracking-[0.12em]",
-                    bar.accent ? "text-foreground" : "text-text-subtle",
+                    bar.accent ? "text-foreground" : "text-text-muted",
                   )}
                 >
                   {bar.label}
@@ -419,7 +419,7 @@ export function CostVariantE({ onContinue, yearlyPrice }: CostVariantProps) {
       footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
-        <div className="flow-card rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card inst-card p-5">
           <p className={CARD_EYEBROW}>Per year</p>
 
           <ul className="mt-5 space-y-4">
@@ -483,7 +483,7 @@ export function CostVariantF({ onContinue, yearlyPrice }: CostVariantProps) {
       footer={<FlowCta onClick={onContinue}>Continue</FlowCta>}
     >
       <div className="flex flex-1 flex-col justify-center">
-        <div className="flow-card rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card inst-card p-5">
           <p className={CARD_EYEBROW}>Per year</p>
 
           <div className="mt-6 space-y-6">
@@ -517,7 +517,7 @@ export function CostVariantF({ onContinue, yearlyPrice }: CostVariantProps) {
           </div>
         </div>
 
-        <p className="mt-4 text-center text-[0.8rem] text-text-subtle">
+        <p className="mt-4 text-center text-[0.8rem] text-text-muted">
           We are not going to guess what you spend. We know what we charge.
         </p>
       </div>
@@ -651,7 +651,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
                 for one round and killed it). White is right: the amber on this
                 screen is the price, which is the thing being pointed at, and
                 two amber beats compete. Emphasis by weight and slant instead. */}
-            <em className="font-semibold italic text-text-primary">cheap part</em>.
+            <em className="font-medium italic text-text-primary">cheap part</em>.
           </h1>
           <p className="text-[0.95rem] leading-relaxed text-text-muted">
             It all adds up. This is the bit that doesn&apos;t.
@@ -659,7 +659,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
         </header>
 
         <div
-          className="flex flex-1 flex-col rounded-2xl bg-bg-surface px-6 lg:max-h-[27rem]"
+          className="flex flex-1 flex-col inst-card px-6 lg:max-h-[27rem]"
           style={{ marginTop: fit(32, 16, 12), paddingBlock: fit(24, 12, 12) }}
         >
           <p className={CARD_EYEBROW}>Per year</p>
@@ -736,7 +736,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
                   >
                     {tier.masked}
                   </span>
-                  <span className="text-[11px] text-text-subtle">/yr</span>
+                  <span className="text-[11px] text-text-muted">/yr</span>
                 </span>
               </li>
             ))}
@@ -760,7 +760,7 @@ export function CostVariantG({ onContinue, yearlyPrice }: CostVariantProps) {
                 >
                   {ourPrice(yearlyPrice)}
                 </span>
-                <span className="text-[11px] text-text-subtle">/yr</span>
+                <span className="text-[11px] text-text-muted">/yr</span>
               </span>
             </li>
           </ul>

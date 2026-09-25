@@ -90,12 +90,13 @@ export const LANDING_SUB =
 /** Card / section title — a small tracked-uppercase eyebrow, NOT a heading.
  *  The inversion (small titles, large values) IS the identity. */
 export const CARD_EYEBROW =
-  "text-[10px] font-sans uppercase tracking-[0.18em] text-text-muted"
+  "text-[10px] font-sans font-medium uppercase tracking-[0.2em] text-text-muted inst-engraved"
 
-/** Dimmer eyebrow — labels a metric value, one notch quieter than a card title
- *  so the value dominates. */
+/** Labels a metric value. It was one notch quieter than a card title, in
+ *  `--text-subtle`; that is decoration-only, and a label is read (consistency
+ *  fix #3), so it now matches the eyebrow's muted and stays quieter by size. */
 export const METRIC_LABEL =
-  "text-[10px] font-sans uppercase tracking-[0.2em] text-text-subtle"
+  "text-[10px] font-sans font-medium uppercase tracking-[0.2em] text-text-muted inst-engraved"
 
 /** Eyebrow for a NARROW column — a third-width card in a row of three, where the
  *  10px eyebrow's 0.18em tracking pushes a single long word ("CONCENTRATION",
@@ -104,13 +105,13 @@ export const METRIC_LABEL =
  *  where the column is genuinely too narrow for CARD_EYEBROW; a full-width card
  *  title is always CARD_EYEBROW. */
 export const COLUMN_EYEBROW =
-  "text-[9px] font-sans uppercase tracking-[0.12em] text-text-muted"
+  "text-[9px] font-sans font-medium uppercase tracking-[0.12em] text-text-muted inst-engraved"
 
 /** The big number on metric / glance cards — the display layer. Light-weight
  *  mono, tightly tracked, tabular. Units/suffixes demote inline via UNIT_SUFFIX
  *  (e.g. 92▸%, 8:00▸pm) — never at value size. */
 export const METRIC_VALUE =
-  "text-[28px] font-light tracking-[-0.02em] tabular-nums text-foreground"
+  "font-mono text-[28px] font-light text-foreground inst-figure"
 
 /** Demoted unit / suffix rendered inline beside a METRIC_VALUE. */
 export const UNIT_SUFFIX = "text-sm text-text-muted"
@@ -151,7 +152,7 @@ export const STOCK_FIELD_LABEL = "mb-1 block text-xs text-text-muted"
 /** Pair with the `Input` component, which supplies the base. */
 export const STOCK_FIELD =
   "h-11 min-w-0 rounded-xl border-border-default bg-bg-input font-mono dark:bg-bg-input"
-export const STOCK_PILL = "rounded-full border px-2.5 py-1 text-sm transition-colors"
+export const STOCK_PILL = "rounded-lg border px-2.5 py-1 text-sm transition-colors"
 export const STOCK_PILL_ON =
   "border-transparent bg-accent-primary font-medium text-bg-base"
 export const STOCK_PILL_OFF =
@@ -174,9 +175,44 @@ export const STOCK_PILL_OFF =
  * applies `:active` too late for a quick tap to show it at all.
  */
 export const PRIMARY_BUTTON =
-  "press-button flex items-center justify-center gap-2 rounded-xl bg-accent-primary px-4 py-3 " +
+  "press-button inst-btn flex items-center justify-center gap-2 px-4 py-3 " +
   "text-sm font-medium text-bg-base transition-opacity hover:opacity-90 " +
   "disabled:pointer-events-none disabled:opacity-50"
+
+/* ------------------------------------------------ the Instrument look --- */
+
+/**
+ * THE INSTRUMENT SURFACES (Adrian, final check round three, 2026-09-25;
+ * build-brief-final §2.3). One class each; the surface itself (radius, fill,
+ * the machined shadows) lives in `globals.css` so a retune is one edit.
+ * Reach for these rather than writing `rounded-2xl bg-bg-surface` by hand:
+ * a hand-written card is how the drop shadow and the lit edge go missing.
+ */
+
+/** A card: radius 20, the surface, a lit top edge and a soft drop below. */
+export const CARD = "inst-card"
+
+/** A block of rows inside a card or a sheet: radius 12, raised, dark dividers. */
+export const ROWS = "inst-rows"
+
+/** The quiet button beside a white one (Cancel, Edit, Mix one). Radius 9. */
+export const GHOST_BUTTON =
+  "press-button inst-ghost flex items-center justify-center gap-2 px-4 py-3 " +
+  "text-sm font-medium text-text-primary transition-opacity hover:opacity-90 " +
+  "disabled:pointer-events-none disabled:opacity-50"
+
+/** A chip rail or switch track, and the thumb that slides in it. */
+export const CHIP_RAIL = "inst-rail"
+export const CHIP_THUMB = "inst-thumb"
+
+/** A tile (Site / Stock / Note, Markers / Photos / Date). Radius 12. */
+export const TILE = "inst-tile"
+
+/** A graph well, or the panel a tile opens into. Radius 12, darker at the top. */
+export const INSET = "inst-inset"
+
+/** A big figure: Plex Mono, tabular, slashed zero, engraved. */
+export const FIGURE = "font-mono inst-figure"
 
 /**
  * IN-PLACE EDITING — the committed-state action bar (Adrian, 2026-09-03).

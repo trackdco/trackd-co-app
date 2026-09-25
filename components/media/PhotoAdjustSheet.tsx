@@ -367,7 +367,7 @@ function AdjustBody({
           onWheel={onWheel}
           style={{ aspectRatio: String(aspect) }}
           className={cn(
-            "relative w-full touch-none overflow-hidden rounded-2xl bg-bg-surface-raised select-none",
+            "relative w-full touch-none overflow-hidden inst-rows select-none",
             canPan ? "cursor-grab active:cursor-grabbing" : "cursor-default"
           )}
         >
@@ -415,7 +415,7 @@ function AdjustBody({
           )}
         </div>
 
-        <p className="mt-3 px-1 text-center text-xs text-text-subtle">
+        <p className="mt-3 px-1 text-center text-xs text-text-muted">
           {decodeFailed
             ? "Saved without adjusting."
             : "Pinch to zoom, drag to reposition."}

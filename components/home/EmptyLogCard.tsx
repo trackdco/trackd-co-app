@@ -12,7 +12,7 @@ import { CARD_EYEBROW } from "@/lib/ui-presets"
  */
 export function EmptyLogCard() {
   return (
-    <section className="flow-card rounded-2xl bg-bg-surface p-5">
+    <section className="flow-card inst-card p-5">
       <h2 className={CARD_EYEBROW}>Start your log</h2>
       <p className="mt-2 text-sm text-text-muted">
         Here&apos;s how it works:
@@ -42,7 +42,7 @@ export function EmptyLogCard() {
 
       {/* The same sentence the log sheet uses. The old one ("saved on this
           device") was false: everything here is saved to the account. */}
-      <p className="mt-5 hairline-t pt-4 text-xs text-text-subtle">
+      <p className="mt-5 hairline-t pt-4 text-xs text-text-muted">
         Saved to your account. Only you can see it.
       </p>
     </section>
@@ -62,7 +62,7 @@ function Step({
 }) {
   return (
     <li className="flex gap-3">
-      <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-subtle">
+      <span className="mt-0.5 w-4 shrink-0 text-center font-mono text-xs tabular-nums text-text-muted">
         {n}
       </span>
       <div className="min-w-0">

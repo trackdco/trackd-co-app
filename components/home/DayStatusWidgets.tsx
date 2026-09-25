@@ -60,7 +60,7 @@ function CompletionRing({
   const overflow = dots.length - shown.length
 
   return (
-    <div className="flow-card flex flex-col rounded-2xl bg-bg-surface p-5">
+    <div className="flow-card flex flex-col inst-card p-5">
       <p className={CARD_EYEBROW}>{title}</p>
       <div className="mt-3 flex flex-1 flex-col items-center justify-center gap-3">
         <div className="relative h-24 w-24">
@@ -89,7 +89,7 @@ function CompletionRing({
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="font-mono text-lg font-light tabular-nums text-foreground">
               {logged}
-              <span className="text-text-subtle"> of {due}</span>
+              <span className="text-text-muted"> of {due}</span>
             </span>
           </div>
         </div>
@@ -100,7 +100,7 @@ function CompletionRing({
               <CategoryDot key={d.id} category={d.category} logged={d.logged} />
             ))}
             {overflow > 0 && (
-              <span className="font-mono text-[10px] tabular-nums text-text-subtle">
+              <span className="font-mono text-[10px] tabular-nums text-text-muted">
                 +{overflow}
               </span>
             )}
@@ -135,7 +135,7 @@ function CategoryDot({ category, logged }: { category: string; logged: boolean }
 function NextDoseWidget({ next }: { next: NextDoseInfo }) {
   if (next.kind === "none") {
     return (
-      <div className="flow-card flex flex-col rounded-2xl bg-bg-surface p-5">
+      <div className="flow-card flex flex-col inst-card p-5">
         <p className={CARD_EYEBROW}>Next dose</p>
         <div className="mt-3 flex flex-1 flex-col justify-center">
           <span className="text-base text-foreground">
@@ -157,7 +157,7 @@ function NextDoseWidget({ next }: { next: NextDoseInfo }) {
 
   const d = next.next
   return (
-    <div className="flow-card flex flex-col rounded-2xl bg-bg-surface p-5">
+    <div className="flow-card flex flex-col inst-card p-5">
       <p className={CARD_EYEBROW}>Next dose</p>
       <div className="mt-3 flex flex-1 flex-col items-center justify-center gap-2">
         <Container

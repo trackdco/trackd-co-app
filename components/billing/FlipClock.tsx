@@ -43,7 +43,7 @@ export function FlipClock({ value, label }: { value: string; label: string }) {
           c === ":" ? (
             <span
               key={`sep-${i}`}
-              className="px-0.5 text-2xl font-semibold text-accent-amber"
+              className="px-0.5 text-2xl font-medium text-accent-amber"
               aria-hidden
             >
               :
@@ -60,7 +60,7 @@ export function FlipClock({ value, label }: { value: string; label: string }) {
                  the corners far enough that the faces read as PILLS rather than
                  as cards, which is the one thing a split-flap must not look
                  like. Seen on the contact sheet, 2026-08-25. */
-              className="flip-face animate-flip-tick relative flex h-12 w-10 items-center justify-center rounded-md text-[1.375rem] font-semibold tabular-nums text-accent-amber"
+              className="flip-face animate-flip-tick relative flex h-12 w-10 items-center justify-center rounded-md text-[1.375rem] font-medium tabular-nums text-accent-amber"
               aria-hidden
             >
               {c}
@@ -71,7 +71,7 @@ export function FlipClock({ value, label }: { value: string; label: string }) {
           ),
         )}
       </div>
-      <p className="mt-2 text-center text-[11px] text-text-subtle">{label}</p>
+      <p className="mt-2 text-center text-[11px] text-text-muted">{label}</p>
     </div>
   );
 }

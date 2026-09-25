@@ -40,7 +40,7 @@ export default function WalkthroughPreview() {
             type="button"
             onClick={() => setAt(i)}
             className={cn(
-              "rounded-full px-3 py-1.5 text-[0.78rem]",
+              "rounded-lg px-3 py-1.5 text-[0.78rem]",
               i === at
                 ? "bg-accent-amber text-bg-base"
                 : "bg-bg-surface text-text-muted",

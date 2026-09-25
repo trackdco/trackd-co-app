@@ -137,7 +137,7 @@ export function TrackBar({
           disabled={!up || confirming || busy}
           className={cn(
             PRESS.button,
-            "relative h-[46px] w-full overflow-hidden rounded-full bg-accent-primary text-sm font-medium text-bg-base",
+            "relative h-[46px] w-full overflow-hidden inst-btn text-sm font-medium text-bg-base",
           )}
         >
           <span

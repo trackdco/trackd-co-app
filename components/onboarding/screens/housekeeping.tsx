@@ -93,7 +93,7 @@ export function NameScreen() {
         autoComplete="given-name"
         enterKeyHint="next"
         maxLength={24}
-        className="h-14 w-full rounded-2xl bg-bg-input px-5 text-center text-[1.05rem] text-foreground outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-ring"
+        className="h-14 w-full rounded-2xl bg-bg-input px-5 text-center text-[1.05rem] text-foreground outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-ring"
       />
     </StepFrame>
   );
@@ -374,7 +374,7 @@ export function BirthdayScreen() {
           * never split or clipped at any width. "Always one line" was never the
           * requirement; "never clip the name" is.
           */}
-        <p className="-mt-2 text-center text-[0.6rem] leading-relaxed text-text-subtle">
+        <p className="-mt-2 text-center text-[0.6rem] leading-relaxed text-text-muted">
           {[
             { href: "/terms", label: "Terms" },
             { href: "/privacy", label: "Privacy" },
@@ -482,7 +482,7 @@ export function GenderScreen() {
               <Icon
                 className={cn(
                   "h-12 w-12 transition-colors duration-[var(--motion-base)] motion-reduce:transition-none",
-                  active ? "text-accent-amber" : "text-text-subtle",
+                  active ? "text-accent-amber" : "text-text-muted",
                 )}
                 aria-hidden
               />

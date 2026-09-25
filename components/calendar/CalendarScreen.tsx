@@ -396,7 +396,7 @@ export function CalendarScreen({
           is cycled, so a user without cycles sees the calendar unchanged. */}
       {cycleKey.length > 0 && (
         <section
-          className="flow-card animate-home-up mt-5 rounded-2xl bg-bg-surface px-5 py-4"
+          className="flow-card animate-home-up mt-5 inst-card px-5 py-4"
           style={{ animationDelay: "55ms" }}
         >
           <h2 className={CARD_EYEBROW}>Cycles</h2>

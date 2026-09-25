@@ -159,7 +159,7 @@ export function GateForm({
       </fieldset>
       {/* Composed value the server action reads + validates. */}
       <input type="hidden" name="date_of_birth" value={dob} />
-      <p className="mt-2 text-[0.7rem] text-text-subtle">
+      <p className="mt-2 text-[0.7rem] text-text-muted">
         Trakabl is for adults 18 and over. We use this to confirm your age.
       </p>
 
@@ -182,7 +182,7 @@ export function GateForm({
           <option value="female">Female</option>
         </select>
       </fieldset>
-      <p className="mt-2 text-[0.7rem] text-text-subtle">
+      <p className="mt-2 text-[0.7rem] text-text-muted">
         Sets your injection-site body map. You can change it later in Settings.
       </p>
 

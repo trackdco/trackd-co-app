@@ -188,7 +188,7 @@ function DesktopPrompt() {
           className="h-3.5 w-3.5 shrink-0 rounded-full bg-bg-input"
           aria-hidden
         />
-        <span className="font-mono text-[10px] tracking-[0.02em] text-text-subtle">
+        <span className="font-mono text-[10px] tracking-[0.02em] text-text-muted">
           trackdco.app
         </span>
       </div>

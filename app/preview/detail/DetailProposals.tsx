@@ -174,7 +174,7 @@ function P2() {
       <Readout />
       <button
         type="button"
-        className="w-full rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base"
+        className="w-full inst-btn py-3 text-sm font-medium text-bg-base"
       >
         Log this dose
       </button>
@@ -268,7 +268,7 @@ function P4() {
           <button
             key={a}
             type="button"
-            className="rounded-full bg-bg-surface-raised px-3.5 py-2 text-sm text-foreground"
+            className="rounded-lg bg-bg-surface-raised px-3.5 py-2 text-sm text-foreground"
           >
             {a}
           </button>
@@ -396,7 +396,7 @@ export function DetailProposals() {
           type="button"
           onClick={() => setOnly(null)}
           className={cn(
-            "rounded-full px-3 py-1.5 text-sm",
+            "rounded-lg px-3 py-1.5 text-sm",
             only === null
               ? "bg-accent-primary text-bg-base"
               : "bg-bg-surface-raised text-text-muted"
@@ -410,7 +410,7 @@ export function DetailProposals() {
             type="button"
             onClick={() => setOnly(p.key)}
             className={cn(
-              "rounded-full px-3 py-1.5 text-sm",
+              "rounded-lg px-3 py-1.5 text-sm",
               only === p.key
                 ? "bg-accent-primary text-bg-base"
                 : "bg-bg-surface-raised text-text-muted"

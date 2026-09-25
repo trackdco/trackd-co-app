@@ -130,7 +130,7 @@ export function AccountScreen() {
         {/* The login screen's divider, verbatim. */}
         <div className="my-5 flex items-center gap-3" aria-hidden>
           <span className="h-[0.5px] flex-1 bg-border-default" />
-          <span className="text-xs text-text-subtle">or</span>
+          <span className="text-xs text-text-muted">or</span>
           <span className="h-[0.5px] flex-1 bg-border-default" />
         </div>
 

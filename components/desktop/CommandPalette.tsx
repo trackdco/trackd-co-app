@@ -207,9 +207,9 @@ export function CommandPalette({
             aria-activedescendant={
               results[activeIndex] ? `command-${results[activeIndex].id}` : undefined
             }
-            className="w-full bg-transparent text-[0.9375rem] text-foreground placeholder:text-text-subtle focus:outline-none"
+            className="w-full bg-transparent text-[0.9375rem] text-foreground placeholder:text-text-muted focus:outline-none"
           />
-          <kbd className="rounded border border-border-default px-1.5 py-0.5 font-mono text-[0.625rem] text-text-subtle">
+          <kbd className="rounded border border-border-default px-1.5 py-0.5 font-mono text-[0.625rem] text-text-muted">
             esc
           </kbd>
         </div>
@@ -252,7 +252,7 @@ export function CommandPalette({
                     <Ico className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
                     <span className="flex-1 truncate">{command.label}</span>
                     {isActive ? (
-                      <kbd className="rounded border border-border-default px-1.5 py-0.5 font-mono text-[0.625rem] text-text-subtle">
+                      <kbd className="rounded border border-border-default px-1.5 py-0.5 font-mono text-[0.625rem] text-text-muted">
                         return
                       </kbd>
                     ) : null}

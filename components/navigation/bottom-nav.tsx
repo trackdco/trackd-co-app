@@ -3,14 +3,8 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  Calculator,
-  SquaresFour,
-  ChartLine,
-  Syringe,
-  User,
-  type Icon,
-} from "@/components/icons"
+import { SolidIcon } from "@/components/feel/SolidIcon"
+import type { GlyphName } from "@/lib/solidGlyphs"
 
 import { cn } from "@/lib/utils"
 import { PRESS } from "@/lib/ui-presets"
@@ -18,18 +12,23 @@ import { PRESS } from "@/lib/ui-presets"
 type Tab = {
   href: string
   label: string
-  icon: Icon
+  glyph: GlyphName
 }
 
 // Five equal tabs, left → right. The centre slot is Calculator (Spec 20): the
 // quick-add plus that used to sit here now floats bottom-right as a FAB, so one
 // of the four core differentiators gets the permanent nav real estate instead.
+//
+// The icons are the look's monochrome SOLID marks (Adrian, final check round
+// four, 2026-09-26): four rounded squares, a vial, a syringe, a rising area
+// line, head and shoulders. The active tab lights up white; the rest sit a step
+// down. Labels are muted, never `--text-subtle`: a tab name is read.
 const TABS: Tab[] = [
-  { href: "/dashboard", label: "Dashboard", icon: SquaresFour },
-  { href: "/protocol", label: "Protocol", icon: Syringe },
-  { href: "/calculator", label: "Calculator", icon: Calculator },
-  { href: "/progress", label: "Progress", icon: ChartLine },
-  { href: "/profile", label: "Profile", icon: User },
+  { href: "/dashboard", label: "Dashboard", glyph: "navDashboard" },
+  { href: "/protocol", label: "Protocol", glyph: "navProtocol" },
+  { href: "/calculator", label: "Calculator", glyph: "navCalculator" },
+  { href: "/progress", label: "Progress", glyph: "navProgress" },
+  { href: "/profile", label: "Profile", glyph: "navProfile" },
 ]
 
 function isActive(pathname: string, href: string): boolean {
@@ -39,7 +38,7 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-function NavTab({ href, label, icon: Icon, active }: Tab & { active: boolean }) {
+function NavTab({ href, label, glyph, active }: Tab & { active: boolean }) {
   return (
     <Link
       href={href}
@@ -48,11 +47,11 @@ function NavTab({ href, label, icon: Icon, active }: Tab & { active: boolean }) 
       className={cn(
         PRESS.tab,
         "flex flex-col items-center justify-center gap-1 py-1 transition-colors duration-300 ease-out",
-        active ? "text-foreground" : "text-text-subtle"
+        active ? "text-foreground" : "text-text-muted"
       )}
     >
-      <Icon className="h-5 w-5" aria-hidden />
-      <span className="text-[10px] font-medium tracking-wide">{label}</span>
+      <SolidIcon name={glyph} size={21} tone={active ? "on" : "off"} />
+      <span className="text-[10px] tracking-[0.01em]">{label}</span>
     </Link>
   )
 }

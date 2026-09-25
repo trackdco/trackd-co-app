@@ -184,7 +184,7 @@ export function HowItWorks({ onDone }: { onDone: () => void }) {
       <p
         aria-hidden
         className={cn(
-          "absolute bottom-[max(1.6rem,env(safe-area-inset-bottom))] font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle",
+          "absolute bottom-[max(1.6rem,env(safe-area-inset-bottom))] font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted",
           "transition-opacity duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]",
           leaving ? "opacity-0" : "opacity-100 delay-[1100ms]",
         )}

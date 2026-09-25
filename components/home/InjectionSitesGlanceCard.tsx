@@ -79,10 +79,10 @@ export function InjectionSitesGlanceCard({
         {/* On the shared sliding thumb (feel pass §6). */}
         <ThumbGroup
           selection={route}
-          thumbClassName="rounded-full bg-bg-surface-raised"
+          thumbClassName="inst-thumb"
           role="group"
           aria-label="Route"
-          className="inline-flex shrink-0 rounded-full border border-border-default bg-bg-input p-0.5 text-[11px]"
+          className="inline-flex shrink-0 inst-rail p-0.5 text-[11px]"
         >
           {ROUTES.map((r) => (
             <button
@@ -92,8 +92,8 @@ export function InjectionSitesGlanceCard({
               aria-pressed={route === r.key}
               className={cn(
                 PRESS.pill,
-                "rounded-full px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
-                route === r.key ? "text-foreground" : "text-text-muted",
+                "rounded-sm px-2.5 py-1 font-medium transition-colors duration-300 ease-out",
+                route === r.key ? "text-bg-base" : "text-text-muted",
               )}
             >
               {r.label}

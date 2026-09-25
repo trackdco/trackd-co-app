@@ -446,7 +446,7 @@ export function AddProgressPhotoSheet({
                   className="h-12 w-full text-sm"
                   suffix={<span className="shrink-0 font-sans text-sm text-text-muted">{unit}</span>}
                 />
-                <span className="mt-1 block text-xs text-text-subtle">
+                <span className="mt-1 block text-xs text-text-muted">
                   Saved as your weight for this date.
                 </span>
               </div>
@@ -494,7 +494,7 @@ export function AddProgressPhotoSheet({
               disabled={busy || count === 0 || dateStep}
               className={cn(
                 PRESS.button,
-                "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+                "flex flex-1 items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
               )}
             >
               {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}

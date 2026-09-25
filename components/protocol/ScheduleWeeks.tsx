@@ -199,7 +199,7 @@ export function ScheduleWeeks({
       /* An empty week is a fact, not an error. Someone who logged one dose three
          years ago earns every week between then and now, and most of them look
          like this. */
-        <div className="flow-card rounded-2xl bg-bg-surface p-5">
+        <div className="flow-card inst-card p-5">
           <p className="text-sm text-text-muted">Nothing was running this week.</p>
         </div>
       )}
@@ -278,7 +278,7 @@ export function ScheduleWeeks({
 
         <div className="min-w-0 text-center">
           <p className="truncate text-sm text-foreground">{heading}</p>
-          <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-subtle">
+          <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-muted">
             {rangeLabel(weekDays, todayKey)}
           </p>
         </div>
@@ -306,7 +306,7 @@ export function ScheduleWeeks({
           em dash for and the weight card refuses "+0.0 kg" for. A long-cadence
           compound, or one paused all week, lands here routinely. */}
       {(matrix.due > 0 || matrix.pausedDays > 0) && (
-        <p className="px-1 font-mono text-[11px] tabular-nums text-text-subtle">
+        <p className="px-1 font-mono text-[11px] tabular-nums text-text-muted">
           {matrix.due > 0 && `${matrix.logged} of ${matrix.due} logged`}
           {matrix.due > 0 && matrix.pausedDays > 0 && " · "}
           {matrix.pausedDays > 0 &&
@@ -338,7 +338,7 @@ function StepButton({
         // 44px target: this is the only way through the history.
         "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors",
         disabled
-          ? "border-border-default text-text-subtle opacity-40"
+          ? "border-border-default text-text-muted opacity-40"
           : "border-border-strong text-text-muted hover:text-foreground",
       )}
     >

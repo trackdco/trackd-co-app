@@ -92,7 +92,7 @@ export function JournalViewSheet({
                 <button
                   type="button"
                   onClick={() => onEdit(shown)}
-                  className="flex items-center gap-1.5 rounded-full border border-border-strong px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
+                  className="flex items-center gap-1.5 rounded-lg border border-border-strong px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
                 >
                   <NotePencil className="h-4 w-4" aria-hidden />
                   Edit
@@ -110,7 +110,7 @@ export function JournalViewSheet({
                       {shown.markers.map((m) => (
                         <li
                           key={m.markerId}
-                          className="rounded-full bg-bg-input px-2.5 py-1 text-[13px]"
+                          className="rounded-lg bg-bg-input px-2.5 py-1 text-[13px]"
                         >
                           <span className="text-text-muted">{m.name}</span>{" "}
                           <span className="text-foreground">{m.word}</span>

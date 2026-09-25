@@ -465,7 +465,7 @@ function BetaLaunchDialog({
          * notice, so neither control changes its label, behaviour or meaning,
          * and neither may be styled as one.
          */}
-        <p className="relative mt-4 text-[11px] leading-relaxed text-text-subtle">
+        <p className="relative mt-4 text-[11px] leading-relaxed text-text-muted">
           {CONTINUED_USE_PARTS.lead}{" "}
           <Link
             href="/terms"
@@ -509,7 +509,7 @@ function BetaLaunchDialog({
           * `tos` and `privacy` and nothing else, deliberately — a link somebody
           * can click is not an agreement somebody gave.
           */}
-        <p className="relative mt-2 text-[11px] leading-relaxed text-text-subtle">
+        <p className="relative mt-2 text-[11px] leading-relaxed text-text-muted">
           <Link
             href="/medical-disclaimer"
             target="_blank"
@@ -555,7 +555,7 @@ function BetaLaunchDialog({
             <button
               type="button"
               onClick={setUpMyPlan}
-              className="flex-1 rounded-2xl border border-border-default py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex-1 inst-ghost py-3 text-sm text-foreground outline-none transition-colors hover:bg-bg-surface-raised focus-visible:ring-2 focus-visible:ring-ring"
             >
               Set up my plan
             </button>

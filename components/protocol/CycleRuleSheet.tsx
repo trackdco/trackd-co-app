@@ -228,7 +228,7 @@ function CycleRuleForm({
       {/* End condition */}
       <div className="space-y-2">
         <p className={LABEL}>End</p>
-        <div className="divide-y divide-border-default rounded-2xl bg-bg-surface-raised">
+        <div className="inst-rows">
           {offerable.map((t) => (
             <button
               key={t}
@@ -309,7 +309,7 @@ function CycleRuleForm({
           type="button"
           onClick={save}
           disabled={!valid}
-          className={cn(PRESS.button, "h-11 flex-1 rounded-xl bg-accent-primary text-sm font-medium text-bg-base disabled:opacity-40")}
+          className={cn(PRESS.button, "h-11 flex-1 inst-btn text-sm font-medium text-bg-base disabled:opacity-40")}
         >
           Save
         </button>
@@ -366,7 +366,7 @@ function PatternOption({
       >
         {label}
       </span>
-      <span className="mt-0.5 block text-xs text-text-subtle">{hint}</span>
+      <span className="mt-0.5 block text-xs text-text-muted">{hint}</span>
     </button>
   )
 }

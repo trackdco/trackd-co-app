@@ -59,6 +59,15 @@ delete it from here. Line numbers (Lnnn) are to this file as it was before this 
   five tabs with new monochrome Solid icons; Calculator in the middle.
 - **Syringe and containers**: redrawn in the new look; the plunger travels with the draw; the container rules
   stay (flat plus depth, clear glass for liquids).
+- **Where the look lives (built 2026-09-26, phase 1):** tokens in `app/globals.css` `:root` (the public site pins its
+  shipped values and Geist in `:root:has(.lp-site)`); the radius scale is `--r-*` (`rounded-2xl` card 20, `rounded-xl`
+  12, `rounded-lg` button 10, `rounded-md` 9, `rounded-sm` 8); the surfaces are `.inst-card` (= `.flow-card`),
+  `.inst-rows`, `.inst-btn`, `.inst-ghost`, `.inst-rail` / `.inst-thumb`, `.inst-knob`, `.inst-tile`, `.inst-inset`
+  (= `.inset-surface` / `.inset-graph`), `.inst-engraved`, `.inst-figure`, reached through the presets in
+  `lib/ui-presets.ts` (CARD, ROWS, PRIMARY_BUTTON, GHOST_BUTTON, CHIP_RAIL, CHIP_THUMB, TILE, INSET, FIGURE). Solid marks:
+  `components/feel/SolidIcon.tsx` over `lib/solidGlyphs.ts` (generated from the final-check page). The site ramp:
+  `lib/sites/recencyRamp.ts` + `--ramp-base` per map tone. Every ThumbGroup is a rail with a white thumb and dark
+  selected text. Readable text never in `--text-subtle` (swept: 173 uses moved to muted).
 - Unchanged and still binding: no suggested site, ever (L205); readable text never in subtle; state colours
   never on health data; amber for one or two beats per screen.
 

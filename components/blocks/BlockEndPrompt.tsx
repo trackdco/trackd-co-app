@@ -256,7 +256,7 @@ export function BlockEndPrompt({
                 <label className="mt-5 block">
                   <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
                     Reflection{" "}
-                    <span className="normal-case text-text-subtle">(optional)</span>
+                    <span className="normal-case text-text-muted">(optional)</span>
                   </span>
                   <Textarea
                     value={reflection}
@@ -288,7 +288,7 @@ export function BlockEndPrompt({
                 disabled={busy || (mode === "extend" && !extendValid)}
                 className={cn(
                   PRESS.button,
-                  "flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+                  "flex flex-1 items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
                 )}
               >
                 {busy && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}

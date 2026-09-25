@@ -58,7 +58,7 @@ export function ProgressPhotoCard({
         type="button"
         onClick={onOpen}
         aria-label="Open progress photos"
-        className="flow-card flex w-full items-center gap-3.5 rounded-2xl bg-bg-surface p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+        className="flow-card flex w-full items-center gap-3.5 inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
       >
         <span className="min-w-0 flex-1">
           <span className={`block ${CARD_EYEBROW}`}>Progress photos</span>

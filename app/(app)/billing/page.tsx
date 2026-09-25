@@ -462,7 +462,7 @@ export default async function BillingPage() {
           <div
             className={
               action.kind === "resume"
-                ? "flow-card overflow-hidden rounded-2xl bg-bg-surface px-4 py-1"
+                ? "flow-card overflow-hidden inst-card px-4 py-1"
                 : ""
             }
           >

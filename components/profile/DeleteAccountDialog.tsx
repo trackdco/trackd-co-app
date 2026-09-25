@@ -290,7 +290,7 @@ export function DeleteAccountDialog({
         className={
           variant === "row"
             ? DANGER_ROW
-            : "mx-auto block min-h-11 rounded-md px-2 py-2 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-text-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+            : "mx-auto block min-h-11 rounded-md px-2 py-2 text-xs text-text-muted underline underline-offset-2 outline-none transition-colors hover:text-text-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
         }
       >
         Delete my account
@@ -419,7 +419,7 @@ export function DeleteAccountDialog({
                  * outline-color was `oklab(0.671 0.041 0.130 / 0.5)`, i.e. #C8861A
                  * at half alpha.
                  *
-                 * ⚠️ The placeholder is RED, not `text-text-subtle`. Grey was the
+                 * ⚠️ The placeholder is RED, not `text-text-muted`. Grey was the
                  * default and it made the one word somebody has to copy read as
                  * disabled text on a field that is anything but.
                  */

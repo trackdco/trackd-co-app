@@ -213,7 +213,7 @@ export function DatePickerPanel({
           {WEEKDAY_INITIALS.map((d, i) => (
             <span
               key={i}
-              className="text-center text-[11px] font-medium uppercase tracking-wide text-text-subtle"
+              className="text-center text-[11px] font-medium uppercase tracking-wide text-text-muted"
             >
               {d}
             </span>

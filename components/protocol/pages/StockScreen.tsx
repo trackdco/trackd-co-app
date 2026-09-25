@@ -302,7 +302,7 @@ function StockRow({
         <>
           <Container name={c.name} inventoryType={type} category={c.category} fill={fillOf(h.inUse) ?? 0} size={34} />
           {h.spares.length > 0 && (
-            <span className="absolute -top-0.5 -right-2.5 rounded-full bg-bg-surface-raised px-[5px] py-px font-mono text-[9.5px] text-foreground shadow-[0_0_0_1.5px_var(--bg-surface)]">
+            <span className="absolute -top-0.5 -right-2.5 rounded-lg bg-bg-surface-raised px-[5px] py-px font-mono text-[9.5px] text-foreground shadow-[0_0_0_1.5px_var(--bg-surface)]">
               +{h.spares.length}
             </span>
           )}
@@ -368,7 +368,7 @@ function StockRow({
       </div>
       {current.kind === "mix" && dry.length > 0 ? (
         <div className="animate-hl-swap flex items-center justify-center gap-2">
-          <label className="flex items-center gap-1 rounded-full border border-border-strong px-2.5 py-[5px] font-mono text-[11px] text-foreground">
+          <label className="flex items-center gap-1 rounded-lg border border-border-strong px-2.5 py-[5px] font-mono text-[11px] text-foreground">
             <input
               type="number"
               inputMode="decimal"

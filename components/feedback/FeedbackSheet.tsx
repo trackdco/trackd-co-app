@@ -157,7 +157,7 @@ export function FeedbackSheet({
               disabled={!canSend}
               className={cn(
                 PRESS.button,
-                "flex flex-[1.6] items-center justify-center gap-2 rounded-xl bg-accent-primary py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
+                "flex flex-[1.6] items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
               )}
             >
               {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : null}

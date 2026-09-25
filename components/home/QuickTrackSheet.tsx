@@ -253,7 +253,7 @@ function QuickTrackBody({
           // only control was "Done". Empty copy states the fact AND the next
           // action (ui-context.md → Voice), so the way forward is on the screen
           // rather than back out through the menu they just used.
-          <div className="rounded-2xl bg-bg-surface-raised px-4 py-8 text-center">
+          <div className="inst-rows px-4 py-8 text-center">
             <p className="text-sm text-text-muted">Nothing scheduled for today.</p>
             <Link
               href="/protocol"
@@ -281,7 +281,7 @@ function QuickTrackBody({
                         {pending} due
                       </span>
                     ) : (
-                      <span className="text-[11px] text-text-subtle">Logged</span>
+                      <span className="text-[11px] text-text-muted">Logged</span>
                     )}
                   </div>
                   <ul className="px-1">
