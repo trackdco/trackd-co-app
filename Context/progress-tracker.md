@@ -1,5 +1,52 @@
 # Progress Tracker
 
+## 🗳 FINAL CHECK, ROUND THREE ("FINAL FINAL") — ANSWERED 2026-09-25 12:47 UTC. NEXT: ONE SHORT PAGE, THEN THE BUILDER PROMPT
+
+Same page (https://claude.ai/artifact/2Mnj2qS3FKxiSNsNPjxiv1), db `final3/answers` (= draft), keys `f8_*`. Local copy:
+`~/trakabl-mockups/final-check/answers/final3/`. Mock source: `~/trakabl-mockups/final-check/r6/*8.js` (outside git).
+
+**Picks (settled):**
+- Home: Note placeholder "Anything to remember?". Half-life key = KEY ONLY (no countdown row). Opening a card: the tapped
+  card grows full width and the graph grows out of it (lined up; the open card shows the graph and rows, not the two
+  figures again, as the app does). A side card centres AND opens. No auto-scroll after Track; digits roll only if on screen.
+- Sites: the sheet keeps Intramuscular / Subcutaneous (as the app has them); the card keeps IM / Sub-Q. The recency
+  shading uses solid pre-mixed steps of the app's new amber (OKLCH, fixed hue), not amber at an opacity (which drifts olive).
+- Markers: "perfect". Tick several, one button adds them all, then rate. "Add more markers", "Use my last".
+- Protocol: hairline separators. New stack / New cycle = a rounded-square + at top right (and Stock's Add stock becomes the
+  same + — his final note). Tile marks = Solid, in colour.
+- Half-life page: ? guide = straight leaders, labels top and bottom, no overlap. Intro = two lines on the Half-life list.
+- Stock: layout = round one's (sideways per type) with vertical dividers. Flow = the list plus one add; a compound shows
+  its vials (drag between them, one per swipe, spring snap); "Mix this one" on a dry vial; the rest behind ⋯.
+- Cycles: Ended = Restart and Delete; Delete asks and says it is permanent ("You can't restart it"), then Undo.
+- Progress: new-account placeholder = a clear frame (Front / Side / Back). Button "Add your first photos".
+- The look: Instrument style + IBM Plex Sans / IBM Plex Mono + "Deeper black" palette (amber #D0802B). Replace it across
+  the WHOLE app UI, onboarding included. The landing page stays, but its app previews should show this style (his words;
+  an explicit exception to "don't touch landing" for those previews only). ui-context must be updated.
+
+**His notes (changes asked):**
+- First dose: no Kyle; a tick in the amber ring. "First Dose Logged", then "Now that you've got the basics down, have a
+  look around" (his words, "or something like that").
+- Home: a circled "?" in a corner of the open half-life graph opens the key. A small chevron on the half-life cards so
+  people know they expand. The tick's spring is too strong. The Stock panel's arrow reads as "open more stock": fix it.
+  On a tile switch the panel arrow should fade in too.
+- Protocol: revert the sheet header (vial + name as before); only the half-life, dose and route line sits in the long card.
+  Cycles and Stacks tiles get a "?" at the right that opens a pop-up with text and diagrams.
+- Half-life: keep the two list lines AND add the folded About row on each compound; he picks the wording on the next
+  page. The shading should look as it did before (not the ±20% version). No label overlap.
+- Cycles: rename "Live timeline" to "Timeline"; tap it to open a Timeline page (1W, 1M, 6M, 1Y) that doubles as the
+  schedule page; he wants schedule redesigns shown. Pausing: no opening of the Paused group; the row slides down and
+  fades into it.
+- Stock: idea to show next page: manage stock on the Protocol page. Empty number fields show nothing, just the unit
+  (no "Type it"), in Mix, Add stock and first-run stock.
+- Progress: Running starts collapsed with an arrow and opens to the sideways row. Tapping the dark backdrop closes the
+  photo viewer.
+- The +: back to a circle, bottom right, fanning out; four items. No Calculator item: the calculator sits in the middle
+  of the tab bar.
+- Build: he now wants the calculator needle, the nav icons and the containers REBUILT in the new style (no longer
+  "waiting on his other chats"). A first pass goes on the next page for approval.
+- Next page: minimal effort, "just those few things". After it: a NEW builder chat (he chose it), so this chat writes
+  `Context/build-brief-final.md`, the ui-context updates and `Context/PROMPT-build-final.md`, then gives him the prompt.
+
 ## 🗳 FINAL CHECK, ROUND TWO — ANSWERED 2026-09-25 10:00 UTC. NEXT: A "FINAL FINAL" PAGE IN A NEW CHAT.
 
 His picks (`final2/answers`): celebration ring, reworked as a pop-up with Kyle in an amber ring, titled "First Dose

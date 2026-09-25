@@ -1,15 +1,14 @@
 # Next Tasks
 
-## ✅ NOW: THE FINAL FINAL PAGE (A NEW CHAT), THEN THE BUILDER PROMPT (branch `design/half-life-motion`)
+## ✅ NOW: ONE SHORT PAGE, THEN THE BUILDER PROMPT (branch `design/half-life-motion`)
 
-1. Round two of the final check was answered 2026-09-25 10:00 UTC (`final2/answers`, keys `f7_*`). He wants one
-   more page, the "FINAL FINAL", built by a NEW chat on the same URL (db `final3/*`, keys `f8_*`), kept short:
-   everything applied, "Looks right / Change" per section, a few pre-selected picks, and a style builder
-   (three styles × typefaces × palettes, keeping black, white and amber).
-2. That chat follows `~/trakabl-mockups/final-check/HANDOVER.md` (outside git). The mockup source, every
-   round's saved answers and the reference notes are also in `~/trakabl-mockups/final-check/`.
-3. After he submits it: write `Context/build-brief-final.md` and the ui-context updates, commit, and give him
-   the builder prompt (saved as `Context/PROMPT-build-final.md`) for another new chat.
+1. Round three ("FINAL FINAL", `final3/answers`) is answered; decisions are in progress-tracker, "ROUND THREE".
+2. One short page on the same URL (db `final4/*`, keys `f9_*`) shows only what he asked to see: the first-dose tick, the
+   Home half-life "?" key and expand chevron, the Stock panel arrow, the sheet header reverted, Cycles and Stacks "?"
+   pop-ups, the half-life wording, the Timeline page and schedule redesigns, stock on the Protocol page, the fanned +,
+   and a first pass at the calculator needle, nav icons and containers, all in the new look.
+3. After he submits it: write `Context/build-brief-final.md`, the ui-context updates and `Context/PROMPT-build-final.md`,
+   commit, and give him the prompt for a NEW builder chat.
 4. Nothing is built, pushed or migrated until he says so.
 
 ## 🗳 ROUND TWO — PART TWO, THEN BUILD (branch `design/half-life-motion`)
