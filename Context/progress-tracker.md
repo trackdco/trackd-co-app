@@ -1,5 +1,28 @@
 # Progress Tracker
 
+## 🗳 FINAL CHECK, ROUND FOUR — ANSWERED 2026-09-25 14:13 UTC. DESIGN CLOSED. NEXT: A NEW BUILDER CHAT RUNS `Context/PROMPT-build-final.md`
+
+Round four (`final4/answers`, keys `f9_*`) plus eight questions in chat settled the last calls. Everything is in
+`Context/build-brief-final.md`; ui-context has a matching "FINAL DESIGN DECISIONS" section at its top.
+- Stock lives ONLY on Protocol: a type rail over the compounds row, "+N vials" and Runs dry on each, Add stock
+  and Mix one in the compound's sheet (no vial previews). The Stock page and tile go; three tiles remain.
+- Schedule and Timeline both stay, one job each: Protocol's week grid (square, today lit) opens the Schedule
+  page; the Cycles card is "Timeline", cycles only, as before. No separate Timeline page.
+- First run: a bubble points at the first dose's circle. The pop-up: amber ring, a white check (no Kyle),
+  "First Dose Logged", "Now that you’ve got the basics down, have a look around."
+- Home: the Stock panel has no arrow (tap the row or tile to close); the half-life key opens as a pop-up from a
+  circled "?" in the graph's own top strip; key only, no countdown row; chevrons on the cards; gentler tick.
+- Explainers: a "?" beside the Stacks, Cycles and Half-life titles ("What is a stack?" etc.), pictures + lines.
+- Half-life page: leads with In you now and Next dose; no About row; the list's intro moved into the "?";
+  the shading looks as it did.
+- Cycles: Paused last and folded; the paused row slides in and the header flashes. Ended: Restart, and Delete
+  that says it is for good.
+- Progress: a quiet "Your first photos" card (no button); more than three photos show two and "+N".
+- The look: Instrument, IBM Plex, Deeper black, app-wide; landing only for its app previews. The calculator
+  syringe (plunger travels with the draw), the nav icons and the containers are rebuilt in it.
+- The builder runs every phase overnight, does not push, runs a sample user, and ends with a summary (with a
+  made-up motivational quote) and three cold-review prompts for new chats.
+
 ## 🗳 FINAL CHECK, ROUND THREE ("FINAL FINAL") — ANSWERED 2026-09-25 12:47 UTC. NEXT: ONE SHORT PAGE, THEN THE BUILDER PROMPT
 
 Same page (https://claude.ai/artifact/2Mnj2qS3FKxiSNsNPjxiv1), db `final3/answers` (= draft), keys `f8_*`. Local copy:

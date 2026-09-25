@@ -1,5 +1,67 @@
 # UI Context
 
+## FINAL DESIGN DECISIONS (Adrian, final check rounds one to four, 2026-09-25/26): these override anything below
+
+The build brief is `Context/build-brief-final.md` (values, copy and motion in full). Where a line further down
+this file says otherwise, this section wins. When the build lands, fold each item into its section below and
+delete it from here. Line numbers (Lnnn) are to this file as it was before this section; add 62 to find them now.
+
+- **The look** (replaces Theme, Colors and Typography values below): Instrument surfaces, IBM Plex Sans and
+  IBM Plex Mono (overrides L260-261 and every "Geist" mention: L280, L340, L346, L861), the Deeper black palette:
+  base `#050504`, surface `#191918`, raised `#222120`, input `#282725`, inset `#131211` / `#100F0E`,
+  done `#141312`, borders `#2B2A28` / `#3D3B39`, text `#F5F3F0` / muted `#8D8B89` / subtle `#4F4D4A`,
+  amber AND anabolic `#D0802B` (overrides L33). Onboarding included. Landing stays, except its app previews.
+- **Shapes** (overrides the radius table, L381-388): rounded rectangles everywhere; cards 20, rows 12,
+  buttons 10, ghost 9, chip rail 11 (thumb 8), tiles 12, insets 12, panel arrow 9, top-right "+" 10. Round
+  only: the camera shutter, avatars, the log tick, the main "+", and the half-life graph's "?".
+- **Amber ramp for sites** (refines "Injection-site recency ramp", L191): solid steps pre-mixed in OKLCH at a
+  fixed hue, never amber at an opacity (it drifts olive). Formula in the brief, §2.5.
+- **Due circles are WHITE** (overrides the amber due ring, L95 and L1060).
+- **Panels** (overrides L1071-1073, "give it room at the top" / the arrow as the only close): one header row,
+  no empty band. Site = Front/Back switch + arrow; Stock = the vial row, NO arrow, and tapping the row or the
+  tile closes it; Note = "Add a Note" + arrow, placeholder "Anything to remember?". The same tile again also
+  closes a panel. Switching cross-fades header, body AND arrow while the height eases.
+- **No "Tracked" cover** (the Mono success at L1561-1567 belonged to the retired LogDoseSheet): after Track the
+  tick fills with a gentle lift (.8 → 1.04 → 1, 360ms) and the Log card's edge takes its share.
+- **Figures roll, never count up** (overrides the count-up exception at L1587-1593): digits roll from the old
+  value, only if the card is on screen. No auto-scroll after Track.
+- **Half-life glance** (overrides L1165-1170): a closed card shows a small down chevron; tapping any card
+  centres AND opens it; it grows to full width and the graph grows out of it, lined up; no countdown row;
+  the graph's ½ line marks where "Of last dose left" crosses 50%; Now is a thin line; the key opens from a
+  circled "?" in the graph's own top strip, as a pop-up.
+- **Markers**: tick several, "Add N" adds them all, then rate; "Add more markers", "Use my last". Focus rings
+  sit inside fields.
+- **First run**: a bubble points at the first dose's circle ("Tap the circle to log it.", with a looping tap
+  preview); logging it opens a pop-up: amber ring, white check, "First Dose Logged", "Now that you’ve got the
+  basics down, have a look around.", Done.
+- **Protocol owns stock** (overrides the Stock page, the "No stock" card and the three B2 foot tiles): a type
+  rail over the compounds row; each compound shows its container, "+N vials" and Runs dry; its sheet holds Add
+  stock and Mix one (Correct and Discard behind ⋯), no vial previews. The Stock page and tile go; three tiles
+  remain: Stacks, Cycles, Half-life (Solid marks, in colour). The compound sheet: container + name, then ONE
+  long card with the half-life mark, the half-life, the dose and the route, hairline separators.
+- **Schedule**: Protocol's card is this week as a square grid, today lit; it opens the Schedule page (back
+  through weeks), restyled to match.
+- **Explainers**: a "?" beside the Stacks, Cycles and Half-life titles opens "What is a stack / cycle /
+  half-life?" with a picture and two or three lines. New stack / New cycle are a "+" at top right.
+- **Cycles** (overrides L1136, "an ENDED cycle just ends and is hidden"): the hint goes after the first tap;
+  headers show mark, type and count only; Paused sits LAST, folded, and a paused row slides down into it and
+  the header flashes; End keeps the compound running and moves the cycle to Ended; Ended offers Restart and
+  Delete ("Delete this cycle for good?" / "You can’t restart it. Your dose logs stay."). The card is "Timeline"
+  (cycles only), not "Live timeline".
+- **Half-life pages**: the list has no intro lines (the "?" holds them); a compound's card leads with In you now
+  and Next dose; the shading replaces the fill and widens away from Now; the "?" guide uses straight leaders
+  and never overlaps; no About row.
+- **Add stock** asks only what that container needs; empty fields show only their unit. **Mix** as the brief.
+- **Progress**: photos show up to three, else two and "+N"; the viewer puts date and weight at the top, dots at
+  the bottom, a 93% black backdrop, pinch that springs back, tap outside to close; Running is a folded row that
+  opens sideways; a new account shows a quiet "Your first photos" card, no button.
+- **The +** is a circle that fans out four items: Weight, Journal, Add compound, Add stock. **Nav**: the app's
+  five tabs with new monochrome Solid icons; Calculator in the middle.
+- **Syringe and containers**: redrawn in the new look; the plunger travels with the draw; the container rules
+  stay (flat plus depth, clear glass for liquids).
+- Unchanged and still binding: no suggested site, ever (L205); readable text never in subtle; state colours
+  never on health data; amber for one or two beats per screen.
+
 ## Theme
 
 Dark only. No light mode. The design language is a calm, premium-minimal
