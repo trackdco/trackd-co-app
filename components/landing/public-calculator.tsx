@@ -3,7 +3,7 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 
 import { CalculatorInputs } from "@/components/calculator/CalculatorInputs";
-import { SyringeGraphic } from "@/components/calculator/SyringeGraphic";
+import { LandingSyringeGraphic as SyringeGraphic } from "@/components/landing/LandingSyringeGraphic";
 import { Warning } from "@/components/icons";
 import { CALCULATOR_DISCLAIMER, misuseCopy } from "@/lib/calculator/copy";
 import {

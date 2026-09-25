@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  BARREL_TAIL,
   BARREL_W,
   BARREL_X,
   DEFAULT_SYRINGE_SIZE,
+  FLANGE_X,
+  LABEL_SIZE,
   MIN_READABLE_UNITS,
+  STOPPER_W,
   SYRINGE_SIZES,
+  THUMB_W,
+  THUMB_X,
+  VIEW_W,
   barrelX,
   fillFraction,
   graduations,
   isSyringeSizeId,
   misuseKind,
+  plungerOffset,
   syringeSize,
 } from "./syringe"
 
@@ -123,6 +131,46 @@ describe("barrelX", () => {
   it("maps 0 and 1 to the barrel's ends", () => {
     expect(barrelX(0)).toBe(BARREL_X)
     expect(barrelX(1)).toBe(BARREL_X + BARREL_W)
+  })
+})
+
+describe("plungerOffset — the plunger travels with the draw", () => {
+  it("moves exactly as far as the draw's edge", () => {
+    for (const f of [0, 0.2, 0.4, 5 / 6, 1]) {
+      expect(BARREL_X + plungerOffset(f)).toBeCloseTo(barrelX(f), 10)
+    }
+  })
+
+  it("clamps like the fill, so nothing can push it out of its box", () => {
+    expect(plungerOffset(-1)).toBe(0)
+    expect(plungerOffset(3)).toBe(BARREL_W)
+    expect(plungerOffset(Number.NaN)).toBe(0)
+  })
+})
+
+describe("the drawing's box", () => {
+  it("reserves the thumb rest's whole travel, so the box never changes size", () => {
+    expect(THUMB_X + plungerOffset(1) + THUMB_W).toBeLessThanOrEqual(VIEW_W)
+  })
+
+  it("keeps the stopper inside the glass at a full draw", () => {
+    expect(barrelX(1) + STOPPER_W).toBeLessThanOrEqual(BARREL_X + BARREL_W + BARREL_TAIL)
+  })
+
+  it("keeps every printed number apart, and the last clear of the flange", () => {
+    // Plex Mono and Geist Mono both advance 0.6em per digit.
+    const half = (units: number) => (String(units).length * 0.6 * LABEL_SIZE) / 2
+    for (const s of SYRINGE_SIZES) {
+      const printed = graduations(s).filter((t) => t.labelled)
+      for (let i = 1; i < printed.length; i++) {
+        const a = printed[i - 1]
+        const b = printed[i]
+        const air = barrelX(b.fraction) - barrelX(a.fraction) - half(a.units) - half(b.units)
+        expect(air).toBeGreaterThanOrEqual(1.5)
+      }
+      const last = printed[printed.length - 1]
+      expect(barrelX(last.fraction) + half(last.units)).toBeLessThanOrEqual(FLANGE_X)
+    }
   })
 })
 

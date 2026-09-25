@@ -1,15 +1,30 @@
-import { cn } from "@/lib/utils";
-import { lightenContainerColour } from "@/lib/containers/colour";
+import { containerShades } from "@/lib/containers/colour";
 import { vialLiquid } from "@/lib/containers/geometry";
+import {
+  ContainerSvg,
+  ContentsGradient,
+  DETAIL_MIN_SIZE,
+  FlipCap,
+  Graduations,
+  Highlight,
+  INK,
+  useGradientId,
+} from "./parts";
 import { DEFAULT_CONTAINER_SIZE, type ContainerProps } from "./types";
 
 const VIEW_W = 60;
 const VIEW_H = 96;
 
 /**
- * The injectable container. **The only container with a real fill** — the level
- * is remaining volume against the vial's total, and it eases down by one dose
- * worth when a dose is logged (`.container-fill` in `globals.css`).
+ * The injectable container, set B (build-brief-final §3.14): clear glass,
+ * because it holds a liquid, under a crimped FLIP-OFF cap, because a vial is
+ * sealed and drawn through its stopper. The compound's colour is the liquid
+ * (one gradient, lifted toward the surface) and the disc on the cap.
+ * Graduations, because a vial is measured in mL. An oil vial and a mixed
+ * powder vial are the same drawing; only the colour differs.
+ *
+ * The level is remaining volume against the vial's total, and it eases when a
+ * dose is logged (`.container-fill` in `globals.css`).
  *
  * Drawn, never photographed: a photo cannot be tinted per compound, cannot
  * animate a level, and does not scale.
@@ -21,25 +36,17 @@ export function Vial({
   className,
   title,
 }: ContainerProps) {
+  const gradient = useGradientId();
   const liquid = vialLiquid(fill);
-  const light = lightenContainerColour(colour);
+  const shades = containerShades(colour);
 
   return (
-    <svg
-      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      width={(size * VIEW_W) / VIEW_H}
-      height={size}
-      className={cn("shrink-0", className)}
-      role={title ? "img" : undefined}
-      aria-label={title}
-      aria-hidden={title ? undefined : true}
-    >
-      {/* Cap and collar */}
-      <rect x="19" y="2" width="22" height="13" rx="2.5" fill="var(--border-default)" />
-      <rect x="21.5" y="13" width="17" height="5" rx="1" fill="var(--border-strong)" />
+    <ContainerSvg viewWidth={VIEW_W} viewHeight={VIEW_H} size={size} className={className} title={title}>
+      <ContentsGradient id={gradient} top={shades.contentsTop} bottom={colour} />
+      <FlipCap cx={30} top={17} width={22} colour={colour} />
 
-      {/* Glass body */}
-      <rect x="14" y="17" width="32" height="72" rx="5" fill="var(--bg-surface)" />
+      {/* Clear glass */}
+      <rect x="14" y="17" width="32" height="72" rx="5" style={{ fill: INK.glass }} />
 
       {/* Liquid. Hidden at empty so a drained vial shows no meniscus band. */}
       {liquid.height > 0 && (
@@ -51,7 +58,7 @@ export function Vial({
             width="27"
             height={liquid.height}
             rx="3.5"
-            fill={colour}
+            style={{ fill: `url(#${gradient})` }}
           />
           <rect
             className="container-fill"
@@ -60,21 +67,13 @@ export function Vial({
             width="27"
             height={liquid.meniscusHeight}
             rx="3"
-            fill={light}
+            style={{ fill: shades.meniscus }}
           />
         </>
       )}
 
-      {/* Glass highlight + outline */}
-      <rect
-        x="19"
-        y="22"
-        width="3.5"
-        height="60"
-        rx="1.75"
-        fill="var(--accent-primary)"
-        opacity="0.07"
-      />
+      {size >= DETAIL_MIN_SIZE && <Graduations right={44} top={22} bottom={86} count={7} />}
+      <Highlight x={18} y={22} height={59} />
       <rect
         x="14"
         y="17"
@@ -82,9 +81,9 @@ export function Vial({
         height="72"
         rx="5"
         fill="none"
-        stroke="var(--border-strong)"
+        style={{ stroke: INK.edge }}
         strokeWidth="1"
       />
-    </svg>
+    </ContainerSvg>
   );
 }

@@ -1,151 +1,107 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react"
 import { useRouter } from "next/navigation"
-import { Plus } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { getDoseLogsSnapshot, subscribeDoseLogs } from "@/lib/home/doseLog"
 import { hasAnyLog } from "@/lib/home/firstRun"
 import { PRESS } from "@/lib/ui-presets"
+import { FAN_RADIUS, fanHit, fanOffset } from "@/lib/shortcuts/fan"
+import { SolidIcon } from "@/components/feel/SolidIcon"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
+import { AddStockSheet } from "@/components/protocol/AddStockSheet"
 import { LogWeightPad } from "@/components/weight/LogWeightPad"
-import { QuickTrackSheet } from "@/components/home/QuickTrackSheet"
-import {
-  QUICK_ACTIONS,
-  type ShortcutItem,
-} from "@/components/shortcuts/shortcutItems"
+import { PLUS_ITEMS, type ShortcutItem } from "@/components/shortcuts/shortcutItems"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { requestProgressAction } from "@/lib/progress/progressAction"
 import type { WeightUnit } from "@/lib/weight"
 import type { BodySex } from "@/lib/db/types"
 
 interface QuickActionsFabProps {
-  /** Forwarded to the Add-to-Stack flow (scopes the user's custom compounds). */
+  /** Forwarded to the Add-to-Stack and Add stock flows. */
   userId: string
-  /** The user's weight unit — the Weight action's quick-log popup uses it. */
+  /** The user's weight unit — the Weight item's pad uses it. */
   unit: WeightUnit
-  /** Forwarded to the quick log-dose flow's body map (which figure to draw). */
-  bodySex: BodySex
-  /** The latest weigh-in (kg), which Log weight opens on, selected. */
+  /** Kept for the shell's call; the fan has no dose flow of its own. */
+  bodySex?: BodySex
+  /** The latest weigh-in (kg), which the Weight pad opens on. */
   lastWeightKg?: number | null
 }
 
-/** Keep in step with `--motion-fast` — the JS unmount must outlast the CSS exit. */
-const EXIT_MS = 180
-
-/* The one place the menu's geometry is expressed, so the card's height can be
-   derived from the FAB's offset instead of re-deriving the same calc twice and
-   drifting. */
+/** The fan folds back in this long; the items stay mounted until it has. */
+const EXIT_MS = 220
+/** A flow opens once the fan has mostly gone, so the two never overlap. */
+const PICK_DELAY_MS = 200
+/** A press that travels further than this is a slide, not a tap. */
+const SLIDE_PX = 10
 
 /** D3: nav height + the iOS home indicator + a spacing step. */
 const FAB_BOTTOM = "calc(4rem + env(safe-area-inset-bottom) + 1rem)"
-/** The card clears the FAB (h-14) and a gap on top of the FAB's own offset. */
-const CARD_BOTTOM = `calc(${FAB_BOTTOM} + 3.5rem + 0.75rem)`
-/**
- * ...and never grows past the top of the viewport. Without this the card is
- * unbounded, and since opening it locks body scroll, anything pushed off the top
- * in landscape (or on a short viewport) is unreachable — the actions would be
- * there but impossible to tap. `1rem` leaves it off the very top edge.
- */
-const CARD_MAX_H = `calc(100dvh - ${CARD_BOTTOM} - 1rem)`
+const FAB = 56
+const ITEM = 48
 
 const prefersReducedMotion = () =>
-  typeof window !== "undefined" &&
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
 /**
- * The quick-actions FAB and its pop-up menu (Spec 20). Pinned bottom-right above
- * the bottom nav and fixed while the page scrolls, it holds every action the old
- * bottom-nav plus opened — minus the calculator, which now has the centre nav
- * slot to itself (D6).
+ * THE + (build-brief-final §3.6): a circle at bottom right. Press, slide onto an
+ * item, lift to open it; or tap the + and tap an item. Four rounded squares fan
+ * out on a 132px arc (30ms apart, on the spring cubic-bezier(.34,1.4,.64,1)):
+ * Weight, Journal, Add compound, Add stock. The item under the finger lights
+ * white and gives a small wiggle; the others dim. The + turns into an ×, and a
+ * scrim dims the page. It hides under sheets and while a dose row is open;
+ * toasts sit above it.
  *
- * Tapping it rotates the plus into an X, dims the page behind a scrim (the nav
- * included), and rises a card of icon-over-label tiles above the button. Tapping
- * the X or the scrim retraces that in reverse. Hand-rolled rather than wrapped in
- * a Radix dialog (D8: plain `useState`) precisely because the FAB must stay live
- * while the menu is open — it is the close button — and a modal dialog makes
- * everything outside its own content inert.
- *
- * Because it IS modal in every other respect (scrim, locked scroll, trapped
- * focus), the modality is honoured by hand rather than merely asserted: one fixed
- * layer holds both the card and the FAB and carries the dialog role, so the
- * `aria-modal` boundary contains its own close control; Tab cycles within that
- * layer; Escape closes; focus enters on open and returns to the FAB on dismissal.
- *
- * Rendered once by the (app) shell, so it appears on exactly the screens that
- * show the bottom nav.
+ * Modal while open (scrim, locked scroll, Escape, Tab kept inside), with one
+ * layer holding both the items and the +, so the control that closes the fan is
+ * inside the dialog it closes. Rendered once by the (app) shell.
  */
-export function QuickActionsFab({
-  userId,
-  unit,
-  bodySex,
-  lastWeightKg = null,
-}: QuickActionsFabProps) {
+export function QuickActionsFab({ userId, unit, lastWeightKg = null }: QuickActionsFabProps) {
   const router = useRouter()
   const { canWrite, guard } = useWriteAccess()
   const fabRef = useRef<HTMLButtonElement>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
-  const firstActionRef = useRef<HTMLButtonElement>(null)
+  const layerRef = useRef<HTMLDivElement>(null)
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const press = useRef<{ x: number; y: number; moved: boolean; was: boolean } | null>(null)
 
   const [open, setOpen] = useState(false)
-  // Keeps the card mounted while the exit animation plays; `open` alone would
-  // rip it off screen instantly.
   const [closing, setClosing] = useState(false)
+  const [hot, setHot] = useState<number | null>(null)
 
-  // Which child flow is open (only one at a time).
-  const [quickTrackOpen, setQuickTrackOpen] = useState(false)
   const loggedEver = useSyncExternalStore(
     subscribeDoseLogs,
     () => hasAnyLog(getDoseLogsSnapshot(userId)),
     () => true,
   )
   const [addOpen, setAddOpen] = useState(false)
+  const [stockOpen, setStockOpen] = useState(false)
   const [weightOpen, setWeightOpen] = useState(false)
 
-  /**
-   * `restoreFocus` is the difference between a dismissal and an action: a
-   * dismissal owes the user their focus back on the FAB (D7), while an action is
-   * about to hand focus to the flow it opens — pulling it back to the FAB first
-   * would only fight that.
-   */
-  const close = useCallback(
-    (restoreFocus = true) => {
-      setOpen(false)
-      if (restoreFocus) fabRef.current?.focus()
-      if (prefersReducedMotion()) return
-      setClosing(true)
+  const close = useCallback((restoreFocus = true) => {
+    setOpen(false)
+    setHot(null)
+    if (restoreFocus) fabRef.current?.focus()
+    if (prefersReducedMotion()) return
+    setClosing(true)
+    if (exitTimer.current) clearTimeout(exitTimer.current)
+    exitTimer.current = setTimeout(() => setClosing(false), EXIT_MS)
+  }, [])
+
+  useEffect(
+    () => () => {
       if (exitTimer.current) clearTimeout(exitTimer.current)
-      exitTimer.current = setTimeout(() => setClosing(false), EXIT_MS)
     },
     [],
   )
 
-  useEffect(() => () => {
-    if (exitTimer.current) clearTimeout(exitTimer.current)
-  }, [])
-
-  // Escape closes (hardware keyboards), Tab cycles inside the menu, and the body
-  // stays put while open — a scrolling page under a fixed menu reads as broken.
-  // All three unwind on close.
+  // Escape closes, Tab stays inside the fan, and the page holds still.
   useEffect(() => {
     if (!open) return
-
-    /**
-     * The trap's cycle is [the card's buttons…, the FAB] — DOM order, which is
-     * also reading order. Including the FAB is the whole point: it is the X that
-     * closes the menu, so a trap that stopped at the card's edge would strand the
-     * close control outside the very boundary `aria-modal` draws.
-     */
-    const focusables = (): HTMLElement[] => [
-      ...Array.from(
-        cardRef.current?.querySelectorAll<HTMLElement>("button:not([disabled])") ??
-          [],
-      ),
+    const focusables = () => [
+      ...Array.from(layerRef.current?.querySelectorAll<HTMLElement>("[data-fan-item]") ?? []),
       ...(fabRef.current ? [fabRef.current] : []),
     ]
-
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         close()
@@ -154,22 +110,18 @@ export function QuickActionsFab({
       if (e.key !== "Tab") return
       const nodes = focusables()
       if (nodes.length === 0) return
-      const first = nodes[0]
-      const last = nodes[nodes.length - 1]
       const i = nodes.indexOf(document.activeElement as HTMLElement)
-      // Focus escaped the set (or never entered it) — pull it back in.
       if (i === -1) {
         e.preventDefault()
-        first.focus()
+        nodes[0].focus()
       } else if (e.shiftKey && i === 0) {
         e.preventDefault()
-        last.focus()
+        nodes[nodes.length - 1].focus()
       } else if (!e.shiftKey && i === nodes.length - 1) {
         e.preventDefault()
-        first.focus()
+        nodes[0].focus()
       }
     }
-
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
     window.addEventListener("keydown", onKeyDown)
@@ -179,81 +131,56 @@ export function QuickActionsFab({
     }
   }, [open, close])
 
-  // Focus moves into the menu on open (D7).
-  useEffect(() => {
-    if (open) firstActionRef.current?.focus()
-  }, [open])
-
   /**
-   * ⚠️ THE READ-ONLY GATE'S BIGGEST SINGLE CHOKEPOINT.
-   *
-   * Five of the six tiles here start a WRITE — a dose, a compound, a weigh-in, a
-   * journal entry, a bloodwork photo — so guarding this one switch covers five
-   * entry points at once and stops them BEFORE a sheet opens rather than after
-   * the user has filled one in. Being told at the save button that the last two
-   * minutes were wasted is worse than being told at the door.
-   *
-   * `route` is deliberately NOT guarded. It is navigation to the Calendar, and
-   * a read-only account may go anywhere it likes.
-   *
-   * `bloodwork` is a judgement call and is guarded: the tile opens the gallery,
-   * which can be READ, but its purpose from this menu is adding a photo. The
-   * gallery is still reachable from Progress itself, unguarded, so nothing is
-   * hidden by this — see the file-level note in `ReadOnlyGate.tsx`.
+   * ⚠️ THE READ-ONLY GATE'S CHOKEPOINT for the fan: every item starts a WRITE
+   * (a weigh-in, a journal entry, a compound, stock), so the guard stops each
+   * one BEFORE its sheet opens. Focus goes to the + first, so a refusal's
+   * pop-up has a live control to hand focus back to.
    */
-  function handlePress(item: ShortcutItem) {
+  function pick(item: ShortcutItem) {
     close(false)
-    if (item.action === "route") {
-      if (item.href) router.push(item.href)
-      return
-    }
-
-    /**
-     * ⚠️ THE TILE THAT FIRED THIS IS ALREADY GONE, so focus is moved BEFORE the
-     * guard rather than after it.
-     *
-     * `close(false)` above unmounts the menu, deliberately — an action is about
-     * to hand focus to the flow it opens, and pulling focus back to the FAB
-     * first would only fight that.
-     *
-     * When the guard REFUSES, no flow opens. The pop-up captures whatever has
-     * focus so it can give it back on close, and what it captured was a tile
-     * that had just been unmounted — so on close it correctly declined to focus
-     * a detached node and a cold review measured the result: `activeElement` is
-     * `<body>`, a keyboard user dumped at the top of the document.
-     *
-     * Focusing the FAB first means the capture lands on a control that is still
-     * there. Ordered on `canWrite` rather than on the guard's return value,
-     * because the capture happens INSIDE `guard` and anything afterwards is too
-     * late. Nothing changes at all for a user who can write.
-     */
     if (!canWrite) fabRef.current?.focus()
+    const run = () =>
+      guard(() => {
+        switch (item.id) {
+          case "weight":
+            setWeightOpen(true)
+            break
+          case "journal":
+            requestProgressAction("journal-compose")
+            router.push("/progress")
+            break
+          case "add-compound":
+            setAddOpen(true)
+            break
+          case "add-stock":
+            setStockOpen(true)
+            break
+        }
+      })
+    if (prefersReducedMotion()) run()
+    else window.setTimeout(run, PICK_DELAY_MS)
+  }
 
-    guard(() => {
-      switch (item.action) {
-        case "quick-track":
-          // The quick "What would you like to track?" popup — log today's doses
-          // in place instead of routing to the dashboard.
-          setQuickTrackOpen(true)
-          break
-        case "add-stack":
-          setAddOpen(true)
-          break
-        case "weight":
-          setWeightOpen(true)
-          break
-        case "journal":
-          // Open the real journal compose on the Progress screen (Write / Markers).
-          requestProgressAction("journal-compose")
-          router.push("/progress")
-          break
-        case "bloodwork":
-          // Open the real bloodwork gallery on the Progress screen (view + add).
-          requestProgressAction("bloodwork-gallery")
-          router.push("/progress")
-          break
-      }
-    })
+  /** Light the item under the finger: white, a small wiggle; the rest dim. */
+  const light = (i: number | null) => {
+    if (i === hot) return
+    setHot(i)
+    if (i == null || prefersReducedMotion()) return
+    const svg = layerRef.current?.querySelector<SVGElement>(`[data-fan-item="${i}"] svg`)
+    svg?.animate(
+      [{ transform: "scale(1)" }, { transform: "scale(1.25) rotate(-8deg)" }, { transform: "scale(1)" }],
+      { duration: 380, easing: "cubic-bezier(.34,1.5,.64,1)" },
+    )
+  }
+
+  /** The item a finger at (x, y) is on: the one under it, else by angle. */
+  const hitAt = (x: number, y: number): number | null => {
+    const under = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-fan-item]")
+    if (under && layerRef.current?.contains(under)) return Number(under.dataset.fanItem)
+    const f = fabRef.current?.getBoundingClientRect()
+    if (!f) return null
+    return fanHit(x - (f.left + f.width / 2), y - (f.top + f.height / 2))
   }
 
   const mounted = open || closing
@@ -264,7 +191,6 @@ export function QuickActionsFab({
 
   return (
     <>
-      {/* Scrim — dims the whole viewport, the bottom nav included (D1). */}
       {mounted ? (
         <div
           aria-hidden
@@ -277,126 +203,135 @@ export function QuickActionsFab({
         />
       ) : null}
 
-      {/* One fixed layer owns BOTH the card and the FAB, and carries the dialog
-          semantics while open. That pairing is deliberate: `aria-modal` tells a
-          screen reader to ignore everything outside the dialog, so with the FAB
-          outside it, the control that closes the menu would be hidden from the
-          very users the attribute exists to serve. The layer itself is
-          click-through (`pointer-events-none`) so the scrim underneath still
-          takes a tap to dismiss. */}
-      {/* `shortcuts-layer` is the hook an IN-PLACE EDIT uses to stand this layer
-          down — see `.edit-action-bar` in `globals.css`. It is a class and not a
-          prop because this component and the editing card are siblings under the
-          (app) layout with no state between them, and a control that floats over
-          a committed edit is a control that discards it. Styling is unchanged. */}
+      {/* `shortcuts-layer` is how a sheet, an open dose row or an in-place edit
+          stands the + down (globals.css). Click-through, so the scrim beneath
+          still takes a tap. */}
       <div
-        // Desktop hides this; the rail carries the same actions in the open.
+        ref={layerRef}
         data-quick-actions
         className="shortcuts-layer pointer-events-none fixed inset-0 z-[46]"
-        {...(open
-          ? { role: "dialog", "aria-modal": true, "aria-label": "Quick actions" }
-          : {})}
+        {...(open ? { role: "dialog", "aria-modal": true, "aria-label": "Quick actions" } : {})}
       >
-        {/* The action card — anchored above the FAB, inset from both edges. */}
-        {mounted ? (
-          <div
-            ref={cardRef}
-            className={cn(
-              "pointer-events-auto absolute inset-x-5 mx-auto max-w-md overflow-y-auto rounded-3xl border border-border-default bg-bg-surface p-5 shadow-lg",
-              open ? "animate-quick-menu-in" : "animate-quick-menu-out",
-              !open && "pointer-events-none",
-            )}
-            style={{ bottom: CARD_BOTTOM, maxHeight: CARD_MAX_H }}
-          >
-            <div className="grid grid-cols-3 gap-3">
-              {QUICK_ACTIONS.map((item, i) => (
-                <ActionTile
+        {mounted
+          ? PLUS_ITEMS.map((item, i) => {
+              const { x, y } = fanOffset(i)
+              const cx = x / FAN_RADIUS
+              const cy = y / FAN_RADIUS
+              // The one straight up has its label above; the rest to the left.
+              const up = Math.abs(cx) <= 0.3
+              const on = hot === i
+              return (
+                <button
                   key={item.id}
-                  ref={i === 0 ? firstActionRef : undefined}
-                  item={item}
-                  onPress={() => handlePress(item)}
-                />
-              ))}
-            </div>
-          </div>
-        ) : null}
+                  type="button"
+                  data-fan-item={i}
+                  tabIndex={open ? 0 : -1}
+                  onClick={() => open && pick(item)}
+                  aria-label={item.label}
+                  className="fan-item pointer-events-auto absolute"
+                  data-open={open ? "true" : "false"}
+                  data-hot={on ? "true" : hot != null ? "dim" : "false"}
+                  style={
+                    {
+                      right: 20 + FAB / 2 - ITEM / 2,
+                      bottom: `calc(${FAB_BOTTOM} + ${FAB / 2 - ITEM / 2}px)`,
+                      width: ITEM,
+                      height: ITEM,
+                      "--x": `${x}px`,
+                      "--y": `${y}px`,
+                      "--i": i,
+                      "--i-rev": PLUS_ITEMS.length - 1 - i,
+                    } as CSSProperties
+                  }
+                >
+                  <span className="fan-square flex h-full w-full items-center justify-center">
+                    <SolidIcon name={item.glyph} size={20} {...(on ? { hue: "var(--bg-base)" } : {})} />
+                  </span>
+                  <span
+                    aria-hidden
+                    className="fan-label absolute text-[12px] whitespace-nowrap text-foreground"
+                    style={{
+                      left: up ? ITEM : ITEM / 2 + cx * 36,
+                      top: ITEM / 2 + cy * 33,
+                      transform: "translate(-100%, -50%)",
+                    }}
+                  >
+                    {item.label}
+                  </span>
+                </button>
+              )
+            })
+          : null}
 
-        {/* The FAB — stays above the scrim, and is the X that closes the menu. */}
+        {/* The +: a circle, and the × that closes the fan. */}
         <button
           ref={fabRef}
           type="button"
-          onClick={() => (open ? close() : setOpen(true))}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.preventDefault()
+            e.currentTarget.setPointerCapture(e.pointerId)
+            press.current = { x: e.clientX, y: e.clientY, moved: false, was: open }
+            if (!open) setOpen(true)
+          }}
+          onPointerMove={(e) => {
+            const p = press.current
+            if (!p) return
+            if (!p.moved && Math.hypot(e.clientX - p.x, e.clientY - p.y) > SLIDE_PX) p.moved = true
+            if (p.moved) light(hitAt(e.clientX, e.clientY))
+          }}
+          onPointerUp={(e) => {
+            const p = press.current
+            press.current = null
+            if (!p) return
+            if (p.moved) {
+              const i = hitAt(e.clientX, e.clientY)
+              if (i != null) pick(PLUS_ITEMS[i])
+              else close()
+              return
+            }
+            if (p.was) close()
+          }}
+          onPointerCancel={() => {
+            press.current = null
+            light(null)
+          }}
+          // A keyboard press has no pointer: Enter and Space toggle here.
+          onClick={(e) => {
+            if (e.detail !== 0) return
+            if (open) {
+              close()
+              return
+            }
+            setOpen(true)
+            requestAnimationFrame(() => layerRef.current?.querySelector<HTMLElement>("[data-fan-item]")?.focus())
+          }}
           aria-expanded={open}
           aria-haspopup="dialog"
           aria-label={open ? "Close quick actions" : "Open quick actions"}
           className={cn(
             PRESS.fab,
-            "pointer-events-auto absolute right-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg",
+            "pointer-events-auto absolute right-5 flex h-14 w-14 touch-none items-center justify-center rounded-full bg-accent-primary text-bg-base shadow-lg",
           )}
           style={{ bottom: FAB_BOTTOM }}
         >
-          <Plus
-            className={cn(
-              "h-6 w-6 transition-transform duration-[var(--motion-fast)] ease-motion",
-              open && "rotate-45",
-            )}
-            aria-hidden
-          />
+          <span aria-hidden className="fan-cross relative block h-4 w-4" data-open={open ? "true" : "false"}>
+            <i />
+            <i />
+          </span>
         </button>
       </div>
 
-      {/* "Log a dose" → the quick-track popup (tick today's doses → confirm). */}
-      <QuickTrackSheet
-        open={quickTrackOpen}
-        onOpenChange={setQuickTrackOpen}
-        userId={userId}
-        bodySex={bodySex}
-      />
-
-      {/* "Add a compound" → the existing, unchanged Add-to-Stack flow. */}
       <AddToStackMenu open={addOpen} onOpenChange={setAddOpen} userId={userId} />
-
-      {/* "Weight" → the number pad, on the last weight (feel pass §3). */}
+      {/* Add stock with no compound picked: the sheet asks which. */}
+      <AddStockSheet open={stockOpen} onOpenChange={setStockOpen} userId={userId} onAdded={() => {}} />
       <LogWeightPad
         open={weightOpen}
         onOpenChange={setWeightOpen}
         unit={unit}
         lastKg={lastWeightKg}
-        // The tile that opened it is gone with the menu; the + is what is left.
         returnFocusRef={fabRef}
       />
-
     </>
-  )
-}
-
-/** One tile: a circular icon badge with its label centred beneath (D1, D2). */
-function ActionTile({
-  ref,
-  item,
-  onPress,
-}: {
-  ref?: React.Ref<HTMLButtonElement>
-  item: ShortcutItem
-  onPress: () => void
-}) {
-  const Icon = item.icon
-  return (
-    <button
-      ref={ref}
-      type="button"
-      onClick={onPress}
-      className={cn(
-        PRESS.card,
-        "flex min-h-11 flex-col items-center justify-start gap-2 rounded-2xl p-1 text-center transition-colors duration-[var(--motion-base)] ease-motion hover:bg-bg-input",
-      )}
-    >
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-bg-input text-foreground">
-        <Icon className="h-5 w-5" aria-hidden />
-      </span>
-      <span className="text-xs leading-tight font-medium text-foreground">
-        {item.shortLabel ?? item.title}
-      </span>
-    </button>
   )
 }

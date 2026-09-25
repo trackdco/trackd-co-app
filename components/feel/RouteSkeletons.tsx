@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useSyncExternalStore, type ReactNode } from "react"
+import { VIEW_H, VIEW_W } from "@/lib/calculator/syringe"
 
 import { ArrowLeft, CalendarDots, CaretDown, User } from "@/components/icons"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
@@ -244,8 +245,9 @@ export function CalculatorBlocks() {
     <>
       <div className="space-y-3 pb-3">
         <Sk w="44px" h={9} className="mx-1" />
-        <Sk w="96px" h={30} />
-        <Sk h={58} className="rounded-xl" />
+        <Sk w="96px" h={34} />
+        {/* The syringe's own box: edge to edge, at the drawing's aspect. */}
+        <Sk className="-mx-4 rounded-xl" w="calc(100% + 2rem)" style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }} />
       </div>
       <section className="flow-card grid grid-cols-3 divide-x divide-border-default rounded-2xl bg-bg-surface py-3">
         {[0, 1, 2].map((i) => (

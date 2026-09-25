@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   BOTTLE_FILL_BOTTOM,
+  BOTTLE_TABLETS,
   BOTTLE_FILL_TOP,
   ILLUSTRATIVE_FILL,
   TUB_FILL_BOTTOM,
@@ -12,6 +13,7 @@ import {
   VIAL_MENISCUS_HEIGHT,
   bottleFillSurface,
   clampFill,
+  tubGrain,
   tubPowder,
   vialLiquid,
 } from "./geometry"
@@ -206,17 +208,20 @@ describe("containersHaveOneSource — the structural guard", () => {
 })
 
 describe("tubPowder — the surface falls, the floor stays put", () => {
+  /** Every y a path visits, control points included. */
+  const ys = (path: string) =>
+    [...path.matchAll(/[MLQ]([\d. -]+)/g)].flatMap((m) =>
+      m[1]
+        .trim()
+        .split(/\s+/)
+        .map(Number)
+        .filter((_, i) => i % 2 === 1),
+    )
+
   it("is empty at 0% and full at 100%", () => {
     expect(tubPowder(0).height).toBe(0)
     expect(tubPowder(0).y).toBe(TUB_FILL_BOTTOM)
     expect(tubPowder(1).y).toBe(TUB_FILL_TOP)
-  })
-
-  it("reproduces the OLD fixed artwork at the illustrative fill", () => {
-    // The whole reason TUB_FILL_TOP is 34: a container with no stock recorded
-    // must look exactly as it did before this became a measurement. The old
-    // hardcoded path put the surface at y=56.
-    expect(Math.round(tubPowder(ILLUSTRATIVE_FILL).y)).toBe(56)
   })
 
   it("clamps a nonsense fill instead of drawing outside the tub", () => {
@@ -225,20 +230,35 @@ describe("tubPowder — the surface falls, the floor stays put", () => {
     expect(tubPowder(Number.NaN).height).toBe(0)
   })
 
-  it("never lets the corner radius exceed the height it is rounding", () => {
-    // A radius taller than the shape makes the arc double back and the path
-    // renders as a bow-tie. Checked across the range where it can bite.
-    for (const f of [0.001, 0.01, 0.02, 0.05, 0.1]) {
-      const { path, height } = tubPowder(f)
-      const radii = [...path.matchAll(/a([\d.]+) /g)].map((m) => Number(m[1]))
-      for (const r of radii) expect(r).toBeLessThanOrEqual(height / 2 + 1e-9)
+  it("never draws the powder or its lit band below the floor, however thin", () => {
+    // The scooped surface dips below its level; a thin layer must flatten
+    // rather than push that dip through the bottom of the tub.
+    for (const f of [0.001, 0.01, 0.02, 0.05, 0.1, ILLUSTRATIVE_FILL, 1]) {
+      const { path, surfacePath } = tubPowder(f)
+      for (const y of [...ys(path), ...ys(surfacePath)]) {
+        expect(y).toBeLessThanOrEqual(TUB_FILL_BOTTOM + 1e-9)
+      }
       expect(path).not.toContain("NaN")
+      expect(surfacePath).not.toContain("NaN")
     }
   })
+})
 
-  it("tapers the surface as the last of the powder goes", () => {
-    expect(tubPowder(0.02).surfaceRx).toBeLessThan(tubPowder(1).surfaceRx)
-    expect(tubPowder(0.5).surfaceRx).toBe(tubPowder(1).surfaceRx)
+describe("tubGrain — seeded, so the server and the client agree", () => {
+  it("is the same grain every time for the same fill", () => {
+    expect(tubGrain(0.6)).toEqual(tubGrain(0.6))
+    expect(tubGrain(0.6).light.length).toBeGreaterThan(0)
+    expect(tubGrain(0.6).shade.length).toBeGreaterThan(0)
+  })
+
+  it("draws nothing in an empty tub and nothing below the floor of a thin one", () => {
+    expect(tubGrain(0)).toEqual({ light: "", shade: "" })
+    for (const f of [0.01, 0.05, 0.1]) {
+      const { light, shade } = tubGrain(f)
+      for (const m of `${light}${shade}`.matchAll(/M([\d.]+) ([\d.]+)a([\d.]+)/g)) {
+        expect(Number(m[2]) + Number(m[3])).toBeLessThanOrEqual(TUB_FILL_BOTTOM + 1e-9)
+      }
+    }
   })
 })
 
@@ -248,27 +268,24 @@ describe("bottleFillSurface — tablets leave from the top down", () => {
     expect(bottleFillSurface(1)).toBe(BOTTLE_FILL_TOP)
   })
 
-  it("keeps all six original tablets in the bottle at the illustrative fill", () => {
-    // Same contract as the tub: a bottle with no stock recorded is drawn
-    // exactly as it was before. The six sit at y = 58…83.5.
+  it("holds the six lowest tablets at the illustrative fill, and not the top two", () => {
+    // A bottle with no stock recorded shows six; only a genuinely near-full
+    // bottle reaches the last two.
     const surface = bottleFillSurface(ILLUSTRATIVE_FILL)
-    for (const restsAt of [58, 62, 68, 73.5, 79.5, 83.5]) {
-      expect(restsAt).toBeGreaterThanOrEqual(surface)
-    }
-    // …and the two added above them stay out of it, so the default is unchanged.
-    for (const restsAt of [38, 45]) {
-      expect(restsAt).toBeLessThan(surface)
-    }
+    const inBottle = BOTTLE_TABLETS.filter((t) => t.y >= surface)
+    expect(inBottle).toEqual(BOTTLE_TABLETS.slice(0, 6))
+    expect(BOTTLE_TABLETS.filter((t) => t.y >= bottleFillSurface(1))).toHaveLength(8)
   })
 
   it("empties monotonically — no tablet reappears as stock falls", () => {
     const visible = (f: number) =>
-      [38, 45, 58, 62, 68, 73.5, 79.5, 83.5].filter((y) => y >= bottleFillSurface(f)).length
+      BOTTLE_TABLETS.filter((t) => t.y >= bottleFillSurface(f)).length
     let prior = visible(1)
     for (const f of [0.9, 0.75, 0.6, 0.4, 0.25, 0.1, 0]) {
       const now = visible(f)
       expect(now).toBeLessThanOrEqual(prior)
       prior = now
     }
+    expect(visible(0)).toBe(0)
   })
 })

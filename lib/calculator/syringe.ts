@@ -128,47 +128,80 @@ export function misuseKind(
 }
 
 /* ---------------------------------------------------------------------------
-   The artwork's coordinate space. One `0 0 320 64` viewBox, scaled to whatever
-   width the card gives it, so the syringe keeps its proportions on every phone.
+   The artwork's coordinate space. One viewBox, scaled to whatever width the
+   card gives it, so the syringe keeps its proportions on every phone.
+
+   The plunger is one rigid part that travels WITH the draw (build-brief-final
+   §3.13), so the box reserves its whole travel: to the right of the thumb
+   rest's resting place sits one more barrel length of empty ground, and the
+   graphic is the same size at every draw. That reserve is why the barrel is a
+   smaller share of the box than it was when the plunger stood still.
    --------------------------------------------------------------------------- */
 
-export const VIEW_W = 320
-export const VIEW_H = 66
+/** Barrel — the only part whose length carries meaning. `BARREL_X` is the 0
+ *  mark, where the stopper bottoms out; `BARREL_W` runs 0 to the capacity. */
+export const BARREL_X = 46
+export const BARREL_W = 200
+/** Unmarked glass past the capacity mark, before the flange, as on a real
+ *  barrel. It is also what keeps the last printed number clear of the flange. */
+export const BARREL_TAIL = 12
+export const BARREL_Y = 10
+export const BARREL_H = 30
+export const BARREL_R = 5
 
-/** Barrel — the only part whose length carries meaning. */
-export const BARREL_X = 62
-export const BARREL_W = 204
-export const BARREL_Y = 16
-export const BARREL_H = 28
-export const BARREL_R = 3
-
-/** Needle centreline, shared by the hub. */
+/** Needle centreline, shared by the hub, the rod and the thumb rest. */
 export const AXIS_Y = BARREL_Y + BARREL_H / 2
 
-/** Tick lengths, measured down from the barrel's top edge. */
+/** The finger flange, where the glass ends. */
+export const FLANGE_X = BARREL_X + BARREL_W + BARREL_TAIL
+export const FLANGE_W = 5
+
+/** The stopper's length. Its FRONT face is the draw's edge, the line you read. */
+export const STOPPER_W = 8
+
+/** The thumb rest at rest (an empty barrel): a short stub of rod past the
+ *  flange, then the rest itself. It moves right by `plungerOffset(fill)`. */
+export const THUMB_X = FLANGE_X + FLANGE_W + 5
+export const THUMB_W = 7
+
+/** Wide enough for the thumb rest at a FULL draw, one barrel length out. */
+export const VIEW_W = THUMB_X + BARREL_W + THUMB_W + 1
+export const VIEW_H = 56
+
+/** Tick lengths, measured down from the barrel's top edge. The major tick
+ *  stops short of the rod, which runs along the axis behind the glass. */
 export const TICK_MINOR = 6
 export const TICK_MAJOR = 11
-/** A short anchor tick under the barrel, tying a printed number to its mark. */
-export const TICK_ANCHOR = 4
 
 /**
  * Baseline and size for the printed numbers, below the barrel.
  *
  * The size is set by the tightest case, then pushed as large as that case
  * allows, because a scale you cannot read defeats the graphic. On the 1 mL
- * barrel 11 numbers sit at a 20.4-unit pitch and the widest ("100") is 3 ×
- * 0.6em; at 10 that is 18 units against a 20.4 pitch, and its neighbour ("90",
- * 12 units) leaves 5.4 units of air between the two. The SVG is drawn slightly
- * wider than its card (see `ReconCalculator`), so 10 here lands at roughly 8px
- * on a 320px phone and 10px on a 375px one.
+ * barrel 11 numbers sit at a 20-unit pitch and the widest ("100") is 3 × 0.6em;
+ * at 11 its neighbour ("90") leaves 3.5 units of advance between the two (more
+ * of ink). The SVG is drawn slightly wider than its card (see
+ * `ReconCalculator`), so 11 here lands at about 8px on a 375px phone: the
+ * plunger's reserved travel is what costs the size.
  *
- * `LABEL_Y` clears the flange, which reaches y=53: the digits' cap height puts
- * their top at about y=53 for a baseline of 60.
+ * The last number overhangs the capacity mark by half its width, which
+ * `BARREL_TAIL` absorbs, so it never runs into the flange.
  */
-export const LABEL_Y = BARREL_Y + BARREL_H + 16
-export const LABEL_SIZE = 10
+export const LABEL_Y = BARREL_Y + BARREL_H + 14
+export const LABEL_SIZE = 11
 
 /** Left-to-right position of a 0…1 fraction along the barrel. */
 export function barrelX(fraction: number): number {
   return BARREL_X + BARREL_W * fraction
+}
+
+/**
+ * How far the stopper, rod and thumb rest sit from their empty position, for
+ * a 0…1 fill. The plunger is rigid, so it travels exactly as far as the draw's
+ * edge: `barrelX(fill) === BARREL_X + plungerOffset(fill)`. Clamped like the
+ * fill, so no value can push the thumb rest out of the box reserved for it.
+ */
+export function plungerOffset(fill: number): number {
+  if (!Number.isFinite(fill)) return 0
+  return BARREL_W * Math.min(1, Math.max(0, fill))
 }

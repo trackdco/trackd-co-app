@@ -313,7 +313,10 @@ export function ReconCalculator() {
             </span>
           ) : null}
         </div>
-        <div className="-mx-2">
+        {/* Nearly edge to edge: the plunger travels with the draw, so the
+            drawing keeps a barrel length of room beside the barrel, and every
+            pixel of width goes to the scale (build-brief-final §3.13). */}
+        <div className="-mx-4">
           <SyringeGraphic
             size={size}
             fill={fill}

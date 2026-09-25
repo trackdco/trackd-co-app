@@ -45,11 +45,37 @@ export function containerColour({
   return CATEGORY_COLOUR[category as CompoundCategory] ?? NEUTRAL_CONTAINER_COLOUR
 }
 
+/** Every shade set B derives from a container's one colour. */
+export interface ContainerShades {
+  /** Top stop of the contents gradient; the bottom stop is the colour itself. */
+  contentsTop: string
+  /** The lit band on a liquid's surface. */
+  meniscus: string
+  /** A SOLID's body: the glass tinted with the colour (clear glass holds liquids). */
+  tintedGlass: string
+  /** The outline of a tinted body. */
+  tintedEdge: string
+  /** A screw cap's body. Its top band is the colour itself. */
+  capBody: string
+  /** A screw cap's outline. */
+  capEdge: string
+}
+
 /**
- * The meniscus / highlight shade — the resolved colour lifted toward white.
- * Computed rather than stored, so it tracks whatever colour it is given
- * (including a future stack colour) without a second table of hues.
+ * The container colour mixed into white or into the container greys, in set
+ * B's proportions (build-brief-final §3.14). Computed from whatever colour it is
+ * given, so a stack colour shades exactly as a category colour does, and the
+ * greys are `--container-*` tokens, so a palette retune carries them.
  */
-export function lightenContainerColour(colour: string): string {
-  return `color-mix(in srgb, ${colour} 72%, white)`
+export function containerShades(colour: string): ContainerShades {
+  const mix = (percent: number, other: string) =>
+    `color-mix(in srgb, ${colour} ${percent}%, ${other})`
+  return {
+    contentsTop: mix(80, "white"),
+    meniscus: mix(60, "white"),
+    tintedGlass: mix(30, "var(--container-glass)"),
+    tintedEdge: mix(44, "var(--container-edge)"),
+    capBody: mix(62, "var(--container-rule)"),
+    capEdge: mix(40, "var(--container-edge)"),
+  }
 }
