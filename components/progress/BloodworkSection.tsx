@@ -50,7 +50,7 @@ export function BloodworkSection({
   return (
     <>
       <BloodworkCard
-          compact={compact}
+        compact={compact}
         photos={photos}
         onOpen={() => setGalleryOpen(true)}
         onViewLatest={() => {
@@ -59,6 +59,9 @@ export function BloodworkSection({
             setViewing(photos[0]);
           }
         }}
+        // The empty card's plus. Attaching writes, so it is guarded like the
+        // gallery's own attach.
+        onAttach={() => guard(() => setAttachOpen(true))}
       />
 
       <BloodworkGallerySheet

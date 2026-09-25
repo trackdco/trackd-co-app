@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 import { WeightGlanceCard } from "@/components/home/WeightGlanceCard";
+import { EmptySection, WeightSketch } from "@/components/progress/EmptySection";
 import { useMounted } from "@/components/home/useMounted";
 import { LogWeightPad } from "@/components/weight/LogWeightPad";
 import type { DateKey } from "@/lib/home/mockHomeData";
@@ -19,8 +20,10 @@ import type { WeightUnit } from "@/lib/weight";
  * building a second weight view, so there is exactly one interactive weight
  * surface. Logging happens in that view (and the + menu).
  *
- * The EMPTY card is the exception (feel pass): "Log your first weight" opens the
- * Log weight pad straight away rather than a Weight view with nothing to show.
+ * The EMPTY card is the exception (feel pass): it opens the Log weight pad
+ * straight away rather than a Weight view with nothing to show. On Progress it
+ * is the quiet "None yet" card with a plus (build-brief-final §3.15), the same
+ * as every other empty section there.
  */
 export function WeightHero({
   series,
@@ -39,20 +42,29 @@ export function WeightHero({
   // not read from `activeElement`: iOS never focuses a tapped button.
   const opener = useRef<HTMLElement | null>(null);
   const lastKg = series.length ? series[series.length - 1].kg : null;
+  const logFirst = (from: HTMLElement) => {
+    opener.current = from;
+    setPadOpen(true);
+  };
 
   return (
     <>
-      <WeightGlanceCard
-        series={series}
-        unit={unit}
-        compact={compact}
-        onOpenDetail={() => router.push("/weight")}
-        onLogFirst={(from) => {
-          opener.current = from;
-          setPadOpen(true);
-        }}
-        drawKey={compact ? "progress:weight" : null}
-      />
+      {compact && series.length === 0 ? (
+        <EmptySection
+          title="Weight"
+          preview={<WeightSketch />}
+          add={{ label: "Log weight", onClick: logFirst }}
+        />
+      ) : (
+        <WeightGlanceCard
+          series={series}
+          unit={unit}
+          compact={compact}
+          onOpenDetail={() => router.push("/weight")}
+          onLogFirst={logFirst}
+          drawKey={compact ? "progress:weight" : null}
+        />
+      )}
       {/* On `<body>`: the card sits in a block that rises in with a transform,
           and a transformed ancestor would hold the pad's fixed "Weight logged"
           notice to that block instead of the top of the screen. */}

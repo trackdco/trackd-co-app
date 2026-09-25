@@ -109,8 +109,22 @@ Built on `design/half-life-motion` in the worktree; nothing pushed, no migration
   dose half gone), two lanes a side so none overlap, "Got it"; checked on Test E, Retatrutide and Ipamorelin, all
   six labels in both engines. The old Protocol half-life and blends cards, the old row kit in `Subpage.tsx` and
   their CSS (57 rules) are removed; nothing used them. `npm run check`: 130 files, 2382 tests.
-  - Done in parallel by sub-agents and waiting for their phases: the containers (set B, phase 7), the syringe
-    (phase 7).
+- **Phase 7, Progress, the +, the syringe, the containers: DONE.** The + (`QuickActionsFab`): a circle that fans
+  Weight, Journal, Add compound, Add stock onto a 132px arc (30ms apart, spring), rounded squares; press-slide-lift
+  or tap-tap; the item under the finger lights white and wiggles, the others dim; the + turns into an ×; hidden
+  under any sheet and while a dose row is open; Add stock opens the sheet with its compound picker. Log a dose,
+  Bloodwork and Calendar left the menu (Home's rows log; Progress holds bloodwork). The syringe: clear glass,
+  engraved scale, amber gradient fill, the plunger travels with the draw (the box reserves one barrel length, so
+  the drawing is smaller than the reference; it now runs nearly edge to edge), switching sizes cross-fades the scale
+  and eases the fill (recorded per frame). The PUBLIC calculator (`/reconstitution-calculator`) keeps the syringe
+  it shipped with (`components/landing/LandingSyringeGraphic.tsx`), since the public site only changes where it
+  previews the app. Containers set B redrawn (`/preview/containers`). Progress: the latest day's photos as up to
+  three 3:4 tiles (pose names; more than three: two tiles and "+N"), the weight and date under them; the viewer
+  grows from its tile (420ms), swipes with rubber-banding, pinch / ctrl+wheel / Safari gesture zoom springing back,
+  tap to hide the controls, tap the dark / swipe down / × to close, delete behind the confirm; "Running N" folded
+  with the type rail and a sideways row; a new account gets "Your first photos" (three frames, a quiet "+"), "None
+  yet" with a plus on each empty section, and Consistency "Starts with your first dose". Preview states:
+  `/preview/progress?photos=more|odd|one`, `?fresh=1`, `?poses=many`.
 
 
 ## 🗳 FINAL CHECK, ROUND FOUR — ANSWERED 2026-09-25 14:13 UTC. DESIGN CLOSED. NEXT: A NEW BUILDER CHAT RUNS `Context/PROMPT-build-final.md`

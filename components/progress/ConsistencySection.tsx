@@ -12,7 +12,12 @@ import {
   type HydrationState,
 } from "@/lib/home/hydrationState";
 import { ConsistencyGraph } from "@/components/progress/ConsistencyGraph";
-import { computeAdherence, type AdherencePoint } from "@/lib/progress/consistency";
+import { DaysSketch, EmptySection } from "@/components/progress/EmptySection";
+import {
+  computeAdherence,
+  hasAnyDose,
+  type AdherencePoint,
+} from "@/lib/progress/consistency";
 import { getStackSnapshot, subscribeStack } from "@/lib/home/stack";
 import {
   getDoseLogsSnapshot,
@@ -79,6 +84,17 @@ export function ConsistencySection({
         <Sk w="46%" h={26} className="mt-3" />
         <SkGraph height={compact ? 64 : 120} seed={3} className="mt-3 flex-1" />
       </section>
+    );
+  }
+  // Before the first dose there is nothing to be consistent with: the card
+  // says what starts it, and has no plus (build-brief-final §3.15).
+  if (!hasAnyDose(points)) {
+    return (
+      <EmptySection
+        title="Consistency"
+        preview={<DaysSketch />}
+        note="Starts with your first dose"
+      />
     );
   }
   return (

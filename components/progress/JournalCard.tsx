@@ -2,6 +2,7 @@
 
 import { CaretRight } from "@/components/icons";
 
+import { EmptySection, JournalSketch } from "@/components/progress/EmptySection";
 import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { formatJournalDate, type JournalEntry } from "@/lib/progress/journal";
 
@@ -13,14 +14,20 @@ function bodyFirstLine(body: string | null): string | null {
  * Journal card on the Progress scroll (Step 5) — the eyebrow title and a preview of
  * the most recent entry: its date, the note's first line, and a few of the dialed
  * marker words as neutral chips. Taps to the feed.
+ *
+ * Empty on Progress it is the quiet "None yet" card, and its plus opens the
+ * journal ready to write (build-brief-final §3.15).
  */
 export function JournalCard({
   entries,
   onOpen,
+  onAdd,
   compact = false,
 }: {
   entries: JournalEntry[];
   onOpen: () => void;
+  /** The empty card's plus: the journal, open on Write / Markers. */
+  onAdd?: () => void;
   /**
    * Progress's two-up grid (spec 08 · part two). The spec dropped the marker
    * chips at this size and invited us to say if that read too thin. It did
@@ -35,6 +42,16 @@ export function JournalCard({
   const latest = entries[0] ?? null;
   const line = latest ? bodyFirstLine(latest.body) : null;
   const latestPhotoUrl = latest?.attachments.find((a) => a.url)?.url ?? null;
+
+  if (compact && !latest) {
+    return (
+      <EmptySection
+        title="Journal"
+        preview={<JournalSketch />}
+        add={{ label: "Write in your journal", onClick: () => (onAdd ?? onOpen)() }}
+      />
+    );
+  }
 
   if (compact) {
     return (

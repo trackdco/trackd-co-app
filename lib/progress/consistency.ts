@@ -240,3 +240,12 @@ export function overallPct(
 export function doseDayCount(points: AdherencePoint[]): number {
   return points.reduce((n, p) => n + (p.due > 0 ? 1 : 0), 0);
 }
+
+/**
+ * Whether any dose has been logged at all. Before the first one there is no
+ * consistency to show, and the card says it starts with your first dose rather
+ * than drawing a graph of nothing (build-brief-final §3.15).
+ */
+export function hasAnyDose(points: AdherencePoint[]): boolean {
+  return points.some((p) => p.logged > 0);
+}

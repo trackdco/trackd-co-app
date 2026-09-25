@@ -30,12 +30,13 @@ import type { DayLogs } from "@/lib/home/doseLog";
  * what the content needs. Whether they should be forced square is Adrian's call
  * and is parked in next-tasks.
  *
- * The photo card carries a "Running" list resolved against the PHOTO'S date
- * rather than today, so it says what you were on when that shot was taken. The
- * card itself shows the most recent day's set and swipes between the poses in
- * it (spec 08: the viewer and its swipe are unchanged), so the date it resolves
- * against is that day — scrolling back through older days happens in the
- * gallery, which has its own list.
+ * The photo card carries a folded "Running" row resolved against the PHOTO'S
+ * date rather than today, so it says what you were on when that shot was taken.
+ * The card shows the most recent day's photos as tiles (build-brief-final
+ * §3.15), and the viewer they open swipes between that day's poses, so the date
+ * it resolves against is that day — scrolling back through older days happens
+ * in the gallery, which has its own list. Empty, each section shows what it
+ * becomes, with "None yet" and a plus.
  *
  * Each block fades + rises in on load (the same staggered `animate-home-up`
  * idiom as Home and Protocol).

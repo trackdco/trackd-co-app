@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from "vitest"
 
-import { computeAdherenceOver, overallPct } from "@/lib/progress/consistency"
+import { computeAdherenceOver, hasAnyDose, overallPct } from "@/lib/progress/consistency"
 import type { StackCompound } from "@/lib/home/stack"
 
 describe("overallPct — today is not yet missed", () => {
@@ -169,5 +169,18 @@ describe("consistency only counts days the app was there for", () => {
   it("changes nothing for a record with no creation date", () => {
     const pts = computeAdherenceOver([daily()], {}, "2026-07-01", "2026-07-03")
     expect(pts.map((p) => p.due)).toEqual([1, 1, 1])
+  })
+})
+
+describe("hasAnyDose: the card starts with your first dose", () => {
+  const pt = (logged: number, due: number) => ({ key: "2026-09-01", due, logged, pct: null })
+
+  it("is false with nothing logged, due or not", () => {
+    expect(hasAnyDose([])).toBe(false)
+    expect(hasAnyDose([pt(0, 2), pt(0, 0)])).toBe(false)
+  })
+
+  it("is true once any dose is logged", () => {
+    expect(hasAnyDose([pt(0, 2), pt(1, 2)])).toBe(true)
   })
 })

@@ -8,7 +8,7 @@
 4. ~~Phase 4, Protocol~~ (done).
 5. ~~Phase 5, Stacks and Cycles~~ (done).
 6. ~~Phase 6, Half-life pages~~ (done).
-7. Phase 7: Progress, the + fan, the syringe, the containers.
+7. ~~Phase 7, Progress, the +, the syringe, the containers~~ (done).
 8. Phase 8: app-wide: the 30 fixes, pop-up motion, toasts, reduced motion, site names, landing's app previews.
 9. Phase 9: `next build`, the visual pass, the sample user, three cold-review prompts. Do not push.
 

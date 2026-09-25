@@ -1,187 +1,223 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CaretRight } from "@/components/icons";
 
+import { CardPlus } from "@/components/progress/EmptySection";
 import { cn } from "@/lib/utils";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
 import {
+  CARD,
+  CARD_EYEBROW,
+  FIGURE,
+  PRESS,
+  ROW_CHEVRON,
+  ROW_META,
+  TILE,
+  TILE_LABEL,
+} from "@/lib/ui-presets";
+import { dayWeightKg, photoDayLine, photoTiles, type PhotoTile } from "@/lib/progress/photoCard";
+import {
+  DEFAULT_POSES,
   formatPhotoDate,
   latestDay,
   poseLabel,
   type ProgressPhoto,
 } from "@/lib/progress/photos";
-import { formatWeight, type WeightUnit } from "@/lib/weight";
+import type { WeightUnit } from "@/lib/weight";
 
 /**
- * Progress photos card on the Progress scroll (Spec 09 addendum). The latest
- * session shown big, in catalogue order (Front first), as a swipeable carousel. Swipe to the
- * other poses; tap a photo to preview it; tap the header to open the gallery
- * (where you add / edit). Each photo carries the weight logged that day.
+ * The Progress photos card (build-brief-final §3.15). The LATEST day's photos
+ * as tiles, 3:4, each labelled with the pose picked when it was added, Front,
+ * Side and Back first. More than three: the first two and a "+N" tile that
+ * opens the viewer at the third (`photoTiles`). Under them one mono line: that
+ * day's weight, if one was logged, and the date. Tap a tile to open it; tap the
+ * header for the gallery, where you add and edit.
+ *
+ * A new account gets a quiet "Your first photos" card instead: three clear
+ * frames and a small "+" that starts adding. No big button and no privacy line
+ * (Adrian, final check round four: "keep progress empty").
  */
 export function ProgressPhotoCard({
   photos,
   unit,
+  todayKey,
   onOpen,
   onView,
-  compact = false,
+  onAdd,
+  tileRef,
   footer,
 }: {
   photos: ProgressPhoto[];
   unit: WeightUnit;
+  /** Decides whether the date needs its year. */
+  todayKey: string;
+  /** The header: the gallery. */
   onOpen: () => void;
+  /** A tile: the viewer, at that photo. */
   onView: (photo: ProgressPhoto) => void;
-  /** Home glance: render the photo shorter so the card doesn't dominate. */
-  compact?: boolean;
+  /** The new account's "+": the add flow. */
+  onAdd: () => void;
+  /** Each tile's element, so the viewer can grow out of it and back. */
+  tileRef?: (index: number, el: HTMLElement | null) => void;
   /**
-   * Rendered inside the card below the caption — the "Running" list on Progress
-   * (spec 08 · part two). Passed in rather than resolved here so the card stays
-   * a photo card: it knows nothing about the protocol, and the list can render
-   * null on a day with nothing running without this card knowing that either.
+   * Rendered inside the card under the photos: the folded "Running" row.
+   * Passed in rather than resolved here so the card stays a photo card: it
+   * knows nothing about the protocol, and the row can render null on a day
+   * with nothing running without this card knowing that either.
    */
   footer?: ReactNode;
 }) {
   const day = latestDay(photos);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
 
-  function onScroll() {
-    const el = trackRef.current;
-    if (!el) return;
-    const i = Math.round(el.scrollLeft / el.clientWidth);
-    if (i !== active) setActive(i);
-  }
-
-  if (photos.length === 0 || !day) {
+  if (!day) {
     return (
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label="Open progress photos"
-        className="flow-card flex w-full items-center gap-3.5 inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
-      >
-        <span className="min-w-0 flex-1">
-          <span className={`block ${CARD_EYEBROW}`}>Progress photos</span>
-          <span className="mt-1.5 block text-sm text-text-muted">
-            Add your first photo to track how you look
-          </span>
-        </span>
-        <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
-      </button>
+      <section aria-label="Your first photos" className={cn(CARD, "p-5")}>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className={CARD_EYEBROW}>Your first photos</h2>
+          <CardPlus label="Add photos" onClick={onAdd} />
+        </div>
+        <div aria-hidden className="mt-3 grid grid-cols-3 gap-1.5">
+          {DEFAULT_POSES.map((p) => (
+            <span
+              key={p.id}
+              className={cn(TILE_LABEL, "flex aspect-[3/4] items-end justify-center rounded-xl pb-2")}
+              // A clear frame, not a person (Adrian, final check round two):
+              // a faint wash of ink and a faint edge.
+              style={{
+                background:
+                  "linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 7.5%, transparent), color-mix(in srgb, var(--text-primary) 3%, transparent))",
+                boxShadow:
+                  "inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 10%, transparent), inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent)",
+              }}
+            >
+              {p.label}
+            </span>
+          ))}
+        </div>
+      </section>
     );
   }
 
+  const tiles = photoTiles(day.photos);
+  const line = photoDayLine({ date: day.date, weightKg: dayWeightKg(day.photos), unit, todayKey });
+
   return (
-    <div className="flow-card overflow-hidden rounded-2xl bg-bg-surface">
+    <section aria-label="Progress photos" className={cn(CARD, "p-5")}>
       <button
         type="button"
         onClick={onOpen}
         aria-label="Open progress photos"
-        className="flex w-full items-center gap-3.5 px-5 pt-5 pb-3.5 text-left transition-colors hover:bg-bg-surface-raised/30"
+        className={cn(PRESS.text, "-my-3 flex min-h-11 w-full items-center justify-between gap-3 text-left")}
       >
-        <span className="min-w-0 flex-1">
-          {/* No count line (Adrian, 2026-07-30). "14 photos" is a fact about
-              the database, not about the user: the photo is right below it, the
-              date is under that, and the number told them nothing they wanted. */}
-          <span className={`block ${CARD_EYEBROW}`}>Progress photos</span>
-        </span>
-        <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+        <span className={CARD_EYEBROW}>Progress photos</span>
+        <CaretRight className={ROW_CHEVRON} aria-hidden />
       </button>
 
-      {/* Latest session — swipe between the day's poses. */}
-      <div
-        ref={trackRef}
-        onScroll={onScroll}
-        className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {day.photos.map((p, i) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => onView(p)}
-            aria-label={`Preview ${poseLabel(p.pose)}`}
-            className="w-full shrink-0 snap-center px-5 pb-2 text-left"
-          >
-            <span
-              className={cn(
-                "block overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised",
-                compact ? "h-56" : "aspect-[3/4]",
-              )}
-            >
-              {p.url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={p.url}
-                  alt=""
-                  /* Only the photo actually on screen is fetched. The carousel
-                     used to pull every pose of the day at once, at full upload
-                     resolution, before you had swiped to any of them. */
-                  loading={i === 0 ? "eager" : "lazy"}
-                  fetchPriority={i === 0 ? "high" : "auto"}
-                  /* Decoded off the main thread, and REVEALED only once decoded.
-                     A baseline JPEG paints top-down as bytes arrive, so a slow
-                     connection showed a head and then a torn-off band of
-                     background — which reads as a corrupt photo, not a loading
-                     one (Adrian, 2026-07-31). */
-                  decoding="async"
-                  /* A cached image can be `complete` BEFORE React attaches the
-                     handler — on a back-navigation nothing would ever fire
-                     `load`, and the photo would sit at zero opacity for good. So
-                     the ref checks, and `onLoad` covers the uncached case. */
-                  ref={(el) => {
-                    if (el?.complete) el.classList.remove("opacity-0")
-                  }}
-                  onLoad={(e) => e.currentTarget.classList.remove("opacity-0")}
-                  /* Without this, a 404 or an expired signed URL left a fully
-                     reserved, PERFECTLY EMPTY box forever: the reveal never
-                     fires, and `opacity-0` hides even the browser's own broken
-                     -image affordance. Showing it puts the failure back on
-                     screen instead of designing it away. */
-                  onError={(e) => e.currentTarget.classList.remove("opacity-0")}
-                  className={cn(
-                    "h-full w-full object-cover object-top opacity-0",
-                    "transition-opacity duration-300 ease-out motion-reduce:transition-none",
-                  )}
-                />
-              )}
-            </span>
-          </button>
+      <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+        {tiles.map((t, i) => (
+          <PhotoTileButton
+            key={t.photo.id}
+            tile={t}
+            date={day.date}
+            onView={onView}
+            tileRef={tileRef ? (el) => tileRef(i, el) : undefined}
+          />
         ))}
       </div>
 
-      {/* Caption + swipe dots for the active photo — pose label sits directly
-          above the date (weight · date), not railed opposite it. */}
-      <div className="px-5 pb-5">
-        <div className="min-w-0">
-          <p className="truncate text-sm text-foreground">
-            {poseLabel(day.photos[active]?.pose ?? day.photos[0].pose)}
-          </p>
-          <p className="mt-0.5 font-mono text-xs text-text-muted">
-            {day.photos[active]?.weightKg != null && (
-              <>
-                {formatWeight(day.photos[active]!.weightKg!, unit)} {unit} ·{" "}
-              </>
-            )}
-            {formatPhotoDate(day.date)}
-          </p>
-        </div>
-        {day.photos.length > 1 && (
-          <div className="mt-2.5 flex justify-center gap-1.5">
-            {day.photos.map((p, i) => (
-              <span
-                key={p.id}
-                aria-hidden
-                className={cn(
-                  "h-1.5 rounded-full transition-all",
-                  i === active ? "w-4 bg-foreground" : "w-1.5 bg-border-strong",
-                )}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      <p className={cn(ROW_META, "mt-2.5")}>{line}</p>
 
       {footer}
-    </div>
+    </section>
+  );
+}
+
+function PhotoTileButton({
+  tile,
+  date,
+  onView,
+  tileRef,
+}: {
+  tile: PhotoTile;
+  date: string;
+  onView: (photo: ProgressPhoto) => void;
+  tileRef?: (el: HTMLElement | null) => void;
+}) {
+  const label = poseLabel(tile.photo.pose);
+  const more = tile.kind === "more";
+  return (
+    <button
+      ref={tileRef}
+      type="button"
+      onClick={() => onView(tile.photo)}
+      aria-label={
+        more
+          ? `${tile.count} more photos from ${formatPhotoDate(date)}`
+          : `${label}, ${formatPhotoDate(date)}`
+      }
+      className={cn(PRESS.card, TILE, "relative block aspect-[3/4] overflow-hidden bg-bg-inset")}
+    >
+      <TileImage url={tile.photo.url} eager={tile.index === 0} />
+      {more ? (
+        <>
+          <span aria-hidden className="absolute inset-0 bg-black/60" />
+          <span
+            aria-hidden
+            className={cn(FIGURE, "absolute inset-0 flex items-center justify-center text-xl font-light text-foreground")}
+          >
+            +{tile.count}
+          </span>
+        </>
+      ) : (
+        <>
+          {/* A little dark under the label, so it reads on a light photo. */}
+          <span
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/55 to-transparent"
+          />
+          <span
+            aria-hidden
+            className="absolute bottom-1.5 left-2 max-w-[calc(100%-1rem)] truncate text-[10.5px] text-foreground"
+          >
+            {label}
+          </span>
+        </>
+      )}
+      {/* The tile's pressed-in edge, over the photo (an inset shadow under an
+          image is hidden by it). */}
+      <span aria-hidden className={cn(TILE, "pointer-events-none absolute inset-0")} />
+    </button>
+  );
+}
+
+function TileImage({ url, eager }: { url: string | null; eager: boolean }) {
+  if (!url) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt=""
+      draggable={false}
+      loading={eager ? "eager" : "lazy"}
+      fetchPriority={eager ? "high" : "auto"}
+      /* Decoded off the main thread, and REVEALED only once decoded. A
+         baseline JPEG paints top-down as bytes arrive, so a slow connection
+         showed a head and then a torn-off band of background, which reads as
+         a corrupt photo, not a loading one (Adrian, 2026-07-31). */
+      decoding="async"
+      /* A cached image can be `complete` BEFORE React attaches the handler; on
+         a back-navigation nothing would ever fire `load`, and the photo would
+         sit at zero opacity for good. So the ref checks, and `onLoad` covers
+         the uncached case. */
+      ref={(el) => {
+        if (el?.complete) el.classList.remove("opacity-0");
+      }}
+      onLoad={(e) => e.currentTarget.classList.remove("opacity-0")}
+      /* A 404 or an expired signed URL would otherwise leave a perfectly empty
+         tile forever: `opacity-0` hides even the browser's broken-image mark.
+         Showing it puts the failure back on screen. */
+      onError={(e) => e.currentTarget.classList.remove("opacity-0")}
+      className="absolute inset-0 h-full w-full object-cover object-top opacity-0 transition-opacity duration-300 ease-out motion-reduce:transition-none"
+    />
   );
 }

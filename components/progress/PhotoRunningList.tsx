@@ -1,12 +1,16 @@
 "use client"
 
-import { useMemo, useSyncExternalStore } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
+import { CaretRight } from "@/components/icons"
 import { Container } from "@/components/containers/Container"
+import { TypeRail } from "@/components/feel/TypeRail"
 import { useMounted } from "@/components/home/useMounted"
-import { CARD_EYEBROW } from "@/lib/ui-presets"
+import { Fold } from "@/components/protocol/pages/Subpage"
+import { CARD_EYEBROW, DATA_MONO, PRESS, ROWS } from "@/lib/ui-presets"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
-import { compoundsRunningOn } from "@/lib/progress/running"
+import { compoundsRunningOn, type RunningCompound } from "@/lib/progress/running"
+import { VIEWER } from "@/lib/progress/viewerGesture"
 import {
   getStackSnapshot,
   subscribeStack,
@@ -17,12 +21,14 @@ import {
   subscribeDoseLogs,
   type DayLogs,
 } from "@/lib/home/doseLog"
+import { cn } from "@/lib/utils"
 
 const EMPTY_STACK: StackCompound[] = []
 const EMPTY_LOGS: DayLogs = {}
 
 /**
- * What the user was RUNNING on a PHOTO'S date (spec 08 · part two).
+ * What the user was RUNNING on a PHOTO'S date (spec 08 · part two), as the
+ * photos card's folded "Running N" row (build-brief-final §3.15).
  *
  * Running, not logged (Adrian, 2026-07-30). Someone on testosterone every third
  * day is still running it on the two days between injections, and a photo taken
@@ -37,20 +43,16 @@ const EMPTY_LOGS: DayLogs = {}
  * current one.
  *
  * Renders NOTHING when nothing was running (spec: "omit the section rather than
- * showing an empty state"). That includes the pre-hydration render: the device
- * store is not readable on the server, so a server-rendered empty state would
- * flash and then be replaced.
+ * showing an empty state"), its separator included. That includes the
+ * pre-hydration render: the device store is not readable on the server, so a
+ * server-rendered empty state would flash and then be replaced.
  *
- * ONE FLAT LIST, ordered by category and NOT labelled (Adrian, 2026-07-31).
- * Anabolics and peptides sit at the top and supplements at the bottom, by
- * consequence rather than by how many of each there are — a single anabolic
- * buried under five supplements is the wrong way round. But the grouping is the
- * ORDER and nothing else: headings would put five labels on what is usually five
- * rows, and the containers already carry the category in their colour.
- *
- * The sort lives in `compoundsRunningOn` so every consumer inherits it.
- *
- * Explicitly not a horizontal row — that was built once and corrected.
+ * It is attached to the photos on purpose, under a separator (Adrian, final
+ * check round one). It starts FOLDED every time: "Running", the count and a
+ * chevron that turns as it opens (300ms). Open, it is the type rail ("All" and
+ * one chip per type in it) over ONE sideways row, in category order (the sort
+ * lives in `compoundsRunningOn`). Switching type re-lays the row, each item
+ * rising 6px and fading in, 35ms apart.
  */
 export function PhotoRunningList({
   date,
@@ -87,43 +89,115 @@ export function PhotoRunningList({
     [deviceReady, stack, date, logs],
   )
 
+  const [open, setOpen] = useState(false)
+  const [type, setType] = useState("all")
+  // Only a type SWITCH animates the row; opening the fold does not.
+  const [switched, setSwitched] = useState(false)
+
   // KNOWN, NOT FIXED: on a throttled connection this returns null until the
-  // device store hydrates and then appears at ~+4.9s, shoving everything below
-  // it down 145px (measured at 390). Reserving the height was tried and backed
-  // out: it removes the jump for a user who IS running something and creates an
-  // upward collapse for one who is not, and "not running anything yet" is
-  // exactly the new user whose first impression this would cost. It needs a
-  // real answer (a server-rendered hint, or a skeleton that matches either
-  // outcome), not a swap of one shift for another. See `next-tasks.md`.
+  // device store hydrates and then appears, shoving what is below it down. It is
+  // one folded row now rather than a list, so the jump is one row's height. It
+  // still needs a real answer (a server-rendered hint, or a skeleton that
+  // matches either outcome). See `next-tasks.md`.
   if (running.length === 0) return null
 
+  const categories = running.map((c) => c.category)
+  // A type that is not on this date (the date changed under it) reads as All.
+  const active = type !== "all" && categories.includes(type) ? type : "all"
+  const shown = active === "all" ? running : running.filter((c) => c.category === active)
+
   return (
-    <div className="px-5 pb-5">
-      <p className={CARD_EYEBROW}>Running</p>
-      <ul className="mt-2 space-y-1.5">
-        {running.map((c) => (
-          <li
-            key={c.id}
-            className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-3 py-2.5"
-          >
-            <Container
-              name={c.name}
-              inventoryType={inventoryTypeForCompound(c.name, c.method, c.inventoryForm)}
-              category={c.category}
-              fill={0.7}
-              size={28}
-              className="shrink-0"
-            />
-            <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+    <div className="mt-4">
+      {/* The separator: a dark line with a lit edge under it, as rows divide. */}
+      <div
+        aria-hidden
+        className="h-px bg-black/40"
+        style={{ boxShadow: "0 1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent)" }}
+      />
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(PRESS.text, "mt-1 -mb-3 flex min-h-11 w-full items-center gap-2 text-left")}
+      >
+        <span className={CARD_EYEBROW}>Running</span>
+        <span className={cn(DATA_MONO, "text-[10px]")}>{running.length}</span>
+        <span className="flex-1" />
+        {/* `.cy-chev` turns 90deg under an expanded parent, 300ms. */}
+        <CaretRight className="cy-chev h-4 w-4 text-text-muted" aria-hidden />
+      </button>
+
+      {/* Bleeds to the card's edges so the row reads as one you can scroll. */}
+      <div className="-mx-5">
+        <Fold open={open} className="px-5 pt-2">
+          <TypeRail
+            categories={categories}
+            value={active}
+            onChange={(v) => {
+              setSwitched(true)
+              setType(v)
+            }}
+          />
+          <RunRow key={active} items={shown} rise={switched} />
+        </Fold>
+      </div>
+    </div>
+  )
+}
+
+/** One sideways row: a container, the name in full (truncated), the dose. */
+function RunRow({ items, rise }: { items: RunningCompound[]; rise: boolean }) {
+  const listRef = useRef<HTMLUListElement>(null)
+
+  // A fresh row after a type switch: each item rises 6px and fades in, 35ms
+  // apart. WAAPI with numbers only (`var()` snaps in Safari). Reduced motion:
+  // the row just appears.
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!rise || !list) return
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    Array.from(list.children).forEach((el, i) => {
+      el.animate(
+        [
+          { opacity: 0, transform: "translateY(6px)" },
+          { opacity: 1, transform: "none" },
+        ],
+        { duration: 260, delay: i * 35, easing: VIEWER.ease, fill: "backwards" },
+      )
+    })
+  }, [rise])
+
+  return (
+    <ul
+      ref={listRef}
+      aria-label="Running on this day"
+      // `type-rail` hides the scrollbar; the 2px pad keeps each item's outer
+      // edge from being clipped by the scroller.
+      className="type-rail -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 py-0.5"
+    >
+      {items.map((c) => (
+        <li key={c.id} className={cn(ROWS, "w-[76px] shrink-0")}>
+          {/* One child, so the rows block's dividers never draw inside it. */}
+          <div className="flex flex-col items-center px-1.5 pt-2.5 pb-2">
+            <span className="flex h-[38px] items-end justify-center">
+              <Container
+                name={c.name}
+                inventoryType={inventoryTypeForCompound(c.name, c.method, c.inventoryForm)}
+                category={c.category}
+                fill={0.62}
+                size={34}
+              />
+            </span>
+            <span className="mt-1.5 w-full truncate text-center text-[11px] text-foreground" title={c.name}>
               {c.name}
             </span>
-            <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.04em] text-text-muted">
               {c.amount}
               {c.unit ? ` ${c.unit}` : ""}
             </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }

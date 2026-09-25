@@ -118,6 +118,8 @@ export function BlockPhotoSheets({
           }
         }}
         photo={viewing}
+        // The block's photos: the viewer swipes through the day's others.
+        photos={photos}
         unit={unit}
         onDeleted={() => {
           setViewing(null)

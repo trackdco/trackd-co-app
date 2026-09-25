@@ -60,15 +60,25 @@ function mockReport(dateKey: string): string {
  * Supabase env. Mirrors the (app) shell. 404s in production. The real `/progress`
  * route reads live Supabase data; this harness feeds representative sample data so
  * the populated UI renders. Add `?demo=1` to see bloodwork with photos; the
- * default shows the empty "attach" state.
+ * default shows the empty Bloods card ("None yet" and a plus).
+ *
+ * The photos card (build-brief-final §3.15):
+ * - default: the latest day has three photos (three tiles).
+ * - `?photos=more`: five on the latest day (two tiles and "+3").
+ * - `?photos=odd`: three that are not Front, Side and Back, and no weight that
+ *   day (the line under the tiles is just the date).
+ * - `?photos=one`: a single photo on the latest day.
+ * - `?fresh=1`: a new account. No photos ("Your first photos"), no weight, no
+ *   journal, no bloods, no doses ("Starts with your first dose"), no block.
  */
 export default async function PreviewProgressPage({
   searchParams,
 }: {
-  searchParams: Promise<{ demo?: string; poses?: string }>;
+  searchParams: Promise<{ demo?: string; poses?: string; photos?: string; fresh?: string }>;
 }) {
   if (process.env.NODE_ENV === "production") notFound();
-  const { demo, poses: posesState } = await searchParams;
+  const { demo, poses: posesState, photos: photosState, fresh: freshParam } = await searchParams;
+  const fresh = freshParam === "1";
 
   const today = new Date();
   const dk = (daysAgo: number) =>
@@ -217,11 +227,24 @@ export default async function PreviewProgressPage({
   const catalogueSession = (prefix: string, daysAgo: number) =>
     session(prefix, daysAgo, POSE_CATALOGUE.map((p) => p.id));
 
+  // The latest day, which is what the photos card shows (`?photos=`).
+  const latestNote = "Conditioning coming in, vascularity up, waist tight.";
+  const latestSession: ProgressPhoto[] =
+    photosState === "more"
+      ? session("d1", 4, ["front", "side", "back", "front-double-biceps", "most-muscular"], latestNote)
+      : photosState === "odd"
+        ? session("d1", 4, ["most-muscular", "side-chest", "Vacuum"]).map((p) => ({ ...p, weightKg: null }))
+        : photosState === "one"
+          ? session("d1", 4, ["front"], latestNote)
+          : session("d1", 4, ["front-relaxed", "side-relaxed", "back-relaxed"], latestNote);
+
   const progressPhotos: ProgressPhoto[] = (
-    manyPoses
+    fresh
+      ? []
+      : manyPoses
       ? [...catalogueSession("m1", 6), ...catalogueSession("m2", 90)]
       : [
-          ...session("d1", 4, ["front-relaxed", "side-relaxed", "back-relaxed"], "Conditioning coming in — vascularity up, waist tight."),
+          ...latestSession,
           ...session("d2", 12, ["front-relaxed", "side-relaxed", "back-relaxed", "most-muscular"]),
           ...session("d3", 40, ["front-relaxed", "side-chest"]),
           ...session("d4", 70, ["front-relaxed", "front-double-biceps"]),
@@ -316,19 +339,22 @@ export default async function PreviewProgressPage({
       </header>
 
       <main className="flex-1">
+        {/* `?fresh=1` empties every section. The consistency sample is an
+            EMPTY series rather than none, so the card does not fall back to
+            the device store; the stack is empty too, so nothing is Running. */}
         <ProgressScreen
-          weight={sampleWeight}
+          weight={fresh ? [] : sampleWeight}
           unitPreference="metric"
           todayKey={toDateKey(today)}
           userId="preview-local"
-          bloodworkPhotos={photos}
-          journalEntries={journalEntries}
+          bloodworkPhotos={fresh ? [] : photos}
+          journalEntries={fresh ? [] : journalEntries}
           markerOptions={markerOptions}
-          consistencySample={consistencySample}
+          consistencySample={fresh ? [] : consistencySample}
           progressPhotos={progressPhotos}
-          previewStack={previewStack}
-          previewLogs={previewLogs}
-          previewBlocks={previewBlocks}
+          previewStack={fresh ? [] : previewStack}
+          previewLogs={fresh ? {} : previewLogs}
+          previewBlocks={fresh ? [] : previewBlocks}
         />
       </main>
 

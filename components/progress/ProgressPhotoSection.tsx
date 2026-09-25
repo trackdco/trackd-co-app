@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { ProgressPhotoCard } from "@/components/progress/ProgressPhotoCard";
 import { ProgressPhotoGallerySheet } from "@/components/progress/ProgressPhotoGallerySheet";
@@ -12,6 +12,7 @@ import { useProgressAction } from "@/components/progress/useProgressAction";
 import { PhotoRunningList } from "@/components/progress/PhotoRunningList";
 import type { DayLogs } from "@/lib/home/doseLog";
 import { customPosesIn, latestDay, type ProgressPhoto } from "@/lib/progress/photos";
+import { tileForIndex } from "@/lib/progress/photoCard";
 import type { WeightUnit } from "@/lib/weight";
 import type { StackCompound } from "@/lib/home/stack";
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
@@ -19,10 +20,13 @@ import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
 type Return = "none" | "gallery" | "edit";
 
 /**
- * The Progress photos section (Spec 09 addendum). The card carousels the latest
- * day; the gallery is the MacroFactor month/day view; from a day you edit
- * (delete / add), and any photo opens full. Only one surface is open at a time;
- * sub-flows return to where they were opened from.
+ * The Progress photos section (Spec 09 addendum; build-brief-final §3.15). The
+ * card shows the latest day as tiles; a tile grows into the viewer, which
+ * swipes through that day and shrinks back into the tile. The header opens the
+ * gallery (the MacroFactor month/day view); from a day you edit (delete / add),
+ * and any photo opens full. A new account's card has a "+" that starts adding.
+ * Only one surface is open at a time; sub-flows return to where they were
+ * opened from.
  */
 export function ProgressPhotoSection({
   photos,
@@ -37,7 +41,7 @@ export function ProgressPhotoSection({
   userId: string;
   todayKey: string;
   unit: WeightUnit;
-  /** Home glance: render the photo card shorter. */
+  /** A glance: leave the Running row off. */
   compact?: boolean;
   /** Dev-preview-only device data for the Running list. */
   previewStack?: StackCompound[];
@@ -54,11 +58,16 @@ export function ProgressPhotoSection({
   const [addReturn, setAddReturn] = useState<Return>("none");
   const [viewing, setViewing] = useState<ProgressPhoto | null>(null);
   const [viewReturn, setViewReturn] = useState<Return>("none");
+  // The card's tiles, so the viewer grows out of the one you tapped and
+  // shrinks back into it. Only when opened FROM the card: from the gallery
+  // or a day there is no tile on screen to return to.
+  const tiles = useRef<(HTMLElement | null)[]>([]);
 
   const customPoses = customPosesIn(photos);
-  // The day the card is showing. The Running list resolves against THIS date,
+  const day = latestDay(photos);
+  // The day the card is showing. The Running row resolves against THIS date,
   // never today, which is what makes it useful when scrolling back.
-  const shownDate = latestDay(photos)?.date ?? null;
+  const shownDate = day?.date ?? null;
 
   // The Calendar's Photos row deep-links here → open the photo gallery.
   useProgressAction("photos-gallery", () => setGalleryOpen(true));
@@ -80,20 +89,33 @@ export function ProgressPhotoSection({
     else if (target === "edit") setEditOpen(true);
   }
 
+  /** The tile a latest-day photo sits on; every photo past the second, on a
+   *  day with a "+N" tile, sits on that one. */
+  function tileFor(p: ProgressPhoto): HTMLElement | null {
+    const list = latestDay(photos)?.photos ?? [];
+    const i = list.findIndex((x) => x.id === p.id);
+    if (i < 0) return null;
+    return tiles.current[tileForIndex(i, list.length)] ?? null;
+  }
+
   return (
     <>
       <ProgressPhotoCard
         photos={photos}
         unit={unit}
-        compact={compact}
+        todayKey={todayKey}
         onOpen={() => setGalleryOpen(true)}
         onView={(p) => {
           setViewReturn("none");
           setViewing(p);
         }}
+        onAdd={() => openAdd(undefined, "none")}
+        tileRef={(i, el) => {
+          tiles.current[i] = el;
+        }}
         footer={
-          // Not on the Home glance: that card is a teaser, and the list belongs
-          // to the Progress screen the spec put it on.
+          // Not on a glance: that card is a teaser, and the row belongs to the
+          // Progress screen the spec put it on.
           !compact && shownDate ? (
             <PhotoRunningList
               date={shownDate}
@@ -158,6 +180,8 @@ export function ProgressPhotoSection({
           }
         }}
         photo={viewing}
+        photos={photos}
+        originFor={viewReturn === "none" ? tileFor : undefined}
         unit={unit}
         onDeleted={() => {
           setViewing(null);

@@ -110,7 +110,17 @@ export function JournalSection({
 
   return (
     <>
-      <JournalCard entries={entries} onOpen={() => setFeedOpen(true)} compact={compact} />
+      <JournalCard
+        entries={entries}
+        onOpen={() => setFeedOpen(true)}
+        // The empty card's plus: the journal, open on Write / Markers, the
+        // same way the + menu's Journal lands (and the editor stays guarded).
+        onAdd={() => {
+          setFeedCompose(true);
+          setFeedOpen(true);
+        }}
+        compact={compact}
+      />
 
       <JournalFeedSheet
         open={feedOpen}

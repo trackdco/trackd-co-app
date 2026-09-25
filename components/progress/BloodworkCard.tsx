@@ -2,6 +2,7 @@
 
 import { CaretRight } from "@/components/icons";
 
+import { BloodsSketch, EmptySection } from "@/components/progress/EmptySection";
 import { CARD_EYEBROW } from "@/lib/ui-presets";
 import { formatBloodworkDate, type BloodworkPhoto } from "@/lib/progress/bloodwork";
 
@@ -10,11 +11,15 @@ import { formatBloodworkDate, type BloodworkPhoto } from "@/lib/progress/bloodwo
  * eyebrow (no icon badge); tapping it opens the bloodwork page. Empty, it invites
  * you to attach a screenshot. Once you've uploaded, it shows the latest photo big —
  * tap the photo to grow it full, the header to open all your panels.
+ *
+ * Empty on Progress it is the quiet "None yet" card, and its plus starts
+ * attaching a report (build-brief-final §3.15).
  */
 export function BloodworkCard({
   photos,
   onOpen,
   onViewLatest,
+  onAttach,
   compact = false,
 }: {
   photos: BloodworkPhoto[];
@@ -22,9 +27,21 @@ export function BloodworkCard({
   onOpen: () => void;
   /** Grow the latest photo full-screen. */
   onViewLatest: () => void;
+  /** The empty card's plus: attach a report. Falls back to the gallery. */
+  onAttach?: () => void;
   /** Progress's two-up grid (spec 08 · part two). */
   compact?: boolean;
 }) {
+  if (compact && photos.length === 0) {
+    return (
+      <EmptySection
+        title="Bloods"
+        preview={<BloodsSketch />}
+        add={{ label: "Attach bloods", onClick: () => (onAttach ?? onOpen)() }}
+      />
+    );
+  }
+
   if (compact) {
     return (
       <button
