@@ -32,6 +32,15 @@ are in https://claude.ai/artifact/KzqihDUTkdJoJJvqbUCGgc (`part2/answers`).
 - Add compound: today's sheet with the new marks, but the icons on the compound rows should differ.
 - Progress: a whole remake of the empty cards.
 
+**Round three (published 2026-09-25):** https://claude.ai/artifact/HPrYxng3Nt6EPK2R4rNWqg (db `part3/answers`,
+`part3/draft`). The last open questions, shaped by a second research pass: dose ticks are the only card
+addition that costs no words; peak / low / swing, peak time, an estimate band and a "Clears in" line go on
+the half-life page; NO "if you dose now" preview (Apple 1.4.2 restricts dosage calculators). Get started =
+one Home card, three rows, find + set in one sheet, the first dose logged through the normal row, and the
+card leaves on the existing Tracked moment. Markers: no thumb until rated; removal without swipe (it
+collides with the slider), with Undo not a confirm. A Stock tap opens a resizable sheet (what supply apps
+do). After round three: ONE consolidated final artifact of every decision, then a build handover prompt.
+
 ## 🗳 ROUND TWO — PICKS IN, PART TWO IN DESIGN, NOTHING BUILT YET (2026-09-25)
 
 Adrian's round-two brief (8 fixes + calls a–j) went on one decisions page before any
