@@ -1,6 +1,39 @@
 # Progress Tracker
 
-## 🗳 FINAL CHECK PAGE — PUBLISHED (2026-09-25). NEXT: HIS SUBMIT, THEN THE BUILD HANDOVER PROMPT. NOTHING BUILT.
+## 🗳 FINAL CHECK, ROUND TWO — SAME PAGE, NEW DB DOCS `final2/*`. NEXT: HIS SUBMIT, THEN THE BUILD PROMPT.
+
+Round one was submitted 07:42 UTC (`final/answers`). Settled there: Track pinned; figures roll; the steady word
+is Holding; Irritability tops at Raging; Gyno None/Low/Medium/High/Severe; suggested markers the same for
+everyone; the compound sheet shows a half-life MARK in the compound's category colour (new marks designed);
+new account = baseline; setup = a card on each page; the + = the fan; Bloods = the lab report mark; the look =
+Overhead light but softer (less shadow below, no shadow on the tick ring); category marks KEEP today's 30%
+gradient (he preferred "before"), button icons get a lighter one. He wants this page to stay the final artifact.
+Round two (same URL, `final2/answers`, keys `f7_*`) answers every note from round one:
+- First run is ONE compound (library: search, then types), set up, first dose, then a celebration (ring /
+  Day 0 to 1 / quiet tick). Home: Level is only the word; due circles white; the dose row's Site/Stock/Note
+  tiles and the journal's Markers/Photos/Date tiles have Solid icons and open a panel; its up arrow or a second
+  tap on the tile closes it (the card's own arrow hides meanwhile). Site is pickable (Front/Back, the tile shows the
+  site; the app never suggests one); a note survives closing; no stock shows "Add stock"; the journal opens nothing by default; the open half-life card aligns to its card.
+- Markers: create-your-own (name, then ready-made or own steps; "which end is better" only for Level and own
+  words), names title-cased, kept under Yours with Edit (remove, with Undo).
+- The +: press, slide, lift (wedge targets) or tap; opening styles to pick (arc / column / card morph); extra
+  actions multi-pick. Stock: shelf styles, spares treatments, no-stock treatments to pick; a compound's vials in
+  a swipe pager (current = the pill dot); Mix sheet shows the vial filling as you type powder and water, then
+  "Draw N units for X". Cycles: row text options, Paused as a group with the types (the row flies into it),
+  folded groups show their names and the one due today opens, End red, New cycle, ranges 1M/3M/1Y/All with smooth
+  bars past 60 days. Half-life page: "Peaks in" countdown (days, hours, <1h) + one general line; the range band
+  replaces or overlays the fill (pick); the ? guide is a labelled diagram. Progress: tap a photo, it grows to
+  full screen; swipe between poses; press-and-hold zoom springs back; Running back inside the photos card under
+  a divider. Toggles, app-wide shape system, three styles (softer Overhead light, Soft glass, Instrument),
+  page transitions (slide / grow from the tile) to pick.
+- Built with the impeccable, apple-design and ux-heuristics skills (installed at his request, 25 Sep).
+- A ux-heuristics review scored the first cut 6.9/10; a skeptic confirmed 55 of 62 findings and all 55 were fixed
+  before publishing (follow-ups back in setup, Mix opens dry with the old open vial kept as a page and Undo, the +
+  hides under sheets, toasts clear the +, reduced-motion path, one "5 days on, 2 off" format). New pick rows:
+  f7_pager (vials or compounds) and f7_fold (due opens / hint / Today row). Tested in Chromium and WebKit, 390x844
+  and 375x548: no errors, no sideways scroll.
+
+## 🗳 FINAL CHECK PAGE — PUBLISHED (2026-09-25). ROUND ONE ANSWERED; ROUND TWO ABOVE. NOTHING BUILT.
 
 Page: https://claude.ai/artifact/2Mnj2qS3FKxiSNsNPjxiv1 (db `final/answers` on Submit, `final/draft` as he goes).
 Every screen in the order a user meets it, each with "how you use it" steps (his walkthrough), a working phone,
