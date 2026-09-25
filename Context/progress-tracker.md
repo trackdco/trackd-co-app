@@ -1,6 +1,37 @@
 # Progress Tracker
 
-## 🟡 NOTIFICATION COPY — ON BRANCH `notifications/copy-refresh`, NOT MERGED (2026-09-25)
+## 🟡 NOTIFICATIONS — ON BRANCH `notifications/copy-refresh`, NOT MERGED (2026-09-25/26)
+
+### The check-up engine and hide-names (2026-09-26)
+
+- **51 check-ups signed off** in the swipe-deck artifact
+  (https://claude.ai/artifact/EbADnYs8aQLuEFXQUxWbYA, final list in its
+  `final/checkups` doc). Decisions in `lib/notifications/checkups.ts` (pure,
+  tested); reads in `checkupFacts.ts`; wired in `runner.ts`.
+- **Three kinds.** Swaps reword a reminder that was going out anyway, on about half
+  the days (dose, don't-forget, low stock). The streak alert takes the don't-forget
+  slot, so never lands on top of one. Check-ups proper: at most one a day
+  (`last_checkup_on`), one-offs once ever (`notification_log`), highest priority
+  among those whose hour has come.
+- **Reads once an hour, not every tick**, on the first UTC tick of the hour (local
+  minutes would never match for Adelaide or India). Dose history is paged past
+  PostgREST's 1,000-row cap. Every read fails on its own: a null fact leaves its
+  check-ups out, never a dose reminder.
+- **"Giving You Space" pauses the dose, don't-forget and low-stock reminders** until
+  the next log, because it says so. Trial and grace warnings are not paused.
+- **Hide compound names** words every reminder by count ("You have 2 doses due
+  today"); anything that names a compound is simply not sent as a check-up.
+- **Off until `NOTIFICATION_CHECKUPS=on`**, which waits for the Check-ins switch on
+  the new page. Needs `supabase/notifications/007` applied.
+- **No full stop at the end of a line**, now across every push. The voice
+  exception is recorded in `ui-context.md`.
+- Choices made along the way: a week with nothing logged gets no recap (the quiet
+  spell ones speak to it); "New Record" only past 13 days and past their own best;
+  "Off Week"/"Back On" only for breaks of 7 days or more, so a 5-on/2-off weekend
+  cycle is not announced every week; weight "toward your goal" only with a known
+  goal (a block's weight target, else cut/bulk from onboarding), in kg or lbs.
+
+### The wording (2026-09-25)
 
 Adrian rewrote every push in an editor artifact
 (https://claude.ai/artifact/QF1fs1YkV1UgVpq3qcK9Yr, his edits are its `edits`

@@ -469,7 +469,7 @@ export function trialReminderMessage(
   if (ending.kind === "courtesy") {
     return {
       title: "Free Access Ends Soon",
-      body: `Your free ${ending.noun} ends ${when}.\nYour Pro plan will continue as usual.`,
+      body: `Your free ${ending.noun} ends ${when}\nYour Pro plan will continue as usual`,
       url: "/billing",
       tag: "trackd-trial-ending",
     };
@@ -484,7 +484,7 @@ export function trialReminderMessage(
        * happens instead is stated plainly, in the same words the notice and the
        * pop-up use, so the three surfaces agree.
        */
-      body: `Trakabl stays free until ${when}. After that you can still read everything, but not log anything new.`,
+      body: `Trakabl stays free until ${when}. After that you can still read everything, but not log anything new`,
       url: "/billing",
       tag: "trackd-trial-ending",
     };
@@ -495,7 +495,7 @@ export function trialReminderMessage(
     // Adrian's wording (2026-09-25). It still says what happens at the end,
     // because this is the reminder the paywall promises "before anything
     // changes", and a trial that ends into a paid plan is money about to move.
-    body: `It's day ${REMINDER_DAY} of ${TRIAL_DAYS}. Your free trial ends on ${when}, and your Pro plan starts then.`,
+    body: `It's day ${REMINDER_DAY} of ${TRIAL_DAYS}. Your free trial ends on ${when}, and your Pro plan starts then`,
     url: "/billing",
     tag: "trackd-trial-ending",
   };

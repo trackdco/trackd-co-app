@@ -1,37 +1,39 @@
 # Next Tasks
 
-## 🟡 NOTIFICATIONS (2026-09-25)
+## 🟡 NOTIFICATIONS (2026-09-26)
 
-Branch `notifications/copy-refresh`: the new push wording, the iPhone prefix and
-the Android icon. Details in `progress-tracker.md`.
+Two branches. `notifications/copy-refresh` (off `main`) has everything below the
+page: the new wording, the iPhone prefix, the Android icon, hide-names, and the
+check-up engine. The settings page is task 3, on a branch off
+`design/half-life-motion`, because half-life restyles that exact page. Details in
+`progress-tracker.md`.
 
-### 1. Merge the copy branch (Adrian says when)
-Tests pass. Check one real push on an iPhone and an Android after it deploys: the
-prefix only on iPhone, Kyle in the Android status bar.
+### 1. Merge `notifications/copy-refresh` (Adrian says when)
+`npm run check` green (2219 tests). Safe to deploy before 007: the new columns are
+read on their own. After it deploys, check one real push on an iPhone and an
+Android: the prefix only on iPhone, Kyle in the Android status bar.
 
-### 2. "Hide compound names" setting (next)
-Adrian wants users able to keep compound names off the lock screen. Needs a
-`notification_preferences` column, count-only variants of the dose, unlogged and
-low-stock bodies, and a switch on the redesigned page (task 3). Read the new column
-in its own tolerant query, as `courtesy.ts` does, so a deploy before the migration
-cannot break the runner.
+### 2. Apply `supabase/notifications/007_privacy_and_checkups.sql` (Adrian, or Claude via MCP on his word)
+Adds `hide_compound_names`, `checkins_on`, `last_checkup_on` and the
+`notification_log` table, and adds `last_checkup_on` to the stamp guard. VERIFY
+block at the foot of the file.
 
-### 3. Redesign the Notifications settings page (Adrian picked A)
-Mockup: https://claude.ai/artifact/1WFRxirrZWVBhmGFUfgsiC (his pick and note are in its
-`decision` collection). A = a live lock-screen preview at the top that shows the
-notification for whichever row you touched, then the master switch, one card of
-reminders (dose time, "Don't forget" after N hr, low stock, check-ins), one card with
-"Hide compound names" and quiet hours. Everything saves as you go; the old "Save
-reminders" button goes, because the master switch saved instantly and the rest did
-not, so a flipped switch could be lost.
+### 3. The Notifications page, layout A (next, on top of half-life)
+Mockup: https://claude.ai/artifact/1WFRxirrZWVBhmGFUfgsiC. Live lock-screen preview,
+master switch, one reminders card (dose time, "Don't forget" after N hr, low stock,
+Check-ins), one card with "Hide compound names" and quiet hours, saving as you go
+with half-life's "Saved" toast and Undo. `prefsActions.ts` needs the two new
+switches (written in their own update so a missing 007 cannot fail the rest).
 
-### 4. New check-up notifications (Adrian swiping)
-53 candidates in a swipe deck: https://claude.ai/artifact/EbADnYs8aQLuEFXQUxWbYA (his
-verdicts and notes are its `votes` collection, each with the trigger in `when`).
-No Kyle by name: users don't know him yet (Adrian, 2026-09-25). A few he edited in the
-copy editor's `custom` collection too, two with an emoji. The cheeky ones break the
-no-chirp and no-emoji rules in `ui-context.md`; whatever he keeps gets recorded there
-as a sanctioned exception, as onboarding's were.
+### 4. Turn check-ups on: `NOTIFICATION_CHECKUPS=on` in Vercel
+Only once task 3 has shipped and 007 is applied: the Check-ins switch has to exist
+before anybody gets a check-up. The dry run (`/api/notifications/run?dryRun=1`) reports
+`checkup: would-send:<key>` per user, so the first day can be read before it sends.
+
+### 5. The app shows no streak (Adrian to decide)
+"Your 12-day streak ends at midnight", "New Record" and "100 Days" talk about a
+streak the app never displays (Progress shows a consistency %). Either the app
+gets a streak somewhere, or those three stay as the only place it appears.
 
 ## 🟢 WHO OPERATES TRAKABL — MERGED AND APPLIED (2026-09-24)
 

@@ -481,7 +481,7 @@ describe("the push's three variants", () => {
 
   it("⚠️ never calls a courtesy period a trial, and says the plan resumes", () => {
     const m = trialReminderMessage(trial(), SYD, { kind: "courtesy", noun: "month" })!;
-    expect(m.body).toBe("Your free month ends 15 Aug.\nYour Pro plan will continue as usual.");
+    expect(m.body).toBe("Your free month ends 15 Aug\nYour Pro plan will continue as usual");
     expect(m.body).not.toContain("trial");
     // A two-year customer must never read a day count from a seven-day shape.
     expect(m.body.toLowerCase()).not.toContain(`day ${REMINDER_DAY} of ${TRIAL_DAYS}`);
@@ -491,7 +491,7 @@ describe("the push's three variants", () => {
     // The paywall promises this reminder "before anything changes". A trial
     // that ends into a paid plan is money about to move, so the push says so.
     const m = trialReminderMessage(trial(), SYD)!;
-    expect(m.body).toBe("It's day 5 of 7. Your free trial ends on 15 Aug, and your Pro plan starts then.");
+    expect(m.body).toBe("It's day 5 of 7. Your free trial ends on 15 Aug, and your Pro plan starts then");
   });
 
   it("opens Billing from all three variants", () => {

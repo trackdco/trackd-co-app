@@ -34,6 +34,23 @@ import {
   trialReminderVerdict,
   type TrialForReminder,
 } from "@/lib/notifications/trialReminder";
+import {
+  doseSwap,
+  missedSwap,
+  lowSwap,
+  pickCheckup,
+  remindersPausedForSpace,
+  EARLIEST_CHECKUP_MIN,
+  type Checkup,
+  type SwapContext,
+} from "@/lib/notifications/checkups";
+import {
+  checkupsEnabled,
+  collectCheckupFacts,
+  lastLogDayOf,
+  readSentLog,
+  readStreak,
+} from "@/lib/notifications/checkupFacts";
 import { cycleRuleFromColumns, type CycleColumns } from "@/lib/protocol/cycleRule";
 import { isStoppedOn, type DatedVersion } from "@/lib/protocol/scheduleVersions";
 import { isPausedOn, type Pause } from "@/lib/home/pauses";
@@ -89,6 +106,11 @@ export interface RunResult {
    * was. Undefined means nothing about a trial arose at all.
    */
   trialReminder?: string;
+  /**
+   * The check-up: its key when one went out (or, on a dry run, would), else why
+   * not. Undefined while check-ups are switched off (`NOTIFICATION_CHECKUPS`).
+   */
+  checkup?: string;
 }
 
 /* ------------------------------------------------------------- time helpers */
@@ -876,6 +898,47 @@ async function collectUserData(
   };
 }
 
+/**
+ * The three `supabase/notifications/007` columns, in their OWN query.
+ *
+ * The same bargain `collectTrial` strikes for `trial_reminder_sent_for`, for the
+ * same reason: folded into the preferences select, an unapplied 007 fails that
+ * whole select, and every preference — quiet hours, fire times, the three dedupe
+ * stamps — falls back to its default at once. Kept apart, a missing 007 costs
+ * exactly what 007 adds: names stay shown and no check-up goes out.
+ *
+ * `hasRow` matters because every stamp here is written with an UPDATE: with no
+ * preferences row the write lands on nothing and the same check-up would go out
+ * on every tick. No row, no check-up.
+ */
+async function collectCheckupPrefs(
+  supabase: Client,
+  userId: string,
+): Promise<{
+  available: boolean;
+  hasRow: boolean;
+  hideNames: boolean;
+  checkinsOn: boolean;
+  lastCheckupOn: string | null;
+}> {
+  const { data, error } = await supabase
+    .from("notification_preferences")
+    .select("hide_compound_names, checkins_on, last_checkup_on")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    return { available: false, hasRow: false, hideNames: false, checkinsOn: false, lastCheckupOn: null };
+  }
+  const r = data as Record<string, unknown> | null;
+  return {
+    available: true,
+    hasRow: !!r,
+    hideNames: r?.hide_compound_names === true,
+    checkinsOn: !!r && r.checkins_on !== false,
+    lastCheckupOn: (r?.last_checkup_on as string | null) ?? null,
+  };
+}
+
 /* --------------------------------------------------------------- sending */
 
 /**
@@ -1010,6 +1073,46 @@ export async function runForUser(
     };
   }
 
+  const extra = await collectCheckupPrefs(supabase, userId);
+  /** Lock-screen privacy: every body worded from counts alone. Honoured by the test send too. */
+  const hideNames = extra.hideNames;
+  /**
+   * THE PERSONALITY LAYER: check-ups and the rotating wordings (Adrian,
+   * 2026-09-25/26). Behind the deploy switch, the account's own Check-ins
+   * switch, a preferences row to stamp (see `collectCheckupPrefs`), and write
+   * access — a read-only account is not coaxed toward logging it cannot do. Never
+   * on a test send, which must show the plain wording it is testing.
+   */
+  const personality =
+    !force &&
+    checkupsEnabled() &&
+    extra.available &&
+    extra.hasRow &&
+    extra.checkinsOn &&
+    data.canWrite;
+  const swapCtx: SwapContext = {
+    userId,
+    todayKey: data.todayKey,
+    nowMinutes: data.nowMinutes,
+    hideNames,
+  };
+  /**
+   * ⚠️ "REMINDERS ARE PAUSED UNTIL YOU'RE BACK" IS A PROMISE, SO IT IS KEPT.
+   *
+   * "Giving You Space" goes out after three weeks without a log and says exactly
+   * that. From then until the next log, the dose, don't-forget and low-stock
+   * reminders and every check-up hold back. The trial and grace warnings do not:
+   * those are about money and access, and pausing them is not what was promised.
+   */
+  let spacePaused = false;
+  if (personality) {
+    const [sent, last] = await Promise.all([
+      readSentLog(supabase, userId),
+      lastLogDayOf(supabase, userId, data.tz),
+    ]);
+    spacePaused = remindersPausedForSpace(sent, last);
+  }
+
   const due = dueUnlogged(data.compounds, data.loggedTodayIds, data.todayKey);
   const lowDays = Number(p.low_stock_days ?? 7);
   const low = lowStock(data.stock, data.todayKey, lowDays);
@@ -1093,21 +1196,25 @@ export async function runForUser(
    * their access is ending, and the person that matters most to is exactly the
    * one who can no longer write.
    */
-  const doseOn = data.canWrite && p.dose_reminders_on !== false && !cannotJudgeDoses;
-  const missedOn = data.canWrite && p.unlogged_alert_on !== false && !cannotJudgeDoses;
-  const lowOn = data.canWrite && p.low_inventory_alert_on !== false && !cannotJudgeStock;
+  const doseOn = data.canWrite && p.dose_reminders_on !== false && !cannotJudgeDoses && !spacePaused;
+  const missedOn = data.canWrite && p.unlogged_alert_on !== false && !cannotJudgeDoses && !spacePaused;
+  const lowOn = data.canWrite && p.low_inventory_alert_on !== false && !cannotJudgeStock && !spacePaused;
+
+  /** The check-up chosen this tick, and why none was, for {@link RunResult.checkup}. */
+  let checkup: Checkup | null = null;
+  let checkupReason: string | undefined;
 
   if (force) {
     // Test send: real content if any, else a friendly confirmation. A read only
     // account gets the confirmation, never a dose nudge it cannot act on.
-    const dose = doseOn ? doseReminderMessage(due) : null;
-    const lowMsg = lowOn ? lowStockMessage(low) : null;
+    const dose = doseOn ? doseReminderMessage(due, { hideNames }) : null;
+    const lowMsg = lowOn ? lowStockMessage(low, { hideNames }) : null;
     if (dose) messages.push(dose);
     if (lowMsg) messages.push(lowMsg);
     if (messages.length === 0) {
       messages.push({
         title: "Trakabl",
-        body: "Notifications are working. Nothing's due right now.",
+        body: "Notifications are working. Nothing's due right now",
         url: "/dashboard",
         tag: "trackd-test",
       });
@@ -1115,7 +1222,8 @@ export async function runForUser(
   } else {
     // Scheduled: each type fires at its time, once per local day.
     if (doseOn && due.length > 0 && data.nowMinutes >= reminderMin && p.last_dose_reminder_on !== data.todayKey) {
-      const m = doseReminderMessage(due);
+      // Another wording on some days, never another notification.
+      const m = (personality ? doseSwap(due, swapCtx) : null) ?? doseReminderMessage(due, { hideNames });
       if (m) {
         messages.push(m);
         stamps.push({ column: "last_dose_reminder_on", value: data.todayKey, tag: m.tag });
@@ -1153,18 +1261,66 @@ export async function runForUser(
       data.nowMinutes >= missedMin &&
       p.last_missed_nudge_on !== data.todayKey
     ) {
-      const m = missedNudgeMessage(overdue);
+      /**
+       * The streak alert takes THIS slot when a streak is at stake, so it can
+       * never land on top of a don't-forget. The history read behind it runs
+       * here, once a day at most, because the nudge's own stamp gates it.
+       */
+      const streak = personality
+        ? await readStreak(supabase, userId, {
+            now,
+            tz: data.tz,
+            todayKey: data.todayKey,
+            compounds: data.compounds,
+          })
+        : null;
+      const m =
+        (personality ? missedSwap(overdue, swapCtx, streak) : null) ??
+        missedNudgeMessage(overdue, { hideNames });
       if (m) {
         messages.push(m);
         stamps.push({ column: "last_missed_nudge_on", value: data.todayKey, tag: m.tag });
       }
     }
     if (lowOn && low.length > 0 && data.nowMinutes >= reminderMin && p.last_low_stock_on !== data.todayKey) {
-      const m = lowStockMessage(low);
+      const m = (personality ? lowSwap(low, swapCtx) : null) ?? lowStockMessage(low, { hideNames });
       if (m) {
         messages.push(m);
         stamps.push({ column: "last_low_stock_on", value: data.todayKey, tag: m.tag });
       }
+    }
+
+    /**
+     * THE CHECK-UP — one a day at most (`last_checkup_on`).
+     *
+     * Its reads (about a dozen, see `collectCheckupFacts`) run on the FIRST tick
+     * of each hour, not every fifteen minutes: every check-up is timed on the
+     * hour, so the other three ticks could only ever find what the first found.
+     * UTC minutes, not local: a user half an hour off UTC (Adelaide, India) has no
+     * local tick at :00 and would otherwise never be checked at all.
+     */
+    if (!checkupsEnabled()) {
+      checkupReason = undefined;
+    } else if (!personality) {
+      checkupReason = "off";
+    } else if (spacePaused) {
+      checkupReason = "paused-for-space";
+    } else if (extra.lastCheckupOn === data.todayKey) {
+      checkupReason = "already-today";
+    } else if (data.nowMinutes < EARLIEST_CHECKUP_MIN || now.getUTCMinutes() >= 15) {
+      checkupReason = "not-this-tick";
+    } else {
+      const facts = await collectCheckupFacts(supabase, userId, {
+        now,
+        tz: data.tz,
+        todayKey: data.todayKey,
+        nowMinutes: data.nowMinutes,
+        hideNames,
+        compounds: data.compounds,
+      });
+      checkup = pickCheckup(facts);
+      if (checkup) messages.push(checkup.message);
+      else checkupReason = "none-due";
     }
 
     /**
@@ -1325,6 +1481,7 @@ export async function runForUser(
       ...(data.unreadable.length > 0 ? { unreadable: data.unreadable } : {}),
       reason: "dry-run",
       trialReminder: trialReason,
+      checkup: checkup ? `would-send:${checkup.key}` : checkupReason,
     };
   }
 
@@ -1346,6 +1503,40 @@ export async function runForUser(
     } else {
       await releaseTrialReminder(supabase, userId, trialClaim.previous);
       trialOutcome = "send-failed";
+    }
+  }
+
+  /**
+   * THE CHECK-UP'S STAMPS, only if it reached a device, and in their OWN writes:
+   * like the trial claim, a failure here must not take the dose stamps with it.
+   * `last_checkup_on` spends the day's one check-up; the log row makes a one-off
+   * (a 100-day streak, "Giving You Space") never repeat.
+   */
+  let checkupOutcome: string | undefined = checkupReason;
+  if (checkup) {
+    const delivered = (report.byTag[checkup.message.tag] ?? 0) > 0;
+    if (!delivered) {
+      checkupOutcome = "send-failed";
+    } else {
+      checkupOutcome = checkup.key;
+      const { error: stampError } = await supabase
+        .from("notification_preferences")
+        .update({ last_checkup_on: data.todayKey })
+        .eq("user_id", userId);
+      if (stampError) {
+        console.error(`[reminders] could not stamp last_checkup_on for ${userId}:`, stampError.message);
+      }
+      if (checkup.once) {
+        const { error: logError } = await supabase
+          .from("notification_log")
+          .upsert(
+            { user_id: userId, key: checkup.key, sent_on: data.todayKey },
+            { onConflict: "user_id,key", ignoreDuplicates: true },
+          );
+        if (logError) {
+          console.error(`[reminders] could not log check-up ${checkup.key} for ${userId}:`, logError.message);
+        }
+      }
     }
   }
 
@@ -1375,6 +1566,7 @@ export async function runForUser(
     loggedCount: data.loggedTodayIds.size,
     ...(data.unreadable.length > 0 ? { unreadable: data.unreadable } : {}),
     trialReminder: trialOutcome ?? trialReason,
+    checkup: checkupOutcome,
   };
 }
 

@@ -449,7 +449,7 @@ describe("push copy stays readable", () => {
     const many = Array.from({ length: 9 }, (_, i) =>
       compound({ id: `c${i}`, name: `Compound number ${i + 1}` }),
     );
-    expect(doseReminderMessage(many)?.body).toBe("You have 9 doses due today.");
+    expect(doseReminderMessage(many)?.body).toBe("You have 9 doses due today");
   });
 
   it("joins names as A & B, or A, B & C", () => {
@@ -460,7 +460,7 @@ describe("push copy stays readable", () => {
 
   it("lists two or three due doses with the same join", () => {
     const due = ["BPC-157", "TB-500"].map((name, i) => compound({ id: `c${i}`, name }));
-    expect(doseReminderMessage(due)?.body).toBe("BPC-157 & TB-500 are all due today.");
+    expect(doseReminderMessage(due)?.body).toBe("BPC-157 & TB-500 are all due today");
   });
 
   it("puts the low-stock names on their own line", () => {
@@ -485,6 +485,66 @@ describe("push copy stays readable", () => {
       missedNudgeMessage([compound()])?.title,
     ];
     expect(titles).toEqual(["Low Stock", "Dose Reminder", "Don't Forget"]);
+  });
+
+  it("ends no line in a full stop", () => {
+    const one = (dosesRemaining: number | null): LowStockItem[] => [{ ...vials(1)[0], dosesRemaining }];
+    const bodies = [
+      doseReminderMessage([compound()])?.body,
+      doseReminderMessage(["A", "B"].map((name, i) => compound({ id: `c${i}`, name })))?.body,
+      doseReminderMessage(vials(9).map((_, i) => compound({ id: `c${i}` })))?.body,
+      missedNudgeMessage([compound()])?.body,
+      missedNudgeMessage([compound(), compound({ id: "c2" })])?.body,
+      lowStockMessage(one(4))?.body,
+      lowStockMessage(one(null))?.body,
+      lowStockMessage(vials(2))?.body,
+      lowStockMessage(vials(10))?.body,
+    ];
+    for (const b of bodies) {
+      for (const line of (b ?? "").split("\n")) expect(line).not.toMatch(/\.$/);
+    }
+  });
+
+  describe("with compound names hidden", () => {
+    const hide = { hideNames: true };
+    const named = ["BPC-157", "TB-500", "Ipamorelin"];
+    const dueOf = (n: number) =>
+      named.slice(0, n).map((name, i) => compound({ id: `c${i}`, name }));
+    const lowOf = (n: number, dosesRemaining: number | null = 4): LowStockItem[] =>
+      named.slice(0, n).map((name) => ({ ...vials(1)[0], name, dosesRemaining }));
+
+    it("never puts a compound name on the lock screen", () => {
+      const bodies = [
+        doseReminderMessage(dueOf(1), hide)?.body,
+        doseReminderMessage(dueOf(2), hide)?.body,
+        doseReminderMessage(dueOf(3), hide)?.body,
+        missedNudgeMessage(dueOf(1), hide)?.body,
+        missedNudgeMessage(dueOf(2), hide)?.body,
+        lowStockMessage(lowOf(1), hide)?.body,
+        lowStockMessage(lowOf(1, null), hide)?.body,
+        lowStockMessage(lowOf(2), hide)?.body,
+        lowStockMessage(lowOf(3), hide)?.body,
+      ];
+      for (const b of bodies) {
+        expect(b).toBeTruthy();
+        for (const name of named) expect(b).not.toContain(name);
+      }
+    });
+
+    it("says the same thing by count", () => {
+      expect(doseReminderMessage(dueOf(1), hide)?.body).toBe("You have 1 dose due today");
+      expect(doseReminderMessage(dueOf(2), hide)?.body).toBe("You have 2 doses due today");
+      expect(missedNudgeMessage(dueOf(1), hide)?.body).toBe("1 dose is still unlogged today");
+      expect(lowStockMessage(lowOf(1), hide)?.body).toBe(
+        "1 compound is running low on stock\n(≈4 doses left)",
+      );
+      expect(lowStockMessage(lowOf(2), hide)?.body).toBe("2 compounds are running low on stock");
+    });
+
+    it("keeps the titles, which never named anything", () => {
+      expect(doseReminderMessage(dueOf(1), hide)?.title).toBe("Dose Reminder");
+      expect(lowStockMessage(lowOf(1), hide)?.title).toBe("Low Stock");
+    });
   });
 
   it("keeps every message free of em dashes", () => {
