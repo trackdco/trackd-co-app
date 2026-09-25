@@ -1,5 +1,45 @@
 # Next Tasks
 
+## 🗳 ROUND TWO — PART TWO, THEN BUILD (branch `design/half-life-motion`)
+
+State and decisions: progress-tracker, "ROUND TWO". Adrian's own words are in the round-two
+page's db (`round2/answers`, `round2/draft`); read them, do not re-ask what they settle.
+
+### 1. The part-two page (next)
+One artifact, same rules as round two (few words, working phone mockups, a notes box per
+question, autosave, Submit to its db). Contents:
+- **Half-life card:** A1 with a white marker, mixed with A2's plain dates; row sets built
+  around "Level: Climbing / Steady / Dropping" plus rewordings; with and without Next dose;
+  what other peptide / GLP-1 / TRT apps show (research); a past-levels view; the half-life
+  line in the compound's info sheet; previews of "behind a button" vs staying on the page,
+  and what Protocol's card adds over Home's.
+- **Home:** premium category chips (rounded rectangles, solid icon + title, better motion),
+  the vial dock, a mix of both; more fold options for Today's Log; where the count dots sit
+  (under the greeting vs below the card), with and without a next-dose line.
+- **Consistency review:** the findings, with the fix for each, to approve in bulk.
+- **Progress:** the add cards with no plus and no "Attach a screenshot", across the whole
+  section.
+- **Journal J2, refined:** no side clipping, the "Add photos" empty panel and its shrink,
+  redesigned markers and their empty state, a calendar date.
+- **Stock rethought:** flows and layouts from research, more empty-account variations.
+  Stacks U1 (maybe one alternative). Cycles: per-compound cards above a live timeline.
+- **Empty states:** whole pages as a new account sees them, more options.
+- **Icons:** Solid glyph variants per category (e.g. drop / needle / vial for anabolics).
+- **Running dropdown**, drawn with the app's real containers (ported from
+  `components/containers`).
+- **Add compound:** more options, including today's sheet with the new icons.
+
+### 2. Build, once part two is approved
+Fixes 2, 3, 4 and 6 as decided, the sites sheet's leaders, the Add stock "how full" change,
+the Cycles corner clipping, a no-sideways-scroll pass, then the part-two picks. Each change
+checked at 390x844 and 375x548 in Chromium and WebKit; `npm run check` after each step,
+`next build` at the end; Context updated and committed per step.
+
+### 3. Migrations 025 then 026
+Adrian said yes on condition they cannot break the live app. Apply only with a clean
+safety review against origin/main, 025 alone first, then check spares, a box of N,
+Mix / Open and the dropper on the burner account.
+
 ## 🎨 HALF-LIFE + LOGGING — BUILD TRACK (branch `design/half-life-motion`)
 
 The design is settled; the rules are in `ui-context.md` under "The half-life

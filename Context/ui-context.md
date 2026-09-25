@@ -148,6 +148,22 @@ legend** — they label a compound's *type*, not a health value — so they sit 
 the "categorical, never evaluative" rule above (which governs biomarker/marker
 **readings**). The hues are deliberately restrained and non-alarming (no pure red).
 
+**The icons move to the SOLID style (Adrian, 2026-09-25, round two).** Chosen over "Glass"
+(each type's container) and "Line" (outlined marks) on the round-two decisions page
+(https://claude.ai/artifact/U3Rtzt7cqaUCX77FQqqm3S, `h_icons`). Any new small glyph made to
+sit beside them follows the same rules:
+- One FILLED mark per category on a 24×24 grid: a simple silhouette (a drop, a hexagon, a
+  shield) that still reads at 14px. No outline, no badge or tile behind it.
+- The fill is one vertical gradient: the category hue lifted 30% toward white at the top,
+  the full hue at the bottom. No second colour. Interior detail is a cut-out, or a line
+  about 1.6px wide in the same hue.
+- Sizes: 14px beside an eyebrow or in a row, 16px inline, 24px in a tile.
+- Hues are the `--cat-*` tokens. Blends are a category of their own for icons and for
+  grouping, so they need a hue; it is picked with the glyphs.
+- NOT built yet. The glyph for each category is still being chosen (round two, part two:
+  e.g. a drop, a needle or a vial for anabolics). Until then `<CategoryIcon>` keeps the
+  Phosphor TestTube / Pill / Cylinder described above.
+
 ### Rule: the colour level is "Pushed" (Adrian, 2026-09-24)
 
 Chosen over "as documented" and "further" on the half-life decision sheet.
@@ -1570,6 +1586,11 @@ hand-rolling animation per screen.
   (fade + rise) via a per-card inline `animation-delay`. Same idiom on
   Home and Progress. **Figures never count up** (feel pass §7): a figure
   shows its value. A dose or draw mid-count is a wrong dose on screen.
+  **One exception (Adrian, 2026-09-25, round two, `countup`):** after a dose is logged,
+  the half-life figures (Circulating and Of last dose left) count to their new values,
+  and the graph's scale eases to its new range, on Home and on Protocol. That is the
+  log's feedback, not a dose on screen. A dose, draw or stock figure still never counts.
+  Not built yet.
 - **The log action gets a moment.** Logging a dose is the app's
   heartbeat: the tick pops in (`animate-home-tick-pop` + one
   `animate-home-tick-ring` pulse) as the amber due-ring resolves to the

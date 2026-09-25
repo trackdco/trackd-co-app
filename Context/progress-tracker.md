@@ -1,5 +1,50 @@
 # Progress Tracker
 
+## 🗳 ROUND TWO — PICKS IN, PART TWO IN DESIGN, NOTHING BUILT YET (2026-09-25)
+
+Adrian's round-two brief (8 fixes + calls a–j) went on one decisions page before any
+building: https://claude.ai/artifact/U3Rtzt7cqaUCX77FQqqm3S. His answers are in its db,
+`round2/answers` (submitted 02:44 UTC) and `round2/draft` (autosave), with a note on nearly
+every item. He set the fixes to **HOLD**, so nothing below is built. Several answers ask for
+more options, which go on a second page ("round 2 no. 2").
+
+**Decided (build once he approves part two):**
+- Half-life card: **A1**, a half-life marker on the graph, drawn WHITE. "Steady" becomes a
+  **Level** row reading Climbing / Steady / Dropping (wording still open). He also wants the
+  half-life VALUE in a compound's info sheet (the ⋯ on Home, a tap on Protocol's card), and
+  to see past levels. Where the card lives is open (he leans "behind a button").
+- After a log the figures count up AND the graph's scale animates (ui-context amended).
+- Fix 4: with a card open, a swipe opens the next; a closed card stays closed. Fix 6:
+  Schedule above half-life; half-life rows grouped by type, Blends its own group.
+- Home: category chips over the half-life cards, restyled as rounded rectangles with icon +
+  title and better motion (he also likes the vial dock). Today's Log folds a type once it is
+  logged (more options wanted). Nothing replaces Next dose. The count dots may sit BELOW the
+  Log card rather than under the greeting (open).
+- Injection sites card stays. The sheet it opens gets margin day chips with leaders, as
+  the Log dose map draws them.
+- Journal on Home: **J2**, the tiles, with no side clipping, an "Add photos" empty panel that
+  shrinks to a tile once photos exist, redesigned markers (and their empty state), and a
+  date that opens a calendar.
+- Stock: the shelf direction, but the whole Stock flow is to be rethought (Protocol already
+  shows stock; this page is for adding what arrives). Stacks: U1 cards, for now. Cycles: the
+  shared timeline, with a card per compound's cycle above a live timeline, built to take more
+  cycle features.
+- Category icons: **SOLID** (ui-context). The glyph per category is still open.
+- Running under a photo: **R2**, a line of vials that drops down (the dropdown is open).
+- Add compound: **K2** type tiles, with more options wanted.
+- Add stock: the "how full" field goes. Ask volume and strength; fill level only on a tap.
+- Dose field: a tap on the number opens the Trackd pad.
+- Bugs he found: the Cycles page's day squares are cut off at the corner; no page may
+  scroll sideways.
+- Migrations 025/026: **yes, IF they cannot break the live app** (a safety review of
+  origin/main against both files was run first).
+
+**The Vercel preview (diagnosed 2026-09-25, read-only).** Google sign-in bounced to the
+landing page because the preview URL is not in Supabase's redirect allowlist (it falls back to
+trackdco.app). Consent failed because `lib/auth/gate-writer.ts` needs `SUPABASE_SECRET_KEY`,
+which Preview lacks. Adrian now signs in there with email and the burner, and needs no
+changes for now.
+
 ## 🔨 HALF-LIFE + LOGGING BUILD — BUILT, NOT MERGED (2026-09-24/25)
 
 Building `Context/build-brief-half-life.md` on `design/half-life-motion` in
