@@ -5,7 +5,7 @@
 1. ~~Phase 1, the look~~ (done).
 2. ~~Phase 2, Home part one~~ (done).
 3. ~~Phase 3, Home part two~~ (done).
-4. Phase 4: Protocol owns stock; the compound sheet; Schedule; three tiles; explainers; Add stock and Mix.
+4. ~~Phase 4, Protocol~~ (done).
 5. Phase 5: Stacks (restoreStack + Undo) and Cycles (Paused last, Ended, Timeline).
 6. Phase 6: Half-life pages.
 7. Phase 7: Progress, the + fan, the syringe, the containers.

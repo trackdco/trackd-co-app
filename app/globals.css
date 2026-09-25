@@ -1409,6 +1409,24 @@ svg ::-moz-selection {
   .first-run-tap { transform: scale(0.6); }
 }
 
+/* The compound sheet's long card: its facts split by a dark hairline with a
+   lit edge, the Instrument row divider turned on its side. */
+.fact-sep {
+  border-left: 1px solid rgb(0 0 0 / 0.42);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+/* A Protocol page slides in: 26px from the right with a fade, 300ms (§3.7). */
+.subpage-in {
+  animation: subpage-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes subpage-in {
+  from { opacity: 0; transform: translateX(26px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .subpage-in { animation: toast-fade 160ms ease-out both; }
+}
+
 /* The bottom toast rises 8px as it fades in. */
 .toast-in {
   animation: toast-in 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -1770,10 +1788,10 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
 .hl-swipe[data-open="true"] .hl-glance-card {
   flex-basis: 100%;
 }
-.hl-chips {
+.type-rail {
   scrollbar-width: none;
 }
-.hl-chips::-webkit-scrollbar {
+.type-rail::-webkit-scrollbar {
   display: none;
 }
 /* The closed card's down chevron; the open card has its up arrow instead. */
@@ -5150,4 +5168,39 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .lp-arrival {
     animation: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   A REFUSED FIELD SHAKES (build-brief-final §3.12): "Add" with a required field
+   empty shakes that field and opens the pad on it. `translate`, not
+   `transform`, so it composes with the field's press `scale`. Reduced motion:
+   no movement; the pad opening on the field says it.
+   --------------------------------------------------------------------------- */
+.field-shake {
+  animation: field-shake 320ms ease-in-out;
+}
+@keyframes field-shake {
+  20%,
+  60% {
+    translate: -4px 0;
+  }
+  40%,
+  80% {
+    translate: 4px 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .field-shake {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE MIX VIAL FILLS (build-brief-final §3.12). `MixVialSheet` eases the level
+   itself (`AnimatedContainer`), so the liquid's own `y`/`height` transition
+   (`.container-fill`) is off inside it: on top of the eased value it only lags
+   the level, and a browser that cannot animate SVG geometry snaps it anyway.
+   --------------------------------------------------------------------------- */
+.mix-vial .container-fill {
+  transition: none;
 }

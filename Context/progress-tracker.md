@@ -46,6 +46,29 @@ Built on `design/half-life-motion` in the worktree; nothing pushed, no migration
   Nothing scrolls after Track. The sites sheet draws the log sheet's map (day chips, 1px leaders, the freshest chip
   amber, the OKLCH ramp) and its Last logged dots are ramp steps, never amber at an opacity.
   `npm run check`: 127 files, 2347 tests. One read action added to the gate manifest (ungated, deliberately).
+- **Phase 4, Protocol: DONE.** Protocol owns stock: the type rail (`TypeRail`, shared with Home) over a row of
+  112px compound cards (the container in use, the full name, "+N vials", Runs dry in amber at 7 days or fewer, a
+  dotted container and "Add stock" when nothing is held) ending in an "Add" card. The Schedule card is this week as
+  3px-cornered squares (done filled, due outlined, missed hollow, today's column lit, hairlines between types) and
+  opens `/protocol/schedule` (ScheduleWeeks restyled). Three tall tiles: Stacks, Cycles, Half-life (Solid marks in
+  colour); `/protocol/half-life` exists (phase 6 finishes it). The Stock page is gone (`/protocol/stock` redirects;
+  `StockScreen` deleted). The compound sheet: container + name, ONE long card (the curve mark in the category
+  colour, the half-life with "est.", the dose, the route, hairline-split), Started / Schedule, Next, the Stock
+  section (the container in use as one line, "+N", Add stock, Mix one for a dry spare, Correct and Discard behind
+  ⋯ with Undo), Edit dose & schedule, Delete asking in the shared pop-up. Add stock: the brief's words, a count
+  stepper, units visible in empty fields, an empty field shakes and opens the pad, toast "Added N to <name>.", and
+  it ADDS containers, never replacing the one in use. Mix a vial (`MixVialSheet`): the dry vial fills as powder and
+  water go in, "Draw N units for X mg", "Mixed. Now in use." with Undo (`unmixStockItem`, gated, refuses once a dose
+  has used it). Explainers: a "?" beside the Stacks, Cycles and Half-life titles opens "What is a …?" with a picture
+  (`components/protocol/Explainer.tsx`). Protocol pages slide in (300ms, 26px, fade). `PopDialog` renders inside a
+  host sheet (a Radix sheet makes everything outside it inert).
+  - SPEC VS DATABASE: the brief asks a powder vial for "Powder in each" only (water at Mix), which stores an unmixed
+    spare; the live database without `026` refuses that. The sheet falls back: on that refusal it shows "Mix one now"
+    with the water field, so adding a peptide still works before the merge.
+  - My mistake, test account only: opening `/preview/protocol` in the SIGNED-IN browser let its cloud sync push the
+    preview's mock compounds (Nandrolone, Glow) into the burner. Previews are now opened signed out; the two strays
+    are removed in the sample-user walk.
+  `npm run check`: 129 files, 2372 tests (one gated action added to the manifest).
   - Done in parallel by sub-agents and waiting for their phases: the containers (set B, phase 7), the syringe
     (phase 7), `restoreStack` and the derived Ended cycles (phase 5), the half-life page helpers (phase 6).
 

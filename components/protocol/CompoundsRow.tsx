@@ -1,12 +1,11 @@
 "use client"
 
+import { useState } from "react"
+
 import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
 import { Plus } from "@/components/icons"
-import {
-  CARD_H,
-  CARD_W,
-  CompoundStorageCard,
-} from "@/components/protocol/CompoundStorageCard"
+import { TypeRail } from "@/components/feel/TypeRail"
+import { CARD_W, CompoundStorageCard } from "@/components/protocol/CompoundStorageCard"
 import { cn } from "@/lib/utils"
 import { categoryRank } from "@/lib/compound-categories"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
@@ -14,19 +13,15 @@ import type { StackCompound } from "@/lib/home/stack"
 import type { StockItem } from "@/lib/db/inventory"
 
 /**
- * Every compound in ONE horizontal side-scrolling row (Spec 04) — deliberately
- * not stacked per-category blocks, which was an explicit change of direction.
- *
- * **Ordering: by category volume, then alphabetically within a category.** The
- * category you hold the most compounds in comes first, so the row opens on what
- * you are mostly running. Within a category, alphabetical is the only rule where
- * you can predict a compound's position without remembering when you added it,
- * and it never reshuffles as you log. Ties on volume break on the catalogue's own
- * category order, so the row is stable rather than dependent on Map iteration.
+ * Protocol's compounds, WITH their stock (build-brief-final §3.7: Protocol owns
+ * stock; the Stock page is gone). The type rail from Home over a sideways row
+ * of cards, one per compound in category order, and an "Add" card at the end,
+ * so an empty Protocol still has a working control.
  */
 export function CompoundsRow({
   compounds,
   stockByCompound,
+  othersByCompound,
   stockKnown,
   todayKey,
   onOpen,
@@ -34,89 +29,69 @@ export function CompoundsRow({
   onAddCompound,
 }: {
   compounds: StackCompound[]
-  /** The backing vial per compound id, from `v_inventory_math`. */
   stockByCompound: Map<string, StockItem>
-  /** False until the stock read has LANDED. Until then the cards must not claim
-   *  the user has no vials. */
+  /** Containers held beyond the one in use, per compound. */
+  othersByCompound: Map<string, number>
   stockKnown: boolean
   todayKey: string
   onOpen: (c: StackCompound) => void
   onAddStock: (c: StackCompound) => void
   onAddCompound: () => void
 }) {
+  const [type, setType] = useState("all")
   const ordered = orderByCategory(compounds)
+  const shown = type === "all" ? ordered : ordered.filter((c) => c.category === type)
 
   return (
     <section className="space-y-3">
       <h2 className={`${CARD_EYEBROW} px-1`}>Compounds</h2>
+      <TypeRail categories={compounds.map((c) => c.category)} value={type} onChange={setType} />
       {/* Bleeds to the screen edges so the row reads as scrollable, while the
-          page keeps its px-5 column. The "Add compound" card is ALWAYS the last
-          item, so an empty Protocol has a working control rather than copy that
-          tells the user to do something the page offers no way to do. */}
-      <div className="-mx-5 overflow-x-auto px-5">
-        <div className="flex gap-3 pb-1">
-          {ordered.map((c) => (
-              <CompoundStorageCard
-                key={c.id}
-                compound={c}
-                stock={stockByCompound.get(c.id) ?? null}
-                inventoryType={inventoryTypeOf(c)}
-                stockKnown={stockKnown}
-                todayKey={todayKey}
-                onOpen={() => onOpen(c)}
-                onAddStock={() => onAddStock(c)}
-              />
-            ))}
-
-            {/* Same hairline treatment as "New stack" and "New cycle", so the
-                three affordances read as one family. No preview: a compound needs
-                no explaining. */}
-            <button
-              type="button"
-              onClick={onAddCompound}
-              className={cn(
-                PRESS.card,
-                CARD_W,
-                CARD_H,
-                "hairline flex shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border-border-default text-text-muted transition hover:text-foreground"
-              )}
-            >
-              <Plus className="h-5 w-5" aria-hidden />
-              <span className="text-sm">Add compound</span>
-            </button>
+          page keeps its px-5 column. */}
+      <div className="type-rail -mx-5 overflow-x-auto px-5">
+        <div className="flex items-stretch gap-2 pb-1">
+          {shown.map((c) => (
+            <CompoundStorageCard
+              key={c.id}
+              compound={c}
+              stock={stockByCompound.get(c.id) ?? null}
+              others={othersByCompound.get(c.id) ?? 0}
+              inventoryType={inventoryTypeOf(c)}
+              stockKnown={stockKnown}
+              todayKey={todayKey}
+              onOpen={() => onOpen(c)}
+              onAddStock={() => onAddStock(c)}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={onAddCompound}
+            className={cn(
+              PRESS.card,
+              "flex w-[86px] shrink-0 flex-col items-center justify-center gap-2 rounded-2xl text-[12px] text-foreground shadow-[inset_0_0_0_1px_var(--border-strong)]",
+              shown.length === 0 && cn(CARD_W, "min-h-[136px]"),
+            )}
+          >
+            <span className="inst-ghost flex h-[34px] w-[34px] items-center justify-center rounded-lg">
+              <Plus className="h-4 w-4" aria-hidden />
+            </span>
+            Add
+          </button>
         </div>
       </div>
     </section>
   )
 }
 
-/**
- * Categories in the shared display order; alphabetical inside each.
- *
- * This used to sort by VOLUME — most-held category first — which read the list
- * backwards (Adrian, 2026-07-31): "if someone's running a lot of supplements but
- * they're also running steroids, they're gonna want to see their steroids
- * first". Five supplements pushed a single anabolic to the end of the row, and
- * adding a sixth vitamin silently reordered a screen the user had learned. The
- * order is fixed now, and identical here, on Today's Log and under a photo.
- */
 export function orderByCategory(compounds: StackCompound[]): StackCompound[] {
   return [...compounds].sort((a, b) => {
     const byCategory = categoryRank(a.category) - categoryRank(b.category)
     if (byCategory !== 0) return byCategory
-    // Two unrecognised categories share a rank — settle on the name so the order
-    // is deterministic rather than whatever order they were seen in.
     if (a.category !== b.category) return a.category.localeCompare(b.category)
     return a.name.localeCompare(b.name)
   })
 }
 
-/** Local shorthand for the row's own use. NOT exported: nothing outside this
- *  file imported it, and an exported wrapper with no importers is exactly the
- *  kind of dead code that reads as load-bearing. The logic is
- *  `inventoryTypeForCompound` in `lib/containers/form`, which every surface
- *  shares — this file used to hold its own copy with a DIFFERENT off-catalogue
- *  fallback, so a custom subQ compound drew a vial here and a bottle on Home. */
 function inventoryTypeOf(c: StackCompound): string | null {
   return inventoryTypeForCompound(c.name, c.method, c.inventoryForm)
 }

@@ -689,3 +689,61 @@ export async function deleteStockItem(id: string): Promise<{ ok: boolean }> {
     return { ok: false }
   }
 }
+
+/**
+ * UNDO a mix: the toast's Undo after "Mixed. Now in use." (build-brief-final
+ * §3.12). Puts the vial back to an unmixed spare: no water, no mix date, not
+ * started, the same three columns {@link mixStockItem} set, back to what an
+ * unmixed spare holds (`026`'s `inv_type_fields`).
+ *
+ * Only a mix made on `dateKey` (the DEVICE's today, as for the mix) is undone:
+ * both dates must still be that day, so a vial mixed on another day, or one
+ * that was never a spare, is left alone.
+ *
+ * Refused once any dose is logged against the vial (`dose_logs.inventory_item_id`):
+ * by then the mix is real, and unmixing it would leave a dose drawn from a vial
+ * the app says was never started. The check and the update are two requests, so
+ * a dose logged in the instant between them is not caught; the window is the
+ * toast's three seconds, and the dose keeps its link either way.
+ */
+export async function unmixStockItem(
+  id: string,
+  dateKey: string,
+): Promise<{ ok: boolean; refusal?: WriteRefusalKind }> {
+  const refused = await refuseWrite();
+  if (refused) return refused;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return { ok: false }
+  try {
+    const ctx = await sessionCtx()
+    if (!ctx) return { ok: false }
+    const logs = await ctx.supabase
+      .from("dose_logs")
+      .select("id")
+      .eq("user_id", ctx.userId)
+      .eq("inventory_item_id", id)
+      .limit(1)
+    if (logs.error) {
+      console.error("unmixStockItem dose check failed", logs.error)
+      return { ok: false }
+    }
+    if ((logs.data ?? []).length > 0) return { ok: false }
+    const { data, error } = await ctx.supabase
+      .from("inventory_items")
+      .update({ bac_water_ml: null, reconstituted_on: null, acquired_on: null })
+      .eq("id", id)
+      .eq("user_id", ctx.userId)
+      .eq("inventory_type", "reconstituted")
+      .eq("acquired_on", dateKey)
+      .eq("reconstituted_on", dateKey)
+      .select("id")
+    if (error) {
+      console.error("unmixStockItem failed", error)
+      return { ok: false }
+    }
+    // Zero rows: not mixed today, not theirs, or already undone.
+    return { ok: (data ?? []).length === 1 }
+  } catch (e) {
+    console.error("unmixStockItem failed", e)
+    return { ok: false }
+  }
+}

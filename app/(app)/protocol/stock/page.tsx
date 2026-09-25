@@ -1,16 +1,11 @@
-import type { Metadata } from "next"
-
-import { getCurrentUser } from "@/lib/auth"
-import { StockScreen } from "@/components/protocol/pages/StockScreen"
-
-export const metadata: Metadata = { title: "Stock · Trakabl" }
+import { redirect } from "next/navigation"
 
 /**
- * Protocol → Stock (Adrian, 2026-09-24): pushed from its foot tile on Protocol.
- * The client screen reads the device store and Postgres, so this route reads
- * only who is signed in.
+ * The Stock page is gone (Adrian, final check round four: "the simplest way is
+ * to control all of the stock ... where the protocol thing is"). Stock lives on
+ * Protocol's compounds row and in each compound's sheet, so an old link lands
+ * there.
  */
-export default async function ProtocolStockPage() {
-  const user = await getCurrentUser()
-  return <StockScreen userId={user?.id ?? "anon"} />
+export default function ProtocolStockPage() {
+  redirect("/protocol")
 }

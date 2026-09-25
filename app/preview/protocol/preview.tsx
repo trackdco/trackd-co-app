@@ -8,9 +8,9 @@ import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab"
 import { useMounted } from "@/components/home/useMounted"
 import { ScrollSettle } from "@/components/feel/ScrollSettle"
 import { ProtocolScreen } from "@/components/protocol/ProtocolScreen"
-import { StockScreen } from "@/components/protocol/pages/StockScreen"
 import { StacksScreen } from "@/components/protocol/pages/StacksScreen"
 import { CyclesScreen } from "@/components/protocol/pages/CyclesScreen"
+import { ScheduleScreen } from "@/components/protocol/pages/ScheduleScreen"
 import { saveStacks, notifyStacksChanged, type Stack } from "@/lib/home/stacks"
 import {
   recordScheduleStop,
@@ -307,7 +307,7 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLog
   return { stack, stock, logs, stacks, read }
 }
 
-export function ProtocolPreview({ page }: { page?: "stock" | "stacks" | "cycles" }) {
+export function ProtocolPreview({ page }: { page?: "stacks" | "cycles" | "schedule" }) {
   const mounted = useMounted()
   const { stack, stock, logs, stacks, read } = useMemo(() => buildMock(), [])
 
@@ -342,14 +342,14 @@ export function ProtocolPreview({ page }: { page?: "stock" | "stacks" | "cycles"
       </header>
 
       <main className="flex-1">
-        {page === "stock" ? (
-          <StockScreen userId={USER} backHref="/preview/protocol" previewRead={read} />
-        ) : page === "stacks" ? (
+        {page === "stacks" ? (
           <StacksScreen userId={USER} backHref="/preview/protocol" />
         ) : page === "cycles" ? (
           <CyclesScreen userId={USER} backHref="/preview/protocol" />
+        ) : page === "schedule" ? (
+          <ScheduleScreen userId={USER} backHref="/preview/protocol" />
         ) : (
-          <ProtocolScreen userId={USER} previewStock={stock} footBase="/preview/protocol" />
+          <ProtocolScreen userId={USER} previewStock={stock} previewRead={read} footBase="/preview/protocol" />
         )}
       </main>
 

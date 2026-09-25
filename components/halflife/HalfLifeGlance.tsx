@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 
 import { Container } from "@/components/containers"
-import { ThumbGroup } from "@/components/feel/SlidingThumb"
-import { SolidIcon } from "@/components/feel/SolidIcon"
+import { TypeRail } from "@/components/feel/TypeRail"
 import { cn } from "@/lib/utils"
 import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
@@ -12,7 +11,6 @@ import { CATEGORY_META, type CompoundCategory } from "@/lib/compound-categories"
 import type { DayLogs } from "@/lib/home/doseLog"
 import type { StackCompound } from "@/lib/home/stack"
 import { formatAmount, formatPercent, halfGoneAtH } from "@/lib/halflife/model"
-import { CATEGORY_GLYPH } from "@/lib/solidGlyphs"
 
 import { HalfLifeGraph } from "./HalfLifeGraph"
 import { RollNumber } from "./RollNumber"
@@ -175,44 +173,16 @@ export function HalfLifeGlance({
   return (
     <section className="flow-card inst-card px-5 pt-5 pb-4" aria-label="Half-life">
       <h2 className={CARD_EYEBROW}>Half-life</h2>
-      {cats.length > 1 ? (
-        <ThumbGroup
-          selection={cat}
-          thumbClassName="inst-thumb"
-          role="group"
-          aria-label="Type"
-          className="hl-chips mt-3 flex gap-0.5 overflow-x-auto inst-rail p-[3px]"
-        >
-          {["all", ...cats].map((k) => {
-            const on = cat === k
-            const label = k === "all" ? "All" : CATEGORY_META[k as CompoundCategory].label
-            return (
-              <button
-                key={k}
-                type="button"
-                aria-pressed={on}
-                onClick={() => {
-                  setCat(k)
-                  setOpenId(null)
-                  swipeRef.current?.scrollTo({ left: 0 })
-                }}
-                className={cn(
-                  PRESS.pill,
-                  "flex shrink-0 items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[12px] transition-colors duration-300",
-                  on ? "text-bg-base" : "text-text-muted",
-                )}
-              >
-                {k === "all" ? (
-                  <SolidIcon name="all" size={14} {...(on ? { hue: "var(--bg-base)" } : { tone: "off" as const })} />
-                ) : (
-                  <SolidIcon name={CATEGORY_GLYPH[k] ?? "catPeptide"} size={14} hue={`var(--cat-${k})`} />
-                )}
-                {label}
-              </button>
-            )
-          })}
-        </ThumbGroup>
-      ) : null}
+      <TypeRail
+        categories={cats}
+        value={cat}
+        onChange={(k) => {
+          setCat(k)
+          setOpenId(null)
+          swipeRef.current?.scrollTo({ left: 0 })
+        }}
+        className="mt-3"
+      />
       <div
         ref={swipeRef}
         onScroll={onScroll}

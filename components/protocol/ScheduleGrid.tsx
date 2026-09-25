@@ -3,25 +3,21 @@
 import { useMemo } from "react"
 
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW } from "@/lib/ui-presets"
 import {
   CATEGORY_DISPLAY_ORDER,
-  CATEGORY_META,
-  FALLBACK_CATEGORY_META,
   type CompoundCategory,
 } from "@/lib/compound-categories"
+import { containerColour } from "@/lib/containers/colour"
 import { type StackCompound } from "@/lib/home/stack"
 import { type WeekCellState } from "@/lib/protocol/scheduleWeek"
 import { Pause } from "@/components/icons"
 import { toDateKey } from "@/lib/home/mockHomeData"
-import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 
 /**
- * Rows before the list starts scrolling with a sticky day header.
- *
- * Eight rows plus the header and the key is roughly half a phone viewport; past
- * that it pushes the Cycles section off-screen and the page stops reading as one
- * scroll.
+ * Rows the Protocol card shows before it says "+N more". The card is a glance
+ * and a link; the Schedule page shows every row. Eight is where the old inline
+ * grid started scrolling, for the same reason: past it the card pushes the foot
+ * tiles off the screen.
  */
 export const SCHEDULE_SCROLL_AFTER_ROWS = 8
 
@@ -35,26 +31,41 @@ const DAY_NAMES = [
  *  is where the states are decided and unit-tested. */
 type CellState = WeekCellState
 
+/** The name column. `data-schedule-namecol` lets the desktop stylesheet give it a
+ *  fixed width on a wide card (`app/desktop.css`). */
+const NAME_COL = "w-[38%] shrink-0"
+/** The seven-day track every row and the day header share. */
+const DAY_TRACK = "grid flex-1 grid-cols-7 gap-1"
+
 /**
- * The week at a glance: one row per compound, seven marks across, grouped by
- * category.
+ * The week at a glance, in the Instrument look (build-brief-final §3.7): one row
+ * per compound, seven SQUARES across (3px corners), each in the compound's own
+ * colour, today's column lit, and a hairline between types with no type labels.
  *
- * Deliberately **not a table** (Adrian's call) — a grid of cells read as a
- * spreadsheet. These are the same status DOTS the week strip already uses, so
- * the section reads as part of the app rather than a data export.
+ * Deliberately **not a table** (Adrian's call): a grid of cells with headers and
+ * rules read as a spreadsheet.
  *
- * **Display only.** The page has no selected date, so a tap here would have to
- * assume today — exactly the bug Spec 01 exists to remove.
+ * The states are the app's existing ones, unchanged in meaning, carried by the
+ * square: filled in the colour = logged, outlined in the colour = due, a hollow
+ * grey square = missed (the old hollow ring, squared), a bare hairline = nothing
+ * due, the pause bars = paused. Due and missed never meet: a due dose becomes
+ * MISSED only at the end of its day, so due lives on today and after, missed
+ * only before.
  *
- * A due dose becomes MISSED only at the end of its scheduled day, so today's
- * outstanding doses read as due right up until midnight.
+ * **Display only.** The page has no selected date, so a tap on a mark would have
+ * to assume today, exactly the bug Spec 01 exists to remove. The card that holds
+ * this is a link to the Schedule page; nothing inside is a control.
+ *
+ * Renders the grid alone. The caller supplies the card around it.
  */
 export function ScheduleGrid({
   compounds,
   states,
   todayKey,
   weekDays,
-  hideHeading = false,
+  dates = false,
+  legend = false,
+  maxRows,
 }: {
   compounds: StackCompound[]
   /** Compound id → its seven marks. Computed once by `weekMatrix`, which also
@@ -64,152 +75,164 @@ export function ScheduleGrid({
   todayKey: string
   /** The seven dates of the week being shown, Monday first. */
   weekDays: Date[]
-  /** Set when a wrapper already titles the section, so the heading is not
-   *  printed twice. `ScheduleWeeks` is currently the only caller and always
-   *  passes it; the branch is kept because the grid is a general component and
-   *  losing its own heading would make it unusable anywhere else. */
-  hideHeading?: boolean
+  /** Print each day's date under its initial. The Schedule page steps through
+   *  weeks, where "M T W T F S S" alone says nothing about WHICH week you are
+   *  looking at (Adrian, 2026-09-03). The Protocol card only ever shows this
+   *  week and leaves them off, as the mock does. */
+  dates?: boolean
+  /** The key under the grid (the page shows it; the card is a glance). */
+  legend?: boolean
+  /** Cap on rows, with "+N more" under them. Unset shows every row. */
+  maxRows?: number
 }) {
-  const groups = groupByCategory(compounds)
-  const scrolls = compounds.length > SCHEDULE_SCROLL_AFTER_ROWS
-
-  const stateOf = (c: StackCompound, i: number): CellState =>
-    states.get(c.id)?.[i] ?? "none"
+  const groups = useMemo(() => groupByCategory(compounds), [compounds])
   const anyPaused = useMemo(
     () => [...states.values()].some((row) => row.includes("paused")),
     [states],
   )
+  const todayIndex = weekDays.findIndex((d) => toDateKey(d) === todayKey)
 
   if (compounds.length === 0) return null
 
-  return (
-    <section className="space-y-3">
-      {!hideHeading && <h2 className={`${CARD_EYEBROW} px-1`}>Schedule</h2>}
+  const stateOf = (c: StackCompound, i: number): CellState =>
+    states.get(c.id)?.[i] ?? "none"
 
-      <div className="flow-card inst-card p-5">
-      {/* Day header — aligned to the same 7-column track the rows use.
-          `schedule-dayhead` is the FAR layer of the week-step parallax (see
-          globals.css); the groups below are the near one. */}
-      <div className="schedule-dayhead flex items-center gap-3">
-        <span data-schedule-namecol className="w-[38%] shrink-0" />
-        <div className="grid flex-1 grid-cols-7 gap-1">
-          {weekDays.map((d, i) => {
-            const isToday = toDateKey(d) === todayKey
-            return (
+  // Trim to the cap across groups, keeping their order, so the rows cut are the
+  // least consequential ones (supplements sort last, `CATEGORY_DISPLAY_ORDER`).
+  let budget = maxRows ?? Number.POSITIVE_INFINITY
+  const shown: Group[] = []
+  for (const g of groups) {
+    if (budget <= 0) break
+    const take = g.compounds.slice(0, budget)
+    budget -= take.length
+    shown.push({ cat: g.cat, compounds: take })
+  }
+  const hidden =
+    compounds.length - shown.reduce((n, g) => n + g.compounds.length, 0)
+
+  return (
+    <div>
+      {/* `isolate` so the lit column can sit BEHIND the squares (z -10) without
+          dropping behind the card's own surface. */}
+      <div className="relative isolate">
+        {todayIndex >= 0 && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -inset-y-1 inset-x-0 -z-10 flex items-stretch gap-3"
+          >
+            <span data-schedule-namecol className={NAME_COL} />
+            <div className={DAY_TRACK}>
               <span
-                key={d.toISOString()}
-                className={cn(
-                  "flex flex-col items-center leading-none",
-                  isToday ? "text-text-muted" : "text-text-muted"
-                )}
-              >
-                <span className="text-[10px] font-medium uppercase tracking-wide">
-                  {DAY_INITIALS[i]}
-                </span>
-                {/* The DATE, not just the initial. Once the grid can show a week
-                    other than this one, "M T W T F S S" alone says nothing about
-                    WHICH week you are looking at (Adrian, 2026-09-03). Shown on
-                    every week rather than only past ones, so there is no mode to
-                    notice and today's column is dated too. */}
+                className="rounded-[6px] bg-foreground/[0.05]"
+                style={{ gridColumnStart: todayIndex + 1 }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Day header, on the same track as the rows. `schedule-dayhead` is the
+            FAR layer of the week-step parallax (globals.css); the groups below
+            are the near one. */}
+        <div className="schedule-dayhead flex items-center gap-3 pt-0.5 pb-1.5">
+          <span data-schedule-namecol className={NAME_COL} />
+          <div className={DAY_TRACK}>
+            {weekDays.map((d, i) => {
+              const isToday = i === todayIndex
+              return (
                 <span
+                  key={d.toISOString()}
                   className={cn(
-                    "mt-0.5 font-mono text-[9px] tabular-nums",
-                    isToday && "text-foreground"
+                    "flex flex-col items-center font-mono leading-none tabular-nums",
+                    isToday ? "text-foreground" : "text-text-muted",
                   )}
                 >
-                  {d.getDate()}
+                  <span className="text-[10px]">{DAY_INITIALS[i]}</span>
+                  {dates && <span className="mt-1 text-[9.5px]">{d.getDate()}</span>}
                 </span>
-              </span>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
-      </div>
 
-      <div className={cn("mt-2", scrolls && "max-h-64 overflow-y-auto")}>
-        {groups.map((g) => {
-          const meta =
-            CATEGORY_META[g.cat as CompoundCategory] ?? FALLBACK_CATEGORY_META
-          return (
-            <div key={g.cat} className="schedule-group mt-3 first:mt-0">
-              {/* The compound type ICON carries the category colour; the label
-                  itself is white, so the row reads as a heading rather than as
-                  coloured text. Same treatment the dashboard's log card uses. */}
-              <span className="flex items-center gap-1.5 px-0.5 pb-1">
-                <CategoryIcon category={g.cat} className="h-3.5 w-3.5" />
-                <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-foreground">
-                  {meta.label}
-                </span>
-              </span>
-              {g.compounds.map((c) => (
-                <div key={c.id} className="flex items-center gap-3 py-1.5">
-                  <span data-schedule-namecol className="w-[38%] shrink-0 truncate text-xs text-text-muted">
+        {shown.map((g, gi) => (
+          <div
+            key={g.cat}
+            className={cn(
+              "schedule-group",
+              // A hairline between types, and no label: the colour already says
+              // which type a row is.
+              gi > 0 && "mt-1 hairline-t pt-1",
+            )}
+          >
+            {g.compounds.map((c) => {
+              const colour = containerColour({ category: c.category })
+              return (
+                <div key={c.id} className="flex items-center gap-3 py-1">
+                  <span
+                    data-schedule-namecol
+                    className={cn(NAME_COL, "truncate text-xs text-foreground")}
+                  >
                     {c.name}
                   </span>
                   {/* The marks are decorative; the row carries the meaning as
                       text, so a screen reader gets the whole week rather than
                       just the compound's name. */}
-                  <div className="grid flex-1 grid-cols-7 gap-1">
+                  <div className={DAY_TRACK}>
                     <span className="sr-only">
                       {weekDays
-                        .map(
-                          (_d, i) => `${DAY_NAMES[i]} ${STATE_LABEL[stateOf(c, i)]}`
-                        )
+                        .map((_d, i) => `${DAY_NAMES[i]} ${STATE_LABEL[stateOf(c, i)]}`)
                         .join(", ")}
                     </span>
                     {weekDays.map((d, i) => (
-                      <Mark key={d.toISOString()} state={stateOf(c, i)} />
+                      <span key={d.toISOString()} className="flex h-4 items-center justify-center">
+                        <Mark state={stateOf(c, i)} colour={colour} />
+                      </span>
                     ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          )
-        })}
+              )
+            })}
+          </div>
+        ))}
       </div>
 
-      <Key showPaused={anyPaused} />
-      </div>
-    </section>
+      {hidden > 0 && (
+        <p className="mt-1.5 font-mono text-[10.5px] tabular-nums text-text-muted">
+          +{hidden} more
+        </p>
+      )}
+
+      {legend && <Key showPaused={anyPaused} />}
+    </div>
   )
 }
 
 /**
- * Logged is solid white, DUE is a mid-grey FILL (the spec's word), missed is the
- * hollow one, and a day with nothing due is a bare tick so the row still reads as
- * seven days.
+ * One day's square, 12px with 3px corners.
  *
- * Due and missed were both hollow rings differing only in border colour, which
- * made MISSED the fainter of the two and nearly indistinguishable from "nothing
- * due" — the state that most needs to be seen was the least visible. Filling due
- * separates them by shape rather than by a shade of grey.
+ * Logged is FILLED in the compound's colour and due is the same square
+ * OUTLINED in it, so logging a dose reads as filling its square in. Missed is
+ * the hollow grey one (the old hollow ring, squared: never a slash), and a day
+ * with nothing due is a bare hairline so the row still reads as seven days.
+ * Missed is drawn in `--text-muted` against the hairline's `--border-default`,
+ * so the state that most needs seeing is never the faintest thing in the row.
  */
-function Mark({ state }: { state: CellState }) {
-  // Paused is a GLYPH, not another dot. A row of pause bars reads as
-  // "deliberately off" the length of the week, which is the one thing a row of
-  // faint rest-day dots could never say (Adrian, 2026-09-03). A glyph rather
-  // than a colour also keeps it clear of the one-amber-beat rule.
+function Mark({ state, colour }: { state: CellState; colour: string }) {
+  // Paused is a GLYPH, not another square. A row of pause bars reads as
+  // "deliberately off" the length of the week, which a row of empty squares
+  // could never say (Adrian, 2026-09-03).
   if (state === "paused") {
-    return (
-      <span className="flex h-5 items-center justify-center">
-        <Pause aria-hidden className="h-2.5 w-2.5 text-text-subtle" weight="fill" />
-      </span>
-    )
+    return <Pause aria-hidden className="h-2.5 w-2.5 text-text-muted" weight="fill" />
   }
-  return (
-    <span className="flex h-5 items-center justify-center">
-      <span
-        aria-hidden
-        className={cn(
-          "rounded-full",
-          state === "logged" && "h-2.5 w-2.5 bg-accent-primary",
-          state === "due" && "h-2.5 w-2.5 bg-text-muted",
-          // Hollow with a thin border, never a slash — and now the only hollow one.
-          state === "missed" && "h-2.5 w-2.5 border border-text-muted",
-          state === "none" && "h-1 w-1 bg-border-default"
-        )}
-      />
-    </span>
-  )
+  const style =
+    state === "logged"
+      ? { backgroundColor: colour }
+      : state === "due"
+        ? { boxShadow: `inset 0 0 0 1.5px ${colour}` }
+        : state === "missed"
+          ? { boxShadow: "inset 0 0 0 1px var(--text-muted)" }
+          : { boxShadow: "inset 0 0 0 1px var(--border-default)" }
+  return <span aria-hidden className="block h-3 w-3 rounded-[3px]" style={style} />
 }
 
 const STATE_LABEL: Record<CellState, string> = {
@@ -220,15 +243,15 @@ const STATE_LABEL: Record<CellState, string> = {
   none: "nothing due",
 }
 
-/** The key, following the injection-site rotation key's pattern. */
+/** The key. Logged and due are drawn in white here: on the grid each takes its
+ *  compound's colour. */
 function Key({ showPaused }: { showPaused: boolean }) {
   const items: { state: CellState; label: string }[] = [
     { state: "logged", label: "Logged" },
     { state: "due", label: "Due" },
     { state: "missed", label: "Missed" },
-    // Only when the week actually contains one. A legend entry for a state
-    // nothing on screen is in is noise, and this key is already four items wide
-    // on a phone.
+    // Only when the week actually contains one. A key entry for a state nothing
+    // on screen is in is noise.
     ...(showPaused ? ([{ state: "paused", label: "Paused" }] as const) : []),
     { state: "none", label: "Nothing due" },
   ]
@@ -236,8 +259,10 @@ function Key({ showPaused }: { showPaused: boolean }) {
     <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 hairline-t pt-3">
       {items.map((i) => (
         <li key={i.state} className="flex items-center gap-1.5">
-          <Mark state={i.state} />
-          <span className="text-[10px] text-text-muted">{i.label}</span>
+          <span className="flex h-3 w-3 items-center justify-center">
+            <Mark state={i.state} colour="var(--text-primary)" />
+          </span>
+          <span className="text-[10.5px] text-text-muted">{i.label}</span>
         </li>
       ))}
     </ul>
@@ -249,7 +274,7 @@ interface Group {
   compounds: StackCompound[]
 }
 
-// The order is deliberate and shared, NOT the object's key order — see
+// The order is deliberate and shared, NOT the object's key order: see
 // `CATEGORY_DISPLAY_ORDER`. Sorting by key order put orals and SARMs above
 // peptides and supplements above stimulants, which nobody chose.
 const CATEGORY_ORDER = CATEGORY_DISPLAY_ORDER
@@ -269,9 +294,7 @@ function groupByCategory(items: StackCompound[]): Group[] {
     // The name tiebreak is not cosmetic. Every UNRECOGNISED category ties at
     // rank = CATEGORY_ORDER.length, and without it the order falls through to
     // Map insertion order, i.e. whatever order the compounds happened to
-    // arrive. Two of the five grouping sites already sorted by name, so the
-    // same two compounds sat in one order here and the opposite order under a
-    // photo. Ranked first, named second, everywhere.
+    // arrive. Ranked first, named second, everywhere.
     .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
     .map((cat) => ({
       cat,

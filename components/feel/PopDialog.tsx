@@ -39,6 +39,15 @@ export function PopDialog({
     if (open) setMounted(true)
   }
   const scrimRef = useRef<HTMLDivElement>(null)
+  // Opened from inside a sheet, it renders INSIDE that sheet, as the number pad
+  // does: a Radix sheet makes everything outside itself inert (no pointer, no
+  // focus), so a pop-up on <body> could be seen and not pressed.
+  const probeRef = useRef<HTMLSpanElement>(null)
+  const [host, setHost] = useState<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    if (!mounted) return
+    setHost(probeRef.current?.closest<HTMLElement>('[data-slot="sheet-content"]') ?? document.body)
+  }, [mounted])
   const cardRef = useRef<HTMLDivElement>(null)
   const returnTo = useRef<Element | null>(null)
   const titleId = useId()
@@ -102,8 +111,10 @@ export function PopDialog({
   }, [open, onClose])
 
   if (!mounted || typeof document === "undefined") return null
-  return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-6" role="presentation">
+  const probe = <span ref={probeRef} hidden />
+  if (!host) return probe
+  return (<>{probe}{createPortal(
+    <div className="pointer-events-auto fixed inset-0 z-[80] flex items-center justify-center p-6" role="presentation">
       <div ref={scrimRef} className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden />
       <div
         ref={cardRef}
@@ -121,6 +132,6 @@ export function PopDialog({
         {children}
       </div>
     </div>,
-    document.body,
-  )
+    host,
+  )}</>)
 }

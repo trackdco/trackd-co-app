@@ -17,20 +17,20 @@ import {
 } from "@/lib/home/hydrationState"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { CompoundsRow } from "@/components/protocol/CompoundsRow"
-import { ScheduleWeeks } from "@/components/protocol/ScheduleWeeks"
+import { ScheduleCard } from "@/components/protocol/ScheduleCard"
 import { FootTiles } from "@/components/protocol/FootTiles"
 import { CompoundDetailSheet } from "@/components/home/CompoundDetailSheet"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
-import { StockActionsSheet } from "@/components/protocol/StockActionsSheet"
-import { listStock, type StockItem } from "@/lib/db/inventory"
+import { MixVialSheet } from "@/components/protocol/MixVialSheet"
+import { listStock, type StockItem, type StockRead } from "@/lib/db/inventory"
 import { containersOf } from "@/lib/protocol/stockView"
 import { cn } from "@/lib/utils"
 import { PRESS } from "@/lib/ui-presets"
 import { runsDryInDays } from "@/lib/protocol/runsDry"
-import { BlendsCard, HalfLifeCard } from "@/components/halflife/HalfLifeCards"
 import { remainingLabel } from "@/lib/containers/labels"
+import { mixWaterDefault, needsMixing } from "@/lib/protocol/stockPage"
 import { subscribeDoseSynced } from "@/lib/home/doseLog"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
 import {
@@ -75,6 +75,7 @@ export function ProtocolScreen({
    *  than at the top of the page. */
   initialStockFor,
   previewStock,
+  previewRead,
   previewCompounds,
   previewLogs,
   footBase,
@@ -83,6 +84,9 @@ export function ProtocolScreen({
   initialStockFor?: string | null
   /** Dev-only: mock data so `/preview/protocol` renders without a session. */
   previewStock?: StockItem[]
+  /** Dev-preview-only: a whole stock read (containers and spares), read as the
+   *  live one is, keyed by the mock's own compound ids. */
+  previewRead?: StockRead
   previewCompounds?: StackCompound[]
   previewStacks?: Stack[]
   previewLogs?: DayLogs
@@ -102,7 +106,8 @@ export function ProtocolScreen({
   // Adding / refilling a vial. Merging the Stock tab away removed the only path
   // to this, so the compound card's stock block opens it instead.
   const [stockTarget, setStockTarget] = useState<StackCompound | null>(null)
-  const [stockActionsFor, setStockActionsFor] = useState<StackCompound | null>(null)
+  // Mix one, from the compound's sheet: the spare, and the water last used.
+  const [mixTarget, setMixTarget] = useState<{ compound: StackCompound; spare: StockItem; lastWater: number } | null>(null)
   const [stockEditItem, setStockEditItem] = useState<StockItem | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -183,6 +188,11 @@ export function ProtocolScreen({
   const [fetchedStock, setFetchedStock] = useState<Map<string, StockItem> | null>(
     null
   )
+  /** Per compound: containers held beyond the one in use, a spare still to
+   *  mix, and the water it was last mixed with. */
+  const [stockExtras, setStockExtras] = useState<Map<string, { others: number; drySpare: StockItem | null; lastWater: number }>>(
+    () => new Map(),
+  )
   const [stockTick, setStockTick] = useState(0)
   const [stockFailed, setStockFailed] = useState(false)
   /**
@@ -200,25 +210,24 @@ export function ProtocolScreen({
   // setState there cascades an extra render for no reason.
   const stockByCompound = useMemo(
     () =>
-      previewStock
+      previewStock && !previewRead
         ? new Map(previewStock.map((s) => [s.protocolCompoundId, s]))
         : fetchedStock,
-    [previewStock, fetchedStock]
+    [previewStock, previewRead, fetchedStock]
   )
-  const stockKnown = previewStock !== undefined || fetchedStock !== null
+  const stockKnown = (previewStock !== undefined && !previewRead) || fetchedStock !== null
   const activeKey = active.map((c) => c.id).join(",")
   useEffect(() => {
-    if (previewStock) return
-    if (!userId || userId === "anon" || activeKey === "") return
+    if (previewStock && !previewRead) return
+    if (!userId || (userId === "anon" && !previewRead) || activeKey === "") return
     let cancelled = false
     void (async () => {
       const members = activeKey
         .split(",")
         .map((id) => ({ id, name: active.find((c) => c.id === id)?.name ?? null }))
-      const [read, idMap] = await Promise.all([
-        listStock(),
-        resolveProtocolCompoundIds(members),
-      ])
+      const [read, idMap] = previewRead
+        ? [previewRead, Object.fromEntries(members.map((m) => [m.id, m.id])) as Record<string, string>]
+        : await Promise.all([listStock(), resolveProtocolCompoundIds(members)])
       if (cancelled) return
       // A failed read is NOT "no stock": the cards keep claiming nothing and one
       // line says the read failed (build brief §5, item 6).
@@ -234,10 +243,20 @@ export function ProtocolScreen({
       // one), carrying what the compound holds in every open container, and a
       // runway walked over the days a dose is actually due.
       const next = new Map<string, StockItem>()
+      const extras = new Map<string, { others: number; drySpare: StockItem | null; lastWater: number }>()
       for (const held of read.compounds) {
         const clientId = pcToClient.get(held.protocolCompoundId)
-        const inUse = containersOf(read.items, held.protocolCompoundId).inUse
+        const box = containersOf(read.items, held.protocolCompoundId)
+        // Only spares held (a box not yet mixed or opened): the first stands
+        // for the compound, drawn full, with no runway until it is started.
+        const inUse = box.inUse ?? box.spares[0] ?? null
         if (!clientId || !inUse) continue
+        const mine = read.items.filter((i) => i.protocolCompoundId === held.protocolCompoundId)
+        extras.set(clientId, {
+          others: Math.max(0, box.open.length + box.spares.length - 1),
+          drySpare: box.spares.find(needsMixing) ?? null,
+          lastWater: mixWaterDefault(mine),
+        })
         const c = active.find((x) => x.id === clientId)
         next.set(clientId, {
           ...inUse,
@@ -248,6 +267,7 @@ export function ProtocolScreen({
         })
       }
       setFetchedStock(next)
+      setStockExtras(extras)
     })()
     return () => {
       cancelled = true
@@ -286,19 +306,12 @@ export function ProtocolScreen({
         <CompoundsRow
           compounds={active}
           stockByCompound={stockByCompound ?? new Map()}
+          othersByCompound={new Map([...stockExtras].map(([k, v]) => [k, v.others]))}
           stockKnown={stockKnown}
           todayKey={todayKey}
           onOpen={setDetailTarget}
           onAddCompound={() => guard(() => setPickerOpen(true))}
-          onAddStock={(c) =>
-            guard(() => {
-              // A compound that already has a vial gets the actions sheet (refill /
-              // correct / discard); one that does not goes straight to adding.
-              const existing = stockByCompound?.get(c.id) ?? null
-              if (existing) setStockActionsFor(c)
-              else setStockTarget(c)
-            })
-          }
+          onAddStock={(c) => guard(() => setStockTarget(c))}
         />
         {/* The read FAILED: say so once, with a retry, rather than letting the
             cards read "Add stock" for stock the user does hold. */}
@@ -316,22 +329,14 @@ export function ProtocolScreen({
         )}
       </div>
 
-      {/* The half-life card, then blends, then the Schedule UNDER them
-          (ui-context → "Stock, Stacks and Cycles pages"). Each is absent when
-          it has nothing to draw, so the wrapper hides with it. */}
-      <div data-area="halflife" className="animate-home-up empty:hidden" style={delay(55)}>
-        <HalfLifeCard compounds={active} logs={logs} userId={userId} />
-      </div>
-      <div data-area="blends" className="animate-home-up empty:hidden" style={delay(110)}>
-        <BlendsCard compounds={active} logs={logs} userId={userId} />
-      </div>
-
+      {/* The half-life and blends cards moved to the Half-life page (the third
+          tile, build-brief-final §3.7 / §3.11). */}
       <div data-area="schedule" className="animate-home-up" style={delay(165)}>
         {/* The FULL stack, not `active`. A past week needs the compounds that
             are no longer current, and `compoundsInWeek` dates them from the
             `stopped` version Delete writes rather than the undated `archived`
             flag, so a deleted compound keeps every week it actually ran in. */}
-        <ScheduleWeeks compounds={compounds} logs={logs} todayKey={todayKey} />
+        <ScheduleCard compounds={compounds} logs={logs} todayKey={todayKey} href={footBase ? `${footBase}/schedule` : undefined} />
       </div>
 
       {/* The foot (Adrian, 2026-09-24): Stacks, Cycles and Stock each push
@@ -382,30 +387,33 @@ export function ProtocolScreen({
           setStockEditItem(stockByCompound?.get(c.id) ?? null)
         }}
         onArchive={(id) => archiveInStack(userId, id, true)}
-      />
-
-      {/* What you can do to a vial you already have. Restores the only entry
-          points to `updateStockItem` and `setStockArchived`, both of which lost
-          their caller when StockItemCard was deleted. */}
-      <StockActionsSheet
-        open={stockActionsFor !== null}
-        onOpenChange={(o) => !o && setStockActionsFor(null)}
-        compound={stockActionsFor}
-        stock={
-          stockActionsFor ? (stockByCompound?.get(stockActionsFor.id) ?? null) : null
+        stockSection={
+          detailTarget
+            ? {
+                inUse: stockByCompound?.get(detailTarget.id) ?? null,
+                others: stockExtras.get(detailTarget.id)?.others ?? 0,
+                drySpare: stockExtras.get(detailTarget.id)?.drySpare ?? null,
+                onAddStock: () =>
+                  guard(() => {
+                    const c = detailTarget
+                    setDetailTarget(null)
+                    setStockTarget(c)
+                  }),
+                onMix: (spare) =>
+                  guard(() => {
+                    const c = detailTarget
+                    setDetailTarget(null)
+                    setMixTarget({ compound: c, spare, lastWater: stockExtras.get(c.id)?.lastWater ?? 2 })
+                  }),
+                onCorrect: (item) =>
+                  guard(() => {
+                    setDetailTarget(null)
+                    setStockEditItem(item)
+                  }),
+                onChanged: () => setStockTick((t) => t + 1),
+              }
+            : undefined
         }
-        onRefill={() => {
-          setStockTarget(stockActionsFor)
-          setStockActionsFor(null)
-        }}
-        onEditAmounts={() => {
-          const item = stockActionsFor
-            ? (stockByCompound?.get(stockActionsFor.id) ?? null)
-            : null
-          setStockEditItem(item)
-          setStockActionsFor(null)
-        }}
-        onDiscarded={() => setStockTick((t) => t + 1)}
       />
 
       {/* Add, refill, or correct the amounts.
@@ -429,28 +437,16 @@ export function ProtocolScreen({
            Null when there is no vial: the fallback made `refillFor` never null
            from this screen, so the first vial anyone ever added opened a sheet
            headed "Refill stock". */
-        refillFor={
-          stockEditItem || !stockTarget || !stockByCompound?.get(stockTarget.id)
-            ? null
-            : stockTarget.id
-        }
+        refillFor={null}
         // The compound you tapped Stock on, whether or not it has a vial yet.
         // `refillFor` above only fires for a REFILL, so without this a compound
         // with no stock opened the sheet on whatever happened to be first.
         preselectFor={stockEditItem ? null : (stockTarget?.id ?? null)}
-        refillType={
-          stockEditItem
-            ? null
-            : (stockTarget
-                ? (stockByCompound?.get(stockTarget.id)?.inventoryType ?? null)
-                : null)
-        }
+        refillType={null}
         editItem={stockEditItem}
         // A refill replaces the container refilled ("A new vial replaces this
         // one"); adding to a compound that holds none replaces nothing.
-        replaceItemId={
-          !stockEditItem && stockTarget ? (stockByCompound?.get(stockTarget.id)?.id ?? null) : null
-        }
+        replaceItemId={null}
         userId={userId}
         onOpenChange={(o) => {
           if (!o) {
@@ -466,6 +462,20 @@ export function ProtocolScreen({
         }}
       />
 
+
+      {/* Mix one (build-brief-final §3.12): the spare starts dry and fills as the
+          powder and water go in; "Mixed. Now in use." with Undo. */}
+      {mixTarget ? (
+        <MixVialSheet
+          open
+          onOpenChange={(o) => !o && setMixTarget(null)}
+          compound={mixTarget.compound}
+          spare={mixTarget.spare}
+          lastWaterMl={mixTarget.lastWater}
+          todayKey={todayKey}
+          onMixed={() => setStockTick((t) => t + 1)}
+        />
+      ) : null}
 
       {/* Protocol's own add-compound entry. Without it every control on the page
           was dead for a new account — including the empty copy that told the user

@@ -6,6 +6,7 @@ import { useCallback, useRef, useState, type CSSProperties, type ReactNode } fro
 import { ArrowLeft, Plus } from "@/components/icons"
 import { UpArrowIcon } from "@/components/halflife/HalfLifeCards"
 import { cn } from "@/lib/utils"
+import { ExplainerButton, type ExplainerTopic } from "@/components/protocol/Explainer"
 import { CARD_EYEBROW, PAGE_TITLE, PRESS } from "@/lib/ui-presets"
 
 /**
@@ -14,24 +15,36 @@ import { CARD_EYEBROW, PAGE_TITLE, PRESS } from "@/lib/ui-presets"
  * no header action. Rows open IN PLACE with the up arrow; a destructive action
  * turns into two pills, Cancel and a red one, with no sentence.
  */
+/**
+ * A Protocol page's frame: the back link, the title with its explainer "?"
+ * beside it (build-brief-final §3.8), and the page's one action as a "+" at top
+ * right (New stack, New cycle; round three). The page slides in from 26px to
+ * the right with a fade (300ms, §3.7).
+ */
 export function SubpageShell({
   screen,
   title,
   backHref = "/protocol",
+  explainer,
+  action,
   children,
 }: {
   screen: string
   title: string
   backHref?: string
+  /** The "What is a …?" pop-up beside the title. */
+  explainer?: ExplainerTopic
+  /** The page's one action, as a "+" at top right. */
+  action?: { label: string; onClick: () => void }
   children: ReactNode
 }) {
   return (
     <div
       data-screen={screen}
       data-desktop-layout="column"
-      className="mx-auto w-full max-w-md space-y-4 px-5 pt-4 pb-5"
+      className="subpage-in mx-auto w-full max-w-md space-y-4 px-5 pt-4 pb-5"
     >
-      <div className="animate-home-up">
+      <div>
         <Link
           href={backHref}
           className="-ml-2 inline-flex min-h-11 items-center gap-2 px-2 text-sm text-text-muted transition-colors hover:text-foreground"
@@ -39,7 +52,22 @@ export function SubpageShell({
           <ArrowLeft className="h-4 w-4" aria-hidden />
           Protocol
         </Link>
-        <h1 className={cn(PAGE_TITLE, "mt-1")}>{title}</h1>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <h1 className={cn(PAGE_TITLE, "truncate")}>{title}</h1>
+            {explainer ? <ExplainerButton topic={explainer} /> : null}
+          </div>
+          {action ? (
+            <button
+              type="button"
+              onClick={action.onClick}
+              aria-label={action.label}
+              className={cn(PRESS.button, "inst-btn flex h-[34px] w-[34px] shrink-0 items-center justify-center text-bg-base")}
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
+        </div>
       </div>
       {children}
     </div>

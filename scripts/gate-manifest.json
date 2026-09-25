@@ -20,6 +20,7 @@
     "lib/db/inventory.ts#addStockItem",
     "lib/db/inventory.ts#mixStockItem",
     "lib/db/inventory.ts#openStockItem",
+    "lib/db/inventory.ts#unmixStockItem",
     "lib/db/inventory.ts#updateStockItem",
     "lib/db/oneOffLogs.ts#upsertOneOffLog",
     "lib/db/protocolCompounds.ts#upsertProtocolCompound",

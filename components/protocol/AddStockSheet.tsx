@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useSyncExternalStore } from "react"
+import { useRef, useState, useSyncExternalStore } from "react"
 
 import {
   Sheet,
@@ -11,7 +11,10 @@ import {
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import {
+  GHOST_BUTTON,
   PRESS,
+  PRIMARY_BUTTON,
+  ROWS,
   SHEET_TITLE,
   STOCK_FIELD,
   STOCK_FIELD_LABEL,
@@ -45,8 +48,9 @@ import {
 } from "@/lib/protocol/stockUnits"
 import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
-import { resolveFill, vialBasis, FILL_PRESETS, round3, formatGrams } from "@/lib/protocol/vialFill"
-import { StockAddedCard } from "@/components/protocol/StockAddedCard"
+import { resolveFill, vialBasis, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
+import { firstEmptyStockField, type StockFieldId } from "@/lib/protocol/stockRequired"
+import { showToast } from "@/lib/toast"
 import { Container } from "@/components/containers"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
@@ -125,14 +129,18 @@ function formsForMethod(method: InjectionMethod): InventoryType[] {
   return ALL_FORMS
 }
 
-/** What {@link StockAddedCard} needs to draw the moment after a save. */
-interface StockAdded {
-  compoundName: string
-  category?: string | null
-  inventoryType?: string | null
-  fill: number
-  amountLabel: string | null
+/** A unit as a field shows it. IU in capitals, as the box reads (brief §3.12);
+ *  the stored value stays `iu`. */
+const shownUnit = (u: string) => (u === "iu" ? "IU" : u)
+
+/** The unit inside a number field, muted. It is all an empty field shows: no
+ *  placeholder words (brief §3.12). */
+function FieldUnit({ unit }: { unit: string }) {
+  return <span className="shrink-0 font-sans text-sm text-text-muted">{shownUnit(unit)}</span>
 }
+
+/** How long a refused field shakes. Matches `.field-shake` in `globals.css`. */
+const SHAKE_MS = 320
 
 /**
  * Add stock for a compound (Protocol Cutover, Step 5). Branches by the 3-way
@@ -179,20 +187,12 @@ export function AddStockSheet({
   replaceItemId?: string | null
   onAdded: () => void
 }) {
-  /** Set once a NEW item saves, which swaps the form for its confirmation. Null
-   *  on an edit or a refill-into-nothing: neither is a "you now have this". */
-  const [added, setAdded] = useState<StockAdded | null>(null)
+  // A save closes the sheet and says so in the bottom toast ("Added 2 to
+  // BPC-157."). The centred "Stock added" card that used to follow an add is
+  // gone (brief §3.12: one obvious action, few words).
   return (
     <>
-      <Sheet
-        open={open && added === null}
-        onOpenChange={(o) => {
-          // Dismissing mid-confirmation must clear it, or the next open would
-          // come straight back up on someone else's celebration.
-          if (!o) setAdded(null)
-          onOpenChange(o)
-        }}
-      >
+      <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           data-desktop="dialog"
           side="bottom"
@@ -206,7 +206,7 @@ export function AddStockSheet({
               {editItem ? "Edit stock" : refillFor ? "Refill stock" : "Add stock"}
             </SheetTitle>
           </SheetHeader>
-          {open && added === null && (
+          {open && (
             <AddStockForm
               userId={userId}
               refillFor={refillFor ?? null}
@@ -216,46 +216,6 @@ export function AddStockSheet({
               replaceItemId={replaceItemId ?? null}
               onClose={() => onOpenChange(false)}
               onAdded={onAdded}
-              onConfirmed={setAdded}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
-
-      {/* THE CONFIRMATION, centred rather than sliding up from the bottom
-          (Adrian, 2026-08-07). A bottom sheet is the app's "here is more to do"
-          gesture, and this is the opposite — it is done. Its own Sheet, not a
-          swapped body, so the form leaves the screen the instant you save
-          instead of the two states sharing one panel. */}
-      <Sheet
-        open={added !== null}
-        onOpenChange={(o) => {
-          if (!o) {
-            setAdded(null)
-            onOpenChange(false)
-          }
-        }}
-      >
-        <SheetContent
-          data-desktop="dialog"
-          side="center"
-          showCloseButton={false}
-          className="bg-bg-surface"
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Stock added</SheetTitle>
-          </SheetHeader>
-          {added && (
-            <StockAddedCard
-              compoundName={added.compoundName}
-              category={added.category}
-              inventoryType={added.inventoryType}
-              fill={added.fill}
-              amountLabel={added.amountLabel}
-              onDone={() => {
-                setAdded(null)
-                onOpenChange(false)
-              }}
             />
           )}
         </SheetContent>
@@ -273,7 +233,6 @@ function AddStockForm({
   replaceItemId,
   onClose,
   onAdded,
-  onConfirmed,
 }: {
   userId: string
   refillFor: string | null
@@ -283,8 +242,6 @@ function AddStockForm({
   replaceItemId: string | null
   onClose: () => void
   onAdded: () => void
-  /** Hand the confirmation up instead of closing. Only a NEW item gets one. */
-  onConfirmed: (added: StockAdded) => void
 }) {
   const stack = useSyncExternalStore(
     subscribeStack,
@@ -392,10 +349,18 @@ function AddStockForm({
   )
   const [perDrop, setPerDrop] = useState(ei?.inventoryType === "dropper" ? numStr(ei.strengthPerUnit) : "")
   // A box of several (Adrian, 2026-09-24): the first is started and the rest
-  // are spares, which count no doses until they are mixed or opened. An unmixed
-  // vial can be held too: with "Mix one now" off, every vial is a spare.
+  // are spares, which count no doses until they are mixed or opened.
   const [boxCount, setBoxCount] = useState(1)
-  const [mixNow, setMixNow] = useState(true)
+  // MIXING IS NOT PART OF ADD (brief §3.12). A powder vial asks only "Powder in
+  // each" and is saved unmixed, every vial a spare; the water is asked when the
+  // user taps "Mix one" (the Mix sheet). So "Mix one now" starts OFF and hidden.
+  //
+  // THE PRE-026 FALLBACK. A database without `026` refuses an unmixed vial
+  // (`isPendingSpare`). When a save is refused that way, `mixFallback` reveals
+  // the old path: the switch (on) and the BAC water field, so the vial can be
+  // added mixed, which that database accepts. Dead once `026` is applied.
+  const [mixNow, setMixNow] = useState(false)
+  const [mixFallback, setMixFallback] = useState(false)
   // "How much is in it?" — a Full/¾/½/¼ preset, or an exact amount-left in the
   // vial's own measure (mL of solution, or tab/cap count). An exact entry overrides
   // the preset. Both fold into prior_used_base on save; default Full = no change.
@@ -421,6 +386,10 @@ function AddStockForm({
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** The field a refused "Add" is shaking, if any. */
+  const [shakeId, setShakeId] = useState<StockFieldId | null>(null)
+  const shakeTimer = useRef<number | undefined>(undefined)
+  const pad = usePadSession()
 
   // The "how much is in it?" estimate → the stored part-vial offset (base-unit amount
   // already gone). Full (or no inputs yet) → null, the existing full-vial behaviour.
@@ -502,8 +471,11 @@ function AddStockForm({
   const effectiveOralForm = oralRule.countUnit ?? oralForm
 
 
+  /** Editing a vial held unmixed: it has no water, so none is asked. */
+  const editingSpare =
+    ei?.inventoryType === "reconstituted" && ei.acquiredOn == null && ei.bacWaterMl == null
   /** Held unmixed: a spare with no water, no mix date and no start (`026`). */
-  const unmixed = type === "reconstituted" && !mixNow && !editItem
+  const unmixed = type === "reconstituted" && (editItem ? editingSpare : !mixNow)
   const fill = resolveFill(
     type,
     {
@@ -676,35 +648,35 @@ function AddStockForm({
     // while its row is stored in capsules.
     type === "oral_solid" ? effectiveOralForm : type === "bulk_powder" ? "g" : type === "dropper" && dropMode === "drops" ? "drops" : "mL"
 
-  /** What was added, worded the way the container would be read: "10 mL",
-   *  "60 tablets", "300 g". Null when the form has nothing quantifiable, which
-   *  cannot happen on a successful save but keeps the card honest. */
-  function addedLabel(): string | null {
-    const one = oneLabel()
-    return one && boxCount > 1 ? `${boxCount} × ${one}` : one
+  /** The first field "Add" cannot save without (brief §3.12). */
+  const missing = firstEmptyStockField(
+    { type, unmixed, strengthRequired, dropMode },
+    { powder, bacWater, oilMl, concentration, count, strength, drops, tubGrams },
+  )
+  /** Nothing the user can type makes this savable: no compound yet, or an oral
+   *  dosed by weight (the warning under the fields says what to do). */
+  const cannotSave =
+    compounds.length === 0 || !compoundId || (type === "oral_solid" && oralRule.baseUnit === null)
+
+  /** A refused "Add": shake the empty field and open the pad on it. Cleared
+   *  first, a frame apart, so a second refusal shakes it again. */
+  function refuse(id: StockFieldId) {
+    window.clearTimeout(shakeTimer.current)
+    setShakeId(null)
+    requestAnimationFrame(() => {
+      setShakeId(id)
+      shakeTimer.current = window.setTimeout(() => setShakeId(null), SHAKE_MS)
+    })
+    pad.open(id)
   }
-  function oneLabel(): string | null {
-    if (type === "dropper" && dropMode === "drops") {
-      const n = num(drops)
-      return n > 0 ? `${n} drop${n === 1 ? "" : "s"}` : null
-    }
-    if (unmixed) {
-      return num(powder) > 0 ? `${round3(num(powder))} ${powderEntryUnit}` : null
-    }
-    if (type === "bulk_powder") {
-      return num(tubGrams) > 0 ? formatGrams(num(tubGrams)) : null
-    }
-    if (type === "oral_solid") {
-      const n = num(count)
-      if (n <= 0) return null
-      const word = effectiveOralForm === "tab" ? "tablet" : "capsule"
-      return `${n} ${word}${n === 1 ? "" : "s"}`
-    }
-    const ml = type === "reconstituted" ? num(bacWater) : num(oilMl)
-    return ml > 0 ? `${round3(ml)} mL` : null
-  }
+  /** A number field's class, with the shake when "Add" refused it. */
+  const fieldCls = (id: StockFieldId) => cn("h-11 w-full", shakeId === id && "field-shake")
 
   async function save() {
+    if (missing) {
+      refuse(missing)
+      return
+    }
     if (!insert) return
     setSaving(true)
     setError(null)
@@ -731,6 +703,7 @@ function AddStockForm({
         }
         onAdded()
         onClose()
+        showToast("Saved")
         return
       }
 
@@ -786,8 +759,17 @@ function AddStockForm({
         },
       )
       if (!r.ok) {
+        // THE PRE-026 FALLBACK (see `mixFallback`): the database refused a vial
+        // held unmixed. Offer the old path, mixed now, and open the pad on the
+        // water. One line says why; the switch can still turn it back off.
+        if (r.pendingMigration && unmixed) {
+          setMixFallback(true)
+          setMixNow(true)
+          pad.open("bacWater")
+          return
+        }
         // A form the database cannot hold until `014`/`016` are applied gets its
-        // own words. "Please try again" is a lie there — trying again will fail
+        // own words. "Please try again" is a lie there: trying again will fail
         // identically, and the user has no way to know it is not their input.
         setError(
           // Same reasoning as the push above: the gate is not a failure and not
@@ -800,8 +782,8 @@ function AddStockForm({
               // rather than suggesting the type already chosen.
               type === "dropper"
               ? "Droppers aren’t available yet. Add it as Pre-mixed or Oral for now."
-              : type === "reconstituted" && (boxCount > 1 || unmixed)
-                ? "Spare and unmixed vials aren’t available yet. Add one vial, mixed, for now."
+              : type === "reconstituted" && boxCount > 1
+                ? "Spare vials aren’t available yet. Add one for now."
                 : "This container type isn’t available yet. Try Reconstituted, Pre-mixed or Oral for now."
             : r.rejectedShape
               ? // A constraint said no, so "try again" would be a lie — the same
@@ -814,19 +796,8 @@ function AddStockForm({
         return // keep the sheet open so the input isn't lost on a failed save
       }
       onAdded()
-      // THE MOMENT, in place of the sheet just vanishing. The card eases the
-      // container from empty to what was entered and then leaves; the parent
-      // owns the state so this form can unmount under it.
-      onConfirmed({
-        compoundName: compound?.name ?? "Stock",
-        category: compound?.category ?? null,
-        inventoryType: type,
-        // `percent` is remaining-against-total for exactly these inputs, which
-        // is the same ratio `v_inventory_math` will report once it lands. A
-        // full vial is 1; one entered as half used settles at 0.5.
-        fill: unmixed ? 0 : fill.percent != null ? fill.percent / 100 : 1,
-        amountLabel: addedLabel(),
-      })
+      onClose()
+      showToast(compound ? `Added ${boxCount} to ${compound.name}.` : "Added")
     } finally {
       setSaving(false)
     }
@@ -842,26 +813,35 @@ function AddStockForm({
   const pill = (active: boolean) =>
     cn(PRESS.pill, STOCK_PILL, "duration-300", active ? PILL_ON : PILL_OFF)
 
+  /** The units each field shows, as it reads on the box. */
+  const powderShown = shownUnit(powderUnits.length === 1 ? powderUnits[0] : powderUnit)
+  const strengthShown = shownUnit(strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit)
+  const countShown = effectiveOralForm === "tab" ? "tabs" : "caps"
+  /** The water is asked only of a vial being mixed: an edit of a mixed vial, or
+   *  the pre-026 fallback with "Mix one now" on. */
+  const showWater = type === "reconstituted" && !unmixed
+  /** "How full is it" is for correcting a vial you have; a new one is full. */
+  const showFill = editItem != null && fill.basis != null
+
   /**
    * THE PAD (feel pass §3): every amount on this form on one Trakabl pad, in
    * the order the fields appear for the chosen type.
    */
-  const pad = usePadSession()
   const padFields: PadField[] = []
   if (type === "reconstituted") {
-    padFields.push(
-      { id: "powder", label: "Powder", short: "Powder", unit: powderUnits.length === 1 ? powderUnits[0] : powderUnit, value: powder, onChange: setPowder, sanitize: clean },
-      { id: "bacWater", label: "BAC water", short: "Water", unit: "mL", value: bacWater, onChange: setBacWater, sanitize: clean },
-    )
+    padFields.push({ id: "powder", label: "Powder in each", short: "Powder", unit: powderShown, value: powder, onChange: setPowder, sanitize: clean })
+    if (showWater) {
+      padFields.push({ id: "bacWater", label: "BAC water", short: "Water", unit: "mL", value: bacWater, onChange: setBacWater, sanitize: clean })
+    }
   } else if (type === "preconcentrated") {
     padFields.push(
       { id: "oilMl", label: "Volume", short: "Volume", unit: "mL", value: oilMl, onChange: setOilMl, sanitize: clean },
       { id: "concentration", label: "Strength", short: "Strength", unit: "mg/mL", value: concentration, onChange: setConcentration, sanitize: clean },
     )
   } else if (type === "oral_solid") {
-    padFields.push({ id: "count", label: "How many in the bottle", short: "Count", value: count, onChange: setCount, decimal: false, sanitize: clean })
+    padFields.push({ id: "count", label: "In each", short: "In each", unit: countShown, value: count, onChange: setCount, decimal: false, sanitize: clean })
     if (strengthRequired) {
-      padFields.push({ id: "strength", label: "Strength each", short: "Each", unit: strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit, value: strength, onChange: setStrength, sanitize: clean })
+      padFields.push({ id: "strength", label: "Strength", short: "Strength", unit: strengthShown, value: strength, onChange: setStrength, sanitize: clean })
     }
   } else if (type === "dropper") {
     if (dropMode === "ml") {
@@ -871,8 +851,8 @@ function AddStockForm({
       )
     } else {
       padFields.push(
-        { id: "drops", label: "Drops", short: "Drops", value: drops, onChange: setDrops, decimal: false, sanitize: clean },
-        { id: "perDrop", label: "Per drop", short: "Per drop", unit: strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit, value: perDrop, onChange: setPerDrop, sanitize: clean },
+        { id: "drops", label: "Drops", short: "Drops", unit: "drops", value: drops, onChange: setDrops, decimal: false, sanitize: clean },
+        { id: "perDrop", label: "Per drop", short: "Per drop", unit: strengthShown, value: perDrop, onChange: setPerDrop, sanitize: clean },
       )
     }
   } else if (type === "bulk_powder") {
@@ -881,7 +861,7 @@ function AddStockForm({
       { id: "servingG", label: "Serving", short: "Serving", unit: "g", value: servingG, onChange: setServingG, sanitize: clean },
     )
   }
-  if (fill.basis) {
+  if (showFill) {
     padFields.push({ id: "exactLeft", label: `Amount left (${fillUnit})`, short: "Left", unit: fillUnit, value: exactLeft, onChange: setExactLeft, sanitize: clean })
   }
 
@@ -1007,21 +987,82 @@ function AddStockForm({
               </div>
             )}
 
+            {/* The count first, then only what the container needs (brief
+                §3.12). An edit corrects one container, so it has no count. */}
+            {!editItem && (
+              <div className={cn(ROWS, "px-3")}>
+                <div className="flex items-center justify-between gap-2.5 py-2">
+                  <span className="text-sm text-foreground">
+                    {`${containerNoun({
+                      inventoryType: type,
+                      // A counted oral is a bottle, even for a supplement the
+                      // catalogue would scoop from a tub.
+                      totalAmountUnit: type === "oral_solid" ? effectiveOralForm : null,
+                      category: selected?.category,
+                      name: selected?.name,
+                    }).replace(/^./, (ch) => ch.toUpperCase())}s`}
+                  </span>
+                  <span className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      aria-label="One fewer"
+                      onClick={() => setBoxCount((n) => Math.max(1, n - 1))}
+                      className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] items-center justify-center text-base text-foreground")}
+                    >
+                      −
+                    </button>
+                    <b className="min-w-[38px] text-center font-mono text-[17px] font-light text-foreground">{boxCount}</b>
+                    <button
+                      type="button"
+                      aria-label="One more"
+                      onClick={() => setBoxCount((n) => Math.min(50, n + 1))}
+                      className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] items-center justify-center text-base text-foreground")}
+                    >
+                      +
+                    </button>
+                  </span>
+                </div>
+                {/* PRE-026 ONLY (see `mixFallback`): shown after the database
+                    refused an unmixed vial. */}
+                {mixFallback && type === "reconstituted" && (
+                  <div className="flex items-center justify-between gap-2.5 py-2">
+                    <span className="text-sm text-foreground">Mix one now</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={mixNow}
+                      aria-label="Mix one now"
+                      onClick={() => setMixNow((m) => !m)}
+                      className={cn(
+                        "relative h-7 w-12 shrink-0 rounded-[11px] transition-colors duration-200",
+                        mixNow ? "bg-accent-amber" : "inst-rail",
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "absolute top-1 h-5 w-5 inst-knob transition-[left] duration-200 ease-out motion-reduce:transition-none",
+                          mixNow ? "left-[1.625rem]" : "left-1",
+                        )}
+                      />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {type === "reconstituted" && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className={cn("grid gap-2", showWater && "grid-cols-2")}>
                 <label className="block">
-                  <span className={STOCK_FIELD_LABEL}>Powder</span>
+                  <span className={STOCK_FIELD_LABEL}>Powder in each</span>
                   <div className="flex items-center gap-2">
-                    <PadInput {...pad.bind("powder")} value={powder} label="Powder" unit={powderUnits.length === 1 ? powderUnits[0] : powderUnit} className="h-11 w-full" />
-                    {/* One unit ⇒ state it, don't ask. A toggle with nothing to
-                        toggle to is a question about a compound the user has
-                        already named. */}
-                    {powderUnits.length === 1 ? (
-                      <span className="shrink-0 text-sm text-text-muted">{powderUnits[0]}</span>
-                    ) : (
+                    <PadInput {...pad.bind("powder")} value={powder} label="Powder in each" unit={powderShown} suffix={<FieldUnit unit={powderShown} />} className={fieldCls("powder")} />
+                    {/* One unit: the field states it. Two (HGH, sold in mg and
+                        dosed in iu): the choice sits beside the field. */}
+                    {powderUnits.length > 1 && (
                       <ThumbGroup selection={powderUnit} thumbClassName={PILL_THUMB} role="group" aria-label="Powder unit" className="flex gap-1">
                         {powderUnits.map((u) => (
-                          <button key={u} type="button" onClick={() => setPowderUnit(u)} aria-pressed={powderUnit === u} className={pill(powderUnit === u)}>{u}</button>
+                          <button key={u} type="button" onClick={() => setPowderUnit(u)} aria-pressed={powderUnit === u} className={pill(powderUnit === u)}>{shownUnit(u)}</button>
                         ))}
                       </ThumbGroup>
                     )}
@@ -1032,26 +1073,31 @@ function AddStockForm({
                       something the user has to take on trust. */}
                   {powderEntryUnit !== powderBaseUnit && num(powder) > 0 && (
                     <p className="mt-1 text-xs text-text-muted">
-                      = {round3(powderInBase)} {powderBaseUnit}, which is what gets stored.
+                      = {round3(powderInBase)} {shownUnit(powderBaseUnit)}, which is what gets stored.
                     </p>
                   )}
                 </label>
-                <label className={cn("block transition-opacity", unmixed && "pointer-events-none opacity-40")}>
-                  <span className={STOCK_FIELD_LABEL}>BAC water (mL)</span>
-                  <PadInput {...pad.bind("bacWater")} value={bacWater} label="BAC water" unit="mL" className="h-11 w-full" />
-                </label>
+                {showWater && (
+                  <label className="block">
+                    <span className={STOCK_FIELD_LABEL}>BAC water</span>
+                    <PadInput {...pad.bind("bacWater")} value={bacWater} label="BAC water" unit="mL" suffix={<FieldUnit unit="mL" />} className={fieldCls("bacWater")} />
+                  </label>
+                )}
+                {mixFallback && showWater && !editItem && (
+                  <p className="col-span-2 text-[13px] text-text-muted">Add the water to add it now.</p>
+                )}
               </div>
             )}
 
             {type === "preconcentrated" && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className={STOCK_FIELD_LABEL}>Volume (mL)</span>
-                  <PadInput {...pad.bind("oilMl")} value={oilMl} label="Volume" unit="mL" className="h-11 w-full" />
+                  <span className={STOCK_FIELD_LABEL}>Volume</span>
+                  <PadInput {...pad.bind("oilMl")} value={oilMl} label="Volume" unit="mL" suffix={<FieldUnit unit="mL" />} className={fieldCls("oilMl")} />
                 </label>
                 <label className="block">
-                  <span className={STOCK_FIELD_LABEL}>Strength (mg/mL)</span>
-                  <PadInput {...pad.bind("concentration")} value={concentration} label="Strength" unit="mg/mL" className="h-11 w-full" />
+                  <span className={STOCK_FIELD_LABEL}>Strength</span>
+                  <PadInput {...pad.bind("concentration")} value={concentration} label="Strength" unit="mg/mL" suffix={<FieldUnit unit="mg/mL" />} className={fieldCls("concentration")} />
                 </label>
               </div>
             )}
@@ -1062,26 +1108,30 @@ function AddStockForm({
                   <button type="button" onClick={() => setDropMode("ml")} aria-pressed={dropMode === "ml"} className={pill(dropMode === "ml")}>mL</button>
                   <button type="button" onClick={() => setDropMode("drops")} aria-pressed={dropMode === "drops"} className={pill(dropMode === "drops")}>Drops</button>
                 </ThumbGroup>
+                {/* The dropper keeps its own words (the brief has none for it);
+                    only the units move into the fields. */}
                 {dropMode === "ml" ? (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>Volume (mL)</span>
-                      <PadInput {...pad.bind("oilMl")} value={oilMl} label="Volume" unit="mL" className="h-11 w-full" />
+                      <span className={STOCK_FIELD_LABEL}>Volume</span>
+                      <PadInput {...pad.bind("oilMl")} value={oilMl} label="Volume" unit="mL" suffix={<FieldUnit unit="mL" />} className={fieldCls("oilMl")} />
                     </label>
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>Strength (mg/mL)</span>
-                      <PadInput {...pad.bind("concentration")} value={concentration} label="Strength" unit="mg/mL" className="h-11 w-full" />
+                      <span className={STOCK_FIELD_LABEL}>Strength</span>
+                      <PadInput {...pad.bind("concentration")} value={concentration} label="Strength" unit="mg/mL" suffix={<FieldUnit unit="mg/mL" />} className={fieldCls("concentration")} />
                     </label>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
                       <span className={STOCK_FIELD_LABEL}>Drops</span>
-                      <PadInput {...pad.bind("drops")} value={drops} label="Drops" className="h-11 w-full" />
+                      <PadInput {...pad.bind("drops")} value={drops} label="Drops" unit="drops" suffix={<FieldUnit unit="drops" />} className={fieldCls("drops")} />
                     </label>
                     <label className="block">
-                      <span className={STOCK_FIELD_LABEL}>Per drop ({strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit})</span>
-                      <PadInput {...pad.bind("perDrop")} value={perDrop} label="Per drop" unit={strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit} placeholder="optional" className="h-11 w-full" />
+                      <span className={STOCK_FIELD_LABEL}>Per drop</span>
+                      {/* Truly optional (plain drops need no strength), so it
+                          may say so. */}
+                      <PadInput {...pad.bind("perDrop")} value={perDrop} label="Per drop" unit={strengthShown} placeholder="optional" suffix={<FieldUnit unit={strengthShown} />} className="h-11 w-full" />
                     </label>
                   </div>
                 )}
@@ -1094,8 +1144,8 @@ function AddStockForm({
                     the two pills squeezed the number field to a few characters
                     and it could not be read (Adrian, 2026-08-07). */}
                 <label className="block">
-                  <span className={STOCK_FIELD_LABEL}>How many in the bottle</span>
-                  <PadInput {...pad.bind("count")} value={count} label="How many in the bottle" className="h-11 w-full" />
+                  <span className={STOCK_FIELD_LABEL}>In each</span>
+                  <PadInput {...pad.bind("count")} value={count} label="In each" unit={countShown} suffix={<FieldUnit unit={countShown} />} className={fieldCls("count")} />
                 </label>
                 <div>
                   <span className={STOCK_FIELD_LABEL}>Tablets or capsules</span>
@@ -1129,15 +1179,13 @@ function AddStockForm({
                         stored at all before `supabase/protocol/016`. It is hidden
                         entirely for a compound dosed in tablets, where the
                         tablet is the unit and a strength may not be stored. */}
-                    <span className={STOCK_FIELD_LABEL}>Strength each</span>
+                    <span className={STOCK_FIELD_LABEL}>Strength</span>
                     <div className="flex items-center gap-2">
-                      <PadInput {...pad.bind("strength")} value={strength} label="Strength each" unit={strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit} placeholder={strengthRequired ? undefined : "optional"} className="h-11 w-full" />
-                      {strengthUnits.length === 1 ? (
-                        <span className="shrink-0 text-sm text-text-muted">{strengthUnits[0]}</span>
-                      ) : (
+                      <PadInput {...pad.bind("strength")} value={strength} label="Strength" unit={strengthShown} suffix={<FieldUnit unit={strengthShown} />} className={fieldCls("strength")} />
+                      {strengthUnits.length > 1 && (
                         <ThumbGroup selection={strengthUnit} thumbClassName={PILL_THUMB} role="group" aria-label="Strength unit" className="flex gap-1">
                           {strengthUnits.map((u) => (
-                            <button key={u} type="button" onClick={() => setStrengthUnit(u)} aria-pressed={strengthUnit === u} className={pill(strengthUnit === u)}>{u}</button>
+                            <button key={u} type="button" onClick={() => setStrengthUnit(u)} aria-pressed={strengthUnit === u} className={pill(strengthUnit === u)}>{shownUnit(u)}</button>
                           ))}
                         </ThumbGroup>
                       )}
@@ -1155,20 +1203,12 @@ function AddStockForm({
                     {picker === "hidden" ? "“Track it a different way?”" : "the type above"}{" "}
                     to switch.
                   </p>
-                ) : num(strength) <= 0 && num(count) > 0 && strengthRequired ? (
-                  <p className="text-xs text-text-muted">
-                    {/* Not a preference. The strengthless shape stores the TABLET
-                        as the base unit, and that pairs only with a compound
-                        dosed in tablets — which is 2 of the catalogue's 125
-                        orals. For the rest the row is rejected outright, and the
-                        field said "optional". */}
-                    {`${selected?.name ?? "This"} is dosed in ${selected?.unit ?? "mg"}, so state the strength of one ${effectiveOralForm === "tab" ? "tablet" : "capsule"}.`}
-                  </p>
-                ) : !strengthRequired && num(count) > 0 ? (
-                  <p className="text-xs text-text-muted">
-                    {`Doses are counted in ${effectiveOralForm === "tab" ? "tablets" : "capsules"}.`}
-                  </p>
                 ) : null}
+                {/* The strength is REQUIRED wherever it shows (a strengthless
+                    row pairs only with a compound dosed in tablets, so for the
+                    rest it is rejected outright). An empty one is refused by
+                    "Add" with a shake, not a sentence. The "Doses are counted in
+                    tablets" line went too: the forced pill above says it. */}
               </div>
             )}
 
@@ -1178,72 +1218,20 @@ function AddStockForm({
             {type === "bulk_powder" && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className={STOCK_FIELD_LABEL}>Tub weight (g)</span>
-                  <PadInput {...pad.bind("tubGrams")} value={tubGrams} label="Tub weight" unit="g" className="h-11 w-full" />
+                  <span className={STOCK_FIELD_LABEL}>Tub weight</span>
+                  <PadInput {...pad.bind("tubGrams")} value={tubGrams} label="Tub weight" unit="g" suffix={<FieldUnit unit="g" />} className={fieldCls("tubGrams")} />
                 </label>
                 <label className="block">
-                  <span className={STOCK_FIELD_LABEL}>Serving (g)</span>
-                  <PadInput {...pad.bind("servingG")} value={servingG} label="Serving" unit="g" placeholder="optional" className="h-11 w-full" />
+                  <span className={STOCK_FIELD_LABEL}>Serving</span>
+                  {/* Truly optional: the maths never reads it. */}
+                  <PadInput {...pad.bind("servingG")} value={servingG} label="Serving" unit="g" placeholder="optional" suffix={<FieldUnit unit="g" />} className="h-11 w-full" />
                 </label>
               </div>
             )}
 
-            {!editItem && (
-              <div className="divide-y-[0.5px] divide-border-default border-t-[0.5px] border-border-default">
-                <div className="flex items-center justify-between gap-2.5 py-2.5">
-                  <span className="text-[13px] text-text-muted">
-                    {`${containerNoun({ inventoryType: type, category: selected?.category, name: selected?.name }).replace(/^./, (ch) => ch.toUpperCase())}s`}
-                  </span>
-                  <span className="flex items-center gap-2.5">
-                    <button
-                      type="button"
-                      aria-label="One fewer"
-                      onClick={() => setBoxCount((n) => Math.max(1, n - 1))}
-                      className={cn(PRESS.icon, "flex h-[30px] w-[30px] items-center justify-center rounded-full bg-bg-surface-raised text-base text-foreground")}
-                    >
-                      −
-                    </button>
-                    <b className="min-w-[38px] text-center font-mono text-[17px] font-light text-foreground">{boxCount}</b>
-                    <button
-                      type="button"
-                      aria-label="One more"
-                      onClick={() => setBoxCount((n) => Math.min(50, n + 1))}
-                      className={cn(PRESS.icon, "flex h-[30px] w-[30px] items-center justify-center rounded-full bg-bg-surface-raised text-base text-foreground")}
-                    >
-                      +
-                    </button>
-                  </span>
-                </div>
-                {type === "reconstituted" && (
-                  <div className="flex items-center justify-between gap-2.5 py-2.5">
-                    <span className="text-[13px] text-text-muted">Mix one now</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={mixNow}
-                      aria-label="Mix one now"
-                      onClick={() => setMixNow((m) => !m)}
-                      className={cn(
-                        "relative h-7 w-12 shrink-0 rounded-[11px] transition-colors duration-200",
-                        mixNow ? "bg-accent-amber" : "inst-rail",
-                      )}
-                    >
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "absolute top-1 h-5 w-5 inst-knob transition-[left] duration-200 ease-out motion-reduce:transition-none",
-                          mixNow ? "left-[1.625rem]" : "left-1",
-                        )}
-                      />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* How much is in it? — start a part-used vial at the right level rather
-                than assuming it's full. Full = no offset (existing behaviour). */}
-            {fill.basis && (
+            {/* How much is in it? Correcting a part-used container you have.
+                EDIT only: a new one is full (Full = no offset). */}
+            {showFill && fill.basis && (
               <div className="space-y-2 rounded-2xl bg-bg-surface-raised/40 p-3">
                 <span className={STOCK_FIELD_LABEL}>How much is in it?</span>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1282,9 +1270,10 @@ function AddStockForm({
                       value={exactLeft}
                       label={`Amount left in ${fillUnit}`}
                       unit={fillUnit}
-                      className="h-10 w-20 px-2"
+                      suffix={<FieldUnit unit={fillUnit} />}
+                      className="h-10 w-24 px-2"
                     />
-                    <span className="whitespace-nowrap text-xs text-text-muted">{fillUnit} left</span>
+                    <span className="whitespace-nowrap text-xs text-text-muted">left</span>
                   </div>
                 </div>
                 {fill.percent != null && (
@@ -1301,20 +1290,18 @@ function AddStockForm({
       )}
 
       <SheetFooter className="flex-row gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className={cn(PRESS.button, "flex-1 rounded-xl border border-border-default bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary hover:bg-bg-surface-raised")}
-        >
+        <button type="button" onClick={onClose} className={cn(GHOST_BUTTON, "flex-1")}>
           Cancel
         </button>
+        {/* Never disabled for an empty field: a tap on it shakes that field
+            and opens the pad there (brief §3.12). */}
         <button
           type="button"
           onClick={() => void save()}
-          disabled={saving || !insert}
-          className={cn(PRESS.button, "flex-1 inst-btn px-4 py-2.5 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50")}
+          disabled={saving || cannotSave}
+          className={cn(PRIMARY_BUTTON, "flex-1")}
         >
-          {saving ? "Saving…" : editItem ? "Save changes" : "Add stock"}
+          {saving ? "Saving…" : editItem ? "Save" : "Add"}
         </button>
       </SheetFooter>
 

@@ -473,6 +473,13 @@ stored.)
     so an archive done offline is no longer resurrected on reconnect. A robust offline
     outbox (covering offline dose un-logging + multi-device conflicts) is post-beta work.
 
+- **Protocol owns stock (final design, 2026-09-26).** The Stock page and its tile are gone (`/protocol/stock`
+  redirects to Protocol); stock is read on Protocol (`ProtocolScreen`: per compound the container in use, how many
+  more are held, and a dry spare) and acted on from the compound's sheet: Add stock, Mix one (`MixVialSheet`,
+  `mixStockItem`, Undo = `unmixStockItem`, which resets only a mix made that day with no dose against it), Correct
+  (`updateStockItem`) and Discard (`setStockArchived`, Undo restores). Adding stock ADDS containers and never
+  archives the one in use (`replaceItemId` / `refillFor` are no longer passed from Protocol).
+
 - **Stock: several containers, spares, and the dropper (half-life build, 2026-09-24,
   `supabase/protocol/025` + `026`).** Adrian's rules: two open vials can BOTH be logged
   from and the OLD one is used first; unmixed vials are "Unreconstituted" spares, and
