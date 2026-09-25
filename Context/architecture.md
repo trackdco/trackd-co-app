@@ -299,7 +299,11 @@ stored.)
   `trackd:install-prompt-dismissed`, `trackd.calculator.disclaimerSeen`,
   `trackd.calculator.syringeSize` and
   `trackd.blocks.endPromptDismissed.v1.<uid>` (the block ids whose end-date
-  prompt was answered "leave running" — see **Blocks** below).
+  prompt was answered "leave running" — see **Blocks** below),
+  `trackd.cycles.endedHidden.v1.<uid>` (ended cycles deleted for good; Ended itself
+  is DERIVED from the synced schedule trail, `lib/protocol/endedCycles.ts`, so only
+  the delete is per device), and the first-run flags `trakabl.firstRun.*` and
+  `trakabl.cycles.hintSeen.v1.<uid>`.
   Every one of them must be **best-effort**: the
   UI holds its own state and storage only remembers it, so a full quota or blocked
   storage costs the user the memory of a choice and never the ability to make one.

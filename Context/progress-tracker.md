@@ -69,8 +69,33 @@ Built on `design/half-life-motion` in the worktree; nothing pushed, no migration
     preview's mock compounds (Nandrolone, Glow) into the burner. Previews are now opened signed out; the two strays
     are removed in the sample-user walk.
   `npm run check`: 129 files, 2372 tests (one gated action added to the manifest).
+- **Phase 5, Stacks and Cycles: DONE.** Stacks: "Stacks ?" with the "+" (New stack) at top right, one card per
+  stack (U1: its members' containers in the stack colour, the name, time · count). A tap opens it onto each
+  member's cadence and dose, then Edit and Delete as rounded-square buttons (`SquareActions`). Delete asks in the
+  one confirm (`components/feel/ConfirmDialog.tsx`: "Delete this stack?" / "A and B keep running." / Cancel +
+  red "Delete stack"), then "<Name> deleted" with Undo = `restoreStack` (verbatim; refuses with a toast if a
+  member joined another stack meanwhile). Cycles: "Cycles ?" with the "+" opening a "New cycle" pop-up listing
+  the running compounds without one. The list card groups by type, each header only its mark, name and count,
+  all folded (a list with one type opens), "Tap a type to see its cycles." until the first tap (device flag
+  `trakabl.cycles.hintSeen.v1.<uid>`; it shrinks away in 260ms). A row: container, name, pattern in words ("5
+  days on, 2 off"), the next 28 days as a strip, today taller. A tap opens Edit and End (red). Paused sits last,
+  folded, rows at 45% with "Paused". End asks ("End this cycle?" / "<Name> keeps going, <schedule>, without weeks
+  off. …"), then "Cycle ended. <Name> carries on." with Undo (today's version is replaced in place). "Ended N ›"
+  at the foot opens `/protocol/cycles/ended` ("‹ Cycles"): name, pattern, the day it ended; Restart (toast with
+  Undo) and Delete ("Delete this cycle for good?", toast "Cycle deleted" with Undo). Ended is DERIVED from the
+  schedule trail (`lib/protocol/endedCycles.ts`), no schema change; Delete for good is a device-local hidden
+  list (`trackd.cycles.endedHidden.v1.<uid>`), so it does not follow the user to another device. The Timeline
+  card (`CyclesTimeline`): 1M / 3M / 1Y / All, a cell a day up to 60 days and smooth bars past that, the Today
+  line, a lane per cycle with its level curve (each point the day's average, so a daily peptide draws a level,
+  not a comb) and, opened, Now / Next off / Pattern. Past four cycles the lanes group by type (darker where more
+  are on) and open onto a thin bar each; checked at 2, 12 and 50 cycles (`/preview/protocol/cycles?n=50`).
+  The pages wait for the data (fix #22) and guard their writes. The cycle sheet's footer is Cancel + Save (fix
+  #6; ending is the page's End). `npm run check`: 130 files, 2379 tests.
+  - NOT BUILT, waiting on a trigger: the Paused move animation (dim, slide into Paused, flash). Pausing happens on
+    Home, and the Cycles page's own Pause button is the event-actions spec (out of scope), so nothing can pause a
+    cycle while this page is on screen. The group and its look are built.
   - Done in parallel by sub-agents and waiting for their phases: the containers (set B, phase 7), the syringe
-    (phase 7), `restoreStack` and the derived Ended cycles (phase 5), the half-life page helpers (phase 6).
+    (phase 7), the half-life page helpers (phase 6).
 
 
 ## 🗳 FINAL CHECK, ROUND FOUR — ANSWERED 2026-09-25 14:13 UTC. DESIGN CLOSED. NEXT: A NEW BUILDER CHAT RUNS `Context/PROMPT-build-final.md`

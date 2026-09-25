@@ -544,7 +544,7 @@ export function SettingsLoading({
  * Protocol's Stock, Stacks and Cycles pages: the "‹ Protocol" link and the
  * title stand where the page will put them, over one card of rows.
  */
-export function ProtocolSubpageLoading({ title }: { title: string }) {
+export function ProtocolSubpageLoading({ title, back = "Protocol" }: { title: string; back?: string }) {
   return (
     <Shell
       screen={`protocol-${title.toLowerCase()}`}
@@ -552,7 +552,7 @@ export function ProtocolSubpageLoading({ title }: { title: string }) {
         <div>
           <p className="-ml-2 inline-flex min-h-11 items-center gap-2 px-2 text-sm text-text-muted">
             <ArrowLeft className="h-4 w-4" aria-hidden />
-            Protocol
+            {back}
           </p>
           <h1 className="mt-1 text-2xl font-light tracking-[-0.02em] text-foreground">{title}</h1>
         </div>

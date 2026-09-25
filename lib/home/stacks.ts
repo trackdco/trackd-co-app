@@ -521,6 +521,47 @@ export function removeStack(stacks: Stack[], stackId: string): Stack[] {
   return stacks.filter((s) => s.id !== stackId)
 }
 
+/** Why a deleted stack could not be put back. Nothing is written in any case. */
+export type RestoreStackRefusal =
+  /** A stack with this id is already in the store (restored twice, or never gone). */
+  | "exists"
+  /** One of its current members joined another stack after the delete. */
+  | "member-taken"
+  /** The device write failed (storage full or blocked). */
+  | "not-saved"
+
+export type RestoreStackResult = { ok: true } | { ok: false; reason: RestoreStackRefusal }
+
+/**
+ * Put a deleted stack back EXACTLY as it was — the Undo behind "<Name> deleted"
+ * (build-brief-final §3.9). The inverse of {@link removeStack}, pure.
+ *
+ * VERBATIM: same id, name, colour, start and every span, open or closed, so the
+ * days it grouped read as they did before the delete. Nothing is re-dated to
+ * today, which is what re-creating it through `upsertStack` would do.
+ *
+ * REFUSES rather than repairs when a CURRENT member now sits in another stack.
+ * `dedupeMembership` would otherwise settle it on the next save by closing
+ * whichever open span started earlier, which could silently take the compound
+ * back out of the stack the user just put it in. One compound, one stack; the
+ * user's more recent choice stands. Closed spans never conflict: they are
+ * history, and a compound may have one in several stacks.
+ *
+ * Appended, not re-inserted at its old index: the mirror re-creates the row, so
+ * Postgres orders it last by `created_at`, and hydration adopts that order.
+ */
+export function restoreStackInto(
+  stacks: Stack[],
+  stack: Stack
+): { ok: true; stacks: Stack[] } | { ok: false; reason: Exclude<RestoreStackRefusal, "not-saved"> } {
+  if (stacks.some((s) => s.id === stack.id)) return { ok: false, reason: "exists" }
+  const taken = stackedIds(stacks)
+  if (currentMemberIds(stack).some((id) => taken.has(id))) {
+    return { ok: false, reason: "member-taken" }
+  }
+  return { ok: true, stacks: [...stacks, stack] }
+}
+
 /* ----------------------------------------- useSyncExternalStore integration */
 
 export const STACKS_CHANGED_EVENT = "trackd:stacks-changed"
@@ -655,6 +696,20 @@ export function upsertStack(
 /** Delete a stack. Ungroups its members; every compound keeps running. */
 export function deleteStack(userId: string, stackId: string): boolean {
   return commit(userId, removeStack(loadStacks(userId), stackId))
+}
+
+/**
+ * Undo a {@link deleteStack}: re-commit the removed `stack` verbatim through the
+ * same store + mirror every stack write uses, so Postgres gets it back too.
+ *
+ * Pass the `Stack` object as it was read BEFORE the delete (the snapshot the
+ * screen was showing). Writes nothing when it refuses — see
+ * {@link restoreStackInto} for the two refusals.
+ */
+export function restoreStack(userId: string, stack: Stack): RestoreStackResult {
+  const next = restoreStackInto(loadStacks(userId), stack)
+  if (!next.ok) return next
+  return commit(userId, next.stacks) ? { ok: true } : { ok: false, reason: "not-saved" }
 }
 
 /**

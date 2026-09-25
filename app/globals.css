@@ -1685,6 +1685,75 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
 .xrow[data-mini="true"] .xrow-fig {
   opacity: 0.55;
 }
+/* Opens in place (Stacks cards, Cycles rows and types, Ended rows). */
+.fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms var(--hl-close);
+}
+.fold[data-open="true"] {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 420ms var(--hl-ease);
+}
+.fold > div {
+  overflow: hidden;
+  min-height: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fold,
+  .fold[data-open="true"] {
+    transition: none;
+  }
+}
+/* The chevron on a Cycles type header: turns to point down while open. */
+.cy-chev {
+  transition: transform 300ms var(--hl-ease);
+}
+[aria-expanded="true"] > .cy-chev {
+  transform: rotate(90deg);
+}
+/* A cycle row's next 28 days: a cell a day in the cycle's colour, today taller. */
+.cy-strip i {
+  display: block;
+  flex: 1;
+  height: 7px;
+  border-radius: 1.5px;
+  background: var(--border-default);
+}
+.cy-strip i[data-on="true"] {
+  background: var(--hue);
+  opacity: 0.85;
+}
+.cy-strip i:first-child {
+  height: 10px;
+  opacity: 1;
+}
+/* The timeline: a cell a day up to 60 days, smooth bars past that. */
+.cy-cells {
+  display: flex;
+}
+.cy-cells i {
+  display: block;
+  flex: 1;
+  border-radius: 1.5px;
+  box-shadow: inset 0 0 0 1px var(--border-default);
+}
+.cy-cells i[data-on="true"] {
+  background: var(--hue);
+  box-shadow: none;
+}
+.cy-track {
+  position: relative;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--border-default);
+}
+.cy-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: var(--hue);
+}
 .xrow-body {
   display: grid;
   grid-template-rows: 0fr;

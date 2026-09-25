@@ -7,6 +7,7 @@ import {
   cyclePeriod,
   cycleStatusOn,
   type CycleContext,
+  type CyclePattern,
   type CycleRule,
 } from "@/lib/protocol/cycleRule"
 
@@ -26,8 +27,18 @@ export function shortDate(key: string): string {
   return d ? `${d.getDate()} ${MON_SHORT[d.getMonth()]}` : key
 }
 
+/**
+ * A row's pattern in words (build-brief-final §3.10): "5 days on, 2 off",
+ * "1 day on, 1 off". The calendar key's compact "5 on / 2 off" stays
+ * `formatCyclePattern`.
+ */
+export function cyclePatternText(pattern: CyclePattern): string {
+  if (pattern.type !== "onOff") return "Continuous"
+  return `${pattern.onDays} ${pattern.onDays === 1 ? "day" : "days"} on, ${pattern.offDays} off`
+}
+
 export interface CycleFacts {
-  /** Hidden from the page: an ended cycle just ends. */
+  /** Off the running list; it shows under Ended instead (`endedCycles.ts`). */
   ended: boolean
   /** Before its anchor: nothing is on yet. */
   pending: boolean

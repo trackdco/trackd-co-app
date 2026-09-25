@@ -68,6 +68,11 @@ delete it from here. Line numbers (Lnnn) are to this file as it was before this 
   `components/feel/SolidIcon.tsx` over `lib/solidGlyphs.ts` (generated from the final-check page). The site ramp:
   `lib/sites/recencyRamp.ts` + `--ramp-base` per map tone. Every ThumbGroup is a rail with a white thumb and dark
   selected text. Readable text never in `--text-subtle` (swept: 173 uses moved to muted).
+- **Shared pieces (built 2026-09-26, phases 4 and 5):** the pop-up `components/feel/PopDialog.tsx` (renders inside a
+  host sheet); THE one confirm `components/feel/ConfirmDialog.tsx` (question, at most one line, Cancel + red action;
+  fix #5, use it for every delete and end); the toast `lib/toast.ts` + `components/feel/Toast.tsx` (Undo where it can
+  undo); `Fold` (opens in place, 420ms open / 280ms shut) and `SquareActions` (rounded-square buttons, Solid mark
+  over the word, destructive in red) in `components/protocol/pages/Subpage.tsx`; `TypeRail` for types.
 - Unchanged and still binding: no suggested site, ever (L205); readable text never in subtle; state colours
   never on health data; amber for one or two beats per screen.
 

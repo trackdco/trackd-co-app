@@ -4,10 +4,12 @@ import Link from "next/link"
 import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from "react"
 
 import { ArrowLeft, Plus } from "@/components/icons"
+import { SolidIcon } from "@/components/feel/SolidIcon"
+import type { GlyphName } from "@/lib/solidGlyphs"
 import { UpArrowIcon } from "@/components/halflife/HalfLifeCards"
 import { cn } from "@/lib/utils"
 import { ExplainerButton, type ExplainerTopic } from "@/components/protocol/Explainer"
-import { CARD_EYEBROW, PAGE_TITLE, PRESS } from "@/lib/ui-presets"
+import { CARD_EYEBROW, PAGE_TITLE, PRESS, TILE } from "@/lib/ui-presets"
 
 /**
  * The shared shape of Protocol's three pages, Stock, Stacks and Cycles (Adrian,
@@ -25,6 +27,7 @@ export function SubpageShell({
   screen,
   title,
   backHref = "/protocol",
+  backLabel = "Protocol",
   explainer,
   action,
   children,
@@ -32,10 +35,12 @@ export function SubpageShell({
   screen: string
   title: string
   backHref?: string
+  /** The page it goes back to ("Cycles" from Ended). */
+  backLabel?: string
   /** The "What is a …?" pop-up beside the title. */
   explainer?: ExplainerTopic
   /** The page's one action, as a "+" at top right. */
-  action?: { label: string; onClick: () => void }
+  action?: { label: string; onClick: () => void; disabled?: boolean }
   children: ReactNode
 }) {
   return (
@@ -50,7 +55,7 @@ export function SubpageShell({
           className="-ml-2 inline-flex min-h-11 items-center gap-2 px-2 text-sm text-text-muted transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          Protocol
+          {backLabel}
         </Link>
         <div className="mt-1 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -61,8 +66,9 @@ export function SubpageShell({
             <button
               type="button"
               onClick={action.onClick}
+              disabled={action.disabled}
               aria-label={action.label}
-              className={cn(PRESS.button, "inst-btn flex h-[34px] w-[34px] shrink-0 items-center justify-center text-bg-base")}
+              className={cn(PRESS.button, "inst-btn flex h-[34px] w-[34px] shrink-0 items-center justify-center text-bg-base disabled:opacity-40")}
             >
               <Plus className="h-4 w-4" aria-hidden />
             </button>
@@ -388,5 +394,58 @@ export function NewCard({ label, onClick, disabled }: { label: string; onClick: 
       <Plus className="h-3.5 w-3.5" aria-hidden />
       {label}
     </button>
+  )
+}
+
+/** Something that opens in place under what was tapped: its height eases open
+ *  (420ms) and shut (280ms). Closed, its controls are out of reach. */
+export function Fold({ open, children, className }: { open: boolean; children: ReactNode; className?: string }) {
+  return (
+    <div className="fold" data-open={open ? "true" : "false"} inert={!open}>
+      <div>
+        <div className={className}>{children}</div>
+      </div>
+    </div>
+  )
+}
+
+export interface SquareAction {
+  label: string
+  icon: GlyphName
+  onClick: () => void
+  /** Red, icon and word: End, Delete. */
+  destructive?: boolean
+  disabled?: boolean
+}
+
+/**
+ * The rounded-square buttons under an opened row or card (round three): a
+ * Solid mark over its word, side by side and equal. A destructive one is red,
+ * icon and word, and asks before it acts (the caller's ConfirmDialog).
+ */
+export function SquareActions({ actions, className }: { actions: SquareAction[]; className?: string }) {
+  return (
+    <div
+      className={cn("grid gap-1.5", className)}
+      style={{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }}
+    >
+      {actions.map((a) => (
+        <button
+          key={a.label}
+          type="button"
+          onClick={a.onClick}
+          disabled={a.disabled}
+          className={cn(
+            PRESS.button,
+            TILE,
+            "flex flex-col items-center gap-1.5 px-1 py-2.5 text-[12px] disabled:opacity-40",
+            a.destructive ? "text-accent-destructive-on-surface" : "text-foreground",
+          )}
+        >
+          <SolidIcon name={a.icon} size={17} {...(a.destructive ? { hue: "var(--accent-destructive-on-surface)" } : {})} />
+          {a.label}
+        </button>
+      ))}
+    </div>
   )
 }

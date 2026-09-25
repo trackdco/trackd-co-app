@@ -292,19 +292,16 @@ function CycleRuleForm({
         </div>
       </div>
 
+      {/* Cancel and Save, like every other sheet (consistency fix #6). A cycle
+          ends from its row on the Cycles page, which asks first. */}
       <SheetFooter className="flex-row gap-2 px-0">
-        {cycle && (
-          <button
-            type="button"
-            onClick={() => {
-              onSave(null)
-              onClose()
-            }}
-            className={cn(PRESS.button, "h-11 flex-1 rounded-xl border border-border-default text-sm text-text-muted")}
-          >
-            Remove
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onClose}
+          className={cn(PRESS.button, "h-11 flex-1 inst-ghost text-sm text-foreground")}
+        >
+          Cancel
+        </button>
         <button
           type="button"
           onClick={save}

@@ -7,9 +7,11 @@ import { BottomNav } from "@/components/navigation/bottom-nav"
 import { QuickActionsFab } from "@/components/shortcuts/QuickActionsFab"
 import { useMounted } from "@/components/home/useMounted"
 import { ScrollSettle } from "@/components/feel/ScrollSettle"
+import { Toast } from "@/components/feel/Toast"
 import { ProtocolScreen } from "@/components/protocol/ProtocolScreen"
 import { StacksScreen } from "@/components/protocol/pages/StacksScreen"
 import { CyclesScreen } from "@/components/protocol/pages/CyclesScreen"
+import { EndedCyclesScreen } from "@/components/protocol/pages/EndedCyclesScreen"
 import { ScheduleScreen } from "@/components/protocol/pages/ScheduleScreen"
 import { saveStacks, notifyStacksChanged, type Stack } from "@/lib/home/stacks"
 import {
@@ -41,7 +43,51 @@ function dayOffset(days: number): string {
   return toDateKey(d)
 }
 
-function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLogs; stacks: Stack[]; read: StockRead } {
+/** Cycled compounds for the demo scale (`?n=`), real names, four patterns. */
+const DEMO: [string, StackCompound["category"], StackCompound["method"]][] = [
+  ["Testosterone Cypionate", "anabolic", "im"],
+  ["BPC-157", "peptide", "subq"],
+  ["TB-500", "peptide", "subq"],
+  ["CJC-1295", "peptide", "subq"],
+  ["Semaglutide", "peptide", "subq"],
+  ["Anastrozole", "ancillary", "po"],
+  ["Enclomiphene", "ancillary", "po"],
+  ["Oxandrolone", "oral", "po"],
+  ["MK-677", "sarm", "po"],
+  ["Ostarine", "sarm", "po"],
+  ["Levothyroxine", "thyroid", "po"],
+  ["Creatine", "supplement", "po"],
+  ["Caffeine", "stimulant", "po"],
+  ["Masteron", "anabolic", "im"],
+]
+
+function demoCycles(n: number, start: string): StackCompound[] {
+  const pats: [number, number][] = [[5, 2], [42, 14], [56, 28], [14, 7]]
+  return Array.from({ length: n }, (_, i) => {
+    const [name, category, method] = DEMO[i % DEMO.length]
+    const [onDays, offDays] = pats[i % pats.length]
+    return {
+      id: `pv-demo-${i}`,
+      name: i >= DEMO.length ? `${name} ${Math.floor(i / DEMO.length) + 1}` : name,
+      category,
+      method,
+      dose: 1,
+      unit: "mg",
+      schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: start },
+      rotationSites: [],
+      rotationIndex: 0,
+      cycle: {
+        pattern: { type: "onOff", onDays, offDays },
+        end: { type: "never" },
+        colour: (["steel", "bronze", "moss", "rosewood"] as const)[i % 4],
+        anchor: dayOffset(-((i * 9) % 60)),
+      },
+      ...(i % 10 === 7 ? { pauses: [{ id: `pv-demo-p${i}`, startedOn: dayOffset(-3), endsOn: null }] } : {}),
+    } as StackCompound
+  })
+}
+
+function buildMock(demo = 0): { stack: StackCompound[]; stock: StockItem[]; logs: DayLogs; stacks: Stack[]; read: StockRead } {
   // Ten weeks back, so the week stepper has real history to walk rather than
   // one week and a wall.
   const start = dayOffset(-70)
@@ -173,6 +219,38 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLog
     archived: true,
     scheduleHistory: recordScheduleStop(creatine, dayOffset(-880)),
   })
+
+  // Ended: Enclomiphene's 5-on-2-off ended by hand nine days ago, and BPC-157's
+  // six weeks that ran their course five days ago. Both show under Ended.
+  const enclo: StackCompound = {
+    id: "pv-enclo",
+    name: "Enclomiphene",
+    category: "ancillary",
+    method: "po",
+    dose: 12.5,
+    unit: "mg",
+    schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: dayOffset(-60) },
+    rotationSites: [],
+    rotationIndex: 0,
+    scheduleHistory: [
+      { effectiveFrom: dayOffset(-60), cadence: { type: "daily" }, timeOfDay: "08:00", dose: 12.5, unit: "mg", cycle: { pattern: { type: "onOff", onDays: 5, offDays: 2 }, end: { type: "never" }, colour: "moss", anchor: dayOffset(-60) } },
+      { effectiveFrom: dayOffset(-9), cadence: { type: "daily" }, timeOfDay: "08:00", dose: 12.5, unit: "mg" },
+    ],
+  }
+  const bpcCycle = { pattern: { type: "onOff" as const, onDays: 42, offDays: 14 }, end: { type: "onDate" as const, date: dayOffset(-5) }, colour: "rosewood" as const, anchor: dayOffset(-47) }
+  stack.push(enclo, {
+    id: "pv-bpc",
+    name: "BPC-157",
+    category: "peptide",
+    method: "subq",
+    dose: 250,
+    unit: "mcg",
+    schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: dayOffset(-47) },
+    rotationSites: ["sq-abdo-l", "sq-abdo-r"],
+    rotationIndex: 0,
+    cycle: bpcCycle,
+  })
+  stack.push(...demoCycles(demo, start))
 
   // Mock "stock left" (as v_inventory_math would derive it) for the Stock tab.
   const stock: StockItem[] = [
@@ -307,9 +385,9 @@ function buildMock(): { stack: StackCompound[]; stock: StockItem[]; logs: DayLog
   return { stack, stock, logs, stacks, read }
 }
 
-export function ProtocolPreview({ page }: { page?: "stacks" | "cycles" | "schedule" }) {
+export function ProtocolPreview({ page, demo = 0 }: { page?: "stacks" | "cycles" | "ended" | "schedule"; demo?: number }) {
   const mounted = useMounted()
-  const { stack, stock, logs, stacks, read } = useMemo(() => buildMock(), [])
+  const { stack, stock, logs, stacks, read } = useMemo(() => buildMock(demo), [demo])
 
   // Seed the throwaway preview store (no setState here → no cascading render).
   useEffect(() => {
@@ -345,7 +423,9 @@ export function ProtocolPreview({ page }: { page?: "stacks" | "cycles" | "schedu
         {page === "stacks" ? (
           <StacksScreen userId={USER} backHref="/preview/protocol" />
         ) : page === "cycles" ? (
-          <CyclesScreen userId={USER} backHref="/preview/protocol" />
+          <CyclesScreen userId={USER} backHref="/preview/protocol" endedHref="/preview/protocol/ended" />
+        ) : page === "ended" ? (
+          <EndedCyclesScreen userId={USER} backHref="/preview/protocol/cycles" />
         ) : page === "schedule" ? (
           <ScheduleScreen userId={USER} backHref="/preview/protocol" />
         ) : (
@@ -354,6 +434,7 @@ export function ProtocolPreview({ page }: { page?: "stacks" | "cycles" | "schedu
       </main>
 
       <ScrollSettle />
+      <Toast />
       <BottomNav />
       <QuickActionsFab userId={USER} unit="kg" bodySex="male" />
     </div>

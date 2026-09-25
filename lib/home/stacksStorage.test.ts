@@ -27,10 +27,12 @@ import {
   dropMember,
   loadStacks,
   memberIdsOn,
+  restoreStack,
   saveStacks,
   upsertStack,
   type Stack,
 } from "./stacks"
+import { pushStacks } from "@/lib/home/stackSync"
 
 const USER = "u1"
 const V1_KEY = `trackd.stacks.v1.${USER}`
@@ -428,5 +430,102 @@ describe("the write paths the UI actually calls", () => {
       expect(holders).toHaveLength(1)
       expect(holders[0].id).toBe(day === "2026-08-10" ? "m" : "e")
     }
+  })
+})
+
+describe("restoreStack — the Undo after deleting a stack (build-brief-final §3.9)", () => {
+  /** A stack with real history: a member that left, one that joined later. */
+  function stackWithHistory(): Stack {
+    freezeToday("2026-06-01")
+    upsertStack(USER, { id: "s1", name: "Morning", colour: "teal", memberIds: ["a", "b"] })
+    freezeToday("2026-06-10")
+    upsertStack(USER, { id: "s1", name: "Morning", colour: "teal", memberIds: ["a"] })
+    freezeToday("2026-06-20")
+    upsertStack(USER, { id: "s1", name: "Morning", colour: "teal", memberIds: ["a", "c"] })
+    upsertStack(USER, { id: "s2", name: "Evening", colour: "moss", memberIds: ["d"] })
+    return loadStacks(USER).find((s) => s.id === "s1")!
+  }
+
+  it("puts the stack back verbatim, and mirrors it to Postgres", () => {
+    const before = stackWithHistory()
+    freezeToday("2026-07-01")
+    deleteStack(USER, "s1")
+    expect(loadStacks(USER).map((s) => s.id)).toEqual(["s2"])
+
+    const push = vi.mocked(pushStacks)
+    push.mockClear()
+    expect(restoreStack(USER, before)).toEqual({ ok: true })
+
+    const back = loadStacks(USER).find((s) => s.id === "s1")
+    expect(back).toEqual(before)
+    // Through the same mirror every stack write uses, carrying the whole list.
+    expect(push).toHaveBeenCalledTimes(1)
+    expect(push.mock.calls[0][0].map((s) => s.id)).toEqual(["s2", "s1"])
+    expect(push.mock.calls[0][0].find((s) => s.id === "s1")).toEqual(before)
+  })
+
+  it("keeps every past day grouped exactly as before the delete", () => {
+    const before = stackWithHistory()
+    const days = ["2026-05-31", "2026-06-01", "2026-06-09", "2026-06-10", "2026-06-19", "2026-06-20", "2026-07-01"]
+    const was = days.map((d) => memberIdsOn(before, d))
+    freezeToday("2026-07-01")
+    deleteStack(USER, "s1")
+    restoreStack(USER, before)
+    const back = loadStacks(USER).find((s) => s.id === "s1")!
+    expect(days.map((d) => memberIdsOn(back, d))).toEqual(was)
+    // And not re-dated to the restore day.
+    expect(back.effectiveFrom).toBe("2026-06-01")
+    expect(memberIdsOn(back, "2026-06-05")).toEqual(["a", "b"])
+  })
+
+  it("refuses, writing nothing, when a member joined another stack meanwhile", () => {
+    const before = stackWithHistory()
+    freezeToday("2026-07-01")
+    deleteStack(USER, "s1")
+    upsertStack(USER, { id: "s2", name: "Evening", colour: "moss", memberIds: ["d", "c"] })
+    const stored = window.localStorage.getItem(V2_KEY)
+    const push = vi.mocked(pushStacks)
+    push.mockClear()
+
+    expect(restoreStack(USER, before)).toEqual({ ok: false, reason: "member-taken" })
+    expect(window.localStorage.getItem(V2_KEY)).toBe(stored)
+    expect(push).not.toHaveBeenCalled()
+    expect(currentMemberIds(loadStacks(USER).find((s) => s.id === "s2")!)).toEqual(["d", "c"])
+  })
+
+  it("does not count a member that only LEFT the stack before the delete", () => {
+    // "b" left s1 on 10 June, so its closed span there is history; it being in
+    // another stack now is no conflict.
+    const before = stackWithHistory()
+    freezeToday("2026-07-01")
+    deleteStack(USER, "s1")
+    upsertStack(USER, { id: "s2", name: "Evening", colour: "moss", memberIds: ["d", "b"] })
+    expect(restoreStack(USER, before)).toEqual({ ok: true })
+    expect(currentMemberIds(loadStacks(USER).find((s) => s.id === "s1")!)).toEqual(["a", "c"])
+  })
+
+  it("refuses a stack whose id is already in the store", () => {
+    const before = stackWithHistory()
+    const stored = window.localStorage.getItem(V2_KEY)
+    expect(restoreStack(USER, before)).toEqual({ ok: false, reason: "exists" })
+    expect(window.localStorage.getItem(V2_KEY)).toBe(stored)
+    // Twice in a row: the second Undo is refused, not a duplicate.
+    freezeToday("2026-07-01")
+    deleteStack(USER, "s1")
+    expect(restoreStack(USER, before)).toEqual({ ok: true })
+    expect(restoreStack(USER, before)).toEqual({ ok: false, reason: "exists" })
+    expect(loadStacks(USER).filter((s) => s.id === "s1")).toHaveLength(1)
+  })
+
+  it("reports a failed device write rather than claiming success", () => {
+    const before = stackWithHistory()
+    freezeToday("2026-07-01")
+    deleteStack(USER, "s1")
+    const storage = window.localStorage
+    vi.stubGlobal("window", {
+      localStorage: { ...storage, getItem: storage.getItem, setItem: () => { throw new Error("quota") } },
+      dispatchEvent: () => true,
+    })
+    expect(restoreStack(USER, before)).toEqual({ ok: false, reason: "not-saved" })
   })
 })

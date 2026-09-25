@@ -6,7 +6,7 @@
 2. ~~Phase 2, Home part one~~ (done).
 3. ~~Phase 3, Home part two~~ (done).
 4. ~~Phase 4, Protocol~~ (done).
-5. Phase 5: Stacks (restoreStack + Undo) and Cycles (Paused last, Ended, Timeline).
+5. ~~Phase 5, Stacks and Cycles~~ (done).
 6. Phase 6: Half-life pages.
 7. Phase 7: Progress, the + fan, the syringe, the containers.
 8. Phase 8: app-wide: the 30 fixes, pop-up motion, toasts, reduced motion, site names, landing's app previews.
