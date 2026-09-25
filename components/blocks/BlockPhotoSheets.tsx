@@ -7,7 +7,8 @@ import { ProgressPhotoGallerySheet } from "@/components/progress/ProgressPhotoGa
 import { ProgressPhotoViewer } from "@/components/progress/ProgressPhotoViewer"
 import { ComparePhotosSheet } from "@/components/progress/ComparePhotosSheet"
 import { requestProgressAction } from "@/lib/progress/progressAction"
-import { formatPhotoDateShort, type ProgressPhoto } from "@/lib/progress/photos"
+import type { ProgressPhoto } from "@/lib/progress/photos"
+import { dayRange } from "@/lib/format/date"
 import type { WeightUnit } from "@/lib/weight"
 
 /**
@@ -60,7 +61,7 @@ export function BlockPhotoSheets({
    *  only surface a photo can be opened from here. */
   const [viewReturn, setViewReturn] = useState<"gallery" | "none">("none")
 
-  const range = `${formatPhotoDateShort(from)} to ${formatPhotoDateShort(to)}`
+  const range = dayRange(from, to)
   /* Compare keeps the app's own title ("Compare"), so its scope line has to
      carry the block's name itself. The gallery's title already does. */
   const compareCaption = `${blockName} · ${range}`

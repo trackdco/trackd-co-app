@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import { Camera, Check, CircleNotch, Plus, X } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
-import { PRESS } from "@/lib/ui-presets";
+import { PRESS, PRIMARY_BUTTON } from "@/lib/ui-presets";
+import { showToast } from "@/lib/toast";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { PoseIcon } from "@/components/progress/PoseIcon";
@@ -65,6 +66,11 @@ interface Attachment {
  * camera / photo library; fill any or all, add an optional note about the
  * physique, and submit them together. Photos upload client-side to the private
  * `progress-photos` bucket; one server action records all the rows for the date.
+ *
+ * Its frame copies `BottomSheet`'s exactly (the handle, the hairline top):
+ * it cannot sit on `BottomSheet` itself yet, because Escape has to step back
+ * out of the date step before it closes the sheet, and the shared frame has no
+ * way to take that handler.
  */
 export function AddProgressPhotoSheet({
   open,
@@ -275,6 +281,7 @@ export function AddProgressPhotoSheet({
       if (weightKg != null) await logWeight(weightKg, drawnOn);
       onOpenChange(false);
       router.refresh();
+      showToast("Saved");
     } catch (err) {
       if (uploaded.length) await supabase.storage.from("progress-photos").remove(uploaded);
       setError(err instanceof Error ? err.message : "Couldn't save. Try again.");
@@ -304,11 +311,11 @@ export function AddProgressPhotoSheet({
         <div
           ref={cardRef}
           style={cardStyle}
-          className="flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
+          className="flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl hairline-t bg-bg-surface shadow-lg"
         >
           <div
             {...handleProps}
-            className="flex h-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+            className="flex h-9 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
           >
             <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
           </div>
@@ -358,10 +365,11 @@ export function AddProgressPhotoSheet({
                           onClick={() => (att ? readjust(pose) : pickFor(pose))}
                           aria-label={`${att ? "Adjust" : "Add"} ${poseLabel(pose)} photo`}
                           className={cn(
-                            "flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border transition-colors",
+                            PRESS.card,
+                            "flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-xl border transition-colors",
                             att
                               ? "border-accent-primary/50"
-                              : "border-dashed border-border-strong bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
+                              : "border-border-default bg-bg-input/40 text-text-muted hover:bg-bg-input/70",
                           )}
                         >
                           {att ? (
@@ -378,7 +386,10 @@ export function AddProgressPhotoSheet({
                             type="button"
                             onClick={() => removeAttachment(pose)}
                             aria-label={`Remove ${poseLabel(pose)} photo`}
-                            className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-bg-base/80 text-text-primary"
+                            className={cn(
+                              PRESS.icon,
+                              "absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-bg-base/80 text-text-primary before:absolute before:-inset-2.5 before:content-['']",
+                            )}
                           >
                             <X className="h-3.5 w-3.5" aria-hidden />
                           </button>
@@ -398,7 +409,10 @@ export function AddProgressPhotoSheet({
                     onClick={() => setPickerOpen((o) => !o)}
                     aria-expanded={pickerOpen}
                     aria-label="Add a pose"
-                    className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border border-border-default bg-bg-surface-raised text-text-muted transition-colors hover:text-foreground"
+                    className={cn(
+                      PRESS.card,
+                      "flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-xl border border-border-default bg-bg-surface-raised text-text-muted transition-colors hover:text-foreground",
+                    )}
                   >
                     <Plus className="h-6 w-6" aria-hidden />
                   </button>
@@ -487,15 +501,12 @@ export function AddProgressPhotoSheet({
               so Save has the whole bar. Dismissal is the grab handle, a drag
               down, the scrim, or Escape, which is how every other sheet in the
               app is already dismissed. */}
-          <div className="flex shrink-0 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          <div className="flex shrink-0 gap-2 px-5 pt-1 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={handleSave}
               disabled={busy || count === 0 || dateStep}
-              className={cn(
-                PRESS.button,
-                "flex flex-1 items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
-              )}
+              className={cn(PRIMARY_BUTTON, "flex-1")}
             >
               {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
               {busy ? "Saving…" : count > 1 ? `Save ${count} photos` : "Save"}

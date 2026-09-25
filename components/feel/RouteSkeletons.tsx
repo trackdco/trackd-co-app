@@ -491,7 +491,20 @@ export function ListBlocks({ cards = 2 }: { cards?: number }) {
 
 export function BlocksLoading() {
   return (
-    <Shell screen="blocks" title={<PageScrollTitle title="Blocks" />} label="Loading your blocks">
+    <Shell
+      screen="blocks"
+      title={
+        <>
+          {/* The page's back link, so the title does not move when it lands. */}
+          <p className="-ml-2 inline-flex min-h-11 items-center gap-2 px-2 text-sm text-text-muted">
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Progress
+          </p>
+          <PageScrollTitle title="Blocks" />
+        </>
+      }
+      label="Loading your blocks"
+    >
       <ListBlocks />
     </Shell>
   )

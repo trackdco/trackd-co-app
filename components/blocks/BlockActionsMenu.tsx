@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { DotsThree } from "@/components/icons"
-import { DANGER_ROW } from "@/lib/ui-presets"
+import { DANGER_ROW, PRESS } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 
 /**
@@ -122,7 +122,10 @@ export function BlockActionsMenu({
               setOpen(false)
               onEndOrExtend()
             }}
-            className="flex min-h-11 w-full items-center px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:outline-none"
+            className={cn(
+              PRESS.row,
+              "flex min-h-11 w-full items-center px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-bg-surface-raised focus-visible:bg-bg-surface-raised focus-visible:outline-none",
+            )}
           >
             End or extend
           </button>
@@ -155,7 +158,10 @@ export function BlockActionsMenu({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Block actions"
-        className="flex h-11 w-11 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn(
+          PRESS.icon,
+          "flex h-11 w-11 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        )}
       >
         <DotsThree className="h-5 w-5" aria-hidden />
       </button>

@@ -3,17 +3,21 @@
 import { CaretRight } from "@/components/icons";
 
 import { BloodsSketch, EmptySection } from "@/components/progress/EmptySection";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
-import { formatBloodworkDate, type BloodworkPhoto } from "@/lib/progress/bloodwork";
+import { CARD, CARD_EYEBROW, PRESS, ROW_CHEVRON } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
+import { dayShort } from "@/lib/format/date";
+import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
 
 /**
  * Bloodwork card on the Progress scroll (Step 4, revised). The card leads with its
- * eyebrow (no icon badge); tapping it opens the bloodwork page. Empty, it invites
- * you to attach a screenshot. Once you've uploaded, it shows the latest photo big —
- * tap the photo to grow it full, the header to open all your panels.
+ * eyebrow (no icon badge); tapping it opens the bloodwork page. Once you've
+ * uploaded, it shows the latest photo big — tap the photo to grow it full, the
+ * header to open all your panels.
  *
  * Empty on Progress it is the quiet "None yet" card, and its plus starts
- * attaching a report (build-brief-final §3.15).
+ * attaching a report (build-brief-final §3.15). The two-up card's eyebrow is
+ * "Bloods", as the final-check page draws it; every sentence says "bloodwork"
+ * (consistency fix #7).
  */
 export function BloodworkCard({
   photos,
@@ -37,7 +41,7 @@ export function BloodworkCard({
       <EmptySection
         title="Bloods"
         preview={<BloodsSketch />}
-        add={{ label: "Attach bloods", onClick: () => (onAttach ?? onOpen)() }}
+        add={{ label: "Attach bloodwork", onClick: () => (onAttach ?? onOpen)() }}
       />
     );
   }
@@ -46,35 +50,24 @@ export function BloodworkCard({
     return (
       <button
         type="button"
-        onClick={photos.length === 0 ? onOpen : onViewLatest}
-        aria-label={photos.length === 0 ? "Attach bloodwork" : "View latest bloodwork"}
-        className="flow-card flex flex-col inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+        onClick={onViewLatest}
+        aria-label="View latest bloodwork"
+        className={cn(PRESS.card, "flow-card flex flex-col inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40")}
       >
         <span className={`block ${CARD_EYEBROW}`}>Bloods</span>
-        {photos.length === 0 ? (
-          // A DASHED placeholder rather than a line of text (spec), so the empty
-          // state reads as a slot waiting for a photo and matches the attach
-          // treatment the sheet already uses.
-          <span className="mt-3 flex flex-1 items-center justify-center rounded-xl border border-dashed border-border-strong px-3 py-6 text-center text-xs text-text-muted">
-            Attach a screenshot
-          </span>
-        ) : (
-          <>
-            <span className="mt-3 block flex-1 overflow-hidden rounded-xl bg-bg-surface-raised">
-              {photos[0].url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photos[0].url}
-                  alt=""
-                  className="h-full min-h-24 w-full object-cover object-top"
-                />
-              )}
-            </span>
-            <span className="mt-2 block font-mono text-xs text-text-muted">
-              {formatBloodworkDate(photos[0].date)}
-            </span>
-          </>
-        )}
+        <span className="mt-3 block flex-1 overflow-hidden rounded-xl bg-bg-surface-raised">
+          {photos[0].url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photos[0].url}
+              alt=""
+              className="h-full min-h-24 w-full object-cover object-top"
+            />
+          )}
+        </span>
+        <span className="mt-2 block font-mono text-xs text-text-muted">
+          {dayShort(photos[0].date)}
+        </span>
       </button>
     );
   }
@@ -85,15 +78,15 @@ export function BloodworkCard({
         type="button"
         onClick={onOpen}
         aria-label="Open bloodwork"
-        className="flow-card flex w-full items-center gap-3.5 inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+        className={cn(PRESS.card, "flow-card flex w-full items-center gap-3.5 inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40")}
       >
         <span className="min-w-0 flex-1">
           <span className={`block ${CARD_EYEBROW}`}>Bloodwork</span>
           <span className="mt-1.5 block text-sm text-text-muted">
-            Attach a screenshot of your blood work
+            Attach a screenshot of your bloodwork
           </span>
         </span>
-        <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+        <CaretRight className={ROW_CHEVRON} aria-hidden />
       </button>
     );
   }
@@ -101,12 +94,12 @@ export function BloodworkCard({
   const latest = photos[0];
 
   return (
-    <div className="flow-card overflow-hidden rounded-2xl bg-bg-surface">
+    <div className={cn(CARD, "overflow-hidden")}>
       <button
         type="button"
         onClick={onOpen}
         aria-label="Open bloodwork"
-        className="flex w-full items-center gap-3.5 px-5 pt-5 pb-3.5 text-left transition-colors hover:bg-bg-surface-raised/30"
+        className={cn(PRESS.text, "flex w-full items-center gap-3.5 px-5 pt-5 pb-3.5 text-left")}
       >
         <span className="min-w-0 flex-1">
           <span className={`block ${CARD_EYEBROW}`}>Bloodwork</span>
@@ -114,15 +107,15 @@ export function BloodworkCard({
             {photos.length} {photos.length === 1 ? "panel" : "panels"}
           </span>
         </span>
-        <CaretRight className="h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+        <CaretRight className={ROW_CHEVRON} aria-hidden />
       </button>
 
       {/* Latest photo — tap to grow it full. */}
       <button
         type="button"
         onClick={onViewLatest}
-        aria-label={`View bloodwork from ${formatBloodworkDate(latest.date)}`}
-        className="block w-full px-5 pb-5"
+        aria-label={`View bloodwork from ${dayShort(latest.date)}`}
+        className={cn(PRESS.card, "block w-full px-5 pb-5")}
       >
         <span className="block overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
           {latest.url && (
@@ -135,7 +128,7 @@ export function BloodworkCard({
           )}
         </span>
         <span className="mt-2 block font-mono text-xs text-text-muted">
-          {formatBloodworkDate(latest.date)}
+          {dayShort(latest.date)}
         </span>
       </button>
     </div>

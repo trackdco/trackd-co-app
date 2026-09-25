@@ -5,6 +5,8 @@ import { Plus, MagnifyingGlass } from "@/components/icons";
 
 import { PoseIcon } from "@/components/progress/PoseIcon";
 import { searchPoses } from "@/lib/progress/photos";
+import { PRESS } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 
 /**
  * Searchable pose picker (Spec 09 addendum). Start typing and the standard poses
@@ -47,7 +49,7 @@ export function PosePicker({
             key={p.id}
             type="button"
             onClick={() => onPick(p.id)}
-            className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-bg-input/60"
+            className={cn(PRESS.row, "flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-bg-input/60")}
           >
             <PoseIcon shape={p.shape} className="h-7 w-5 shrink-0 text-text-muted" />
             <span className="text-sm text-foreground">{p.label}</span>
@@ -59,7 +61,7 @@ export function PosePicker({
           <button
             type="button"
             onClick={() => onPick(q)}
-            className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-bg-input/60"
+            className={cn(PRESS.row, "flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-bg-input/60")}
           >
             <span className="flex h-7 w-5 shrink-0 items-center justify-center text-text-muted">
               <Plus className="h-4 w-4" aria-hidden />

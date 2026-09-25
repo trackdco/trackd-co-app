@@ -23,7 +23,11 @@ import {
 import { cn } from "@/lib/utils";
 import {
   CARD_EYEBROW,
+  CHIP,
+  CHIP_OFF,
+  CHIP_ON,
   EDIT_TOGGLE,
+  FIELD_LABEL,
   GHOST_BUTTON,
   PRESS,
   PRIMARY_BUTTON,
@@ -553,7 +557,7 @@ export function MarkerDialer({
     if (!res.ok) {
       // The server still has it: show it again so the picker matches reality.
       if (mountedRef.current) unhide(m.id);
-      showToast(`Couldn’t remove ${m.name}`);
+      showToast(`Couldn’t remove ${m.name}. Try again.`);
       return;
     }
     router.refresh();
@@ -878,7 +882,11 @@ function ChipGlyph({ on }: { on: boolean }) {
   );
 }
 
-/** A marker you can tick. Ticked, it turns white (the Instrument thumb look). */
+/**
+ * A marker you can tick: the app's chip (consistency fix #20), outlined off
+ * and white on. The weight stays regular when ticked, so a tick never widens
+ * the chip and reflows the ones after it.
+ */
 function PickChip({
   label,
   on,
@@ -893,13 +901,7 @@ function PickChip({
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={cn(
-        PRESS.pill,
-        "inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors duration-200",
-        on
-          ? "bg-text-primary text-bg-base"
-          : "bg-bg-surface-raised text-text-muted hover:text-foreground",
-      )}
+      className={cn(CHIP, on ? CHIP_ON : CHIP_OFF, "min-h-9 font-normal duration-200")}
     >
       <ChipGlyph on={on} />
       {label}
@@ -914,10 +916,7 @@ function RemoveChip({ label, onClick }: { label: string; onClick: () => void }) 
       type="button"
       onClick={onClick}
       aria-label={`Remove ${label}`}
-      className={cn(
-        PRESS.pill,
-        "inline-flex min-h-9 items-center gap-1.5 rounded-md bg-bg-surface-raised px-2.5 text-[13px] text-text-muted shadow-[inset_0_0_0_1px_var(--border-strong)] transition-colors hover:text-foreground",
-      )}
+      className={cn(CHIP, CHIP_OFF, "min-h-9")}
     >
       {label}
       <X className="h-3 w-3" aria-hidden />
@@ -931,10 +930,7 @@ function CreateButton({ onClick, children }: { onClick: () => void; children: Re
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        PRESS.pill,
-        "mt-4 inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-md px-3 text-[13px] text-foreground shadow-[inset_0_0_0_1px_var(--border-strong)]",
-      )}
+      className={cn(CHIP, "mt-4 min-h-9 max-w-full border-border-strong text-foreground")}
     >
       <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden />
       <span className="truncate">{children}</span>
@@ -1035,7 +1031,7 @@ function CreateMarkerCard({
     });
     setBusy(false);
     if (res.ok && res.marker) onCreated(res.marker);
-    else setError(res.error ?? "Couldn’t save that marker.");
+    else setError(res.error ?? "Couldn’t save. Try again.");
   }
 
   function primary() {
@@ -1150,7 +1146,7 @@ function CreateMarkerCard({
             </div>
             {scale === "own" && (
               <div className="mt-3">
-                <p className="mb-1.5 text-[12px] text-text-muted">Low to high</p>
+                <p className={FIELD_LABEL}>Low to high</p>
                 <div className="grid grid-cols-5 gap-1">
                   {own.map((w, i) => (
                     <input

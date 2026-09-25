@@ -17,12 +17,20 @@ import { CaretRight } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { Container } from "@/components/containers/Container"
 import { useMounted } from "@/components/home/useMounted"
-import { CARD_EYEBROW, DATA_MONO, METRIC_VALUE, PRESS, UNIT_SUFFIX } from "@/lib/ui-presets"
+import {
+  CARD_EYEBROW,
+  DATA_MONO,
+  METRIC_VALUE,
+  PRESS,
+  ROW_CHEVRON,
+  UNIT_SUFFIX,
+} from "@/lib/ui-presets"
+import { dayRange, dayShort } from "@/lib/format/date"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { blockWindow, formatDuration, type Block } from "@/lib/blocks/block"
 import { buildRetrospective, comparePair } from "@/lib/blocks/retrospective"
 import { computeAdherenceOver } from "@/lib/progress/consistency"
-import { formatPhotoDateShort, poseLabel } from "@/lib/progress/photos"
+import { poseLabel } from "@/lib/progress/photos"
 import { sparkGeometry } from "@/lib/progress/spark"
 import { kgToUnit, type WeightUnit } from "@/lib/weight"
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork"
@@ -130,8 +138,8 @@ export function BlockRetrospective({
     })
   }, [block, todayKey, deviceReady, stack, logs, weight, photos, bloods, journal])
 
-  /** Off-plan entries inside the block's own window. Their own store and their
-   *  own section — see the "Also taken" block below. */
+  /** One-offs inside the block's own window. Their own store and their own
+   *  section — see the "Also logged" block below. */
   const oneOffStore = useSyncExternalStore(
     subscribeOneOffs,
     () => getOneOffsSnapshot(userId),
@@ -169,8 +177,7 @@ export function BlockRetrospective({
           {live && <span className={UNIT_SUFFIX}>so far</span>}
         </p>
         <p className="mt-1 text-sm text-text-muted">
-          {formatPhotoDateShort(retro.window.from)} to{" "}
-          {formatPhotoDateShort(retro.window.to)}
+          {dayRange(retro.window.from, retro.window.to)}
         </p>
       </section>
 
@@ -180,10 +187,7 @@ export function BlockRetrospective({
           in it and then contradicted itself a frame later. Saying nothing for
           one frame is the honest version of not knowing yet. */}
       {deviceReady && !hasAnything && (
-        <p className="px-1 text-sm text-text-muted">
-          Nothing has been logged inside this block yet. Weight, photos, doses,
-          bloods and journal entries all show up here on their own as you go.
-        </p>
+        <p className="px-1 text-sm text-text-muted">Nothing logged in this block yet.</p>
       )}
 
       {/* Weight — start, end, delta, and the graph clipped to the window. Opens
@@ -196,7 +200,7 @@ export function BlockRetrospective({
         >
           <div className="flex items-center justify-between gap-2">
             <p className={CARD_EYEBROW}>Weight</p>
-            <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+            <CaretRight className={ROW_CHEVRON} aria-hidden />
           </div>
           {/* One reading has no delta, so the reading itself is the headline.
               Showing "0 kg" over "92.4 to 92.4 kg" read as a measured outcome. */}
@@ -256,7 +260,7 @@ export function BlockRetrospective({
         >
           <div className="flex items-center justify-between gap-2">
             <p className={CARD_EYEBROW}>Photos</p>
-            <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+            <CaretRight className={ROW_CHEVRON} aria-hidden />
           </div>
           <p className="mt-1.5 text-sm text-text-muted">
             {retro.photos.sessions}{" "}
@@ -271,7 +275,7 @@ export function BlockRetrospective({
             <div className="mt-3 grid grid-cols-2 gap-3">
               <ComparePane
                 photo={retro.photos.first[0]}
-                caption={formatPhotoDateShort(retro.photos.first[0].date)}
+                caption={dayShort(retro.photos.first[0].date)}
               />
             </div>
           )}
@@ -320,8 +324,9 @@ export function BlockRetrospective({
         </section>
       )}
 
-      {/* ALSO TAKEN — one-offs inside the window, in their OWN section below the
-          tracked compounds (Adrian, 2026-08-07).
+      {/* ALSO LOGGED — one-offs inside the window, in their OWN section below
+          the tracked compounds (Adrian, 2026-08-07; named as Today's Log names
+          them, consistency fix #7).
 
           Never merged into a tracked compound's dose count, even where the names
           match. A one-off counts toward nothing anywhere else in the app — not
@@ -331,7 +336,7 @@ export function BlockRetrospective({
           still on the page, which is the whole point of showing them. */}
       {oneOffs.length > 0 && (
         <section className="flow-card inst-card p-5">
-          <p className={CARD_EYEBROW}>Also taken</p>
+          <p className={CARD_EYEBROW}>Also logged</p>
           <ul className="mt-3 space-y-1.5">
             {oneOffs.map((o) => (
               <li
@@ -357,9 +362,7 @@ export function BlockRetrospective({
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-xs text-text-muted">
-            Logged off-plan. Not counted in consistency or stock.
-          </p>
+          <p className="mt-3 text-xs text-text-muted">Not counted in stock or consistency.</p>
         </section>
       )}
 
@@ -390,10 +393,10 @@ export function BlockRetrospective({
         </section>
       )}
 
-      {/* Bloods — panels taken during the window. */}
+      {/* Bloodwork — panels taken during the window. */}
       {retro.bloods.length > 0 && (
         <section className="flow-card inst-card p-5">
-          <p className={CARD_EYEBROW}>Bloods</p>
+          <p className={CARD_EYEBROW}>Bloodwork</p>
           <p className="mt-1.5 text-sm text-text-muted">
             {retro.bloods.length} {retro.bloods.length === 1 ? "panel" : "panels"} inside
             this block
@@ -404,9 +407,7 @@ export function BlockRetrospective({
                 key={p.id}
                 className="flex items-center gap-3 rounded-xl bg-bg-surface-raised px-3 py-2.5"
               >
-                <span className={cn(DATA_MONO, "shrink-0")}>
-                  {formatPhotoDateShort(p.date)}
-                </span>
+                <span className={cn(DATA_MONO, "shrink-0")}>{dayShort(p.date)}</span>
                 {p.note && (
                   <span className="min-w-0 flex-1 truncate text-sm text-text-muted">
                     {p.note}
@@ -472,7 +473,7 @@ function ComparePane({ photo, caption }: { photo: ProgressPhoto; caption: string
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={photo.url}
-            alt={`${poseLabel(photo.pose)}, ${formatPhotoDateShort(photo.date)}`}
+            alt={`${poseLabel(photo.pose)}, ${dayShort(photo.date)}`}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -484,7 +485,7 @@ function ComparePane({ photo, caption }: { photo: ProgressPhoto; caption: string
       <figcaption className="mt-1.5 text-xs text-text-muted">
         {caption} <span className="text-text-muted">· {poseLabel(photo.pose)}</span>
         <span className="mt-0.5 block font-mono tabular-nums text-text-muted">
-          {formatPhotoDateShort(photo.date)}
+          {dayShort(photo.date)}
         </span>
       </figcaption>
     </figure>

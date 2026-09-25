@@ -13,6 +13,8 @@
  *   customMarkerKey() so they flow through the same read/write path (Spec 22 · 1).
  */
 
+import type { ProgressPhoto } from "./photos";
+
 export interface MarkerCatalogueItem {
   id: string;
   name: string;
@@ -101,24 +103,21 @@ const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
 
+/**
+ * "12 August 2025".
+ *
+ * @deprecated Days are written through `lib/format/date.ts` (consistency fix
+ * #26: `dayLong` "Tue 3 Sep", `dayShort` "3 Sep"). Progress no longer calls
+ * this; the Calendar still does, and moves over in its own pass.
+ */
 export function formatJournalDate(key: string): string {
   const [y, m, d] = key.split("-").map(Number);
   if (!y || !m || !d) return key;
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
-export function formatJournalDateShort(key: string): string {
-  const [y, m, d] = key.split("-").map(Number);
-  if (!y || !m || !d) return key;
-  return `${d} ${MONTHS_SHORT[m - 1]} ${y}`;
-}
-
-/** "June 2026" for a 'YYYY-MM' month key. */
+/** "June 2026" for a 'YYYY-MM' month key: a month heading, not a day. */
 export function formatMonthLabel(key: string): string {
   const [y, m] = key.split("-").map(Number);
   if (!y || !m) return key;
@@ -152,13 +151,52 @@ export function groupJournalByMonth(entries: JournalEntry[]): JournalMonthGroup[
     .map(([key, es]) => ({ key, label: formatMonthLabel(key), entries: es }));
 }
 
-/** One-line preview for a card/feed row: the body's first line, else a marker
- *  summary ("Energy · Charged, Mood · Good"), else a gentle fallback. */
-export function entryPreview(entry: JournalEntry): string {
-  const firstLine = entry.body?.split("\n").find((l) => l.trim() !== "")?.trim();
-  if (firstLine) return firstLine;
-  if (entry.markers.length) {
-    return entry.markers.map((m) => `${m.name} · ${m.word}`).join(", ");
-  }
-  return "—";
+/** The first line of an entry's note that has any words on it, or null. */
+export function bodyFirstLine(body: string | null): string | null {
+  return body?.split("\n").find((l) => l.trim() !== "")?.trim() ?? null;
+}
+
+/** What `saveJournalEntry` takes to write an entry back. */
+export interface JournalRestoreInput {
+  entryDate: string;
+  touchBody: true;
+  body: string;
+  markers: { markerId: string; tierValue: number }[];
+}
+
+/**
+ * The Undo for a deleted entry (build-brief-final §3.16: "Undo wherever it can
+ * undo"): the same day's note and markers, written back through the existing
+ * save. Null when it cannot be brought back whole, so no Undo is offered:
+ *
+ * - an entry with photos, because deleting it removes their files, and an Undo
+ *   that returned the words without the pictures would be a quiet loss;
+ * - an entry with nothing in it, since there is nothing to write back.
+ */
+export function entryRestoreInput(entry: JournalEntry): JournalRestoreInput | null {
+  if (entry.attachments.length > 0) return null;
+  const body = entry.body ?? "";
+  if (body.trim() === "" && entry.markers.length === 0) return null;
+  return {
+    entryDate: entry.date,
+    touchBody: true,
+    body,
+    markers: entry.markers.map((m) => ({ markerId: m.markerId, tierValue: m.tierValue })),
+  };
+}
+
+/**
+ * An entry's photos in the shape the photo viewer swipes through
+ * (consistency fix #1: journal photos open in `ProgressPhotoViewer`). They
+ * carry no pose and no weight, all sit on the entry's day, and keep the order
+ * given. A photo whose link could not be signed is left out: the viewer has
+ * nothing to show for it.
+ */
+export function attachmentsAsPhotos(
+  items: readonly { id: string; url: string | null }[],
+  date: string,
+): ProgressPhoto[] {
+  return items
+    .filter((a) => a.url)
+    .map((a) => ({ id: a.id, pose: "", date, url: a.url, weightKg: null, note: null }));
 }

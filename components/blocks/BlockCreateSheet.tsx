@@ -2,13 +2,22 @@
 
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, CircleNotch, X } from "@/components/icons"
+import { Check, CircleNotch } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
-import { useSheetDrag } from "@/components/home/useSheetDrag"
-import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
+import { BottomSheet } from "@/components/layout/BottomSheet"
+import {
+  CHIP_THUMB,
+  FIELD_LABEL,
+  INLINE_NOTE,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SEGMENTED_ITEM_LG,
+  SEGMENTED_TRACK,
+} from "@/lib/ui-presets"
+import { showToast } from "@/lib/toast"
+import { blockErrorText } from "@/lib/blocks/errorText"
 import { NumberPad, PadInput } from "@/components/feel/NumberPad"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { sanitizeWeightInput } from "@/lib/weight"
@@ -19,8 +28,6 @@ import type { BlockTarget, BlockTargetVariable } from "@/lib/blocks/block"
 
 const NAME_MAX = 60 // matches the CHECK on blocks.name
 
-const FIELD_LABEL =
-  "mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted"
 const FIELD =
   "h-12 rounded-xl border-border-default bg-bg-input px-3 text-sm dark:bg-bg-input"
 const DATE_FIELD = cn(FIELD, "font-mono [color-scheme:dark]")
@@ -39,6 +46,11 @@ const DATE_FIELD = cn(FIELD, "font-mono [color-scheme:dark]")
  * partial unique index in the schema). The sheet says so before it happens
  * rather than after, because closing a sixteen-week prep is not something to
  * discover from a changed banner.
+ *
+ * The one sheet frame (`BottomSheet`, consistency fix #1) with Cancel and
+ * Start block (fix #2); every label is `FIELD_LABEL` (fix #19); the two
+ * choices are the segmented control (fix #20); the closing line is an
+ * `INLINE_NOTE` (fix #27), and the start is confirmed by the toast.
  */
 export function BlockCreateSheet({
   open,
@@ -59,7 +71,6 @@ export function BlockCreateSheet({
   unit?: WeightUnit
 }) {
   const router = useRouter()
-  const { cardRef, handleProps, cardStyle } = useSheetDrag(() => onOpenChange(false), open)
 
   const [name, setName] = useState("")
   const [startedOn, setStartedOn] = useState(todayKey)
@@ -196,282 +207,248 @@ export function BlockCreateSheet({
       todayKey: localToday(),
     })
     if (!res.ok) {
-      setError(res.error)
+      setError(blockErrorText(res.error, "start"))
       setBusy(false)
       return
     }
     setBusy(false)
     onOpenChange(false)
     router.refresh()
+    showToast(`${trimmedName} started`)
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="dialog"
-        side="bottom"
-        showCloseButton={false}
-        className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
-      >
-        <div
-          ref={cardRef}
-          style={cardStyle}
-          className="flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
-        >
-          <div
-            {...handleProps}
-            className="flex h-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="New block"
+      description="Name a stretch of training, set when it starts, and optionally when it ends and what you are aiming at."
+      footer={
+        <>
+          <button type="button" onClick={() => onOpenChange(false)} className={SECONDARY_BUTTON}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={!canSave || busy}
+            className={cn(PRIMARY_BUTTON, "flex-1")}
           >
-            <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
-          </div>
+            {busy ? (
+              <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Check className="h-4 w-4" aria-hidden />
+            )}
+            {busy ? "Starting…" : "Start block"}
+          </button>
+        </>
+      }
+    >
+      {/* The fields rise in as the sheet lands (feel pass §4). */}
+      <div data-sheet-body>
+        <label className="mt-1 block">
+          <span className={FIELD_LABEL}>Name</span>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={NAME_MAX}
+            placeholder="First bodybuilding prep"
+            aria-label="Block name"
+            className={FIELD}
+          />
+        </label>
 
-          <SheetTitle className="sr-only">New block</SheetTitle>
-          <SheetDescription className="sr-only">
-            Name a stretch of training, set when it starts, and optionally when it
-            ends and what you are aiming at.
-          </SheetDescription>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className={FIELD_LABEL}>Starts</span>
+            <Input
+              type="date"
+              value={startedOn}
+              max={todayKey}
+              onChange={(e) => {
+                // An EMPTY change event is not "today". iOS fires one while the
+                // picker wheels are still moving, and coercing it to today snapped
+                // the field back mid-pick — so a back-dated entry saved silently
+                // under today's date. Keep the last good value; the field is
+                // required, so there is nothing it should clear to.
+                if (e.target.value) setStartedOn(e.target.value)
+              }}
+              aria-label="Start date"
+              className={DATE_FIELD}
+            />
+          </label>
+          <label className="block">
+            <span className={FIELD_LABEL}>Ends (optional)</span>
+            <Input
+              type="date"
+              value={endsOn}
+              min={startedOn}
+              onChange={(e) => setEndsOn(e.target.value)}
+              aria-label="End date"
+              className={DATE_FIELD}
+            />
+          </label>
+        </div>
+        <p className="mt-1.5 text-xs text-text-muted">
+          Leave the end open if there isn’t one.
+        </p>
 
-          <div className="flex-1 overflow-y-auto px-6">
-            <h2 className={SHEET_TITLE}>New block</h2>
+        {/* Target — optional, and never a biomarker. A target turns a reading
+            into a pass or a fail, which is exactly what the
+            categorical-never-evaluative invariant exists to prevent, so the
+            only things offerable here are facts about the user's own
+            behaviour. */}
+        <div className="mt-6">
+          <span className={FIELD_LABEL}>Target (optional)</span>
+          {/* The selection is a sliding thumb (feel pass §6), so the
+              selected box carries no border or fill of its own. */}
+          <ThumbGroup
+            selection={targetKind}
+            thumbClassName={CHIP_THUMB}
+            role="group"
+            aria-label="Target"
+            className={SEGMENTED_TRACK}
+          >
+            {(
+              [
+                { id: "none", label: "None" },
+                { id: "weight", label: "Weight" },
+                { id: "consistency", label: "Consistency" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => pickTarget(opt.id)}
+                aria-pressed={targetKind === opt.id}
+                className={cn(
+                  SEGMENTED_ITEM_LG,
+                  targetKind === opt.id
+                    ? "font-medium text-bg-base"
+                    : "text-text-muted hover:text-foreground",
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </ThumbGroup>
 
-            {/* The fields rise in as the sheet lands (feel pass §4). */}
-            <div data-sheet-body>
-              <label className="mt-5 block">
-                <span className={FIELD_LABEL}>Name</span>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  maxLength={NAME_MAX}
-                  placeholder="First bodybuilding prep"
-                  aria-label="Block name"
-                  className={FIELD}
+          {targetKind !== "none" && (
+            <div className="mt-3 flex items-end gap-3">
+              <label className="block flex-1">
+                <span className={FIELD_LABEL}>
+                  {targetKind === "weight"
+                    ? `Target weight (${unit})`
+                    : "Target (%)"}
+                </span>
+                <PadInput
+                  value={targetValue}
+                  label={
+                    targetKind === "weight"
+                      ? `Target weight in ${unit === "lbs" ? "pounds" : "kilograms"}`
+                      : "Target percent"
+                  }
+                  unit={targetKind === "weight" ? unit : "%"}
+                  active={padOpen}
+                  onOpen={() => setPadOpen(true)}
+                  inputRef={targetRef}
+                  className="h-12 w-full text-sm"
+                />
+                <NumberPad
+                  active={padOpen ? 0 : null}
+                  fields={[
+                    {
+                      id: "target",
+                      label: targetKind === "weight" ? "Target weight" : "Target",
+                      unit: targetKind === "weight" ? unit : "%",
+                      value: targetValue,
+                      onChange: onTargetValueChange,
+                      // A weight takes decimals; a percentage is whole, and
+                      // three digits covers 100.
+                      decimal: targetKind === "weight",
+                      sanitize:
+                        targetKind === "weight"
+                          ? sanitizeWeightInput
+                          : (raw) => raw.replace(/\D/g, "").slice(0, 3),
+                    },
+                  ]}
+                  onActiveChange={() => {}}
+                  onClose={() => setPadOpen(false)}
+                  anchorRef={targetRef}
+                  returnFocusRef={targetRef}
+                  label="Target"
                 />
               </label>
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className={FIELD_LABEL}>Starts</span>
-                  <Input
-                    type="date"
-                    value={startedOn}
-                    max={todayKey}
-                    onChange={(e) => {
-                      // An EMPTY change event is not "today". iOS fires one while the
-                      // picker wheels are still moving, and coercing it to today snapped
-                      // the field back mid-pick — so a back-dated entry saved silently
-                      // under today's date. Keep the last good value; the field is
-                      // required, so there is nothing it should clear to.
-                      if (e.target.value) setStartedOn(e.target.value)
-                    }}
-                    aria-label="Start date"
-                    className={DATE_FIELD}
-                  />
-                </label>
-                <label className="block">
-                  <span className={FIELD_LABEL}>
-                    Ends <span className="normal-case text-text-muted">(optional)</span>
-                  </span>
-                  <Input
-                    type="date"
-                    value={endsOn}
-                    min={startedOn}
-                    onChange={(e) => setEndsOn(e.target.value)}
-                    aria-label="End date"
-                    className={DATE_FIELD}
-                  />
-                </label>
-              </div>
-              <p className="mt-1.5 text-xs text-text-muted">
-                Leave the end open if you do not have one. An off-season does not
-                need a deadline.
-              </p>
-
-              {/* Target — optional, and never a biomarker. A target turns a reading
-                  into a pass or a fail, which is exactly what the
-                  categorical-never-evaluative invariant exists to prevent, so the
-                  only things offerable here are facts about the user's own
-                  behaviour. */}
-              <div className="mt-6">
-                <span className={FIELD_LABEL}>
-                  Target <span className="normal-case text-text-muted">(optional)</span>
-                </span>
-                {/* The selection is a sliding thumb (feel pass §6), so the
-                    selected box carries no border or fill of its own. */}
+              {/* Only weight can go either way, so only weight is asked. */}
+              {targetKind === "weight" && (
                 <ThumbGroup
-                  selection={targetKind}
-                  thumbClassName="rounded-xl border border-accent-primary bg-accent-primary/10"
+                  selection={direction}
+                  thumbClassName={CHIP_THUMB}
                   role="group"
-                  aria-label="Target"
-                  className="flex gap-2"
+                  aria-label="Direction"
+                  className={cn(SEGMENTED_TRACK, "shrink-0")}
                 >
                   {(
                     [
-                      { id: "none", label: "None" },
-                      { id: "weight", label: "Weight" },
-                      { id: "consistency", label: "Consistency" },
+                      { id: "down", label: "Lose" },
+                      { id: "up", label: "Gain" },
                     ] as const
                   ).map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
-                      onClick={() => pickTarget(opt.id)}
-                      aria-pressed={targetKind === opt.id}
+                      onClick={() => {
+                        setDirection(opt.id)
+                        setDirectionTouched(true)
+                      }}
+                      aria-pressed={direction === opt.id}
                       className={cn(
-                        PRESS.pill,
-                        "flex-1 rounded-xl border px-3 py-2.5 text-sm transition-colors duration-300",
-                        targetKind === opt.id
-                          ? "border-transparent text-foreground"
-                          : "border-border-default text-text-muted hover:text-foreground",
+                        SEGMENTED_ITEM_LG,
+                        "min-h-10",
+                        direction === opt.id
+                          ? "font-medium text-bg-base"
+                          : "text-text-muted hover:text-foreground",
                       )}
                     >
                       {opt.label}
                     </button>
                   ))}
                 </ThumbGroup>
-
-                {targetKind !== "none" && (
-                  <div className="mt-3 flex items-end gap-3">
-                    <label className="block flex-1">
-                      <span className={FIELD_LABEL}>
-                        {targetKind === "weight"
-                          ? `Target weight (${unit})`
-                          : "Target (%)"}
-                      </span>
-                      <PadInput
-                        value={targetValue}
-                        label={
-                          targetKind === "weight"
-                            ? `Target weight in ${unit === "lbs" ? "pounds" : "kilograms"}`
-                            : "Target percent"
-                        }
-                        unit={targetKind === "weight" ? unit : "%"}
-                        active={padOpen}
-                        onOpen={() => setPadOpen(true)}
-                        inputRef={targetRef}
-                        className="h-12 w-full text-sm"
-                      />
-                      <NumberPad
-                        active={padOpen ? 0 : null}
-                        fields={[
-                          {
-                            id: "target",
-                            label: targetKind === "weight" ? "Target weight" : "Target",
-                            unit: targetKind === "weight" ? unit : "%",
-                            value: targetValue,
-                            onChange: onTargetValueChange,
-                            // A weight takes decimals; a percentage is whole, and
-                            // three digits covers 100.
-                            decimal: targetKind === "weight",
-                            sanitize:
-                              targetKind === "weight"
-                                ? sanitizeWeightInput
-                                : (raw) => raw.replace(/\D/g, "").slice(0, 3),
-                          },
-                        ]}
-                        onActiveChange={() => {}}
-                        onClose={() => setPadOpen(false)}
-                        anchorRef={targetRef}
-                        returnFocusRef={targetRef}
-                        label="Target"
-                      />
-                    </label>
-
-                    {/* Only weight can go either way, so only weight is asked. */}
-                    {targetKind === "weight" && (
-                      <ThumbGroup
-                        selection={direction}
-                        thumbClassName="rounded-xl border border-accent-primary bg-accent-primary/10"
-                        role="group"
-                        aria-label="Direction"
-                        className="flex shrink-0 gap-2"
-                      >
-                        {(
-                          [
-                            { id: "down", label: "Lose" },
-                            { id: "up", label: "Gain" },
-                          ] as const
-                        ).map((opt) => (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() => {
-                              setDirection(opt.id)
-                              setDirectionTouched(true)
-                            }}
-                            aria-pressed={direction === opt.id}
-                            className={cn(
-                              PRESS.pill,
-                              "h-12 rounded-xl border px-3 text-sm transition-colors duration-300",
-                              direction === opt.id
-                                ? "border-transparent text-foreground"
-                                : "border-border-default text-text-muted hover:text-foreground",
-                            )}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </ThumbGroup>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {liveBlockName && (
-                <p className="mt-5 rounded-xl border border-border-default bg-bg-surface-raised px-3 py-2.5 text-xs text-text-muted">
-                  Starting this closes{" "}
-                  <span className="text-foreground">{liveBlockName}</span>. One block
-                  runs at a time, and the closed one keeps everything it recorded.
-                </p>
               )}
-
-              {!startNotFuture && (
-                <p className="mt-3 px-1 text-sm text-state-error">
-                  A block starts today or earlier. Set the end date to plan ahead.
-                </p>
-              )}
-              {!datesValid && (
-                <p className="mt-3 px-1 text-sm text-state-error">
-                  The end date is before the start date.
-                </p>
-              )}
-              {targetTooHigh ? (
-                <p className="mt-3 px-1 text-sm text-state-error">
-                  Consistency tops out at 100%.
-                </p>
-              ) : !targetValid ? (
-                <p className="mt-3 px-1 text-sm text-state-error">
-                  Give the target a number above zero, or set it to None.
-                </p>
-              ) : null}
-              {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
             </div>
-          </div>
-
-          <div className="flex shrink-0 gap-3 hairline-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="flex items-center justify-center gap-2 rounded-xl border border-border-strong px-4 py-3 text-sm font-medium text-text-muted transition-colors hover:text-text-primary"
-            >
-              <X className="h-4 w-4" aria-hidden />
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={!canSave || busy}
-              className={cn(PRESS.button, "flex flex-1 items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50")}
-            >
-              {busy ? (
-                <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <Check className="h-4 w-4" aria-hidden />
-              )}
-              {busy ? "Starting…" : "Start block"}
-            </button>
-          </div>
+          )}
         </div>
-      </SheetContent>
-    </Sheet>
+
+        {liveBlockName && (
+          <p className={cn(INLINE_NOTE, "mt-5 block")}>
+            Starting this closes{" "}
+            <span className="text-foreground">{liveBlockName}</span>. It keeps
+            everything it recorded.
+          </p>
+        )}
+
+        {!startNotFuture && (
+          <p className="mt-3 px-1 text-sm text-state-error">
+            A block starts today or earlier. Set the end date to plan ahead.
+          </p>
+        )}
+        {!datesValid && (
+          <p className="mt-3 px-1 text-sm text-state-error">
+            The end date is before the start date.
+          </p>
+        )}
+        {targetTooHigh ? (
+          <p className="mt-3 px-1 text-sm text-state-error">
+            Consistency tops out at 100%.
+          </p>
+        ) : !targetValid ? (
+          <p className="mt-3 px-1 text-sm text-state-error">
+            Give the target a number above zero, or set it to None.
+          </p>
+        ) : null}
+        {error && <p className="mt-3 px-1 text-sm text-state-error">{error}</p>}
+      </div>
+    </BottomSheet>
   )
 }

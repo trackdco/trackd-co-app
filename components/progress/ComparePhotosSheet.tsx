@@ -3,14 +3,13 @@
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { useSheetDrag } from "@/components/home/useSheetDrag";
-import { PRESS, SHEET_TITLE } from "@/lib/ui-presets";
+import { BottomSheet } from "@/components/layout/BottomSheet";
+import { CHIP, CHIP_OFF, CHIP_THUMB, FIELD_LABEL, PRESS, SHEET_TITLE } from "@/lib/ui-presets";
 import { ThumbGroup } from "@/components/feel/SlidingThumb";
+import { dayShort } from "@/lib/format/date";
 import {
   comparablePoses,
   dateKeyDaysApart,
-  formatPhotoDateShort,
   posePriority,
   poseLabel,
   type ProgressPhoto,
@@ -25,6 +24,10 @@ import {
  * `caption` names the set being compared when it is a SUBSET of the user's
  * photos (a block's window). Without it the poses and dates on offer look like
  * every photo the user has, which on a block is a lie by omission.
+ *
+ * The one sheet frame (`BottomSheet`, consistency fix #1); the poses are the
+ * app's chips with the sliding white thumb (fix #20); labels are `FIELD_LABEL`
+ * (fix #19).
  */
 /**
  * Chips shown before the row collapses: the three default poses' worth of slots.
@@ -48,8 +51,6 @@ export function ComparePhotosSheet({
   /** One line naming the subset, e.g. "Cut down · 5 Jan to 20 Feb". */
   caption?: string;
 }) {
-  const { cardRef, handleProps, cardStyle } = useSheetDrag(() => onOpenChange(false), open);
-
   const byPose = (poseId: string) =>
     (poseId === "all" ? photos : photos.filter((p) => p.pose === poseId))
       .slice()
@@ -120,128 +121,111 @@ export function ComparePhotosSheet({
     before && after ? dateKeyDaysApart(before.date, after.date) : 0;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="viewer"
-        side="bottom"
-        showCloseButton={false}
-        className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
-      >
-        <div
-          ref={cardRef}
-          style={cardStyle}
-          className="flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
-        >
-          <div
-            {...handleProps}
-            className="flex h-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
-          >
-            <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
-          </div>
-
-          <SheetTitle className="sr-only">Compare progress photos</SheetTitle>
-          <SheetDescription className="sr-only">
-            Compare a before and after photo for a pose.
-          </SheetDescription>
-
-          <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-            <h2 className={SHEET_TITLE}>Compare</h2>
-            {caption && <p className="mt-1 text-sm text-text-muted">{caption}</p>}
-
-            {/* Pose filter. Capped and wrapped rather than a row that scrolls
-                off the edge: the old row clipped its fourth chip mid-word and
-                said nothing about the seven behind it. */}
-            {presentPoses.length > 1 && (
-              /* Wraps, never scrolls. A scrolling row put chips off the edge of
-                 the phone with nothing to say they were there, which is the
-                 whole reason this control was rebuilt. */
-              /* The selected pose is a sliding thumb (feel pass §6). "More"
-                 and "Fewer" sit in the same row and are not choices, so the
-                 thumb never lands on them. */
-              <ThumbGroup
-                selection={poseFilter}
-                thumbClassName="inst-thumb"
-                role="group"
-                aria-label="Pose"
-                className="mt-3 flex flex-wrap gap-2 pb-1"
-              >
-                {visiblePoses.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => changePose(id)}
-                    aria-pressed={poseFilter === id}
-                    className={cn(
-                      PRESS.pill,
-                      "shrink-0 rounded-sm border px-3 py-1.5 text-xs font-medium transition-colors duration-300",
-                      poseFilter === id
-                        ? "border-transparent text-bg-base"
-                        : "border-border-default text-text-muted hover:text-foreground",
-                    )}
-                  >
-                    {poseLabel(id)}
-                  </button>
-                ))}
-                {hiddenPoses > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setPosesExpanded(true)}
-                    className="shrink-0 rounded-sm border border-dashed border-border-strong px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-bg-surface-raised"
-                  >
-                    {hiddenPoses} more
-                  </button>
-                )}
-                {posesExpanded && presentPoses.length > POSE_CAP && (
-                  <button
-                    type="button"
-                    onClick={() => setPosesExpanded(false)}
-                    className="shrink-0 rounded-sm px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:text-foreground"
-                  >
-                    Fewer
-                  </button>
-                )}
-              </ThumbGroup>
-            )}
-
-            {/* Side-by-side */}
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <ComparePane label="Before" photo={before} />
-              <ComparePane label="After" photo={after} />
-            </div>
-            {daysApart > 0 && (
-              <p className="mt-2.5 text-center font-mono text-sm text-text-muted">
-                {daysApart} {daysApart === 1 ? "day" : "days"} apart
-              </p>
-            )}
-
-            {/* Pickers */}
-            <div className="mt-4 space-y-3">
-              <PhotoStrip
-                heading="Before"
-                photos={list}
-                selectedId={before?.id ?? null}
-                onSelect={setBeforeId}
-              />
-              <PhotoStrip
-                heading="After"
-                photos={list}
-                selectedId={after?.id ?? null}
-                onSelect={setAfterId}
-              />
-            </div>
-          </div>
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Compare"
+      description="Compare a before and after photo for a pose."
+      desktop="viewer"
+      header={
+        <div>
+          <p aria-hidden className={SHEET_TITLE}>
+            Compare
+          </p>
+          {caption && <p className="mt-1 text-sm text-text-muted">{caption}</p>}
         </div>
-      </SheetContent>
-    </Sheet>
+      }
+    >
+
+      {/* Pose filter. Capped and wrapped rather than a row that scrolls off the
+          edge: the old row clipped its fourth chip mid-word and said nothing
+          about the seven behind it. The selected pose is a sliding thumb (feel
+          pass §6). "N more" and "Fewer" sit in the same row and are not
+          choices, so the thumb never lands on them. */}
+      {presentPoses.length > 1 && (
+        <ThumbGroup
+          selection={poseFilter}
+          thumbClassName={CHIP_THUMB}
+          role="group"
+          aria-label="Pose"
+          className="flex flex-wrap gap-2 pb-1"
+        >
+          {visiblePoses.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => changePose(id)}
+              aria-pressed={poseFilter === id}
+              className={cn(
+                CHIP,
+                "shrink-0 duration-300",
+                poseFilter === id ? "border-transparent font-medium text-bg-base" : CHIP_OFF,
+              )}
+            >
+              {poseLabel(id)}
+            </button>
+          ))}
+          {hiddenPoses > 0 && (
+            <button
+              type="button"
+              onClick={() => setPosesExpanded(true)}
+              className={cn(
+                PRESS.text,
+                "min-h-9 shrink-0 px-2 text-sm text-foreground transition-colors",
+              )}
+            >
+              {hiddenPoses} more
+            </button>
+          )}
+          {posesExpanded && presentPoses.length > POSE_CAP && (
+            <button
+              type="button"
+              onClick={() => setPosesExpanded(false)}
+              className={cn(
+                PRESS.text,
+                "min-h-9 shrink-0 px-2 text-sm text-text-muted transition-colors hover:text-foreground",
+              )}
+            >
+              Fewer
+            </button>
+          )}
+        </ThumbGroup>
+      )}
+
+      {/* Side-by-side */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <ComparePane label="Before" photo={before} />
+        <ComparePane label="After" photo={after} />
+      </div>
+      {daysApart > 0 && (
+        <p className="mt-2.5 text-center font-mono text-sm text-text-muted">
+          {daysApart} {daysApart === 1 ? "day" : "days"} apart
+        </p>
+      )}
+
+      {/* Pickers */}
+      <div className="mt-4 space-y-3">
+        <PhotoStrip
+          heading="Before"
+          photos={list}
+          selectedId={before?.id ?? null}
+          onSelect={setBeforeId}
+        />
+        <PhotoStrip
+          heading="After"
+          photos={list}
+          selectedId={after?.id ?? null}
+          onSelect={setAfterId}
+        />
+      </div>
+    </BottomSheet>
   );
 }
 
 function ComparePane({ label, photo }: { label: string; photo: ProgressPhoto | null }) {
   return (
     <div>
-      <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-text-muted">
-        {label}
-      </p>
+      <p className={FIELD_LABEL}>{label}</p>
       <div className="aspect-[3/4] overflow-hidden rounded-xl border border-border-default bg-bg-surface-raised">
         {photo?.url && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -249,9 +233,7 @@ function ComparePane({ label, photo }: { label: string; photo: ProgressPhoto | n
         )}
       </div>
       {photo && (
-        <p className="mt-1.5 font-mono text-[11px] text-text-muted">
-          {formatPhotoDateShort(photo.date)}
-        </p>
+        <p className="mt-1.5 font-mono text-[11px] text-text-muted">{dayShort(photo.date)}</p>
       )}
     </div>
   );
@@ -270,9 +252,7 @@ function PhotoStrip({
 }) {
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-        {heading}
-      </p>
+      <p className={FIELD_LABEL}>{heading}</p>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {photos.map((p) => (
           <button
@@ -281,10 +261,11 @@ function PhotoStrip({
             onClick={() => onSelect(p.id)}
             aria-pressed={selectedId === p.id}
             className={cn(
+              PRESS.card,
               "h-16 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-colors",
               selectedId === p.id ? "border-accent-primary" : "border-border-default",
             )}
-            aria-label={`${poseLabel(p.pose)} ${formatPhotoDateShort(p.date)}`}
+            aria-label={`${poseLabel(p.pose)} ${dayShort(p.date)}`}
           >
             {p.url && (
               // eslint-disable-next-line @next/next/no-img-element

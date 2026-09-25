@@ -22,7 +22,12 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-/** "12 August 2025" for a 'YYYY-MM-DD' key. */
+/**
+ * "12 August 2025" for a 'YYYY-MM-DD' key.
+ *
+ * @deprecated Use `dayShort` from `lib/format/date.ts` (consistency fix #26).
+ * Kept for the dev preview page's placeholder art.
+ */
 export function formatBloodworkDate(key: string): string {
   const [y, m, d] = key.split("-").map(Number);
   if (!y || !m || !d) return key;

@@ -6,8 +6,14 @@ import { Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { DrawFrame, useFirstDraw } from "@/components/feel/FirstDraw";
 import { ThumbGroup } from "@/components/feel/SlidingThumb";
-import { PRESS } from "@/lib/ui-presets";
-import { CARD_EYEBROW, METRIC_VALUE, UNIT_SUFFIX } from "@/lib/ui-presets";
+import {
+  CARD_EYEBROW,
+  CHIP_THUMB,
+  METRIC_VALUE,
+  SEGMENTED_ITEM,
+  SEGMENTED_TRACK,
+  UNIT_SUFFIX,
+} from "@/lib/ui-presets";
 import { dateKeyToDate } from "@/lib/home/mockHomeData";
 import { todayKey } from "@/lib/protocol/cycle";
 import {
@@ -231,13 +237,13 @@ export function ConsistencyGraph({
         )}
       </div>
 
-      {/* Range selector — match the Weight view. */}
+      {/* Range selector — the card-header segmented control (fix #20). */}
       <ThumbGroup
         selection={rangeId}
-        thumbClassName="inst-thumb"
+        thumbClassName={CHIP_THUMB}
         role="group"
         aria-label="Range"
-        className="mt-3 grid grid-cols-3 gap-1 inst-rail p-0.5"
+        className={cn(SEGMENTED_TRACK, "mt-3")}
       >
         {RANGES.map((r) => (
           <button
@@ -249,15 +255,14 @@ export function ConsistencyGraph({
             }}
             aria-pressed={rangeId === r.id}
             className={cn(
-              PRESS.pill,
-              "rounded-sm py-1.5 text-xs font-medium transition-colors duration-300 ease-out",
-              // The pill stays 28px tall because a segmented control blown up to
+              SEGMENTED_ITEM,
+              // The pill stays small because a segmented control blown up to
               // 44 would dominate a widget that is only 228 tall. The TOUCH area
               // is extended instead, with a transparent pseudo-element that
-              // changes no layout: 28 + 16 = 44. This is the corner where "All"
-              // already cost a HIGH once, under the FAB.
-              "relative before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']",
-              rangeId === r.id ? "text-bg-base" : "text-text-muted",
+              // changes no layout. This is the corner where "All" already cost
+              // a HIGH once, under the FAB.
+              "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
+              rangeId === r.id ? "font-medium text-bg-base" : "text-text-muted",
             )}
           >
             {r.label}

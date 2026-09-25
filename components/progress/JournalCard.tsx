@@ -3,12 +3,10 @@
 import { CaretRight } from "@/components/icons";
 
 import { EmptySection, JournalSketch } from "@/components/progress/EmptySection";
-import { CARD_EYEBROW } from "@/lib/ui-presets";
-import { formatJournalDate, type JournalEntry } from "@/lib/progress/journal";
-
-function bodyFirstLine(body: string | null): string | null {
-  return body?.split("\n").find((l) => l.trim() !== "")?.trim() ?? null;
-}
+import { CARD_EYEBROW, PRESS, ROW_CHEVRON } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
+import { dayShort } from "@/lib/format/date";
+import { bodyFirstLine, type JournalEntry } from "@/lib/progress/journal";
 
 /**
  * Journal card on the Progress scroll (Step 5) — the eyebrow title and a preview of
@@ -59,13 +57,13 @@ export function JournalCard({
         type="button"
         onClick={onOpen}
         aria-label="Open journal"
-        className="flow-card flex flex-col inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+        className={cn(PRESS.card, "flow-card flex flex-col inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40")}
       >
         <span className={`block ${CARD_EYEBROW}`}>Journal</span>
         {latest ? (
           <span className="mt-3 flex flex-1 flex-col">
             <span className="block text-sm text-foreground">
-              {formatJournalDate(latest.date)}
+              {dayShort(latest.date)}
             </span>
             {line ? (
               <span className="mt-1 line-clamp-2 text-xs leading-relaxed text-text-muted">
@@ -109,14 +107,14 @@ export function JournalCard({
       type="button"
       onClick={onOpen}
       aria-label="Open journal"
-      className="flow-card flex w-full items-start gap-3.5 inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40"
+      className={cn(PRESS.card, "flow-card flex w-full items-start gap-3.5 inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40")}
     >
       <span className="min-w-0 flex-1">
         <span className={`block ${CARD_EYEBROW}`}>Journal</span>
         {latest ? (
           <>
             <span className="mt-1.5 block text-sm text-foreground">
-              {formatJournalDate(latest.date)}
+              {dayShort(latest.date)}
             </span>
             {line && (
               <span className="mt-0.5 block truncate text-xs text-text-muted">{line}</span>
@@ -161,7 +159,7 @@ export function JournalCard({
           )}
         </span>
       )}
-      <CaretRight className="mt-0.5 h-5 w-5 shrink-0 text-text-subtle" aria-hidden />
+      <CaretRight className={cn(ROW_CHEVRON, "mt-0.5")} aria-hidden />
     </button>
   );
 }

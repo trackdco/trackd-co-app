@@ -12,9 +12,10 @@
  * with the pose picked when it was added.
  */
 
+import { dayShort } from "@/lib/format/date"
 import { formatWeight, type WeightUnit } from "@/lib/weight"
 
-import { formatPhotoDateShort, groupByDate, type ProgressPhoto } from "./photos"
+import { groupByDate, type ProgressPhoto } from "./photos"
 
 /** Tiles in a row on the card. */
 export const MAX_TILES = 3
@@ -91,8 +92,6 @@ export function photoDayLine({
   unit: WeightUnit
   todayKey: string
 }): string {
-  const full = formatPhotoDateShort(date)
-  const sameYear = date.slice(0, 4) === todayKey.slice(0, 4)
-  const when = sameYear ? full.replace(/ \d{4}$/, "") : full
+  const when = dayShort(date, Number(todayKey.slice(0, 4)))
   return weightKg != null ? `${formatWeight(weightKg, unit)} ${unit} · ${when}` : when
 }

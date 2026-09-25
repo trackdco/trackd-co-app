@@ -2,10 +2,12 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, CaretRight, Plus } from "@/components/icons"
+import { CaretRight } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
+import { BackLink } from "@/components/feel/BackLink"
+import { NewItemCard } from "@/components/protocol/NewItemCard"
 import { ListBlocks, RouteHandoff, RouteTitle } from "@/components/feel/RouteSkeletons"
 import { useDeviceToday } from "@/components/home/useDeviceToday"
 import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
@@ -31,10 +33,12 @@ import {
   CARD_EYEBROW,
   DATA_MONO,
   METRIC_VALUE,
+  PAGE_TITLE,
   PRESS,
+  ROW_CHEVRON,
   UNIT_SUFFIX,
 } from "@/lib/ui-presets"
-import { formatPhotoDateShort } from "@/lib/progress/photos"
+import { dayRange, dayShort } from "@/lib/format/date"
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork"
 import type { JournalEntry } from "@/lib/progress/journal"
 import type { ProgressPhoto } from "@/lib/progress/photos"
@@ -54,6 +58,9 @@ import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
  * state, so the phone's back button walks back to the list instead of leaving
  * the app's Blocks section entirely. Everything is already loaded, so the switch
  * costs no fetch.
+ *
+ * Both views open with the one back link (consistency fix #23): the list goes
+ * back to Progress, a block back to the list.
  */
 export function BlocksScreen({
   blocks,
@@ -127,25 +134,15 @@ export function BlocksScreen({
       className="mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
         <div className="animate-home-up" style={{ animationDelay: "0ms" }}>
-          <Link
-            href="/blocks"
-            /* 44px. It is the primary way back from the page a block now opens
-               onto, and it measured 20px tall. */
-            className="-ml-2 inline-flex min-h-11 items-center gap-2 px-2 text-sm text-text-muted transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden />
-            Blocks
-          </Link>
+          <BackLink href="/blocks" label="Blocks" />
           <div className="mt-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-2xl font-light tracking-[-0.02em] text-foreground">
-                {selected.name}
-              </h1>
+              <h1 className={PAGE_TITLE}>{selected.name}</h1>
               <p className="mt-1 text-sm text-text-muted">
                 {selected.status === "active" ? "Running" : "Closed"}
                 {selected.status !== "active" &&
                   selected.closedOn &&
-                  ` ${formatPhotoDateShort(selected.closedOn)}`}
+                  ` ${dayShort(selected.closedOn)}`}
                 {" · "}
                 {formatDuration(window.days)}
               </p>
@@ -198,6 +195,7 @@ export function BlocksScreen({
       className="relative mx-auto w-full max-w-md space-y-5 px-5 pt-4 pb-5"
     >
       <RouteTitle id="blocks">
+        <BackLink href="/progress" label="Progress" />
         <PageScrollTitle title="Blocks" />
       </RouteTitle>
       <RouteHandoff id="blocks">
@@ -214,38 +212,18 @@ export function BlocksScreen({
             unit={unit}
           />
         ) : (
-          <button
-            type="button"
+          // The one hairline "New X" card (consistency fix #21).
+          <NewItemCard
+            label="New block"
             onClick={() => guard(() => setCreating(true))}
-            className={cn(
-              PRESS.card,
-              "hairline flex w-full flex-col items-center gap-1.5 rounded-2xl border-border-default px-6 py-8 text-center text-text-muted transition hover:text-foreground",
-            )}
-          >
-            <span className="flex items-center gap-2 text-sm font-medium">
-              <Plus className="h-4 w-4" aria-hidden />
-              New block
-            </span>
-            <span className="text-xs text-text-muted">
-              A prep, an off-season, a cut. Start and end dates, and what you ran.
-            </span>
-          </button>
+            description="A prep, an off-season, a cut. Start and end dates, and what you ran."
+          />
         )}
       </div>
 
       {live && (
         <div className="animate-home-up" style={{ animationDelay: "55ms" }}>
-          <button
-            type="button"
-            onClick={() => guard(() => setCreating(true))}
-            className={cn(
-              PRESS.card,
-              "hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default px-6 py-4 text-sm font-medium text-text-muted transition hover:text-foreground",
-            )}
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            New block
-          </button>
+          <NewItemCard label="New block" onClick={() => guard(() => setCreating(true))} />
         </div>
       )}
 
@@ -307,7 +285,7 @@ function LiveBlockCard({
     >
       <div className="flex items-center gap-3">
         <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Running now</span>
-        <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+        <CaretRight className={ROW_CHEVRON} aria-hidden />
       </div>
 
       <p className="mt-1.5 flex items-baseline gap-2">
@@ -348,10 +326,10 @@ function LiveBlockCard({
 
       <p className="mt-2 text-xs text-text-muted">
         {p.overrun
-          ? `Ran past ${formatPhotoDateShort(block.endsOn ?? "")}. Close it to look back on it.`
+          ? `Ran past ${dayShort(block.endsOn ?? "")}. Close it to look back on it.`
           : p.daysRemaining != null
-            ? `${p.daysRemaining} ${p.daysRemaining === 1 ? "day" : "days"} left, ends ${formatPhotoDateShort(block.endsOn ?? "")}`
-            : `Started ${formatPhotoDateShort(block.startedOn)}`}
+            ? `${p.daysRemaining} ${p.daysRemaining === 1 ? "day" : "days"} left, ends ${dayShort(block.endsOn ?? "")}`
+            : `Started ${dayShort(block.startedOn)}`}
       </p>
 
     </Link>
@@ -363,16 +341,15 @@ function PastBlockRow({ block, todayKey }: { block: Block; todayKey: string }) {
   return (
     <Link
       href={`/blocks?block=${block.id}`}
-      className="flow-card flex items-center gap-3 inst-card px-5 py-4 transition-colors hover:bg-bg-surface-raised/40"
+      className={cn(PRESS.card, "flow-card flex items-center gap-3 inst-card px-5 py-4 transition-colors hover:bg-bg-surface-raised/40")}
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm text-foreground">{block.name}</span>
         <span className="mt-0.5 block text-xs text-text-muted">
-          {formatDuration(window.days)} · {formatPhotoDateShort(window.from)} to{" "}
-          {formatPhotoDateShort(window.to)}
+          {formatDuration(window.days)} · {dayRange(window.from, window.to)}
         </span>
       </span>
-      <CaretRight className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden />
+      <CaretRight className={ROW_CHEVRON} aria-hidden />
     </Link>
   )
 }

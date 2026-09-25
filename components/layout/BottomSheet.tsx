@@ -29,6 +29,7 @@ export function BottomSheet({
   footer,
   desktop = "dialog",
   onOpenAutoFocus,
+  onEscapeKeyDown,
   className,
   children,
 }: {
@@ -44,9 +45,13 @@ export function BottomSheet({
   header?: ReactNode
   /** Pinned under the scrolling content: Cancel + the primary action. */
   footer?: ReactNode
-  desktop?: "dialog" | "rail"
+  /** Desktop: a centred dialog, the side rail, or a full-window viewer. */
+  desktop?: "dialog" | "rail" | "viewer"
   /** Focus on open. By default nothing is focused, so no keyboard springs up. */
   onOpenAutoFocus?: (e: Event) => void
+  /** Escape, before it closes the sheet: `e.preventDefault()` keeps it open
+   *  (a step inside the sheet backs out first). */
+  onEscapeKeyDown?: (e: KeyboardEvent) => void
   className?: string
   children: ReactNode
 }) {
@@ -57,6 +62,12 @@ export function BottomSheet({
         side="bottom"
         showCloseButton={false}
         onOpenAutoFocus={onOpenAutoFocus}
+        onEscapeKeyDown={onEscapeKeyDown}
+        // A tap on the toast's Undo is not a tap outside: the sheet stays.
+        onInteractOutside={(e) => {
+          const t = e.target as Element | null
+          if (t?.closest?.("[data-toast]")) e.preventDefault()
+        }}
         className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >
         <Frame

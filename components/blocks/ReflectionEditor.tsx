@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation"
 import { CircleNotch, NotePencil } from "@/components/icons"
 
 import { Textarea } from "@/components/ui/textarea"
-import { CARD_EYEBROW, PRESS } from "@/lib/ui-presets"
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
+import { CARD_EYEBROW, GHOST_BUTTON, PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
+import { showToast } from "@/lib/toast"
+import { blockErrorText } from "@/lib/blocks/errorText"
 import { saveReflectionAction } from "@/app/(app)/blocks/actions"
 import type { Block } from "@/lib/blocks/block"
 
@@ -24,9 +27,13 @@ const REFLECTION_MAX = 4000 // matches the CHECK on blocks.reflection
  *
  * Writable on a LIVE block too. There is no rule that a thought worth keeping
  * has to wait for the block to end.
+ *
+ * Its buttons are the app's (consistency fix #2); a save is confirmed by the
+ * toast (fix #27).
  */
 export function ReflectionEditor({ block }: { block: Block }) {
   const router = useRouter()
+  const { guard } = useWriteAccess()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(block.reflection ?? "")
   const [busy, setBusy] = useState(false)
@@ -48,12 +55,13 @@ export function ReflectionEditor({ block }: { block: Block }) {
     const res = await saveReflectionAction(block.id, draft)
     setBusy(false)
     if (!res.ok) {
-      setError("Could not save that. Try again.")
+      setError(blockErrorText(null, "save"))
       return
     }
     setLastSaved(draft.trim())
     setEditing(false)
     router.refresh()
+    showToast("Saved")
   }
 
   if (!editing) {
@@ -71,11 +79,14 @@ export function ReflectionEditor({ block }: { block: Block }) {
         )}
         <button
           type="button"
-          onClick={() => {
-            setDraft(block.reflection ?? "")
-            setEditing(true)
-          }}
-          className="mt-3 flex items-center gap-2 rounded-xl border border-border-strong px-4 py-2.5 min-h-11 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
+          onClick={() =>
+            // Guarded: writing the note is a write, like starting a block.
+            guard(() => {
+              setDraft(block.reflection ?? "")
+              setEditing(true)
+            })
+          }
+          className={cn(GHOST_BUTTON, "mt-3")}
         >
           <NotePencil className="h-4 w-4" aria-hidden />
           {block.reflection ? "Edit note" : "Write a note"}
@@ -97,7 +108,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
         className="mt-2 rounded-xl border-border-default bg-bg-input text-sm dark:bg-bg-input"
       />
       {error && <p className="mt-2 text-sm text-state-error">{error}</p>}
-      <div className="mt-3 flex gap-3">
+      <div className="mt-3 flex gap-2">
         <button
           type="button"
           onClick={() => {
@@ -105,7 +116,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
             setEditing(false)
             setError(null)
           }}
-          className="rounded-xl border border-border-strong px-4 py-2.5 min-h-11 text-sm font-medium text-text-muted transition-colors hover:text-foreground"
+          className={SECONDARY_BUTTON}
         >
           Cancel
         </button>
@@ -113,10 +124,7 @@ export function ReflectionEditor({ block }: { block: Block }) {
           type="button"
           onClick={save}
           disabled={busy}
-          className={cn(
-            PRESS.button,
-            "flex flex-1 items-center justify-center gap-2 inst-btn py-2.5 min-h-11 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",
-          )}
+          className={cn(PRIMARY_BUTTON, "flex-1")}
         >
           {busy && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}
           {busy ? "Saving…" : "Save note"}

@@ -101,13 +101,17 @@ export function PopDialog({
       })
   }, [open, mounted])
 
+  // Escape closes THIS pop-up only. Caught on the way down (capture, on the
+  // window) and stopped there, so a sheet underneath does not close with it.
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      if (e.key !== "Escape") return
+      e.stopPropagation()
+      onClose()
     }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
   }, [open, onClose])
 
   if (!mounted || typeof document === "undefined") return null

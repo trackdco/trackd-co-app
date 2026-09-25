@@ -9,8 +9,10 @@ import { Trash, X } from "@/components/icons";
 import { ConfirmDialog } from "@/components/feel/ConfirmDialog";
 import { PRESS, ROW_META } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
+import { dayShort } from "@/lib/format/date";
+import { showToast } from "@/lib/toast";
 import { dayPhotosFor, dayWeightKg, indexInDay } from "@/lib/progress/photoCard";
-import { formatPhotoDate, poseLabel, type ProgressPhoto } from "@/lib/progress/photos";
+import { poseLabel, type ProgressPhoto } from "@/lib/progress/photos";
 import {
   VIEWER,
   clampZoom,
@@ -87,7 +89,10 @@ function reduced(): boolean {
  * Contract: `open`, `onOpenChange`, `photo`, `unit`, `onDeleted` as before.
  * `photos` (optional) is the pool the day's photos come from; without it the
  * viewer shows `photo` alone. `originFor` (optional) returns the tile a photo
- * grew from; without one it fades in and out.
+ * grew from; without one it fades in and out. `label` (optional) names a
+ * photo at the top and in its alt text, for photos that have no pose (a
+ * journal entry's); `canDelete={false}` leaves the delete off, where the
+ * surface underneath owns removing the photo.
  *
  * Built on Radix's dialog for the focus trap, the scroll lock and hiding the
  * app from assistive tech, portalled straight onto `<body>` (the card sits in
@@ -103,6 +108,8 @@ export function ProgressPhotoViewer({
   onDeleted,
   photos,
   originFor,
+  label = defaultLabel,
+  canDelete = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -113,6 +120,10 @@ export function ProgressPhotoViewer({
   photos?: ProgressPhoto[];
   /** The tile a photo grew out of, so it can shrink back into it. */
   originFor?: (photo: ProgressPhoto) => HTMLElement | null;
+  /** The words at the top ("Front · 25 Sep"); also the photo's alt text. */
+  label?: (photo: ProgressPhoto) => string;
+  /** False where the surface underneath removes photos itself. */
+  canDelete?: boolean;
 }) {
   const router = useRouter();
 
@@ -532,15 +543,17 @@ export function ProgressPhotoViewer({
     if (res.ok) {
       onDeleted();
       router.refresh();
+      // Its file is gone with it, so there is no Undo to offer.
+      showToast("Photo deleted");
     } else {
-      setError(res.error ?? "Couldn't delete. Try again.");
+      setError(res.error ?? "Couldn’t delete. Try again.");
     }
   }
 
   if (!mounted || !current || typeof document === "undefined") return null;
 
   const weightKg = current.weightKg ?? dayWeightKg(day);
-  const title = `${poseLabel(current.pose)} · ${formatPhotoDate(current.date)}`;
+  const title = label(current);
   const reach = showChrome ? "pointer-events-auto" : "pointer-events-none";
 
   return (
@@ -611,7 +624,7 @@ export function ProgressPhotoViewer({
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={p.url}
-                          alt={`${poseLabel(p.pose)}, ${formatPhotoDate(p.date)}`}
+                          alt={label(p)}
                           draggable={false}
                           decoding="async"
                           className="h-full w-full object-contain"
@@ -657,19 +670,21 @@ export function ProgressPhotoViewer({
                   </p>
                 ) : null}
               </div>
-              <button
-                type="button"
-                onClick={() => setConfirming(true)}
-                disabled={busy}
-                aria-label="Delete this photo"
-                className={cn(
-                  PRESS.button,
-                  "inst-ghost flex h-9 w-9 shrink-0 items-center justify-center text-text-muted disabled:opacity-50",
-                  reach,
-                )}
-              >
-                <Trash className="h-4 w-4" aria-hidden />
-              </button>
+              {canDelete ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirming(true)}
+                  disabled={busy}
+                  aria-label="Delete this photo"
+                  className={cn(
+                    PRESS.button,
+                    "inst-ghost flex h-9 w-9 shrink-0 items-center justify-center text-text-muted disabled:opacity-50",
+                    reach,
+                  )}
+                >
+                  <Trash className="h-4 w-4" aria-hidden />
+                </button>
+              ) : null}
             </div>
 
             {/* The bottom: the day's note, and the dots. */}
@@ -724,6 +739,11 @@ export function ProgressPhotoViewer({
       )}
     </DialogPrimitive.Root>
   );
+}
+
+/** "Front · 25 Sep": the pose picked when it was added, and the day. */
+function defaultLabel(p: ProgressPhoto): string {
+  return `${poseLabel(p.pose)} · ${dayShort(p.date)}`;
 }
 
 /** Safari's non-standard pinch event (not in the DOM typings). */

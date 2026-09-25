@@ -15,14 +15,9 @@ import {
   TILE,
   TILE_LABEL,
 } from "@/lib/ui-presets";
+import { dayShort } from "@/lib/format/date";
 import { dayWeightKg, photoDayLine, photoTiles, type PhotoTile } from "@/lib/progress/photoCard";
-import {
-  DEFAULT_POSES,
-  formatPhotoDate,
-  latestDay,
-  poseLabel,
-  type ProgressPhoto,
-} from "@/lib/progress/photos";
+import { DEFAULT_POSES, latestDay, poseLabel, type ProgressPhoto } from "@/lib/progress/photos";
 import type { WeightUnit } from "@/lib/weight";
 
 /**
@@ -152,8 +147,8 @@ function PhotoTileButton({
       onClick={() => onView(tile.photo)}
       aria-label={
         more
-          ? `${tile.count} more photos from ${formatPhotoDate(date)}`
-          : `${label}, ${formatPhotoDate(date)}`
+          ? `${tile.count} more photos from ${dayShort(date)}`
+          : `${label}, ${dayShort(date)}`
       }
       className={cn(PRESS.card, TILE, "relative block aspect-[3/4] overflow-hidden bg-bg-inset")}
     >

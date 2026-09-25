@@ -180,41 +180,25 @@ const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
+/** "June 2026": a month heading in the gallery, not a day. Days are written
+ *  through `lib/format/date.ts` (consistency fix #26). */
 function monthLabel(key: string): string {
   const [y, m] = key.split("-").map(Number);
   if (!y || !m) return key;
   return `${MONTHS[m - 1]} ${y}`;
 }
 
-function dateFromKey(key: string): Date | null {
-  const [y, m, d] = key.split("-").map(Number);
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d);
-}
-
-export function formatPhotoDate(key: string): string {
-  const d = dateFromKey(key);
-  if (!d) return key;
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
-
+/**
+ * "12 Aug 2025", always with the year.
+ *
+ * @deprecated Use `dayShort` from `lib/format/date.ts` (consistency fix #26),
+ * which adds the year only when it is not this one. Kept for the dev preview
+ * pages' placeholder art.
+ */
 export function formatPhotoDateShort(key: string): string {
-  const d = dateFromKey(key);
-  if (!d) return key;
-  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-/** "Sat, 6 June" — the date-row format. */
-export function formatPhotoDateRow(key: string): string {
-  const d = dateFromKey(key);
-  if (!d) return key;
-  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  const [y, m, d] = key.split("-").map(Number);
+  if (!y || !m || !d) return key;
+  return `${d} ${MONTHS[m - 1].slice(0, 3)} ${y}`;
 }
 
 /** Whole days between two 'YYYY-MM-DD' keys (absolute). */

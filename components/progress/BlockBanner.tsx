@@ -7,12 +7,16 @@ import { CaretRight } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { useMounted } from "@/components/home/useMounted"
 import { useDeviceToday } from "@/components/home/useDeviceToday"
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import {
   CARD_EYEBROW,
   DATA_MONO,
   METRIC_VALUE,
+  PRESS,
+  ROW_CHEVRON,
   UNIT_SUFFIX,
 } from "@/lib/ui-presets"
+import { dayShort } from "@/lib/format/date"
 import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
 import { NewItemCard } from "@/components/protocol/NewItemCard"
 import type { WeightUnit } from "@/lib/weight"
@@ -73,6 +77,8 @@ export function BlockBanner({
   blocks: Block[]
 }) {
   const mounted = useMounted()
+  /** Guarded: starting a block CREATES one, as on the Blocks page. */
+  const { guard } = useWriteAccess()
   // The page renders on the server, whose date is UTC. That is the user's
   // yesterday for the first ten hours of an Australian day and their tomorrow for
   // the last seven of a Californian one. Uncorrected it fed the default start
@@ -112,14 +118,14 @@ export function BlockBanner({
   if (!block) {
     return (
       <>
-        {/* Same treatment as the Stacks and Cycles empty cards (Adrian,
-            2026-07-31): a dimmed mock of the thing above the copy, so a first
-            run shows what a block IS rather than only describing it. The mock is
-            a block's own headline — a week reading over a filling bar — because
-            that is what the card becomes the moment one is running. */}
+        {/* The one hairline "New X" card (consistency fix #21): a dimmed
+            mock of the thing above the copy, so a first run shows what a block
+            IS rather than only describing it. The mock is a block's own
+            headline — a week reading over a filling bar — because that is what
+            the card becomes the moment one is running. */}
         <NewItemCard
           label="New block"
-          onClick={() => setCreating(true)}
+          onClick={() => guard(() => setCreating(true))}
           description="A prep, an off-season, a cut. Start and end dates, and what you ran."
           preview={
             <span className="flex w-40 flex-col gap-1.5">
@@ -145,11 +151,14 @@ export function BlockBanner({
                this link is the ONLY way into the retrospectives — /blocks is not
                in the bottom nav — so it is the one target on the screen that
                cannot be fiddly. */
-            className="mt-1 flex min-h-11 items-center justify-center gap-1.5 text-xs text-text-muted transition-colors hover:text-foreground"
+            className={cn(
+              PRESS.text,
+              "mt-1 flex min-h-11 items-center justify-center gap-1.5 text-xs text-text-muted transition-colors hover:text-foreground",
+            )}
           >
             Look back on {past.length} finished{" "}
             {past.length === 1 ? "block" : "blocks"}
-            <CaretRight className="h-3 w-3" aria-hidden />
+            <CaretRight className={ROW_CHEVRON} aria-hidden />
           </Link>
         )}
 
@@ -204,14 +213,11 @@ export function BlockBanner({
     <div className="relative">
       <Link
         href="/blocks"
-        className="flow-card block inst-card p-5 transition-colors hover:bg-bg-surface-raised/40"
+        className={cn(PRESS.card, "flow-card block inst-card p-5 transition-colors hover:bg-bg-surface-raised/40")}
       >
         <div className="flex items-center gap-3">
           <span className={cn(CARD_EYEBROW, "min-w-0 flex-1 truncate")}>Block</span>
-          <CaretRight
-            className={cn("h-4 w-4 shrink-0 text-text-subtle", atEnd && "mr-9")}
-            aria-hidden
-          />
+          <CaretRight className={cn(ROW_CHEVRON, atEnd && "mr-9")} aria-hidden />
         </div>
 
         <p className="mt-1.5 flex items-baseline gap-2">
@@ -280,7 +286,7 @@ export function BlockBanner({
           type="button"
           onClick={() => setEnding(true)}
           aria-label={`${block.name} has reached its end date. Extend, close, or leave it running.`}
-          className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full"
+          className={cn(PRESS.icon, "absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full")}
         >
           <span className="h-2.5 w-2.5 rounded-full bg-accent-amber" aria-hidden />
         </button>
@@ -302,24 +308,12 @@ export function BlockBanner({
 }
 
 /**
- * "24 Sep". Short because it sits inside a one-line summary.
- *
- * A literal table rather than `toLocaleDateString`, which renders September as
- * "Sept" in current ICU while every other month gets three letters — and the
- * rest of the app (`lib/progress/photos.ts`, the calendar) already uses this
- * exact three-letter set. One screen spelling a month differently is the kind of
- * detail that reads as sloppy without anyone being able to say why.
+ * "24 Sep" (and the year when it is not this one): the app's one short date
+ * (`lib/format/date.ts`, consistency fix #26). Short because it sits inside a
+ * one-line summary.
  */
-const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-]
-
 function formatDate(key: string | null): string {
-  if (!key) return ""
-  const [y, m, d] = key.split("-").map(Number)
-  if (!y || !m || !d) return key
-  return `${d} ${MONTHS_SHORT[m - 1] ?? ""}`
+  return key ? dayShort(key) : ""
 }
 
 /** One decimal at most, trailing zero dropped: "4", "3.5". */

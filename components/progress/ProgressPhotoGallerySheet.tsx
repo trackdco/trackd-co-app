@@ -1,13 +1,19 @@
 "use client";
 
-import { ArrowRight, ArrowsLeftRight, Camera, PencilSimple, Plus } from "@/components/icons";
+import { ArrowRight, ArrowsLeftRight, PencilSimple, Plus } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { useSheetDrag } from "@/components/home/useSheetDrag";
-import { CARD_EYEBROW, SHEET_TITLE } from "@/lib/ui-presets";
+import { BottomSheet } from "@/components/layout/BottomSheet";
 import {
-  formatPhotoDateRow,
+  ADD_ACTION,
+  CARD_EYEBROW,
+  PRESS,
+  ROWS,
+  SECONDARY_BUTTON,
+  SHEET_TITLE,
+} from "@/lib/ui-presets";
+import { dayLong } from "@/lib/format/date";
+import {
   groupByMonth,
   poseLabel,
   type DayGroup,
@@ -18,7 +24,7 @@ import {
  * The progress-photos gallery (Spec 09 addendum) — MacroFactor-style: grouped by
  * month, a row per day showing that day's poses as circular thumbnails, with the
  * date and an edit pencil. Tap a thumbnail to preview it; the pencil edits the
- * day; "Compare" opens before/after; "+" adds.
+ * day; "Compare" opens before/after; the "+" at the top right adds.
  *
  * `scope` makes the same sheet serve a SUBSET of the photos — a block's window,
  * opened from its retrospective. When it is set the sheet says whose photos
@@ -27,6 +33,8 @@ import {
  * `onAdd` and `onEditDay` are optional for the same reason: a look-back surface
  * lends itself to reading, and the block scope leaves the writing where it
  * already lives.
+ *
+ * The one sheet frame (`BottomSheet`, consistency fix #1).
  */
 export function ProgressPhotoGallerySheet({
   open,
@@ -61,141 +69,96 @@ export function ProgressPhotoGallerySheet({
     onSeeAll: () => void;
   };
 }) {
-  const { cardRef, handleProps, cardStyle } = useSheetDrag(() => onOpenChange(false), open);
   const months = groupByMonth(photos);
+  const title = scope?.title ?? "Progress photos";
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        data-desktop="dialog"
-        side="bottom"
-        showCloseButton={false}
-        className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
-      >
-        <div
-          ref={cardRef}
-          style={cardStyle}
-          className="flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl border-t border-border-default bg-bg-surface shadow-lg"
-        >
-          <div
-            {...handleProps}
-            className="flex h-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
-          >
-            <span aria-hidden className="h-1 w-9 rounded-full bg-border-strong" />
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description="Your progress photos by month and day."
+      header={
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            {/* The scope, stated rather than implied, and in three parts:
+                what kind of thing this is, which one, and when. A user on
+                their third comp prep has three blocks called "Comp prep",
+                so the name alone does not identify one. */}
+            {scope && <p className={CARD_EYEBROW}>{scope.eyebrow}</p>}
+            <p aria-hidden className={cn(SHEET_TITLE, scope && "mt-1.5")}>{title}</p>
+            {scope && <p className="mt-1 text-sm text-text-muted">{scope.caption}</p>}
           </div>
-
-          <SheetTitle className="sr-only">Progress photos</SheetTitle>
-          <SheetDescription className="sr-only">
-            Your progress photos by month and day.
-          </SheetDescription>
-
-          <div className="flex-1 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-            <div className="flex items-start justify-between gap-2 pb-1">
-              <div className="min-w-0">
-                {/* The scope, stated rather than implied, and in three parts:
-                    what kind of thing this is, which one, and when. A user on
-                    their third comp prep has three blocks called "Comp prep",
-                    so the name alone does not identify one. */}
-                {scope && <p className={CARD_EYEBROW}>{scope.eyebrow}</p>}
-                <h2 className={cn(SHEET_TITLE, scope && "mt-1.5")}>
-                  {scope?.title ?? "Progress photos"}
-                </h2>
-                {scope && (
-                  <p className="mt-1 text-sm text-text-muted">{scope.caption}</p>
-                )}
-              </div>
-              {onAdd && (
-                <button
-                  type="button"
-                  onClick={onAdd}
-                  aria-label="Add a progress photo"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-primary transition-colors hover:bg-bg-surface-raised"
-                >
-                  <Plus className="h-5 w-5" aria-hidden />
-                </button>
-              )}
-            </div>
-
-            {/* Everything under the title rises in as the sheet lands (feel
-                pass §4). */}
-            <div data-sheet-body>
-              {/* Two photos is the gate, as it always was. Gating on
-                  `comparablePoses` instead removed Compare from Progress for
-                  anyone whose poses were each shot once, which was never the ask:
-                  the chip CULL belongs inside the sheet, and its own fallback
-                  already covers a set where nothing is comparable. */}
-              {photos.length >= 2 && (
-                <button
-                  type="button"
-                  onClick={onCompare}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-surface-raised py-3 text-sm font-medium text-text-primary transition-colors hover:bg-bg-input/60"
-                >
-                  <ArrowsLeftRight className="h-4 w-4" aria-hidden />
-                  Compare before &amp; after
-                </button>
-              )}
-
-              {photos.length === 0 ? (
-                onAdd ? (
-                  <button
-                    type="button"
-                    onClick={onAdd}
-                    className="mt-4 flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-12 text-center transition-colors hover:bg-bg-input/70"
-                  >
-                    <Camera className="h-8 w-8 text-text-muted" aria-hidden />
-                    <span className="text-sm text-text-muted">Add your first progress photo</span>
-                  </button>
-                ) : (
-                  /* A scope with nothing in it cannot offer to add, because the
-                     photo would land on today and today may sit outside it. */
-                  <div className="mt-4 flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-input/40 py-12 text-center">
-                    <Camera className="h-8 w-8 text-text-muted" aria-hidden />
-                    <span className="text-sm text-text-muted">No photos in here yet</span>
-                  </div>
-                )
-              ) : (
-                // The months are direct children of the body, so each one rises
-                // in its turn. They used to stagger in on their own.
-                <>
-                  {months.map((month, mi) => (
-                    <div key={month.key} className={mi === 0 ? "mt-5" : "mt-6"}>
-                      <h3 className={`px-1 ${CARD_EYEBROW}`}>
-                        {month.label}
-                      </h3>
-                      <ul className="mt-2 overflow-hidden rounded-2xl border border-border-default bg-bg-surface-raised">
-                        {month.days.map((day, i) => (
-                          <li
-                            key={day.date}
-                            className={cn(i > 0 && "hairline-t")}
-                          >
-                            <DayRow
-                              day={day}
-                              onView={onView}
-                              onEdit={onEditDay ? () => onEditDay(day.date) : undefined}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {scope && (
-                <button
-                  type="button"
-                  onClick={scope.onSeeAll}
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm text-text-muted transition-colors hover:text-foreground"
-                >
-                  See all progress photos
-                  <ArrowRight className="h-4 w-4" aria-hidden />
-                </button>
-              )}
-            </div>
-          </div>
+          {onAdd && (
+            <button
+              type="button"
+              onClick={onAdd}
+              aria-label="Add a progress photo"
+              className={cn(ADD_ACTION, "relative before:absolute before:-inset-1.5 before:content-['']")}
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+            </button>
+          )}
         </div>
-      </SheetContent>
-    </Sheet>
+      }
+    >
+      {/* Everything under the title rises in as the sheet lands (feel
+          pass §4). */}
+      <div data-sheet-body>
+        {/* Two photos is the gate, as it always was. Gating on
+            `comparablePoses` instead removed Compare from Progress for
+            anyone whose poses were each shot once, which was never the ask:
+            the chip CULL belongs inside the sheet, and its own fallback
+            already covers a set where nothing is comparable. */}
+        {photos.length >= 2 && (
+          <button type="button" onClick={onCompare} className={cn(SECONDARY_BUTTON, "w-full")}>
+            <ArrowsLeftRight className="h-4 w-4" aria-hidden />
+            Compare before &amp; after
+          </button>
+        )}
+
+        {photos.length === 0 ? (
+          /* A scope with nothing in it cannot offer to add, because the photo
+             would land on today and today may sit outside it. */
+          <p className="text-sm text-text-muted">No photos yet.</p>
+        ) : (
+          // The months are direct children of the body, so each one rises
+          // in its turn. They used to stagger in on their own.
+          <>
+            {months.map((month, mi) => (
+              <div key={month.key} className={mi === 0 ? "mt-5" : "mt-6"}>
+                <h3 className={`px-1 ${CARD_EYEBROW}`}>{month.label}</h3>
+                <ul className={cn(ROWS, "mt-2 overflow-hidden")}>
+                  {month.days.map((day) => (
+                    <li key={day.date}>
+                      <DayRow
+                        day={day}
+                        onView={onView}
+                        onEdit={onEditDay ? () => onEditDay(day.date) : undefined}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </>
+        )}
+
+        {scope && (
+          <button
+            type="button"
+            onClick={scope.onSeeAll}
+            className={cn(
+              PRESS.text,
+              "mt-5 flex min-h-11 w-full items-center justify-center gap-2 text-sm text-text-muted transition-colors hover:text-foreground",
+            )}
+          >
+            See all progress photos
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </button>
+        )}
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -208,8 +171,11 @@ function DayRow({
   onView: (photo: ProgressPhoto) => void;
   onEdit?: () => void;
 }) {
-  const shown = day.photos.slice(0, 3);
+  // Three places at most, as on the photos card: with more than three photos,
+  // two and a "+N", so the date beside them always fits.
+  const shown = day.photos.length > 3 ? day.photos.slice(0, 2) : day.photos;
   const extra = day.photos.length - shown.length;
+  const when = dayLong(day.date);
   return (
     <div className="flex items-center gap-3 px-4 py-3">
       <div className="flex items-center gap-1.5">
@@ -219,7 +185,10 @@ function DayRow({
             type="button"
             onClick={() => onView(p)}
             aria-label={`Preview ${poseLabel(p.pose)}`}
-            className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-border-default bg-bg-input"
+            className={cn(
+              PRESS.card,
+              "h-12 w-9 shrink-0 overflow-hidden rounded-lg border border-border-default bg-bg-input",
+            )}
           >
             {p.url && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -228,22 +197,23 @@ function DayRow({
           </button>
         ))}
         {extra > 0 && (
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border-default bg-bg-input text-xs font-medium text-text-muted">
+          <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded-lg border border-border-default bg-bg-input font-mono text-xs text-text-muted">
             +{extra}
           </span>
         )}
       </div>
 
-      <span className="flex-1 truncate text-right text-sm text-foreground">
-        {formatPhotoDateRow(day.date)}
-      </span>
+      <span className="flex-1 truncate text-right text-sm text-foreground">{when}</span>
 
       {onEdit && (
         <button
           type="button"
           onClick={onEdit}
-          aria-label={`Edit ${formatPhotoDateRow(day.date)}`}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-muted transition-colors hover:text-foreground"
+          aria-label={`Edit ${when}`}
+          className={cn(
+            PRESS.icon,
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-foreground",
+          )}
         >
           <PencilSimple className="h-4 w-4" aria-hidden />
         </button>
