@@ -1,5 +1,35 @@
 # Progress Tracker
 
+## 🗳 ROUND THREE — ANSWERED (2026-09-25, 04:36 UTC). NEXT: ONE WHOLE-APP VIEW, THEN ANOTHER REVISION.
+
+Answers in https://claude.ai/artifact/HPrYxng3Nt6EPK2R4rNWqg (`part3/answers`). Adrian: "continue, but I'll
+need another revision". So the next page shows EVERY decision from all three rounds as the app would be
+built, screen by screen, with notes per section; after his revision, the build handover.
+
+**Decided in round three:**
+- Half-life card (Home): dose ticks along the line. The Level row shows ONLY when not steady (Climbing, or
+  Dropping once stopped). Next dose reads the day, the countdown and the DOSE AMOUNT, e.g. "Mon (3 days) · 2 mg".
+- A compound's half-life page: when it peaks, the estimate band (no caption), and "Clears in" as a row under
+  Peaks; the explanation moves behind a "?" guide. Past runs are tappable and open that run's graph. Reached
+  from Protocol's Half-life tile, then a compound.
+- Compound sheet header: Title, then the half-life as a small tag with its mark, then the dose and stock line.
+- Home: as decided (chips for your types only, finished types dim, tap a type to fold); rows animate open and
+  closed; the "All" chip gets an icon (ideas owed).
+- Markers: M1 five steps, with animation and a finger drag across the steps; the × fainter and centred on the
+  steps; an "Add a marker" link; EVERY marker gets at least five levels (4-level and 2-level markers need new
+  words); the same markers flow in the Journal sheet on Progress. The Markers tile shows how many, with a word
+  other than "set" (e.g. "3 rated").
+- Cycles: C1 list top card; rounded-square buttons (Edit, Pause, End), with a confirm on End.
+- Stock: shelves per type, scrolling sideways; a tap opens the compound's OWN PAGE; its buttons need icons; each
+  page gets a setup card like Home's get-started.
+- Progress: every card keeps its frame with a way to add; photos preview three (front, side, back); a tap
+  enlarges one, a second tap opens it full screen and zoomable.
+- Get started: G1 (the card, three rows), but he wants to see another version.
+- Icons: supplements = LEAF. Protocol tiles = hue icons, shorter tiles, whole tile lightly tinted. + menu =
+  rounded squares.
+- Running: overlapping containers, one of each kind (vial, oil, bottle, tub...).
+- Add compound: A3 (container with a small type mark); show A2 and A3 in full.
+
 ## 🗳 ROUND TWO, PART TWO — ANSWERED (2026-09-25, 03:46 UTC). NOTHING IS BUILT.
 
 Adrian: "wait for everything. I want a finalised view of everything in ONE artifact at the end,
