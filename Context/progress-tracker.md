@@ -147,6 +147,19 @@ Built on `design/half-life-motion` in the worktree; nothing pushed, no migration
   - My mistake, test account only (again): three overlay checks opened preview pages while SIGNED IN, and the
     previews' sync pushed mock compounds (MK-677, Enclomiphene and others) into the burner. Cleared through the app
     in the sample-user walk. Previews are opened signed out only.
+- **Phase 9, final: DONE (not pushed).** `next build` passes (compiled, 72 static pages, no warnings). In a
+  worktree the build needs `TRACKD_TURBOPACK_ROOT=/Users/adrianschimizzi/Documents/GitHub` (node_modules is a symlink
+  out of the project root; the dev server tool sets it). Every main route checked at 375x548 in WebKit: none
+  scrolls sideways. The sample user (Context/reviews/sample-user.md, 18 screenshots): a TRT + two peptides user on
+  the burner (cleared to Testosterone Cypionate, BPC-157, Ipamorelin through the app). His stops: a dose taken on a
+  day it wasn't scheduled has nowhere to go but a one-off; "0.00 mcg circulating, 100% of last dose left" right
+  after injecting; the stock sheet's "24 doses left" against the card's "runs dry in 5 days"; "Reconstituted" for
+  unmixed powder; a cycle added and ended the same day vanishes instead of moving to Ended; before 026, Add stock asks
+  for water up front and refuses a second vial. Fixed on the spot: the day buttons are read out as day names (they
+  said "Toggle day 0") and are rounded squares. The three cold-review prompts are in Context/reviews/PROMPTS.md.
+  - Test-harness lesson: restoring an old browser snapshot of a signed-in account let the device-first sync write
+    that old state back (nine deleted compounds came back once). A real phone never rewinds its storage, but two
+    devices with divergent stores could; worth the bugs review's eye.
 
 
 ## 🗳 FINAL CHECK, ROUND FOUR — ANSWERED 2026-09-25 14:13 UTC. DESIGN CLOSED. NEXT: A NEW BUILDER CHAT RUNS `Context/PROMPT-build-final.md`

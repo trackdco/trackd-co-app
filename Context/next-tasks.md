@@ -10,7 +10,16 @@
 6. ~~Phase 6, Half-life pages~~ (done).
 7. ~~Phase 7, Progress, the +, the syringe, the containers~~ (done).
 8. ~~Phase 8, app-wide~~ (done).
-9. Phase 9: `next build`, the visual pass, the sample user, three cold-review prompts. Do not push.
+9. ~~Phase 9, final~~ (done; not pushed).
+
+### Next (Adrian)
+1. Read the good-morning summary and Context/reviews/sample-user.md.
+2. Paste the three prompts in Context/reviews/PROMPTS.md into three new chats (fill in the burner password).
+3. Then one chat: "act on the reviews" (reads Context/reviews/cold-*.md and fixes).
+4. Decisions waiting: the "!" in "Trakabl is going paid!"; the syringe's size (the moving plunger needs a barrel's
+   length of room); what a dose taken on an unscheduled day should do; whether Home's half-life card shows
+   anything before a first dose.
+5. At the merge: the embed hints, then 025, then 026 (brief §5), with his yes.
 
 ## ✅ NOW: A NEW BUILDER CHAT BUILDS THE FINAL DESIGN (branch `design/half-life-motion`)
 

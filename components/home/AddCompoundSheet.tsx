@@ -105,14 +105,14 @@ const CADENCE_OPTIONS: { value: CadenceType; label: string }[] = [
   { value: "everyNDays", label: "Every few days" },
   { value: "daysOfWeek", label: "Specific days" },
 ]
-const DOW: { letter: string; day: number }[] = [
-  { letter: "S", day: 0 },
-  { letter: "M", day: 1 },
-  { letter: "T", day: 2 },
-  { letter: "W", day: 3 },
-  { letter: "T", day: 4 },
-  { letter: "F", day: 5 },
-  { letter: "S", day: 6 },
+const DOW: { letter: string; name: string; day: number }[] = [
+  { letter: "S", name: "Sunday", day: 0 },
+  { letter: "M", name: "Monday", day: 1 },
+  { letter: "T", name: "Tuesday", day: 2 },
+  { letter: "W", name: "Wednesday", day: 3 },
+  { letter: "T", name: "Thursday", day: 4 },
+  { letter: "F", name: "Friday", day: 5 },
+  { letter: "S", name: "Saturday", day: 6 },
 ]
 
 // How many past years the start-date picker offers, on top of the current year + 2.
@@ -1482,9 +1482,11 @@ function AddCompoundBody({
                         if (errors.days) setErrors((p) => ({ ...p, days: undefined }))
                       }}
                       aria-pressed={active}
-                      aria-label={`Toggle day ${d.day}`}
+                      // The day's name, not its index: "Monday", pressed or not.
+                      aria-label={d.name}
                       className={cn(
-                        "flex h-9 w-9 items-center justify-center rounded-full border text-sm transition-colors",
+                        PRESS.pill,
+                        "flex h-9 w-9 items-center justify-center rounded-lg border text-sm transition-colors",
                         daysLocked && "cursor-not-allowed",
                         active
                           ? "border-transparent bg-accent-primary font-medium text-bg-base"
