@@ -36,9 +36,19 @@ checked at 390x844 and 375x548 in Chromium and WebKit; `npm run check` after eac
 `next build` at the end; Context updated and committed per step.
 
 ### 3. Migrations 025 then 026
-Adrian said yes on condition they cannot break the live app. Apply only with a clean
-safety review against origin/main, 025 alone first, then check spares, a box of N,
-Mix / Open and the dropper on the burner account.
+Adrian said yes on condition they cannot break the live app. The review found 026 DOES
+break it (progress-tracker, "026 WOULD BREAK THE LIVE APP"). Next depends on his `mig2`
+answer on the part-two page:
+- `trim`: move section 5 of 026 (`cycle_end_item_id`, both FKs, the shape CHECKs) into a
+  later migration that ships with FK-hinted embeds; re-run the PGlite test AND a PostgREST
+  embed check (the PGlite replay has no PostgREST layer, which is why it missed this); then
+  apply 025 alone, then the trimmed 026; then check spares, a box of N, Mix / Open and the
+  dropper on the burner account.
+- `merge`: hold both until the branch merges, with the embeds hinted in the same release.
+
+The part-two page is published: https://claude.ai/artifact/KzqihDUTkdJoJJvqbUCGgc. Read
+`part2/answers` and `part2/draft` before building; `review` holds the consistency findings he
+unticked (indexes match `Context/consistency-review.md`).
 
 ## 🎨 HALF-LIFE + LOGGING — BUILD TRACK (branch `design/half-life-motion`)
 

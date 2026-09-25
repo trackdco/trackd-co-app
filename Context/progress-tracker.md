@@ -39,6 +39,35 @@ more options, which go on a second page ("round 2 no. 2").
 - Migrations 025/026: **yes, IF they cannot break the live app** (a safety review of
   origin/main against both files was run first).
 
+**026 WOULD BREAK THE LIVE APP (found 2026-09-25, read-only review; nothing applied).**
+Two reviewers read both files against origin/main and production's schema. The first passed
+them; the second, told to find a break, found a real one:
+- 026:401-407 adds `protocol_compounds_cycle_end_item_fk`, a second relationship between
+  `inventory_items` and `protocol_compounds` running the opposite way to the existing one.
+- Main embeds `protocol_compounds!inner(...)` from `inventory_items` with no FK hint
+  (`lib/db/inventory.ts:31/37`, `lib/notifications/runner.ts:634`; the branch has the same
+  embed). PostgREST then returns PGRST201 (ambiguous relationship), and `pgrst_ddl_watch`
+  reloads the schema cache seconds after the DDL.
+- Effects for EVERY live user: `listStock` returns [] (Stock and Protocol show no stock), the
+  15-minute reminder cron stops low-stock nudges, and "Add stock" on a card that wrongly looks
+  empty archives the real vial (main's `addStockItem` retires prior vials).
+- Everything else in 025/026 was verified safe: every CHECK strictly wider, `v_inventory_math`
+  keeps its 19 columns (its new body run read-only over all 101 production rows: 0 differences),
+  grants and security_invoker preserved, tiny tables, 0 rows with NULL `acquired_on`.
+- Fixes: take section 5 (`cycle_end_item_id` and its FKs) out of 026 until the vial-end producer
+  exists, or ship FK hints on main first. Adrian's call is on the part-two page (`mig2`).
+- Apply notes if it goes ahead: 025 alone and committed first; 026 as one transaction with
+  `SET lock_timeout = '5s'` at the top; avoid :00/:15/:30/:45 (the cron); afterwards check the
+  view's reloptions and ACL, and the API logs for PGRST201.
+- Also found, pre-existing: the reminder cron's `cron.job` command holds a bearer secret in
+  plain text.
+
+**Part two page (published 2026-09-25):** https://claude.ai/artifact/KzqihDUTkdJoJJvqbUCGgc (db
+`part2/answers` on Submit, `part2/draft` autosave). Built from his notes plus competitor research
+(levels: Regimen, Glapp, Phaze, Dexcom trend words; stock: Glapp My Supply, Peptide Tracker,
+Medisafe; empty states: WHOOP, Oura, Linear, NN/g). The consistency review behind its list is
+`Context/consistency-review.md` (30 confirmed findings with file:line and fixes).
+
 **The Vercel preview (diagnosed 2026-09-25, read-only).** Google sign-in bounced to the
 landing page because the preview URL is not in Supabase's redirect allowlist (it falls back to
 trackdco.app). Consent failed because `lib/auth/gate-writer.ts` needs `SUPABASE_SECRET_KEY`,
