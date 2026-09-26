@@ -18,6 +18,7 @@ import {
   SECONDARY_BUTTON,
 } from "@/lib/ui-presets"
 import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
+import { DateField } from "@/components/feel/DateField"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { usePadSession } from "@/components/feel/usePadSession"
 import { CompoundHeader } from "@/components/compounds/CompoundHeader"
@@ -74,6 +75,12 @@ import {
 import { describeBlendOverlap, findBlendOverlaps } from "@/lib/compound-blends"
 import { recordRecentCompound } from "@/lib/home/recentCompounds"
 import { loadUnitPref, recordUnitPref } from "@/lib/home/unitPrefs"
+import {
+  fieldsInSection,
+  liveSection,
+  padSectionLabel,
+  type PadSection,
+} from "@/lib/home/padSections"
 
 interface AddCompoundSheetProps {
   open: boolean
@@ -771,10 +778,18 @@ function AddCompoundBody({
   // the field to say so. Setting how full it is stays the Stock tab's job.
   const fillPad = usePadSession()
   const [cycleText, setCycleText] = useState<Partial<Record<CycleNumberId, string>>>({})
+  // The pad carries only the section it was opened in (W20): a dose shows the
+  // doses, Stock on hand shows its own amounts. The section is read from the
+  // open field IN THIS RENDER (never a state a render behind, which would
+  // hand the pad a list without the field and close it), and held after it
+  // closes so the pad slides away still showing its field.
+  const [lastPadSection, setLastPadSection] = useState<PadSection | null>(null)
+  const padSection = liveSection(pad.activeId, lastPadSection)
   const [padWas, setPadWas] = useState(pad.activeId)
   if (pad.activeId !== padWas) {
     setPadWas(pad.activeId)
     if (pad.activeId === null) setCycleText({})
+    else setLastPadSection(padSection)
   }
   const cycleOnOff = cycleDraft?.pattern.type === "onOff" ? cycleDraft.pattern : null
   const cycleEndType = cycleDraft
@@ -1498,7 +1513,7 @@ function AddCompoundBody({
                   )
                 })}
               </div>
-              <div className="mt-2 flex justify-end">
+              <div className="mt-2 flex items-center justify-end gap-3">
                 {daysLocked ? (
                   <button
                     type="button"
@@ -1509,14 +1524,22 @@ function AddCompoundBody({
                     Edit days
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => days.length > 0 && setDaysLocked(true)}
-                    disabled={days.length === 0}
-                    className="text-xs font-medium text-foreground transition-opacity hover:opacity-80 disabled:text-text-subtle"
-                  >
-                    Done
-                  </button>
+                  <>
+                    {/* A dimmed Done says why (no dead control without a reason). */}
+                    {days.length === 0 && (
+                      <span className="text-xs text-text-muted">Pick a day</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => days.length > 0 && setDaysLocked(true)}
+                      disabled={days.length === 0}
+                      // Disabled reads muted at reduced opacity, never in
+                      // subtle (cold review D24: readable text never subtle).
+                      className="text-xs font-medium text-foreground transition-opacity hover:opacity-80 disabled:text-text-muted disabled:opacity-60"
+                    >
+                      Done
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -1650,19 +1673,24 @@ function AddCompoundBody({
                       Removing the LAST one only. A slot is an index, so dropping
                       one from the middle would renumber every dose after it and
                       silently re-point logs already written against those
-                      slots. */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLaterTimes((prev) => prev.slice(0, -1))
-                      setLaterDoses((prev) => prev.slice(0, -1))
-                    }}
-                    disabled={i !== laterTimes.length - 1}
-                    aria-label={`Remove dose ${i + 2}`}
-                    className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-accent-destructive disabled:opacity-25 disabled:hover:text-text-muted"
-                  >
-                    <Trash className="h-4 w-4" aria-hidden />
-                  </button>
+                      slots. So only the last row carries a bin; the others
+                      keep its space, never a dimmed bin that does nothing
+                      (sweep, ruling 10). */}
+                  {i === laterTimes.length - 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLaterTimes((prev) => prev.slice(0, -1))
+                        setLaterDoses((prev) => prev.slice(0, -1))
+                      }}
+                      aria-label={`Remove dose ${i + 2}`}
+                      className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-accent-destructive"
+                    >
+                      <Trash className="h-4 w-4" aria-hidden />
+                    </button>
+                  ) : (
+                    <span aria-hidden className="-mr-1 h-9 w-9 shrink-0" />
+                  )}
                 </div>
               </FormRow>
             </div>
@@ -1877,7 +1905,10 @@ function AddCompoundBody({
               error={errors.stock}
             />
             {addStockOn && (
-              <div className="space-y-3 px-4 pb-4">
+              // Room under the "Stock on hand" line before the first fields
+              // (W20): the rows block draws a divider here, and the labels sat
+              // right against it.
+              <div className="space-y-3 px-4 pt-3.5 pb-4">
                 {stockType === "reconstituted" && (
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
@@ -2065,7 +2096,12 @@ function AddCompoundBody({
 
       </div>
 
-      <NumberPad {...pad.padProps(padFields)} label="Compound numbers" />
+      {/* One section at a time (W20): Next walks the doses, or the stock's
+          amounts, and Done ends there, like the "mL left" pad below. */}
+      <NumberPad
+        {...pad.padProps(fieldsInSection(padFields, padSection))}
+        label={padSectionLabel(padSection)}
+      />
       {/* Its own pad: one field, so it opens on Done rather than joining the
           chain of amounts above it. */}
       <NumberPad
@@ -2431,16 +2467,15 @@ function CycleFields({
           nothing to explain it, so an empty input falls back to what it was. */}
       <RowDivider />
       <FormRow label="Cycle starts">
-        <Input
-          type="date"
+        {/* The app's calendar (W32), held to its column. */}
+        <DateField
+          label="Cycle starts on"
           value={cycle.anchor}
-          onChange={(e) =>
-            onChange({ ...cycle, anchor: e.target.value || cycle.anchor })
-          }
-          aria-label="Cycle starts on"
+          onChange={(key) => onChange({ ...cycle, anchor: key || cycle.anchor })}
           min={CYCLE_MIN_DATE}
           max={CYCLE_MAX_DATE}
-          className="h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+          todayKey={today}
+          className="w-44 rounded-lg"
         />
       </FormRow>
 
@@ -2495,18 +2530,18 @@ function CycleFields({
         <>
           <RowDivider />
           <FormRow label="End date">
-            <Input
-              type="date"
+            <DateField
+              label="Cycle end date"
               value={cycle.end.type === "onDate" ? cycle.end.date : ""}
-              onChange={(e) => {
-                const next = e.target.value || cycle.anchor
+              onChange={(key) => {
+                const next = key || cycle.anchor
                 setLastEndDate(next)
                 setEnd({ type: "onDate", date: next })
               }}
-              aria-label="Cycle end date"
               min={cycle.anchor}
               max={CYCLE_MAX_DATE}
-              className="h-11 w-44 rounded-lg border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+              todayKey={today}
+              className="w-44 rounded-lg"
             />
           </FormRow>
         </>

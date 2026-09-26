@@ -29,7 +29,12 @@
  *
  * Pure data + pure helpers + guarded storage only; no React (`code-standards.md`).
  */
-import { DEFAULT_PALETTE_COLOUR, isPaletteColour, type PaletteColour } from "@/lib/palette"
+import {
+  DEFAULT_PALETTE_COLOUR,
+  isPaletteColour,
+  paletteColourVar,
+  type PaletteColour,
+} from "@/lib/palette"
 import { pushStacks } from "@/lib/home/stackSync"
 // Function-level use only (inside `commit`), so the stack.ts ⇄ stacks.ts cycle
 // is resolved long before either is called.
@@ -105,6 +110,19 @@ export interface Stack {
    * once it has adopted that date. Absent on every stack the app itself created.
    */
   provisionalStart?: boolean
+  /**
+   * TRUE when the user chose "No colour" (Adrian's walk, W23): the stack then
+   * draws each compound in its own look instead of the stack's colour.
+   *
+   * A DEVICE-LOCAL display choice, like the unit prefs. Postgres `stacks.colour`
+   * is NOT NULL with a CHECK on the twelve palette names (`supabase/protocol/007`),
+   * so "none" cannot be stored there without a migration. `colour` therefore
+   * always keeps a real palette name (the last one picked, or the default), which
+   * is what the mirror sends; this flag rides beside it in the device store only.
+   * Hydration keeps it (`mergeStack` builds on the local stack), and Undo keeps it
+   * (the snapshot is restored verbatim). Another device shows the kept colour.
+   */
+  plain?: true
 }
 
 /**
@@ -117,6 +135,8 @@ export interface StackDraft {
   name: string
   colour: PaletteColour
   memberIds: string[]
+  /** "No colour": each compound keeps its own look (see {@link Stack.plain}). */
+  plain?: boolean
 }
 
 const storageKey = (userId: string) => `trackd.stacks.v2.${userId}`
@@ -222,6 +242,73 @@ export function nextStackName(stacks: Stack[]): string {
   let n = 1
   while (taken.has(n)) n += 1
   return `Stack ${n}`
+}
+
+/**
+ * The name a stack is saved under when another CURRENT stack already has it:
+ * "Morning" becomes "Morning (2)", then "Morning (3)" and so on, on its own
+ * (Adrian's walk, W22). The lowest free number, so a freed "(2)" is reused.
+ *
+ * - Names are compared trimmed and case-blind: "morning" clashes with
+ *   "Morning", and the user's own casing is kept.
+ * - A name that already ends in "(n)" and clashes counts on from its stem:
+ *   "Morning (2)" beside "Morning" and "Morning (2)" becomes "Morning (3)",
+ *   never "Morning (2) (2)".
+ * - Only CURRENT stacks count ({@link activeStacks}): one kept only for its
+ *   history is on no screen, so a clash with it would read as a number out of
+ *   nowhere.
+ * - `selfId` is the stack being saved, so a rename never clashes with itself.
+ * - The result keeps within {@link STACK_NAME_MAX}: the stem is cut, never the
+ *   number.
+ */
+export function uniqueStackName(name: string, stacks: Stack[], selfId?: string): string {
+  const wanted = name.trim().slice(0, STACK_NAME_MAX)
+  if (wanted === "") return wanted
+  const key = (s: string) => s.trim().toLowerCase()
+  const taken = new Set(
+    activeStacks(stacks)
+      .filter((s) => s.id !== selfId)
+      .map((s) => key(s.name))
+  )
+  if (!taken.has(key(wanted))) return wanted
+  const numbered = /^(.*\S)\s*\((\d+)\)$/.exec(wanted)
+  const stem = numbered ? numbered[1] : wanted
+  for (let n = 2; ; n += 1) {
+    const suffix = ` (${n})`
+    const candidate = `${stem.slice(0, STACK_NAME_MAX - suffix.length).trimEnd()}${suffix}`
+    if (!taken.has(key(candidate))) return candidate
+  }
+}
+
+/**
+ * What a save from the editor names the stack: {@link uniqueStackName}, except
+ * that a stack whose name did not change keeps it as it is. Renaming follows
+ * the rule; saving a new colour does not rename a stack behind the user's back
+ * (two stacks that shared a name before this rule keep it until one is renamed).
+ * The editor shows this same name under its Name field before Save.
+ */
+export function stackNameToSave(wanted: string, stacks: Stack[], selfId: string): string {
+  const trimmed = wanted.trim().slice(0, STACK_NAME_MAX)
+  const self = stacks.find((s) => s.id === selfId)
+  if (self && self.name.trim() === trimmed) return trimmed
+  return uniqueStackName(trimmed, stacks, selfId)
+}
+
+/**
+ * The colour a stack draws its members in, as a CSS value, or null for a
+ * "No colour" stack (W23): null tells `Container` to use each compound's own
+ * look (`containerColour` falls back to the category).
+ */
+export function stackColourVar(stack: Pick<Stack, "colour" | "plain">): string | null {
+  return stack.plain ? null : paletteColourVar(stack.colour)
+}
+
+/** The stack with "No colour" set or cleared: the key is present only when set,
+ *  so a coloured stack's stored record is byte-for-byte what it always was. */
+function withLook(stack: Stack, plain: boolean): Stack {
+  const { plain: was, ...rest } = stack
+  void was
+  return plain ? { ...rest, plain: true } : rest
 }
 
 /* ------------------------------------------------------------------ queries */
@@ -678,15 +765,23 @@ export function upsertStack(
   const cur = loadStacks(userId)
   const existing = cur.find((s) => s.id === draft.id)
   const today = todayKey()
-  const next: Stack = existing
-    ? { ...existing, name: draft.name, colour: draft.colour }
-    : {
-        id: draft.id,
-        name: draft.name,
-        colour: draft.colour,
-        effectiveFrom: today,
-        members: [],
-      }
+  // A second "Morning" is saved as "Morning (2)" (W22). Here, in the store, so
+  // every screen that names a stack gets the rule. A blank name (no caller
+  // sends one) takes the next "Stack N" rather than a record the next read
+  // would drop.
+  const name = stackNameToSave(draft.name, cur, draft.id) || nextStackName(cur)
+  const next: Stack = withLook(
+    existing
+      ? { ...existing, name, colour: draft.colour }
+      : {
+          id: draft.id,
+          name,
+          colour: draft.colour,
+          effectiveFrom: today,
+          members: [],
+        },
+    draft.plain === true
+  )
   const base = existing
     ? cur.map((s) => (s.id === draft.id ? next : s))
     : [...cur, next]
@@ -913,5 +1008,8 @@ function normalizeStack(item: unknown, legacyFrom?: DateKey): Stack | null {
     effectiveFrom,
     ...(provisional ? { provisionalStart: true as const } : {}),
     members: pruneEmpty(members),
+    // "No colour" (W23) is read back like every other stored field, or the
+    // next read would drop it and the stack would take its colour again.
+    ...(s.plain === true ? { plain: true as const } : {}),
   }
 }

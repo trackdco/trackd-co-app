@@ -10,6 +10,7 @@ import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { StackEditSheet } from "@/components/protocol/StackEditSheet"
 import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
+import { NewItemCard } from "@/components/protocol/NewItemCard"
 import { Fold, SquareActions, SubpageShell } from "@/components/protocol/pages/Subpage"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { getHydrationState, subscribeHydrationState, type HydrationState } from "@/lib/home/hydrationState"
@@ -25,6 +26,7 @@ import {
   getStacksSnapshot,
   nextStackName,
   restoreStack,
+  stackColourVar,
   stackedIds,
   subscribeStacks,
   upsertStack,
@@ -47,13 +49,38 @@ function keepRunningLine(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} keep running.`
 }
 
+/** What a stack looks like, drawn dimmed on the empty page's setup card: the
+ *  thing you are about to make, seen before you make it (fix #21, the Blocks
+ *  card's pattern). Decorative; the card hides it from screen readers. */
+function StackPreview() {
+  const hue = paletteColourVar("teal")
+  return (
+    <span className="flex items-center gap-3">
+      <span className="x-clus flex shrink-0 items-end">
+        <Container inventoryType="reconstituted" category="peptide" stackColour={hue} fill={0.62} size={26} />
+        <Container inventoryType="reconstituted" category="peptide" stackColour={hue} fill={0.62} size={26} />
+        <Container inventoryType="preconcentrated" category="anabolic" stackColour={hue} fill={0.62} size={26} />
+      </span>
+      <span className="flex flex-col items-start gap-0.5">
+        <span className="text-[14px] font-light text-foreground">Morning</span>
+        <span className="font-mono text-[11px] text-text-muted">{formatTimeLabel("08:00")} · 3</span>
+      </span>
+    </span>
+  )
+}
+
 /**
- * Protocol → Stacks (build-brief-final §3.9). "Stacks ?" with the "+" (New
- * stack) at top right. One card per stack (U1): its members' containers in the
- * stack's colour, the name, the time and how many. A tap opens it onto each
- * member's dose and cadence, then Edit and Delete. Delete asks, then says
- * "<Name> deleted" with Undo, which puts the stack back exactly as it was.
- * Logging never happens here.
+ * Protocol → Stacks (build-brief-final §3.9). "Stacks ?" with "+ New stack"
+ * at top right (Adrian's ruling 1: a white button in words, never a second
+ * bare "+"). One card per stack (U1): its members' containers in the stack's
+ * colour (or each in its own, for "No colour"), the name, the time and how
+ * many. A tap opens it onto each member's dose and cadence, then Edit and
+ * Delete. Delete asks, then says "<Name> deleted" with Undo, which puts the
+ * stack back exactly as it was. Logging never happens here.
+ *
+ * With no stacks the page shows its setup card (brief §3.1, cold review F10),
+ * whose action is the page's own New stack. New stack always works, even with
+ * no compounds: the editor adds one without leaving (W24).
  */
 export function StacksScreen({
   userId,
@@ -95,6 +122,7 @@ export function StacksScreen({
   const [asking, setAsking] = useState<Stack | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pendingMemberId, setPendingMemberId] = useState<string | null>(null)
+  const startNew = () => guard(() => setCreating(true))
   const unavailable = useMemo(() => {
     const all = stackedIds(stacks)
     if (editing) for (const id of currentMemberIds(editing)) all.delete(id)
@@ -133,21 +161,28 @@ export function StacksScreen({
       title="Stacks"
       backHref={backHref}
       explainer="stacks"
-      action={{ label: "New stack", onClick: () => guard(() => setCreating(true)), disabled: known && active.length === 0 }}
+      // `open`: the button slides toward the sheet it opened (W21).
+      action={{ label: "New stack", onClick: startNew, open: creating }}
     >
       {!known ? (
         <SkeletonGroup label="Loading your stacks" className="space-y-4">
           <ListBlocks cards={1} />
         </SkeletonGroup>
       ) : listed.length === 0 ? (
-        <p className="animate-home-up px-1 text-sm text-text-muted">
-          {active.length === 0 ? "Add a compound on Protocol first." : "No stacks yet."}
-        </p>
+        <div className="animate-home-up">
+          <NewItemCard
+            label="New stack"
+            onClick={startNew}
+            description="Compounds you take together. One tick logs them all."
+            preview={<StackPreview />}
+          />
+        </div>
       ) : (
         <div className="space-y-2.5">
           {listed.map((s, i) => {
             const members = membersOf(s)
-            const colour = paletteColourVar(s.colour)
+            // Null for "No colour" (W23): each container in its own look.
+            const colour = stackColourVar(s)
             const times = new Set(members.map((m) => m.schedule.timeOfDay))
             const shared = times.size === 1 ? [...times][0] : null
             const open = openId === s.id
@@ -183,7 +218,6 @@ export function StacksScreen({
                         : `${members.length} ${members.length === 1 ? "compound" : "compounds"}`}
                     </span>
                   </span>
-                  <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: colour }} />
                 </button>
                 <Fold open={open} className="pb-3.5">
                   {members.map((m) => (
@@ -236,23 +270,30 @@ export function StacksScreen({
         compounds={active}
         unavailableIds={unavailable}
         onSave={(s) => {
-          upsertStack(userId, s, Object.fromEntries(active.map((c) => [c.id, c.name])))
+          const saved = upsertStack(userId, s, Object.fromEntries(active.map((c) => [c.id, c.name])))
           setCreating(false)
           setEditing(null)
-          showToast("Saved")
+          // Never "Saved" over a write the phone refused (storage full or off).
+          showToast(saved ? "Saved" : "Couldn’t save on this phone. Try again.")
         }}
         fallbackName={nextStackName(stacks)}
+        stacks={stacks}
         onAddCompound={() => setPickerOpen(true)}
         pendingMemberId={pendingMemberId}
-      />
-      <AddToStackMenu
-        open={pickerOpen}
-        onOpenChange={(o) => {
-          setPickerOpen(o)
-          if (o) setPendingMemberId(null)
-        }}
-        userId={userId}
-        onAdded={(saved) => setPendingMemberId(saved.id)}
+        // Inside the editor's tree, so adding or cancelling up there lands
+        // back in the editor as it was, never out of it (W24).
+        addFlow={
+          <AddToStackMenu
+            open={pickerOpen}
+            onOpenChange={(o) => {
+              setPickerOpen(o)
+              if (o) setPendingMemberId(null)
+            }}
+            userId={userId}
+            onAdded={(saved) => setPendingMemberId(saved.id)}
+            closeOnFormCancel
+          />
+        }
       />
     </SubpageShell>
   )

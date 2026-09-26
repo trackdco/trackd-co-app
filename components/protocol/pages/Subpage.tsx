@@ -2,19 +2,40 @@
 
 import type { ReactNode } from "react"
 
-import { Plus } from "@/components/icons"
 import { BackLink } from "@/components/feel/BackLink"
 import { SolidIcon } from "@/components/feel/SolidIcon"
 import type { GlyphName } from "@/lib/solidGlyphs"
 import { cn } from "@/lib/utils"
-import { ExplainerButton, type ExplainerTopic } from "@/components/protocol/Explainer"
-import { ADD_ACTION, PAGE_TITLE, PRESS, TILE } from "@/lib/ui-presets"
+import {
+  EXPLAINER_KEY,
+  EXPLAINER_KEY_SHAPE,
+  ExplainerButton,
+  type ExplainerTopic,
+} from "@/components/protocol/Explainer"
+import { PAGE_ACTION, PAGE_TITLE, PRESS, TILE } from "@/lib/ui-presets"
+
+/** The page action's plus, as the approved mock draws it (`r6/page.js`
+ *  `PLUS`): 12px, a 1.3 stroke with round ends. The icon set's light plus is
+ *  a hairline at this size. */
+function PlusMark() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden className="block">
+      <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
 
 /**
  * A Protocol page's frame: the back link, the title with its explainer "?"
- * beside it (build-brief-final §3.8), and the page's one action as a "+" at top
- * right (New stack, New cycle; round three). The page slides in from 26px to
- * the right with a fade (300ms, §3.7).
+ * beside it (build-brief-final §3.8), and the page's one action at top right.
+ * The page slides in from 26px to the right with a fade (300ms, §3.7).
+ *
+ * The action is a white button in words, "+ New stack" (`PAGE_ACTION`,
+ * Adrian's ruling 1): the quick-actions "+" is on every page, and two bare
+ * "+" buttons on one screen looked alike. While what it opened is up
+ * (`action.open`), it slides down toward the sheet and fades, its plus
+ * turning a quarter, and comes back up the same path when the sheet goes
+ * (W21; `.page-action` in globals.css).
  */
 export function SubpageShell({
   screen,
@@ -38,8 +59,17 @@ export function SubpageShell({
   backLabel?: string
   /** The "What is a …?" pop-up beside the title. */
   explainer?: ExplainerTopic
-  /** The page's one action, as a "+" at top right. */
-  action?: { label: string; onClick: () => void; disabled?: boolean }
+  /**
+   * The page's one action, at top right.
+   * - `label`: its WORDS, drawn after the plus ("New stack" reads
+   *   "+ New stack"). It was the aria-label of a bare "+"; the same string now
+   *   shows, so every caller reads right without a change.
+   * - `open`: true while the sheet or picker it opened is up, for the slide
+   *   (W21). Optional: without it the button simply stays where it is.
+   * - `disabled`: kept for older callers. Prefer a control that always works
+   *   (ruling 10); a disabled one must say why somewhere on the page.
+   */
+  action?: { label: string; onClick: () => void; disabled?: boolean; open?: boolean }
   children: ReactNode
 }) {
   return (
@@ -54,31 +84,37 @@ export function SubpageShell({
           <div className="flex min-w-0 items-center gap-2.5">
             {mark}
             <h1 className={cn(PAGE_TITLE, "truncate")}>{title}</h1>
+            {/* Every "?" beside a title is the one key: drawn at 20, with its
+                own 44-point reach on ::after (`EXPLAINER_KEY`). */}
             {explainer ? <ExplainerButton topic={explainer} /> : null}
             {help ? (
               <button
                 type="button"
                 onClick={help.onClick}
                 aria-label={help.label}
-                className={cn(
-                  PRESS.icon,
-                  "flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[12px] font-medium text-text-muted shadow-[inset_0_0_0_1.2px_var(--text-muted)] transition-colors hover:text-foreground",
-                )}
+                className={cn(PRESS.icon, EXPLAINER_KEY)}
+                style={EXPLAINER_KEY_SHAPE}
               >
                 ?
               </button>
             ) : null}
           </div>
           {action ? (
-            <button
-              type="button"
-              onClick={action.onClick}
-              disabled={action.disabled}
-              aria-label={action.label}
-              className={cn(ADD_ACTION, "disabled:opacity-40")}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-            </button>
+            // The wrapper carries the slide, so the button's own press
+            // (scale and opacity) never fights it.
+            <span className="page-action" data-open={action.open ? "true" : "false"}>
+              <button
+                type="button"
+                onClick={action.onClick}
+                disabled={action.disabled}
+                className={PAGE_ACTION}
+              >
+                <span aria-hidden className="page-action-plus">
+                  <PlusMark />
+                </span>
+                {action.label}
+              </button>
+            </span>
           ) : null}
         </div>
       </div>
@@ -87,13 +123,20 @@ export function SubpageShell({
   )
 }
 
-/** Something that opens in place under what was tapped: its height eases open
- *  (420ms) and shut (280ms). Closed, its controls are out of reach. */
+/**
+ * Something that opens in place under what was tapped: its height eases open
+ * (420ms) and shut (280ms). Closed, its controls are out of reach.
+ *
+ * What it holds fades in as it opens and out as it shuts (`.fold-body`), so
+ * the first slivers of a height reveal (a panel's lit top edge, its dark ring,
+ * a hairline) never show as a lone line while the fold is still a few pixels
+ * tall (Adrian's walk, W33: "hide it until the fold is open").
+ */
 export function Fold({ open, children, className }: { open: boolean; children: ReactNode; className?: string }) {
   return (
     <div className="fold" data-open={open ? "true" : "false"} inert={!open}>
       <div>
-        <div className={className}>{children}</div>
+        <div className={cn("fold-body", className)}>{children}</div>
       </div>
     </div>
   )

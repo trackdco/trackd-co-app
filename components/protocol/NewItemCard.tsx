@@ -18,6 +18,9 @@ import { PRESS } from "@/lib/ui-presets"
  * phone.
  *
  * Used by both sections, so Stacks and Cycles are identical by construction.
+ * With `description` and `preview` it is an empty page's SETUP CARD (brief
+ * §3.1; Stacks and Blocks): a dimmed picture of the thing, its words, and
+ * the one action, in --text-primary.
  */
 export function NewItemCard({
   label,
@@ -59,7 +62,11 @@ export function NewItemCard({
         "hairline flex w-full items-center justify-center gap-2 rounded-2xl border-border-default py-5 transition",
         disabled
           ? "text-text-muted"
-          : "text-text-muted hover:text-foreground"
+          : description
+            ? // An empty page's setup card: its one action reads in
+              // --text-primary (ui-context → States, "Empty / first-run").
+              "text-foreground"
+            : "text-text-muted hover:text-foreground"
       )}
     >
       <span className="flex flex-col items-center gap-3 px-6">
