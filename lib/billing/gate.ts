@@ -294,7 +294,8 @@ export async function requireWriteAccess(): Promise<
  *                                  upsertProtocolCompounds
  *   lib/home/protocolSync.ts       pushProtocolCompound, pushProtocolBatch,
  *                                  pushCompoundPause, pushPauseEnd,
- *                                  pushPauseGroupEnd, pushProtocolDoseLog
+ *                                  pushPauseGroupEnd, pushProtocolDoseLog,
+ *                                  reconcileCompoundCycle
  *   lib/home/stackSync.ts          pushStacks
  *   lib/home/syncActions.ts        pushStackCompound, pushDoseLog, pushCustom
  *

@@ -11,13 +11,18 @@
  * Pure logic + guarded storage; no React.
  */
 import {
+  forgetPendingPush,
   loadStack,
   saveStack,
   notifyStackChanged,
+  pendingPushFor,
+  pushCompoundAndTrail,
   scheduleVersionFromRow,
   type ScheduleVersion,
   type StackCompound,
 } from "@/lib/home/stack"
+import { remapHiddenEndedCycles } from "@/lib/home/endedCycleActions"
+import { cycleRuleFromColumns, sameCycle, type CycleColumns } from "@/lib/protocol/cycleRule"
 import {
   isTombstoned,
   loadDoseLogs,
@@ -36,6 +41,7 @@ import {
   pullPauses,
   pullScheduleVersions,
   pushProtocolCompound,
+  reconcileCompoundCycle,
 } from "@/lib/home/protocolSync"
 import { awaitCriticalSyncs, trackCriticalSync } from "@/lib/home/syncStatus"
 import { injectionSiteToLocal } from "@/lib/db/types"
@@ -83,6 +89,9 @@ export async function hydrateFromPostgres(userId: string): Promise<{ ok: boolean
   ])
   const idRemap = mergeAndSave(userId, pg, cloud, versions, pauses)
   hydrateStacks(userId, stacks, idRemap)
+  // The Delete-for-good list is keyed `compoundId|runStart` too, so a compound
+  // that moved to its Postgres id takes its hidden cycles with it (cold review S1).
+  remapHiddenEndedCycles(userId, idRemap)
   hydrateOneOffs(userId, oneOffs)
   return { ok: !pg.failed }
 }
@@ -179,6 +188,16 @@ function mergeAndSave(
   }
   /** local id → Postgres id, for compounds matched by name rather than by id. */
   const idRemap = new Map<string, string>()
+  /**
+   * Compounds this device pushed and has not heard back about (cold review F2),
+   * keyed by their id AFTER this merge, with the id the record was filed under.
+   * Their pushed fields and trail are replayed over the pull, then sent again.
+   * See `pendingPushFor` / `pushCompoundAndTrail` in `lib/home/stack.ts`.
+   */
+  const replay = new Map<
+    string,
+    { supersede: boolean; trailOnly: boolean; at: number; localId: string }
+  >()
 
   const reconciledPgRaw = pg.stack.map((c) => {
     let loc = localById.get(c.id)
@@ -253,6 +272,20 @@ function mergeAndSave(
     if (byPauseId.size > 0) {
       merged = { ...merged, pauses: [...byPauseId.values()] }
     }
+    /**
+     * A PUSH OF THIS COMPOUND HAS NOT LANDED YET (cold review F2). The pulled row
+     * is then OLDER than the device, not newer: a Restart whose push was lost to
+     * a reload pulled back the pre-Restart row. So the fields that push carries
+     * stay as the device has them, the trail is replayed below, and both are sent
+     * again once the merge is saved. Only while the record applies — sent within
+     * the last half hour, and the device still holds exactly what was sent — so a
+     * real change made elsewhere is not overridden by a stale device.
+     */
+    const pending = loc ? pendingPushFor(userId, loc) : null
+    if (loc && pending) {
+      merged = keepPushedFields(merged, loc)
+      replay.set(c.id, { ...pending, localId: loc.id })
+    }
     if (loc && Boolean(loc.archived) !== Boolean(c.archived)) {
       // CRITICAL, not plain: this push converges Postgres onto the local delete
       // intent, so the NEXT hydration must wait for it (`awaitCriticalSyncs` at the
@@ -317,7 +350,11 @@ function mergeAndSave(
    * all is not evidence of anything.
    */
   const pullSpoke = pg.stack.length > 0
-  const pushExtra = (c: StackCompound, dropStaleCatalogue: boolean): void => {
+  const pushExtra = (
+    c: StackCompound,
+    dropStaleCatalogue: boolean,
+    fromDevice = false
+  ): void => {
     if (seen.has(c.id)) return
     // A local record that was matched to a Postgres row by name is already
     // represented by that row (under the Postgres id) — it is not an extra.
@@ -341,8 +378,16 @@ function mergeAndSave(
     if (pullSpoke && c.archived && !hasAnyLog(c.id)) return
     seenNames.add(name)
     extras.push(c)
+    // A device record with an unacknowledged push keeps its trail against any
+    // versions the pull did return for it (a failed compound read beside a
+    // working version read). It is not re-sent from here: the flush below owns
+    // compounds Postgres does not list.
+    if (fromDevice) {
+      const pending = pendingPushFor(userId, c)
+      if (pending) replay.set(c.id, { ...pending, localId: c.id })
+    }
   }
-  for (const c of local) pushExtra(c, false)
+  for (const c of local) pushExtra(c, false, true)
   for (const c of cloud.stack) pushExtra(c, true)
   // Schedule versions (Spec 01). Postgres is canonical for a day it has a version
   // for; a day only the device knows about is KEPT rather than dropped. Both
@@ -358,23 +403,75 @@ function mergeAndSave(
   // the app, forever. `sweepSupersededVersions` (protocolSync.ts) deletes them on
   // the way out so there is nothing stale left to re-merge; if that sweep is ever
   // removed, this union becomes a resurrection.
+  //
+  // ⚠️ EXCEPT WHILE A PUSH IS PENDING (cold review F2). Postgres winning the day
+  // assumes its row is newer than the device's. For a compound whose push has not
+  // landed it is OLDER: the version this device just wrote is the one missing
+  // from it. Letting the pull win there is what left a Restarted compound on its
+  // cycle with a trail that said it had ended. So the pending push is REPLAYED
+  // instead: the pulled rows as the base, the device's trail upserted on top, and
+  // (when that push swept) nothing after its newest day — exactly what Postgres
+  // will hold once the push lands, which the re-send below makes happen.
   const mergedStack = [...reconciledPg, ...extras].map((c) => {
     const rows = versionRows[c.id] ?? []
     const local = c.scheduleHistory ?? []
     if (rows.length === 0 && local.length === 0) return c
     const byDay = new Map<string, ScheduleVersion>()
-    for (const v of local) byDay.set(v.effectiveFrom, v)
-    for (const r of rows) {
-      const v = scheduleVersionFromRow(r)
-      byDay.set(v.effectiveFrom, v) // Postgres wins the day it knows about
+    const replaying = replay.get(c.id)
+    if (replaying) {
+      const newest = local.reduce<string | null>(
+        (m, v) => (m === null || v.effectiveFrom > m ? v.effectiveFrom : m),
+        null
+      )
+      for (const r of rows) {
+        const v = scheduleVersionFromRow(r)
+        if (replaying.supersede && newest !== null && v.effectiveFrom > newest) continue
+        byDay.set(v.effectiveFrom, v)
+      }
+      for (const v of local) byDay.set(v.effectiveFrom, v) // the unsent push wins
+    } else {
+      for (const v of local) byDay.set(v.effectiveFrom, v)
+      for (const r of rows) {
+        const v = scheduleVersionFromRow(r)
+        // Postgres wins the day it knows about, keeping the device-only record
+        // of a cycle ended on that day (see `ScheduleVersion.endedCycle`).
+        byDay.set(v.effectiveFrom, withEndedCycle(v, byDay.get(v.effectiveFrom)))
+      }
     }
     const scheduleHistory = [...byDay.values()].sort((a, b) =>
       a.effectiveFrom.localeCompare(b.effectiveFrom)
     )
-    return { ...c, scheduleHistory }
+    return withTrailCycle({ ...c, scheduleHistory }, rows)
   })
   saveStack(userId, mergedStack)
   notifyStackChanged()
+
+  // SEND AGAIN what the pull showed had not landed. The original call was lost
+  // (a reload drops a queued server action) or failed; this one records itself as
+  // pending in turn, so a second reload before IT lands replays it again. Only
+  // for compounds Postgres listed: the rest are the flush's, below.
+  for (const c of mergedStack) {
+    const r = replay.get(c.id)
+    if (!r) continue
+    if (r.localId !== c.id) forgetPendingPush(userId, r.localId)
+    if (!pgIds.has(c.id)) continue
+    pushCompoundAndTrail(userId, c, {
+      supersede: r.supersede,
+      trailOnly: r.trailOnly,
+      replayOf: r.at,
+    })
+  }
+
+  // AND HEAL A SERVER THAT ALREADY DISAGREES WITH ITSELF. The merge above made the
+  // device's copy follow the trail; Postgres still holds the row the other way,
+  // and the notification runner reads the row. `reconcileCompoundCycle` rewrites
+  // only the row's cycle, from the server's own trail, so no device state rides
+  // along. Not for a compound replayed above: its re-send carries both halves.
+  // Best effort and silent: the next hydration asks again if it did not land.
+  for (const c of pg.stack) {
+    if (replay.has(c.id) || !serverRowSplit(c, versionRows[c.id] ?? [])) continue
+    void reconcileCompoundCycle(c.id).catch(() => {})
+  }
 
   // Flush local compounds Postgres doesn't have yet (offline adds). A catalogue
   // compound is pushed to Postgres here; a CUSTOM one is backed up to the jsonb
@@ -488,6 +585,87 @@ function mergeAndSave(
   saveDoseLogs(userId, merged)
   notifyDoseLogsChanged()
   return idRemap
+}
+
+/**
+ * The pulled compound with the fields its (unacknowledged) push carries taken
+ * from the device instead: what `stackCompoundToProtocolInsert` writes, minus
+ * the archive flag, which has its own rule in the merge above. Name, category,
+ * the evidence floor and pauses are merged as usual.
+ */
+function keepPushedFields(pulled: StackCompound, device: StackCompound): StackCompound {
+  const { cycle, inventoryForm, ...rest } = pulled
+  void cycle
+  void inventoryForm
+  const form = device.inventoryForm ?? inventoryForm
+  return {
+    ...rest,
+    dose: device.dose,
+    unit: device.unit,
+    schedule: device.schedule,
+    rotationSites: device.rotationSites,
+    rotationIndex: device.rotationIndex,
+    ...(form ? { inventoryForm: form } : {}),
+    // Absent on the device means ENDED, not unknown: it wins over the row too.
+    ...(device.cycle ? { cycle: device.cycle } : {}),
+  }
+}
+
+/**
+ * Does Postgres hold this compound's row on a different cycle from its own
+ * newest version? Judged on the PULL alone (the row and its versions as read),
+ * never on the device's copy: this is the one question the server can answer
+ * about itself. Not for a deleted compound (reminders skip it), a trail ending
+ * in a delete's stop, or a pull that could not see the cycle columns.
+ */
+export function serverRowSplit(
+  row: StackCompound,
+  rows: readonly ({ effectiveFrom: string; stopped?: boolean | null } & Partial<CycleColumns>)[]
+): boolean {
+  if (row.archived || rows.length === 0) return false
+  if (rows.some((r) => r.cycle_anchor === undefined)) return false
+  const newest = rows.reduce((a, b) => (b.effectiveFrom > a.effectiveFrom ? b : a))
+  if (newest.stopped === true) return false
+  return !sameCycle(row.cycle, cycleRuleFromColumns(newest))
+}
+
+/** The pulled version for a day, keeping the device's record of a cycle ended
+ *  that day when the pulled row has no cycle either (it cannot carry one). */
+function withEndedCycle(pulled: ScheduleVersion, device: ScheduleVersion | undefined): ScheduleVersion {
+  if (pulled.cycle || device?.cycle || !device?.endedCycle) return pulled
+  return { ...pulled, endedCycle: device.endedCycle }
+}
+
+/**
+ * A compound's `cycle` is the cycle of its NEWEST version — every write that
+ * records a version sets both (`setCompoundCycle`, the add and edit form), and
+ * this keeps the merge from ever answering differently (cold review F2).
+ *
+ * The two used to be merged by different rules: the trail with Postgres winning
+ * each day, the compound's cycle with Postgres winning only when it had one and
+ * the device's surviving otherwise. So any split between the row and the trail
+ * in Postgres (a lost push, an End made on another device while this one still
+ * held the cycle) came out as a compound "on a cycle" whose trail said it had
+ * ended: running on Cycles, listed under Ended, and not due on Home. The trail
+ * is what decides every day's dose, so it is the side taken.
+ *
+ * Left alone when there is no trail, when the newest version is a delete's stop
+ * (it carries no rule), and when the pull could not select the cycle columns
+ * (the pre-006 fallback in `pullScheduleVersions`): a trail that cannot see
+ * cycles cannot say there is none.
+ */
+function withTrailCycle(
+  c: StackCompound,
+  rows: readonly Partial<CycleColumns>[]
+): StackCompound {
+  const newest = c.scheduleHistory?.at(-1)
+  if (!newest || newest.stopped) return c
+  if (rows.some((r) => r.cycle_anchor === undefined)) return c
+  if (sameCycle(c.cycle, newest.cycle)) return c
+  if (newest.cycle) return { ...c, cycle: newest.cycle }
+  const { cycle, ...rest } = c
+  void cycle
+  return rest
 }
 
 

@@ -31,6 +31,7 @@
     "lib/home/protocolSync.ts#pushProtocolBatch",
     "lib/home/protocolSync.ts#pushProtocolCompound",
     "lib/home/protocolSync.ts#pushProtocolDoseLog",
+    "lib/home/protocolSync.ts#reconcileCompoundCycle",
     "lib/home/stackSync.ts#pushStacks",
     "lib/home/syncActions.ts#pushCustom",
     "lib/home/syncActions.ts#pushDoseLog",

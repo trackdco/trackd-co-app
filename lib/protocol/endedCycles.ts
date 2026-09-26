@@ -9,6 +9,9 @@
  *  - ENDED by the user: a run of versions carrying a cycle, followed by a version
  *    with none. End writes exactly that (`setCompoundCycle(null)`), and so does a
  *    compound Delete (a `stopped` version). It ended on that version's day.
+ *    A cycle begun and ENDED ON THE SAME DAY has no version of its own left (End
+ *    replaced it), so End keeps its rule on its own version as `endedCycle`, and
+ *    that reads as a run that began and ended that day.
  *  - FINISHED on its own: the run's rule reached its end (an end date, or its
  *    rounds) before anything replaced it. It ended on its LAST day, the day the
  *    end tile named ("Ends 30 Nov" becomes "ended 30 Nov", not 1 Dec).
@@ -153,24 +156,34 @@ export function restartRule(ended: EndedCycle, todayKey: string): CycleRule {
  *
  * Versions dated after today have not taken effect and are ignored, so a run
  * whose replacement is still in the future is the current one.
+ *
+ * A version with no cycle but an `endedCycle` is read as two steps on its day:
+ * the cycle it ended, then the End. Walked through the same rules, that is a
+ * run that began and ended that day when nothing was running, and just the End
+ * of the run already open when it was the same cycle (or an edit of it).
  */
 function cycleRuns(c: StackCompound, todayKey: string): CycleRun[] {
-  const runs: CycleRun[] = []
-  let open: CycleRun | null = null
+  const steps: { day: string; rule?: CycleRule }[] = []
   for (const v of trail(c)) {
     if (v.effectiveFrom > todayKey) break
     const rule = v.stopped ? undefined : v.cycle
+    if (!rule && v.endedCycle) steps.push({ day: v.effectiveFrom, rule: v.endedCycle })
+    steps.push({ day: v.effectiveFrom, rule })
+  }
+  const runs: CycleRun[] = []
+  let open: CycleRun | null = null
+  for (const { day, rule } of steps) {
     if (open && rule && sameCycle(open.rule, rule)) continue
-    if (open && rule && !endedOnDay(c, open.rule, v.effectiveFrom)) {
+    if (open && rule && !endedOnDay(c, open.rule, day)) {
       open.rule = rule
-      open.ruleFrom = v.effectiveFrom
+      open.ruleFrom = day
       continue
     }
     if (open) {
-      runs.push({ ...open, endsAt: v.effectiveFrom })
+      runs.push({ ...open, endsAt: day })
       open = null
     }
-    if (rule) open = { start: v.effectiveFrom, rule, ruleFrom: v.effectiveFrom }
+    if (rule) open = { start: day, rule, ruleFrom: day }
   }
   if (open) runs.push(open)
   return runs
@@ -182,7 +195,9 @@ function cycleRuns(c: StackCompound, todayKey: string): CycleRun[] {
  * run from the start date, which is also the day `recordScheduleVersion` seeds
  * the baseline from, so the key does not change once a version is written.
  */
-function trail(c: StackCompound): { effectiveFrom: string; cycle?: CycleRule; stopped?: boolean }[] {
+function trail(
+  c: StackCompound
+): { effectiveFrom: string; cycle?: CycleRule; stopped?: boolean; endedCycle?: CycleRule }[] {
   const history = c.scheduleHistory ?? []
   if (history.length === 0) {
     return c.cycle ? [{ effectiveFrom: c.schedule.startDate, cycle: c.cycle }] : []

@@ -40,6 +40,7 @@ import {
 } from "@/lib/home/protocolSync"
 import { trackCriticalSync, trackSync } from "@/lib/home/syncStatus"
 import { dropMember } from "@/lib/home/stacks"
+import { newId } from "@/lib/home/id"
 import { versionInForceOn } from "@/lib/protocol/scheduleVersions"
 import {
   cycleRuleFromColumns,
@@ -213,6 +214,23 @@ export interface ScheduleVersion {
    * rewriting and no back-fill. Absent = no cycle, i.e. always on.
    */
   cycle?: CycleRule
+  /**
+   * The cycle the user ENDED on this version's day, kept only where the trail
+   * would otherwise lose it (build-brief-final §3.10, "The cycle moves to
+   * Ended"). Never set together with {@link cycle}, and NOTHING that decides a
+   * dose reads it: the compound runs uncycled from this day, exactly as End says.
+   *
+   * Why it exists: one version per day. A cycle begun today and ended today has
+   * no version of its own left once End replaces it, so the derivation in
+   * `lib/protocol/endedCycles.ts` had no run to list, and the End dialog's "you
+   * can restart it from Ended" was false. `endCycle` writes it only in that case.
+   *
+   * ⚠️ DEVICE-FIRST, NOT A POSTGRES COLUMN. `protocol_compound_schedules` has
+   * nowhere to hold it without a migration, so `scheduleVersionToRow` leaves it
+   * out and the hydration merge carries it across onto the pulled row for the
+   * same day. A reinstall or a second device does not see it.
+   */
+  endedCycle?: CycleRule
 }
 
 /** The dose + schedule that were in force on `dateKey`. */
@@ -420,6 +438,8 @@ export function recordScheduleVersion(
     unit: string
     stopped?: boolean
     cycle?: CycleRule
+    /** See {@link ScheduleVersion.endedCycle}. Ignored when `cycle` is set. */
+    endedCycle?: CycleRule
   },
   effectiveFrom: string
 ): ScheduleVersion[] {
@@ -442,7 +462,8 @@ export function recordScheduleVersion(
       ...(previous.cycle ? { cycle: previous.cycle } : {}),
     })
   }
-  const version: ScheduleVersion = { effectiveFrom, ...next }
+  const { endedCycle, ...rule } = next
+  const version: ScheduleVersion = { effectiveFrom, ...rule }
   // EVERY LATER VERSION IS SUPERSEDED. "Effective from D" means this is the rule
   // from D forward, so anything already recorded after D is a rule the user has
   // just replaced.
@@ -462,6 +483,14 @@ export function recordScheduleVersion(
   // describes the gap between the two runs.
   const kept = history.filter((v) => v.effectiveFrom <= effectiveFrom)
   const at = kept.findIndex((v) => v.effectiveFrom === effectiveFrom)
+  // AN ENDED CYCLE SURVIVES A SAME-DAY REWRITE WITHOUT A CYCLE. A dose edit (or a
+  // delete) made later on the day a cycle was begun and ended replaces the End's
+  // version, and dropping the rule there would take the cycle out of Ended again.
+  // A version that puts a cycle back on has nothing ended on its day.
+  if (!version.cycle) {
+    const ended = endedCycle ?? (at >= 0 && !kept[at].cycle ? kept[at].endedCycle : undefined)
+    if (ended) version.endedCycle = ended
+  }
   if (at >= 0) kept[at] = version
   else kept.push(version)
   return kept.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
@@ -549,6 +578,10 @@ export function scheduleVersionToRow(v: ScheduleVersion) {
     // past off-period resolves as always-on and a break the user chose to take
     // reads back as a run of missed doses — the exact retroactive rewrite
     // versioning exists to prevent.
+    //
+    // `endedCycle` is deliberately NOT here: the table has no column for it, and
+    // PostgREST refuses a whole payload that names one it does not know. It is
+    // carried across hydration instead (see `ScheduleVersion.endedCycle`).
     ...cycleRuleToColumns(v.cycle),
   }
 }
@@ -787,21 +820,263 @@ export function upsertStack(userId: string, compound: StackCompound): boolean {
     // a custom is stored as compound_id NULL + custom_name, so it can carry vials
     // + stock runway exactly like a catalogue compound.
     if (isCustomName(compound.name)) void pushStackCompound(compound)
-    void trackSync(pushProtocolCompound(compound)) // Postgres (custom or catalogue)
-    // Schedule versions (Spec 01). Skipped silently until supabase/protocol/005 is
-    // applied — the device store keeps them meanwhile, so no intent is lost.
-    if (compound.scheduleHistory?.length) {
-      void trackSync(
-        pushScheduleVersions(
-          compound.id,
-          compound.name,
-          compound.scheduleHistory.map(scheduleVersionToRow),
-          { supersede: recordedAVersion }
-        )
-      )
-    }
+    // Postgres (custom or catalogue): the row AND its schedule versions (Spec 01),
+    // in ONE server call, remembered as pending until it lands. See
+    // `pushCompoundAndTrail` for why they may not travel separately.
+    pushCompoundAndTrail(userId, compound, { supersede: recordedAVersion })
   }
   return ok
+}
+
+/* ------------------------------------------- the compound push, and its pending record */
+
+/**
+ * Push a compound's `protocol_compounds` row and its schedule trail TOGETHER, and
+ * remember the push on this device until the server has acknowledged it.
+ *
+ * ## The race this closes (cold review F2)
+ *
+ * The row and the trail used to be two server actions. Next dispatches server
+ * actions ONE AT A TIME (`node_modules/next/dist/docs/01-app/01-getting-started/
+ * 07-mutating-data.md`), so the trail sat queued behind the row, and a reload in
+ * the seconds between dropped it: the row landed, the version never did, and
+ * nothing re-sent it. Hydration then let the server's OLDER version for the same
+ * day win ("Postgres wins per day") while the compound's `cycle` survived from
+ * the landed row. A Restart read as running on Cycles and still sat under Ended,
+ * and the server held both states.
+ *
+ * Two halves, because either alone leaves a gap:
+ *  - ONE call (`pushProtocolCompound` with the trail): the row and the trail land
+ *    together or not at all, so the server is never left holding one without the
+ *    other.
+ *  - A PENDING RECORD (device storage, so it outlives a reload): until the call
+ *    is acknowledged, hydration replays this device's copy of the compound over
+ *    the pull and sends it again, instead of letting a same-day server version
+ *    replace a local one that simply has not arrived yet. See
+ *    {@link pendingPushFor} and `mergeAndSave` in `hydrateProtocol.ts`.
+ *
+ * `trailOnly` is the DELETE: the archive flag has its own critical write
+ * (`archiveProtocolCompound`), and the stop version must go through
+ * `pushScheduleVersions`, the one path the read-only gate lets a delete use.
+ */
+export function pushCompoundAndTrail(
+  userId: string,
+  compound: StackCompound,
+  opts: {
+    supersede: boolean
+    trailOnly?: boolean
+    /**
+     * Set by hydration when it RE-SENDS a push that never landed: when the
+     * original was sent. The record keeps that time, so the half hour runs from
+     * the user's write, not from the latest retry (a push that keeps failing
+     * must not be replayed over the server for ever), and a read-only refusal is
+     * not answered with the pop-up: nobody tapped anything.
+     */
+    replayOf?: number
+  }
+): void {
+  const trailOnly = opts.trailOnly === true
+  const rows = (compound.scheduleHistory ?? []).map(scheduleVersionToRow)
+  if (trailOnly && rows.length === 0) return
+  const { token, supersede } = markPushPending(
+    userId,
+    compound,
+    { supersede: opts.supersede, trailOnly },
+    opts.replayOf ?? Date.now()
+  )
+  const op = trailOnly
+    ? pushScheduleVersions(compound.id, compound.name, rows, { supersede })
+    : pushProtocolCompound(compound, rows.length > 0 ? { versions: rows, supersede } : undefined)
+  void trackSync(
+    op.then((r) => {
+      // Landed, or never will (a custom with no row, a read-only account): either
+      // way there is nothing left to replay. A failure keeps the record, so the
+      // next hydration sends it again. By THIS push's token: see
+      // `settlePushPending`.
+      if (r.ok || r.skipped || r.refusal === "read-only") {
+        settlePushPending(userId, compound.id, token)
+      }
+      if (opts.replayOf !== undefined && r.refusal === "read-only") {
+        return { ok: false, skipped: true }
+      }
+      return r
+    })
+  )
+}
+
+/**
+ * How long an unacknowledged push is replayed over the pull.
+ *
+ * Long enough to cover a reload, a dropped connection and a reconnect; short
+ * enough that a stale device cannot keep overriding the server. A storage
+ * snapshot restored later than this replays nothing, and past it Postgres wins
+ * the day again, as it did before the record existed (the cycle still agrees
+ * with the trail: hydration derives one from the other).
+ */
+export const PENDING_PUSH_TTL_MS = 30 * 60_000
+
+/** ⚠️ Device-local bookkeeping, never mirrored: which compound pushes this device
+ *  has sent and not yet heard back about. */
+const pendingKey = (userId: string) => `trackd.stack.pendingPush.v1.${userId}`
+
+interface PendingPush {
+  /**
+   * WHICH push this is: a fresh id per send, never derived from the content.
+   * Only the reply to this very push may clear the record (see
+   * {@link settlePushPending}).
+   */
+  token: string
+  /** The compound as pushed (see {@link pushSignature}). A local copy that no
+   *  longer matches is not what was sent, so the record does not apply to it. */
+  sig: string
+  /** When it was sent, for {@link PENDING_PUSH_TTL_MS}. */
+  at: number
+  /** Whether a pending push asked to sweep the versions after its newest. */
+  supersede: boolean
+  /** Only the trail was pushed (a delete); the row converges elsewhere. */
+  trailOnly: boolean
+}
+
+type PendingPushes = Record<string, PendingPush>
+
+function loadPendingPushes(userId: string): PendingPushes {
+  if (typeof window === "undefined") return {}
+  try {
+    const raw = window.localStorage.getItem(pendingKey(userId))
+    if (!raw) return {}
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {}
+    const out: PendingPushes = {}
+    for (const [id, v] of Object.entries(parsed as Record<string, unknown>)) {
+      const p = v as Partial<PendingPush> | null
+      if (
+        !p ||
+        typeof p.token !== "string" ||
+        typeof p.sig !== "string" ||
+        typeof p.at !== "number"
+      ) {
+        continue
+      }
+      out[id] = {
+        token: p.token,
+        sig: p.sig,
+        at: p.at,
+        supersede: p.supersede === true,
+        trailOnly: p.trailOnly === true,
+      }
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+/** Best-effort: without it a reload falls back to Postgres winning the day. */
+function savePendingPushes(userId: string, pending: PendingPushes): void {
+  if (typeof window === "undefined") return
+  try {
+    if (Object.keys(pending).length === 0) window.localStorage.removeItem(pendingKey(userId))
+    else window.localStorage.setItem(pendingKey(userId), JSON.stringify(pending))
+  } catch {
+    // Storage full or blocked. The push itself is unaffected.
+  }
+}
+
+/**
+ * The part of a compound its push carries, in one canonical form.
+ *
+ * Normalised through the same reader `loadStack` uses, so the copy in hand when
+ * the push is sent and the copy read back from storage at the next hydration
+ * compare equal. Pauses are left out: they sync through their own rows and are
+ * merged by id, so they never decide whether this record applies.
+ */
+function pushSignature(c: StackCompound): string {
+  const n = normalizeCompound(JSON.parse(JSON.stringify(c))) ?? c
+  return JSON.stringify([
+    n.dose,
+    n.unit,
+    n.schedule,
+    n.cycle ?? null,
+    n.archived === true,
+    n.inventoryForm ?? null,
+    n.rotationSites,
+    n.rotationIndex,
+    n.scheduleHistory ?? [],
+  ])
+}
+
+/**
+ * Record a push as sent at `at`, under a new token, replacing any earlier record
+ * for the compound: the device's latest write is the one a replay must restore.
+ *
+ * Two unacknowledged pushes of one compound add up: if either swept, or either
+ * sent the row, so does the record. The sweep is also SENT with the newer push,
+ * so the push that lands last does what a replay would.
+ */
+function markPushPending(
+  userId: string,
+  compound: StackCompound,
+  opts: { supersede: boolean; trailOnly: boolean },
+  at: number
+): { token: string; supersede: boolean } {
+  const token = newId()
+  const pending = loadPendingPushes(userId)
+  const prior = pending[compound.id]
+  const live = prior && Date.now() - prior.at < PENDING_PUSH_TTL_MS ? prior : undefined
+  const supersede = opts.supersede || live?.supersede === true
+  pending[compound.id] = {
+    token,
+    sig: pushSignature(compound),
+    at,
+    supersede,
+    trailOnly: opts.trailOnly && (live ? live.trailOnly : true),
+  }
+  savePendingPushes(userId, pending)
+  return { token, supersede }
+}
+
+/**
+ * The push landed. Clears the record only when it is still THIS push's.
+ *
+ * ⚠️ BY TOKEN, NEVER BY CONTENT. Restart, Undo, Restart sends three pushes, and
+ * the first and third carry identical content. Settled by content, the first
+ * reply (arriving after the third tap: the queue runs one action at a time, and
+ * each can take seconds) cleared the third's record; the Undo then landed, and
+ * a reload before the third was sent pulled the Undo back as the truth. The
+ * user had seen "Restarted", and the compound was back under Ended (End, Undo,
+ * End the same way round). A later write always has its own token, so an
+ * earlier reply can never clear it.
+ */
+function settlePushPending(userId: string, compoundId: string, token: string): void {
+  const pending = loadPendingPushes(userId)
+  if (pending[compoundId]?.token !== token) return
+  delete pending[compoundId]
+  savePendingPushes(userId, pending)
+}
+
+/** Drop a compound's record outright (hydration moved it to another id). */
+export function forgetPendingPush(userId: string, compoundId: string): void {
+  const pending = loadPendingPushes(userId)
+  if (!pending[compoundId]) return
+  delete pending[compoundId]
+  savePendingPushes(userId, pending)
+}
+
+/**
+ * The unacknowledged push this device holds for `local`, when it still applies:
+ * sent within {@link PENDING_PUSH_TTL_MS}, and `local` is exactly what was sent.
+ * Null otherwise, and then the pull wins as usual.
+ */
+export function pendingPushFor(
+  userId: string,
+  local: StackCompound,
+  now = Date.now()
+): { supersede: boolean; trailOnly: boolean; at: number } | null {
+  const p = loadPendingPushes(userId)[local.id]
+  if (!p) return null
+  if (now - p.at >= PENDING_PUSH_TTL_MS || now < p.at) return null
+  if (p.sig !== pushSignature(local)) return null
+  return { supersede: p.supersede, trailOnly: p.trailOnly, at: p.at }
 }
 
 /**
@@ -851,15 +1126,17 @@ export function archiveInStack(
     // Custom archive state lives in the mirror (no Postgres row); catalogue archive
     // state lives in Postgres (is_active), so only customs write to the mirror.
     if (updated && isCustomName(updated.name)) void pushStackCompound({ ...updated, archived })
-    if (history) {
+    if (history && updated) {
       // Same skipped-until-005 treatment as an alteration's versions.
       // A delete always records a stop, so it always supersedes whatever came
       // after it — which is the whole point: a re-add that back-dated its start
       // must not leave the old stop standing as the newest row in Postgres.
-      void trackSync(
-        pushScheduleVersions(id, updated?.name ?? null, history.map(scheduleVersionToRow), {
-          supersede: true,
-        })
+      // Trail only, through `pushScheduleVersions` (the read-only gate lets a
+      // delete through there), and pending until it lands, like every other trail.
+      pushCompoundAndTrail(
+        userId,
+        { ...updated, archived, scheduleHistory: history },
+        { supersede: true, trailOnly: true }
       )
     }
     // The NAME is passed so the server can RESOLVE the row rather than derive its
@@ -894,13 +1171,31 @@ export function setCompoundCycle(
   userId: string,
   id: string,
   cycle: CycleRule | null,
-  effectiveFrom?: string
+  effectiveFrom?: string,
+  /** `endedCycle`: the rule End keeps on its version (see
+   *  `ScheduleVersion.endedCycle`). Only `endCycle` passes it. */
+  opts?: { endedCycle?: CycleRule }
 ): boolean {
   const cur = loadStack(userId) ?? []
   const previous = cur.find((c) => c.id === id)
   if (!previous) return false
+  return upsertStack(
+    userId,
+    compoundWithCycle(previous, cycle, effectiveFrom ?? toDateKeyLocal(new Date()), opts)
+  )
+}
 
-  const from = effectiveFrom ?? toDateKeyLocal(new Date())
+/**
+ * The compound as {@link setCompoundCycle} would write it — pure, so a caller can
+ * look at the result before committing it (`endCycle` does, to see whether the
+ * trail would still list the cycle under Ended).
+ */
+export function compoundWithCycle(
+  previous: StackCompound,
+  cycle: CycleRule | null,
+  from: string,
+  opts?: { endedCycle?: CycleRule }
+): StackCompound {
   const scheduleHistory = recordScheduleVersion(
     previous,
     {
@@ -919,6 +1214,7 @@ export function setCompoundCycle(
       dose: previous.dose,
       unit: previous.unit,
       ...(cycle ? { cycle } : {}),
+      ...(!cycle && opts?.endedCycle ? { endedCycle: opts.endedCycle } : {}),
     },
     from
   )
@@ -932,7 +1228,7 @@ export function setCompoundCycle(
   // `JSON.stringify` would drop inconsistently.
   if (!cycle) delete next.cycle
 
-  return upsertStack(userId, next)
+  return next
 }
 
 /* ------------------------------------------------------------------ pauses */
@@ -1608,6 +1904,8 @@ function normalizeHistory(raw: unknown): { scheduleHistory: ScheduleVersion[] } 
       laterDoses: v.laterDoses,
     })
     const cycle = normalizeCycle(v.cycle)
+    // Only ever beside NO cycle: a version that carries one has nothing ended.
+    const endedCycle = cycle ? undefined : normalizeCycle(v.endedCycle)
     out.push({
       effectiveFrom: v.effectiveFrom,
       cadence: s.cadence,
@@ -1625,6 +1923,7 @@ function normalizeHistory(raw: unknown): { scheduleHistory: ScheduleVersion[] } 
       // (Spec 02) is lost on every reload and the break reads as missed doses.
       ...(v.stopped === true ? { stopped: true as const } : {}),
       ...(cycle ? { cycle } : {}),
+      ...(endedCycle ? { endedCycle } : {}),
     })
   }
   if (out.length === 0) return null

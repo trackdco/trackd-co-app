@@ -49,7 +49,12 @@ import {
 import type { CompoundCategory } from "@/lib/compound-categories"
 import type { DrawSource } from "@/lib/home/draw"
 import type { StackCompound } from "@/lib/home/stack"
-import { CYCLE_COLUMNS, type CycleColumns } from "@/lib/protocol/cycleRule"
+import {
+  CYCLE_COLUMNS,
+  cycleRuleFromColumns,
+  cycleRuleToColumns,
+  type CycleColumns,
+} from "@/lib/protocol/cycleRule"
 import {
   deletePause,
   endPause,
@@ -289,9 +294,24 @@ export async function resolveProtocolCompoundIds(
  * + stock runway via the unchanged inventory_items / v_inventory_math chain.
  * Either way it returns the resolved `protocolCompoundId` so the caller can attach
  * inventory to it.
+ *
+ * ## `trail`: the schedule versions, IN THE SAME CALL (cold review F2)
+ *
+ * When given, the compound's versions are written right after its row, in this
+ * one request, through {@link pushScheduleVersions} (its own gate, sweep and
+ * pre-006 fallback all apply unchanged). They used to be a second server action,
+ * and Next runs a page's server actions one at a time, so the versions waited in
+ * the queue behind the row: a reload in between landed the row and lost the
+ * versions, leaving Postgres with a compound "on a cycle" whose trail said it had
+ * ended. Written here, the two land together or not at all as far as the client
+ * can tell, and `upsertStack`'s pending record replays whatever did not.
+ *
+ * The trail is written only when the row was: versions for a row that failed to
+ * save would be the same half-write the other way round.
  */
 export async function pushProtocolCompound(
   c: StackCompound,
+  trail?: { versions: ScheduleVersionRows; supersede: boolean },
 ): Promise<Ok & { protocolCompoundId?: string }> {
   // ⚠️ THE READ-ONLY GATE, AT THE DATA LAYER.
   //
@@ -300,9 +320,28 @@ export async function pushProtocolCompound(
   // `startBlock` open is a lock on a door beside an open window. A cold review
   // drove exactly that: `startBlockAction` refused, `startBlock` wrote the row.
   //
+  // Here, in the export itself: the row writer below is private, reachable only
+  // through this call. The trail is gated again by `pushScheduleVersions`.
+  //
   // See `lib/billing/gate.ts` for what is deliberately NOT gated.
   const refused = await refuseWrite();
   if (refused) return refused;
+  const row = await pushProtocolCompoundRow(c)
+  if (!trail || trail.versions.length === 0 || !row.ok) return row
+  const versions = await pushScheduleVersions(c.id, c.name, trail.versions, {
+    supersede: trail.supersede,
+  })
+  return { ...versions, protocolCompoundId: row.protocolCompoundId }
+}
+
+/** The versions `pushScheduleVersions` takes, as `scheduleVersionToRow` builds them. */
+type ScheduleVersionRows = Parameters<typeof pushScheduleVersions>[2]
+
+/** The row itself. NOT exported, so not dispatchable: the read-only gate is
+ *  checked by {@link pushProtocolCompound}, its only caller. */
+async function pushProtocolCompoundRow(
+  c: StackCompound,
+): Promise<Ok & { protocolCompoundId?: string }> {
   try {
     const cx = await ctx()
     if (!cx) return { ok: false }
@@ -1367,7 +1406,9 @@ function newestVersion<T extends { effectiveFrom: string }>(
  * reminder, missed nudge and low stock alike — with nothing to notice.
  *
  * It also un-fixed the CLIENT, because `hydrateProtocol` merges pulled versions
- * into the local trail with Postgres winning per day: the next hydration pulled
+ * into the local trail with Postgres winning per day (except while this device
+ * holds a push of that compound the server has not acknowledged: see
+ * `pendingPushFor` in `lib/home/stack.ts`): the next hydration pulled
  * the dropped stop back onto the device and the compound stopped being due in the
  * app too — the exact "it looked added, and it was never due again on any day,
  * forever" bug the local filter was written to fix.
@@ -1610,6 +1651,66 @@ export async function pushScheduleVersions(
   }
 }
 
+/**
+ * Give a compound's row the cycle of its own NEWEST schedule version, read here,
+ * on the server (cold review F2).
+ *
+ * The app decides every day from the version trail, and hydration already makes
+ * the device's copy of a compound agree with it (`withTrailCycle` in
+ * `hydrateProtocol.ts`). The notification runner does not read the trail's
+ * cycle: it gates reminders on the row's `cycle_*` columns. So an account the
+ * old two-call push split (row on a cycle, today's version off it, or the other
+ * way round) went on getting reminders the app disagreed with until the next
+ * write of that compound. Hydration calls this when the pull shows such a split.
+ *
+ * ⚠️ IT CARRIES NO DEVICE DATA. Only the id comes from the client; the cycle is
+ * read from Postgres's own trail at the moment of the write. A device holding a
+ * stale copy (a restored storage snapshot, a phone that has been offline) cannot
+ * write its old state back through here: the worst it can do is converge the row
+ * onto what the server already says. Nothing but the cycle columns is touched.
+ *
+ * Left alone: a compound with no versions, one whose newest version is a
+ * delete's stop (that carries no rule), and a database without the 006 columns
+ * (the read fails and nothing is written). Gated like every other write; the
+ * caller does not surface a refusal, because nobody tapped anything.
+ */
+export async function reconcileCompoundCycle(protocolCompoundId: string): Promise<Ok> {
+  const refused = await refuseWrite();
+  if (refused) return refused;
+  try {
+    const cx = await ctx()
+    if (!cx) return { ok: false }
+    const { data, error } = await cx.supabase
+      .from("protocol_compound_schedules")
+      .select(`effective_from, stopped, ${CYCLE_COLUMNS.join(", ")}`)
+      .eq("user_id", cx.userId)
+      .eq("protocol_compound_id", protocolCompoundId)
+      .order("effective_from", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) {
+      if (isMissingTable(error) || isUndefinedColumn(error)) return { ok: true, skipped: true }
+      console.error("reconcileCompoundCycle failed", error)
+      return { ok: false }
+    }
+    const newest = data as unknown as (Partial<CycleColumns> & { stopped?: boolean }) | null
+    if (!newest || newest.stopped === true) return { ok: true, skipped: true }
+    const { error: writeError } = await cx.supabase
+      .from("protocol_compounds")
+      .update(cycleRuleToColumns(cycleRuleFromColumns(newest)))
+      .eq("id", protocolCompoundId)
+      .eq("user_id", cx.userId)
+    if (writeError) {
+      console.error("reconcileCompoundCycle failed", writeError)
+      return { ok: false }
+    }
+    return { ok: true }
+  } catch (e) {
+    console.error("reconcileCompoundCycle failed", e)
+    return { ok: false }
+  }
+}
+
 /** The dose-log columns as they exist before `supabase/protocol/011`. */
 const DOSE_LOG_COLUMNS =
   "id, protocol_compound_id, taken_at, dose_amount, dose_unit, injection_site, inventory_item_id, note, status"
@@ -1651,7 +1752,7 @@ async function readDoseLogRows(cx: {
  *  when the table doesn't exist yet — the caller then keeps whatever the device
  *  already holds, so a pending migration degrades to today's behaviour. */
 export async function pullScheduleVersions(): Promise<
-  Record<string, {
+  Record<string, ({
     effectiveFrom: string
     dose: number
     unit: string
@@ -1659,7 +1760,12 @@ export async function pullScheduleVersions(): Promise<
     daysOfWeek: number[] | null
     intervalDays: number | null
     time: string | null
-  }[]>
+    laterTimes?: (string | null)[] | null
+    laterDoses?: (number | null)[] | null
+    stopped?: boolean | null
+    // The cycle columns: absent (not null) when the read could not select them.
+    // See `mapVersion`.
+  } & Partial<CycleColumns>)[]>
 > {
   try {
     const cx = await ctx()
@@ -1733,13 +1839,22 @@ function mapVersion(r: Record<string, unknown>) {
       ?.slice(1)
       .map((d) => (typeof d === "number" && d > 0 ? d : null)) ?? null,
     stopped: r.stopped === true,
-    cycle_anchor: (r.cycle_anchor as string | null) ?? null,
-    cycle_on_days: (r.cycle_on_days as number | null) ?? null,
-    cycle_off_days: (r.cycle_off_days as number | null) ?? null,
-    cycle_end_type: (r.cycle_end_type as string | null) ?? null,
-    cycle_end_date: (r.cycle_end_date as string | null) ?? null,
-    cycle_end_rounds: (r.cycle_end_rounds as number | null) ?? null,
-    cycle_colour: (r.cycle_colour as string | null) ?? null,
+    // ONLY WHEN THE READ SELECTED THEM. The last tier of `pullScheduleVersions`
+    // drops the cycle columns, and a row from it cannot say "no cycle": it says
+    // nothing. Leaving the keys absent (rather than null) is how hydration tells
+    // the two apart, and it will not re-derive a compound's cycle from a trail
+    // that could not see one.
+    ...("cycle_anchor" in r
+      ? {
+          cycle_anchor: (r.cycle_anchor as string | null) ?? null,
+          cycle_on_days: (r.cycle_on_days as number | null) ?? null,
+          cycle_off_days: (r.cycle_off_days as number | null) ?? null,
+          cycle_end_type: (r.cycle_end_type as string | null) ?? null,
+          cycle_end_date: (r.cycle_end_date as string | null) ?? null,
+          cycle_end_rounds: (r.cycle_end_rounds as number | null) ?? null,
+          cycle_colour: (r.cycle_colour as string | null) ?? null,
+        }
+      : {}),
   }
 }
 

@@ -13,8 +13,20 @@
  *
  * Pure data + guarded storage only; no React (`code-standards.md`).
  */
-import { loadStack, setCompoundCycle } from "@/lib/home/stack"
-import { endedCycles, restartRule, type EndedCycle } from "@/lib/protocol/endedCycles"
+import {
+  compoundWithCycle,
+  loadStack,
+  resolveScheduleOn,
+  setCompoundCycle,
+  type StackCompound,
+} from "@/lib/home/stack"
+import { sameCycle, type CycleRule } from "@/lib/protocol/cycleRule"
+import {
+  endedCycleKey,
+  endedCycles,
+  restartRule,
+  type EndedCycle,
+} from "@/lib/protocol/endedCycles"
 
 /* ----------------------------------------------------------- end / restart */
 
@@ -23,9 +35,52 @@ import { endedCycles, restartRule, type EndedCycle } from "@/lib/protocol/endedC
  * keeps running on its schedule without weeks off; its logs stay; the run shows
  * under Ended from now on. Returns false if the compound is not on this device
  * or the write failed.
+ *
+ * ## A cycle begun today (cold review B14 / F3)
+ *
+ * One version per day, so End REPLACES a version written earlier today. When
+ * that version was the cycle's only one (a new cycle today, or a compound added
+ * today with one), the trail kept no run and Ended stayed empty, though the End
+ * dialog says "you can restart it from Ended". In exactly that case the End
+ * version keeps the rule as `endedCycle`, and `endedCycles` lists it as a run
+ * that began and ended today, with Restart.
+ *
+ * Only when nothing else already lists it: ending a Restart made today (its
+ * Undo, too) leaves the run it restarted under Ended, as before, so Undo puts
+ * back exactly the row the user restarted.
  */
 export function endCycle(userId: string, compoundId: string, todayKey: string): boolean {
-  return setCompoundCycle(userId, compoundId, null, todayKey)
+  const compound = (loadStack(userId) ?? []).find((c) => c.id === compoundId)
+  if (!compound) return false
+  const ending = compound.cycle ?? resolveScheduleOn(compound, todayKey).cycle
+  const keep =
+    ending && !stillListed(compound, ending, todayKey, hiddenEndedCycles(userId))
+      ? ending
+      : undefined
+  return setCompoundCycle(
+    userId,
+    compoundId,
+    null,
+    todayKey,
+    keep ? { endedCycle: keep } : undefined
+  )
+}
+
+/**
+ * Would Ended still show `ending` once End is written without keeping it? Either
+ * as itself, or as the run it is a Restart of (Restart re-anchors a rule, so the
+ * restarted rule is `restartRule` of the row it came from).
+ */
+function stillListed(
+  compound: StackCompound,
+  ending: CycleRule,
+  todayKey: string,
+  hidden: ReadonlySet<string>
+): boolean {
+  const after = compoundWithCycle(compound, null, todayKey)
+  return endedCycles([after], todayKey, hidden).some(
+    (e) => sameCycle(e.rule, ending) || sameCycle(restartRule(e, todayKey), ending)
+  )
 }
 
 export type RestartCycleResult =
@@ -147,6 +202,39 @@ export function unhideEndedCycle(userId: string, key: string): boolean {
   const next = new Set(cur)
   next.delete(key)
   return writeHidden(userId, next.size > 0 ? next : EMPTY_HIDDEN)
+}
+
+/**
+ * Follow a hydration that moved compounds to their Postgres ids (cold review S1).
+ *
+ * The keys are `compoundId|runStart` (`endedCycleKey`), and hydration re-keys a
+ * compound matched by NAME to its Postgres id (`idRemap` in
+ * `hydrateProtocol.ts`), taking its logs and stack places with it. Left behind,
+ * a cycle deleted for good came back under Ended with its new key. The run's
+ * start does not move, so only the id half is rewritten.
+ */
+export function remapHiddenEndedCycles(
+  userId: string,
+  idRemap: ReadonlyMap<string, string>
+): void {
+  if (idRemap.size === 0) return
+  const cur = hiddenEndedCycles(userId)
+  if (cur.size === 0) return
+  let changed = false
+  const next = new Set<string>()
+  for (const key of cur) {
+    // Split at the LAST bar: the run start is a date and holds none, and a
+    // fallback compound id is not promised not to.
+    const at = key.lastIndexOf("|")
+    const to = at > 0 ? idRemap.get(key.slice(0, at)) : undefined
+    if (to) {
+      next.add(endedCycleKey(to, key.slice(at + 1)))
+      changed = true
+    } else {
+      next.add(key)
+    }
+  }
+  if (changed) writeHidden(userId, next)
 }
 
 /** For `useSyncExternalStore`, with {@link hiddenEndedCycles} as the snapshot. */
