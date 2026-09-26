@@ -2,12 +2,14 @@
 
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { SolidIcon } from "@/components/feel/SolidIcon"
-import { CATEGORY_META, type CompoundCategory } from "@/lib/compound-categories"
+import { CATEGORY_DISPLAY_ORDER, CATEGORY_META, type CompoundCategory } from "@/lib/compound-categories"
 import { CATEGORY_GLYPH } from "@/lib/solidGlyphs"
 import { HIT_Y_30, PRESS } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 
-const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
+/** The order the type titles use (Protocol's compounds, the Half-life page),
+ *  so a chip and its group title never run in different orders. */
+const CATEGORY_ORDER: readonly CompoundCategory[] = CATEGORY_DISPLAY_ORDER
 
 /** The categories present, in the app's category order. */
 export function presentCategories(categories: readonly string[]): CompoundCategory[] {

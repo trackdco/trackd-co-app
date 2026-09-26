@@ -1,6 +1,8 @@
 "use client"
 
 import { Sk, SkeletonGroup } from "@/components/feel/Skeleton"
+import { SMALL_PHONE_HIDDEN, SMALL_PHONE_NO_TOP } from "@/lib/home/smallPhone"
+import { cn } from "@/lib/utils"
 
 /** One Today's Log row: the tick, then the name over its dose and time. */
 function RowSk() {
@@ -26,8 +28,10 @@ export function HomeSkeletonBlocks() {
   return (
     <>
       <section className="flow-card inst-card p-5">
-        <Sk w="62%" h={26} />
-        <Sk w="72px" h={9} className="mt-4" />
+        {/* No greeting on a small phone (ruling 2), so the card does not jump
+            up when the real one replaces this. */}
+        <Sk w="62%" h={26} className={SMALL_PHONE_HIDDEN} />
+        <Sk w="72px" h={9} className={cn("mt-4", SMALL_PHONE_NO_TOP)} />
         <div className="mt-4">
           <RowSk />
           <RowSk />

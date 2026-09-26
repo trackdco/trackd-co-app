@@ -21,6 +21,7 @@
 import { createClient } from "@/lib/supabase/server"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 import { refuseWrite, type WriteRefusalKind } from "@/lib/billing/gate"
+import { stockSchemaFromProbe } from "@/lib/protocol/stockSchema"
 
 /**
  * `inventory_items` + its joined compound, as of `supabase/protocol/016`.
@@ -242,6 +243,32 @@ export interface CompoundStock {
 export type StockRead =
   | { ok: true; items: StockItem[]; compounds: CompoundStock[] }
   | { ok: false }
+
+/* sweep: additive */
+/**
+ * Can this database hold spares and droppers (`026`, after `025`)? One read of
+ * `v_compound_stock`, which `026` creates: `true` when it answers, `false`
+ * when it does not exist, `null` when the probe could not say (signed out,
+ * offline, any other error). Nothing is written, and RLS scopes the row.
+ *
+ * Asked once per visit (`useStockSchema` in
+ * `components/protocol/stock/sparesSupport.ts`), so the sheets never OFFER a
+ * shape the database would refuse (ruling 10): before `026`, a powder vial
+ * opens on the one-vial mixed form and the dropper is not offered.
+ */
+export async function stockSparesSupported(): Promise<boolean | null> {
+  try {
+    const ctx = await sessionCtx()
+    if (!ctx) return null
+    const { error } = await ctx.supabase
+      .from("v_compound_stock")
+      .select("protocol_compound_id")
+      .limit(1)
+    return stockSchemaFromProbe(error)
+  } catch {
+    return null
+  }
+}
 
 /**
  * Active stock for the user: every container not discarded, each joined to its

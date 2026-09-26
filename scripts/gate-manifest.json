@@ -86,6 +86,7 @@
     "lib/db/inventory.ts#deleteStockItem",
     "lib/db/inventory.ts#listStock",
     "lib/db/inventory.ts#setStockArchived",
+    "lib/db/inventory.ts#stockSparesSupported",
     "lib/db/migrationFlag.ts#hasMigratedInCloud",
     "lib/db/migrationFlag.ts#markMigratedInCloud",
     "lib/db/oneOffLogs.ts#deleteOneOffLog",

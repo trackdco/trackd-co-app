@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useSyncExternalStore, type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { VIEW_H, VIEW_W } from "@/lib/calculator/syringe"
 
 import { ArrowLeft, CalendarDots, CaretDown, User } from "@/components/icons"
@@ -16,7 +16,6 @@ import {
 } from "@/components/feel/Skeleton"
 import { cn } from "@/lib/utils"
 import { PAGE_TITLE } from "@/lib/ui-presets"
-import { getStripOpen, subscribeStripOpen } from "@/lib/home/weekStripOpen"
 import { monthTitle } from "@/lib/calendar/calendar"
 
 /**
@@ -104,20 +103,10 @@ export function RouteHandoff({
 
 /**
  * The week strip while nothing about the week is known yet. Each line keeps the
- * real cell's line box (a 20px number, a 15px day name, the 6px dot), and a
- * strip the user has collapsed is drawn collapsed, or every card below jumps
- * when the screen takes over.
+ * real cell's line box (a 20px number, a 15px day name, the 6px dot). The
+ * strip is always open (it has no collapse arrow since 26 Sep).
  */
 function WeekStripBlocks() {
-  const open = useSyncExternalStore(subscribeStripOpen, getStripOpen, () => true)
-  // Collapsed, it is drawn as the screen draws it: a zero-row grid, which
-  // keeps its own gap below (an empty <div> would let that gap merge away).
-  if (!open)
-    return (
-      <div className="grid" style={{ gridTemplateRows: "0fr" }}>
-        <div className="overflow-hidden" />
-      </div>
-    )
   return (
     <div className="grid grid-cols-7">
       {Array.from({ length: 7 }, (_, i) => (
@@ -136,7 +125,6 @@ function WeekStripBlocks() {
 }
 
 export function DashboardLoading() {
-  const stripOpen = useSyncExternalStore(subscribeStripOpen, getStripOpen, () => true)
   return (
     <div data-screen="dashboard" className={SCREEN}>
       <div className="animate-shortcut-fade">
@@ -153,9 +141,6 @@ export function DashboardLoading() {
               Dashboard
             </h1>
             <div aria-hidden className="-mr-1 flex items-center text-text-muted">
-              <span className="flex h-10 w-10 items-center justify-center">
-                <CaretDown className={cn("h-5 w-5", !stripOpen && "-rotate-90")} />
-              </span>
               <span className="flex h-10 w-10 items-center justify-center">
                 <CalendarDots className="h-5 w-5" />
               </span>
@@ -176,16 +161,17 @@ export function DashboardLoading() {
 
 /* ----------------------------------------------------------------- protocol */
 
+/** The live card's shape (`CompoundStorageCard`): 124px wide, the container,
+ *  the name, and a foot of "Runs dry" over a date, so nothing moves when the
+ *  real cards land. */
 function CompoundCardSk() {
   return (
-    <div className="flow-card flex w-[150px] shrink-0 flex-col items-center gap-3 inst-card px-3.5 py-5">
-      <Sk w="28px" h={74} className="rounded-lg" />
-      <Sk w="70%" h={14} className="mt-2" />
-      <div className="flex w-full flex-col items-center gap-2">
-        <Sk w="64%" h={12} />
-        <Sk w="50%" h={12} />
-        <Sk w="40%" h={10} />
-        <Sk h={4} className="mt-2 rounded-full" />
+    <div className="flow-card flex w-[124px] shrink-0 flex-col items-center inst-card px-2 pt-3.5 pb-3">
+      <Sk w="28px" h={64} className="rounded-lg" />
+      <Sk w="70%" h={13} className="mt-2" />
+      <div className="mt-2 flex min-h-[30px] w-full flex-col items-center justify-end gap-1.5">
+        <Sk w="46%" h={9} />
+        <Sk w="60%" h={11} />
       </div>
     </div>
   )

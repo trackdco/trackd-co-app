@@ -370,6 +370,18 @@ export function subscribeDoseSynced(callback: () => void): () => void {
   return () => window.removeEventListener(SYNCED_EVENT, callback)
 }
 
+/* sweep: additive */
+/**
+ * A stock write landed (an add, a correction, their Undo): wake every screen
+ * that re-reads stock on a dose landing (Protocol's cards, Home's dose rows,
+ * the desktop rail, the draw sources). Add stock opens from the + over any
+ * page, so the page underneath had kept its old figures until a navigation.
+ * The same signal as a dose, since the readers are the same.
+ */
+export function notifyStockChanged(): void {
+  notifySynced()
+}
+
 // Stable snapshot for useSyncExternalStore — cached by the raw stored string.
 let cache: { userId: string; raw: string | null; value: DayLogs } | null = null
 

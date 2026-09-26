@@ -5,7 +5,7 @@ import { useState } from "react"
 import { BottomSheet } from "@/components/layout/BottomSheet"
 import { Container } from "@/components/containers"
 import { Warning } from "@/components/icons"
-import { Input } from "@/components/ui/input"
+import { DateField } from "@/components/feel/DateField"
 import { cn } from "@/lib/utils"
 import {
   CHIP,
@@ -27,6 +27,7 @@ import {
   resumesOn,
   type Pause,
 } from "@/lib/home/pauses"
+import { pauseButtonLabel, resumeButtonLabel } from "@/lib/home/pauseLabels"
 
 /**
  * How long, in the terms someone actually thinks in. "Two weeks" is how a
@@ -403,14 +404,15 @@ function PauseBody({
           />
           <Drawer open={openRow === "back"}>
             <div className="py-2">
-              <Input
-                type="date"
+              {/* The app's calendar (W32). Clear makes it open-ended again. */}
+              <DateField
+                label="Back on"
                 value={newEnd ? shift(newEnd, 1) : ""}
                 min={shift(existing.startedOn, 1)}
-                onChange={(e) =>
-                  setNewEnd(e.target.value ? shift(e.target.value, -1) : "")
-                }
-                className="h-11 w-full rounded-xl border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+                onChange={(key) => setNewEnd(key ? shift(key, -1) : "")}
+                clearable
+                placeholder="When I resume it"
+                todayKey={todayKey}
               />
             </div>
           </Drawer>
@@ -500,10 +502,9 @@ function PauseBody({
               className={PRIMARY_BUTTON}
             >
               {/* Says HOW MANY, because the ticks decide it now and the button
-                  is the last chance to notice you left one behind. */}
-              {resumeTicked.size > 1
-                ? `Resume ${resumeTicked.size} now`
-                : "Resume now"}
+                  is the last chance to notice you left one behind. With
+                  nothing ticked it says so, rather than sitting dead. */}
+              {resumeButtonLabel(resumeTicked.size, pausedMates.length > 0)}
             </button>
             {/* `!== undefined`, not truthy: clearing the field is how a bounded
                 pause becomes indefinite, and testing truthiness made the save
@@ -600,12 +601,12 @@ function PauseBody({
           <div className="py-2">
             {/* Backdating is supported and costs nothing: nothing derived from a
                 pause is stored, so past days reclassify at the next render. */}
-            <Input
-              type="date"
+            <DateField
+              label="Starts"
               value={startedOn}
               max={todayKey}
-              onChange={(e) => setStartedOn(e.target.value || todayKey)}
-              className="block h-11 w-full min-w-0 rounded-xl border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+              onChange={(key) => setStartedOn(key || todayKey)}
+              todayKey={todayKey}
             />
           </div>
         </Drawer>
@@ -639,14 +640,12 @@ function PauseBody({
             {/* Asks for the day you are BACK and stores the day before. "The last
                 paused day" is the honest internal framing and the wrong thing to
                 ask a person. */}
-            <Input
-              type="date"
+            <DateField
+              label="Back on"
               value={customEnd ? shift(customEnd, 1) : ""}
               min={shift(startedOn, 1)}
-              onChange={(e) =>
-                setCustomEnd(e.target.value ? shift(e.target.value, -1) : "")
-              }
-              className="block h-11 w-full min-w-0 rounded-xl border-border-default bg-bg-input px-3 font-mono text-base dark:bg-bg-input"
+              onChange={(key) => setCustomEnd(key ? shift(key, -1) : "")}
+              todayKey={todayKey}
             />
           </div>
         </Drawer>
@@ -732,7 +731,7 @@ function PauseBody({
             }}
             className={cn(PRIMARY_BUTTON, "flex-1")}
           >
-            {awaitingDate ? "Pick a date" : "Pause"}
+            {pauseButtonLabel(targets.length, awaitingDate)}
           </button>
         </div>
       </div>

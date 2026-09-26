@@ -13,7 +13,8 @@ import { showToast } from "@/lib/toast";
 import { NumberPad, PadInput } from "@/components/feel/NumberPad";
 import { RouteHandoff, RouteTitle, WeightBlocks } from "@/components/feel/RouteSkeletons";
 import { formatDateKeyNumeric } from "@/lib/calendar/calendar";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/feel/DateField";
+import { useDeviceToday } from "@/components/home/useDeviceToday";
 import type { DateKey } from "@/lib/home/mockHomeData";
 import {
   formatWeight,
@@ -84,7 +85,11 @@ function monthLabel(ym: string): string {
  * entry log (edit by re-logging a day, or delete). Bodyweight only, presented
  * neutrally — no good/bad colouring, no paywall copy.
  */
-export function WeightView({ entries, unitPreference, todayKey }: WeightViewProps) {
+export function WeightView({ entries, unitPreference, todayKey: serverTodayKey }: WeightViewProps) {
+  // The DEVICE's today (sweep): the page's is the server's, which is UTC, so
+  // for the first hours of an Australian morning it was yesterday, and a
+  // weigh-in logged from here landed on yesterday with today out of reach.
+  const todayKey = useDeviceToday(serverTodayKey);
   /** Guarded: logging a weigh-in CREATES data. Deleting one is not guarded. */
   const { guard } = useWriteAccess();
   const router = useRouter();
@@ -98,8 +103,10 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   const [viewEntries, applyOptimistic] = useOptimistic(entries, applyEntryMutation);
   const [, startTransition] = useTransition();
 
-  // Track-weight form. Editing a past entry loads it here.
-  const [dateKey, setDateKey] = useState<DateKey>(todayKey);
+  // Track-weight form. Editing a past entry loads it here. Until a day is
+  // picked, the form follows today (it rolls over at local midnight too).
+  const [pickedKey, setPickedKey] = useState<DateKey | null>(null);
+  const dateKey = pickedKey ?? todayKey;
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -151,7 +158,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
           // Confirmed by the toast, as every save is (consistency fix #27).
           showToast(`Weight logged: ${formatWeight(kg, unit)} ${unit}`);
           setValue("");
-          setDateKey(todayKey);
+          setPickedKey(null);
           router.refresh(); // commit: holds the optimistic value until fresh data lands
         } else {
           // The transition ends here with no refresh → the optimistic entry rolls
@@ -199,7 +206,7 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
   }
 
   function editEntry(entry: Entry) {
-    setDateKey(entry.key);
+    setPickedKey(entry.key);
     setValue(formatWeight(entry.kg, unit));
     setError(null);
     if (typeof window !== "undefined") {
@@ -271,22 +278,19 @@ export function WeightView({ entries, unitPreference, todayKey }: WeightViewProp
             />
           </label>
 
-          <label className="block w-[8.5rem] max-w-[44%] shrink-0">
+          <label className="block w-[8.5rem] max-w-[44%] min-w-0 shrink-0">
             <span className={FIELD_LABEL}>Date</span>
-            <Input
-              type="date"
+            {/* The app's calendar (W32). Only a real day comes back (no
+                Clear): the date is required, so there is nothing to clear to. */}
+            <DateField
+              label="Date logged"
               value={dateKey}
               max={todayKey}
-              onChange={(e) => {
-                // An EMPTY change event is not "today". iOS fires one while the
-                // picker wheels are still moving, and coercing it to today snapped
-                // the field back mid-pick — so a back-dated entry saved silently
-                // under today's date. Keep the last good value; the field is
-                // required, so there is nothing it should clear to.
-                if (e.target.value) setDateKey(e.target.value)
+              onChange={(key) => {
+                if (key) setPickedKey(key)
               }}
-              aria-label="Date logged"
-              className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
+              todayKey={todayKey}
+              className="h-12"
             />
           </label>
         </div>

@@ -41,7 +41,7 @@ function boxIn(item: HTMLElement, container: HTMLElement) {
 }
 
 /**
- * The journal's sliding thumb (`MarkerDialer`'s `WordScale`), made shared
+ * The sliding thumb (first drawn for the journal's word scale, since removed), made shared
  * (feel pass §6): a surface measured from the selected pill that glides
  * left/top/width/height over 300ms ease-out when the selection moves.
  *
