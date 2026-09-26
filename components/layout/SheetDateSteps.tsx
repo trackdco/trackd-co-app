@@ -55,6 +55,8 @@ export function SheetDateSteps({
   step,
   onStepChange,
   children,
+  min,
+  max,
 }: {
   /** The eyebrow under the date: what this sheet is, in two or three words. */
   label: string;
@@ -68,6 +70,11 @@ export function SheetDateSteps({
   onStepChange: (open: boolean) => void;
   /** The sheet's real job — the step the date sits above. */
   children: ReactNode;
+  /** The first day the calendar offers (inclusive). Omitted: no limit. */
+  min?: string | null;
+  /** The last day it offers (inclusive). Omitted: TODAY, as both sheets that
+   *  log a day need; `null` opens the future. */
+  max?: string | null;
 }) {
   const dateValueRef = useRef<HTMLSpanElement>(null);
   /** Whether the day just picked was a different one: the title only beats when
@@ -188,6 +195,8 @@ export function SheetDateSteps({
             <DatePickerPanel
               value={value}
               todayKey={todayKey}
+              min={min}
+              max={max}
               active={step}
               onPick={handlePick}
               onSettled={handleSettled}

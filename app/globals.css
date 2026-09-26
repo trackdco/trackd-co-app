@@ -285,16 +285,21 @@
 
   /* The Solid marks (build-brief-final §3.6). A button icon and the active
      tab fall from near-white to a light grey; an inactive tab sits a step down.
-     Round four's values, so the nav reads exactly as approved. */
+     Round four's tops; the falls 25% softer (W38, Adrian 2026-09-26: "do it
+     all softer, but not 50%, like 25% softer"): each bottom moved a quarter of
+     the way back to its top (on #bdbcb5, off #6e6d67 before). */
   --glyph-on-top: #f0efe9;
-  --glyph-on-bottom: #bdbcb5;
+  --glyph-on-bottom: #cac9c2;
   --glyph-off-top: #9a9992;
-  --glyph-off-bottom: #6e6d67;
+  --glyph-off-bottom: #797872;
 
   /* The calculator's syringe (build-brief-final §3.13). Clear glass (a faint
      light, not a grey), the amber draw lit from the top, a dark stopper, and a
      top-to-bottom fall on each grey part so it reads as moulded plastic. The
-     ticks are engraved: a dark cut and a lit edge beside it. */
+     ticks are engraved: a dark cut and a lit edge beside it.
+     W38 (Adrian noticed the gradients here first): each grey part's lift and
+     shade are three quarters of what they were (18% and 35% on the parts, 16%
+     and 35% on the rod), so the fall is 25% softer about the same ground. */
   --syringe-fill-top: #e7a15a;
   --syringe-fill-bottom: var(--accent-amber);
   --syringe-glass: color-mix(in srgb, var(--text-primary) 5%, transparent);
@@ -304,10 +309,10 @@
   --syringe-tick-lit: color-mix(in srgb, var(--text-primary) 16%, transparent);
   --syringe-stopper: var(--bg-input);
   --syringe-needle: var(--text-muted);
-  --syringe-part-top: color-mix(in srgb, var(--text-primary) 18%, var(--border-strong));
-  --syringe-part-bottom: color-mix(in srgb, #000 35%, var(--border-strong));
-  --syringe-rod-top: color-mix(in srgb, var(--text-primary) 16%, var(--bg-input));
-  --syringe-rod-bottom: color-mix(in srgb, #000 35%, var(--bg-input));
+  --syringe-part-top: color-mix(in srgb, var(--text-primary) 13.5%, var(--border-strong));
+  --syringe-part-bottom: color-mix(in srgb, #000 26.25%, var(--border-strong));
+  --syringe-rod-top: color-mix(in srgb, var(--text-primary) 12%, var(--bg-input));
+  --syringe-rod-bottom: color-mix(in srgb, #000 26.25%, var(--bg-input));
 
   /* The containers (build-brief-final §3.14): set B on this ground. Glass sits
      a step above the card and its edge a step above `--border-strong`, where set
@@ -983,6 +988,44 @@ svg ::-moz-selection {
   }
 }
 
+/* schedule: "This week" under the Schedule page's week (W19). Shown only off
+   this week. A TRANSITION, not an animation, so a quick back-and-forth starts
+   from wherever it is, and it rises in and sinks out on the same path. On the
+   curves of the page's own action (`.page-action`). Visibility follows the
+   fade, so a hidden one is never hit or focused (the wrapper is also inert). */
+.schedule-thisweek {
+  display: inline-flex;
+  transition:
+    transform 320ms var(--hl-ease),
+    opacity 240ms var(--motion-ease),
+    visibility 0s linear 0s;
+}
+.schedule-thisweek[data-shown="false"] {
+  transform: translateY(6px) scale(0.94);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    transform 320ms var(--hl-ease),
+    opacity 200ms ease-out,
+    visibility 0s linear 200ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .schedule-thisweek,
+  .schedule-thisweek[data-shown="false"] {
+    transform: none;
+  }
+  .schedule-thisweek {
+    transition:
+      opacity 160ms ease-out,
+      visibility 0s linear 0s;
+  }
+  .schedule-thisweek[data-shown="false"] {
+    transition:
+      opacity 160ms ease-out,
+      visibility 0s linear 160ms;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    THE SAVE OFFER'S FLIP CLOCK (Adrian, 2026-08-25).
 
@@ -1090,13 +1133,14 @@ svg ::-moz-selection {
 
 /* The canvas. A very slight lift at the top falling to the flat page colour,
    so a full-screen dark surface reads as lit rather than as a void. The stop
-   colour is mixed FROM the tokens, so a palette retune carries it. */
+   colour is mixed FROM the tokens, so a palette retune carries it. 3.75%
+   since W38 made every grey gradient 25% softer (it was 5%). */
 .flow-canvas,
 .flow-canvas-fixed::before {
   background:
     radial-gradient(
       120% 70% at 50% 0%,
-      color-mix(in srgb, var(--text-primary) 5%, var(--bg-base)) 0%,
+      color-mix(in srgb, var(--text-primary) 3.75%, var(--bg-base)) 0%,
       var(--bg-base) 62%
     ),
     var(--bg-base);
@@ -1251,7 +1295,13 @@ svg ::-moz-selection {
    THE INSTRUMENT SURFACES (Adrian, final check round three, 2026-09-25;
    build-brief-final §2.3). Machined edges: a hairline of light along the top,
    a faint inner rim, a dark outer line and a soft drop below. Every value is
-   the final-check page's, mixed FROM the tokens so a retune carries.
+   the final-check page's, mixed FROM the tokens so a retune carries, except
+   the FALLS: W38 (Adrian, 2026-09-26, "do it all softer, but not 50%, like 25%
+   softer") took a quarter off the light-to-dark difference of every grey
+   gradient (the white button, the thumb and knob, the rail and the inset, the
+   syringe's parts, the Solid marks, the canvas lift). The edges and the ground
+   colours did not move. Cards, rows, ghosts and tiles are flat fills, so only
+   their edges carry light.
    Presets in `lib/ui-presets.ts` (CARD, ROWS, PRIMARY_BUTTON, GHOST_BUTTON,
    CHIP_RAIL, CHIP_THUMB, TILE, INSET, CARD_EYEBROW, METRIC_VALUE) put these on
    an element; use a preset rather than the class where one exists.
@@ -1288,13 +1338,14 @@ svg ::-moz-selection {
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent);
 }
 
-/* The white button. A machined key: lit top edge, a 6% fall to the bottom. */
+/* The white button. A machined key: lit top edge, a 4.5% fall to the bottom
+   (6% until W38 made every grey fall 25% softer). */
 .inst-btn {
   border-radius: var(--r-lg);
   background: linear-gradient(
     180deg,
     var(--text-primary) 0%,
-    color-mix(in srgb, #000 6%, var(--text-primary)) 100%
+    color-mix(in srgb, #000 4.5%, var(--text-primary)) 100%
   );
   color: var(--bg-base);
   box-shadow:
@@ -1314,22 +1365,28 @@ svg ::-moz-selection {
     0 0 0 1px rgb(0 0 0 / 0.55);
 }
 
-/* A chip rail or switch track: a channel cut into the surface. */
+/* A chip rail or switch track: a channel cut into the surface. Its top is
+   three quarters of the way from the inset to the deep inset (W38: 25%
+   softer), and its ground stays the inset. */
 .inst-rail {
   border-radius: 11px;
-  background: linear-gradient(180deg, var(--bg-inset-deep) 0%, var(--bg-inset) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-inset-deep) 75%, var(--bg-inset)) 0%,
+    var(--bg-inset) 100%
+  );
   box-shadow:
     inset 0 1px 2px rgb(0 0 0 / 0.55),
     inset 0 0 0 1px rgb(0 0 0 / 0.4),
     0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent);
 }
-/* Its thumb, lit like the white button. */
+/* Its thumb, lit like the white button (a 7.5% fall, 10% before W38). */
 .inst-thumb {
   border-radius: var(--r-sm);
   background: linear-gradient(
     180deg,
     var(--text-primary) 0%,
-    color-mix(in srgb, #000 10%, var(--text-primary)) 100%
+    color-mix(in srgb, #000 7.5%, var(--text-primary)) 100%
   );
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.8),
@@ -1349,13 +1406,18 @@ svg ::-moz-selection {
 }
 
 /* THE INSET: a graph well, and the panel a tile opens into. It sits IN the
-   card, darker at the top where the shadow falls. `.inset-surface` and
-   `.inset-graph` are its older names and take the same surface. */
+   card, darker at the top where the shadow falls (a quarter less since W38,
+   like the rail). `.inset-surface` and `.inset-graph` are its older names and
+   take the same surface. */
 .inst-inset,
 .inset-surface,
 .inset-graph {
   border-radius: var(--r-xl);
-  background: linear-gradient(180deg, var(--bg-inset-deep) 0%, var(--bg-inset) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-inset-deep) 75%, var(--bg-inset)) 0%,
+    var(--bg-inset) 100%
+  );
   box-shadow:
     inset 0 1px 3px rgb(0 0 0 / 0.55),
     inset 0 0 0 1px rgb(0 0 0 / 0.4),
@@ -1377,13 +1439,13 @@ svg ::-moz-selection {
 }
 
 /* An on/off switch's knob: the thumb's lit key at a switch's size. Its track
-   is `.inst-rail` when off and amber when on. */
+   is `.inst-rail` when off and amber when on. A 7.5% fall, as the thumb's. */
 .inst-knob {
   border-radius: 7px;
   background: linear-gradient(
     180deg,
     var(--text-primary) 0%,
-    color-mix(in srgb, #000 10%, var(--text-primary)) 100%
+    color-mix(in srgb, #000 7.5%, var(--text-primary)) 100%
   );
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.8),
@@ -1586,6 +1648,74 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
   .fold,
   .fold[data-open="true"] {
     transition: none;
+  }
+}
+/* stacks-add: what a Fold holds fades in as it opens and out as it shuts
+   (W33), so the first slivers of a height reveal (a panel's lit top edge, its
+   ring, a hairline) never read as a lone line while the fold is a few pixels
+   tall. Child combinators only: a closed fold inside an open one keeps its own
+   state. Opacity only; under reduced motion the fold snaps and so does this. */
+.fold > div > .fold-body {
+  opacity: 0;
+  transition: opacity 160ms var(--hl-close);
+}
+.fold[data-open="true"] > div > .fold-body {
+  opacity: 1;
+  transition: opacity 280ms var(--hl-ease) 80ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fold > div > .fold-body,
+  .fold[data-open="true"] > div > .fold-body {
+    transition: none;
+  }
+}
+/* stacks-add: a page's own action ("+ New stack", ruling 1) while what it
+   opened is up (W21): it slides down toward the rising sheet and fades, its
+   plus turning a quarter, and comes back up the same path when the sheet
+   goes. On a wrapper, so the button's press (scale, opacity) never fights it.
+   Transitions, so a quick open-close turns back from wherever it is. */
+.page-action {
+  display: inline-flex;
+  flex-shrink: 0;
+  transition:
+    transform 320ms var(--hl-ease),
+    opacity 240ms var(--motion-ease);
+}
+.page-action[data-open="true"] {
+  transform: translateY(10px) scale(0.94);
+  opacity: 0;
+  transition:
+    transform 320ms var(--hl-ease),
+    opacity 200ms ease-out 40ms;
+}
+.page-action-plus {
+  display: inline-flex;
+  transition: transform 320ms var(--hl-ease);
+}
+.page-action[data-open="true"] .page-action-plus {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-action,
+  .page-action[data-open="true"] {
+    transform: none;
+    transition: opacity 160ms ease-out;
+  }
+  .page-action-plus,
+  .page-action[data-open="true"] .page-action-plus {
+    transform: none;
+    transition: none;
+  }
+}
+/* stacks-add: a compound just added from inside the stack editor slides into
+   its list from the right edge (W24), on the page slide's own curve. The list
+   clips it (`overflow-hidden`), so nothing scrolls sideways. */
+.stack-member-in {
+  animation: subpage-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stack-member-in {
+    animation: toast-fade 160ms ease-out both;
   }
 }
 /* The chevron on a Cycles type header: turns to point down while open. */
@@ -3534,6 +3664,35 @@ body[data-inline-edit="true"] .shortcuts-layer {
   .animate-date-pop,
   .animate-date-value {
     animation: none;
+  }
+}
+
+/* THE CALENDAR'S MONTH-AND-YEAR VIEW (W32, `DatePickerPanel` with
+   `monthJump`). The days and the twelve months share one box; the one leaving
+   fades and settles back a step while the other rises out of the same place,
+   and they swap back on the same path. Transitions, not keyframes, so a quick
+   second tap reverses from wherever it is. Reduced motion: a short fade. */
+.date-layer {
+  transform-origin: top center;
+  transition:
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-base) var(--motion-ease);
+}
+.date-layer[data-shown="false"] {
+  opacity: 0;
+  transform: scale(0.97);
+  pointer-events: none;
+}
+.date-layer-months[data-shown="false"] {
+  transform: translateY(-6px) scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .date-layer {
+    transition: opacity 120ms ease-out;
+  }
+  .date-layer[data-shown="false"],
+  .date-layer-months[data-shown="false"] {
+    transform: none;
   }
 }
 
