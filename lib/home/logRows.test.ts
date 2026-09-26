@@ -56,8 +56,20 @@ describe("days since each site, for the Site panel's map", () => {
     expect(siteDaysBefore(logs, "2026-09-24")).toEqual({ "sq-abdo-l": 0, "sq-abdo-r": 1, "sq-glute-l": 0 })
   })
 
-  it("leaves out the dose being logged on that day, whatever its slot", () => {
-    expect(siteDaysBefore(logs, "2026-09-24", "reta")).toEqual({ "sq-abdo-l": 4, "sq-abdo-r": 1, "sq-glute-l": 0 })
-    expect(siteDaysBefore(logs, "2026-09-24", "bpc")["sq-glute-l"]).toBeUndefined()
+  it("leaves out the dose being logged on that day, and only that dose", () => {
+    expect(siteDaysBefore(logs, "2026-09-24", { compoundId: "reta", slot: 0 })).toEqual({
+      "sq-abdo-l": 4,
+      "sq-abdo-r": 1,
+      "sq-glute-l": 0,
+    })
+    expect(siteDaysBefore(logs, "2026-09-24", { compoundId: "bpc", slot: 1 })["sq-glute-l"]).toBeUndefined()
+  })
+
+  // B21: the evening dose's map hid this morning's site of the same compound.
+  it("counts this morning's dose of the same compound when logging its evening dose", () => {
+    const day: DayLogs = { "2026-09-26": { bpc: { amount: "250", unit: "mcg", siteId: "sq-abdo-l", time24: "08:02" } } }
+    expect(siteDaysBefore(day, "2026-09-26", { compoundId: "bpc", slot: 1 })).toEqual({ "sq-abdo-l": 0 })
+    // Re-opening the morning dose itself still leaves it out.
+    expect(siteDaysBefore(day, "2026-09-26", { compoundId: "bpc", slot: 0 })).toEqual({})
   })
 })

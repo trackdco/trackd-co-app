@@ -1,9 +1,10 @@
 "use client"
 
-import { createContext, useEffect, useLayoutEffect, useRef, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, type ReactNode } from "react"
 
 import type { StackCompound } from "@/lib/home/stack"
 import type { RowDraft } from "@/lib/home/logDraft"
+import { edgeFinishPlays } from "@/lib/home/logRows"
 
 /**
  * Flow B, as the rows see it. The host (Home, Quick log, the Calendar's day,
@@ -30,6 +31,8 @@ export interface LogFlow {
   close: () => void
   /** First run: the row whose circle the "Tap the circle" bubble points at. */
   firstRunKey?: string | null
+  /** The day the rows are drawn for, "YYYY-MM-DD" (the Log card's edge reads it). */
+  day?: string
 }
 
 export const LogFlowContext = createContext<LogFlow | null>(null)
@@ -61,11 +64,19 @@ const SETTLE = { duration: 1800, delay: 760 + 960, easing: "cubic-bezier(0.45, 0
  * FILLS amber a share per dose logged. When the last dose lands it holds bold
  * and exhales thin (E4), staying amber, and the card settles darker and stays.
  * Measured on every resize AND once fonts load: measured once, it drew short.
+ *
+ * `day`: the day the card shows, else the rows' own day (the flow it sits
+ * in). Moving to another day (the week strip) is a load of that day, never its
+ * completion, so a finished day scrubbed onto does not replay the finish (cold
+ * review B33).
  */
-export function LogEdge({ logged, due }: { logged: number; due: number }) {
+export function LogEdge({ logged, due, day: dayProp }: { logged: number; due: number; day?: string }) {
+  const flowDay = useContext(LogFlowContext)?.day
+  const day = dayProp ?? flowDay
   const svgRef = useRef<SVGSVGElement>(null)
   const full = due > 0 && logged >= due
   const wasFull = useRef(full)
+  const wasDay = useRef(day)
 
   useLayoutEffect(() => {
     const svg = svgRef.current
@@ -94,9 +105,10 @@ export function LogEdge({ logged, due }: { logged: number; due: number }) {
   // The finish plays on the moment the day completes, never on a load of a day
   // that already was.
   useEffect(() => {
-    const was = wasFull.current
+    const before = { full: wasFull.current, day: wasDay.current }
     wasFull.current = full
-    if (!full || was) return
+    wasDay.current = day
+    if (!edgeFinishPlays(before, { full, day })) return
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
     const svg = svgRef.current
     const fill = svg?.querySelector<SVGRectElement>(".log-edge-fill")
@@ -110,7 +122,7 @@ export function LogEdge({ logged, due }: { logged: number; due: number }) {
       const to = root.getPropertyValue("--bg-surface-done").trim()
       if (from && to) card.animate([{ backgroundColor: from }, { backgroundColor: to }], SETTLE)
     }
-  }, [full])
+  }, [full, day])
 
   const share = due > 0 ? Math.min(1, logged / due) : 0
   return (

@@ -121,9 +121,6 @@ function formatMl(ml: number): string {
   return trim(ml.toPrecision(1))
 }
 
-/** "2 tabs" / "1 cap" — halves are real (people split tabs), so allow 2dp. Carries the
- *  same honesty guard as the volume figures: a real dose below 0.005 of a tab must not
- *  round to "0 tabs", which would read as *take nothing*. */
 /** A dropper's measure, in drops: "2 drops", "1 drop". */
 function formatDrops(count: number): string {
   const fixed = count.toFixed(2)
@@ -131,6 +128,18 @@ function formatDrops(count: number): string {
   return `${n} ${Number(n) === 1 ? "drop" : "drops"}`
 }
 
+/**
+ * "2 tabs" / "1 cap". A DRAW divides an mg (or iu) dose by one tablet's
+ * strength, so half a tablet is real here (7.5 mg from 5 mg tablets is "1.5
+ * tabs", a split tablet) and 2dp are kept: rounding a draw would misstate the
+ * dose (Design Decision 5). A dose counted IN tablets, capsules or drops is a
+ * different thing: it steps in whole ones and is typed freely (`stepAmount` and
+ * the pad in `lib/home/logDraft.ts`), and a tab or capsule dose
+ * never reaches here (`doseInBaseUnit` has no base for it).
+ *
+ * Carries the same honesty guard as the volume figures: a real dose below 0.005
+ * of a tab must not round to "0 tabs", which would read as *take nothing*.
+ */
 function formatCount(count: number, oralForm: string | null): string {
   const noun = oralForm === "capsule" ? "cap" : "tab"
   const fixed = count.toFixed(2)

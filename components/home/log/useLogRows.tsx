@@ -8,9 +8,9 @@ import { SAVE_CONFIRM_MS } from "@/components/home/log/TrackBar"
 import { openStockItem, type StockRead } from "@/lib/db/inventory"
 import type { BodySex, InjectionSiteRow } from "@/lib/db/types"
 import { slotKey, type DayLogs } from "@/lib/home/doseLog"
-import { draftToLog, initialDraft, LOG_WORDS, trackLabel, type RowDraft } from "@/lib/home/logDraft"
-import { siteDaysBefore } from "@/lib/home/logRows"
-import type { DoseLog } from "@/lib/home/mockHomeData"
+import { draftToLog, initialDraft, LOG_WORDS, trackDay, trackLabel, type RowDraft } from "@/lib/home/logDraft"
+import { siteDaysBefore, slotIsFree } from "@/lib/home/logRows"
+import { toDateKey, type DoseLog } from "@/lib/home/mockHomeData"
 import { siteShortLabel } from "@/lib/home/siteCatalog"
 import type { StackCompound } from "@/lib/home/stack"
 import { showToast } from "@/lib/toast"
@@ -60,10 +60,22 @@ interface OpenRow {
   existing: DoseLog | null
   day: string
   draft: RowDraft
+  /**
+   * Which open this is. A row closed and opened again is a NEW open, with its
+   * own panel and draft (cold review B32: within the 520ms fold the old panel
+   * was reused, its stock read already spent, so a spare was never picked).
+   */
+  openId: number
+  /**
+   * An unopened spare THIS row's panel picked: Track starts it first. Kept on
+   * the row, never shared (cold review B7: a closing row's late stock read set
+   * a shared ref, and Track on the next row started the first one's spare).
+   */
+  spare: string | null
 }
 
-const sameRow = (a: OpenRow | null, b: OpenRow | null) =>
-  Boolean(a && b && a.dose.id === b.dose.id && a.slot === b.slot && a.day === b.day)
+/** The same open of the same row: its day, compound and slot, opened once. */
+const sameRow = (a: OpenRow | null, b: OpenRow | null) => Boolean(a && b && a.openId === b.openId)
 
 export function useLogRows(o: LogRowsOptions) {
   const [openRow, setOpenRow] = useState<OpenRow | null>(null)
@@ -73,8 +85,7 @@ export function useLogRows(o: LogRowsOptions) {
   // Track is running (a spare being started first): the bar stays disabled, so
   // a second tap cannot log the dose twice.
   const [tracking, setTracking] = useState(false)
-  /** An unopened spare picked in the Stock panel: Track starts it first. */
-  const spareRef = useRef<string | null>(null)
+  const opens = useRef(0)
   const closeTimer = useRef<number | undefined>(undefined)
   useEffect(() => () => window.clearTimeout(closeTimer.current), [])
   // A row belongs to the day it was opened on; the day moving closes it.
@@ -85,6 +96,37 @@ export function useLogRows(o: LogRowsOptions) {
   useEffect(() => {
     openRowRef.current = openRow
   }, [openRow])
+  // The logs as they are NOW, for an Undo or a confirm that lands later.
+  const logsRef = useRef(o.logs)
+  useEffect(() => {
+    logsRef.current = o.logs
+  }, [o.logs])
+
+  /**
+   * Every write this hook makes to a slot bumps its count, so a write that
+   * lands later (Undo, Save's confirm) can tell the slot was written since
+   * (B17, B18), even before the host's logs have caught up.
+   */
+  const writes = useRef(new Map<string, number>())
+  const writeKey = (day: string, id: string, slot: number) => `${day}|${slotKey(id, slot)}`
+  const writesTo = (day: string, id: string, slot: number) => writes.current.get(writeKey(day, id, slot)) ?? 0
+  const bump = (day: string, id: string, slot: number) => {
+    const k = writeKey(day, id, slot)
+    writes.current.set(k, (writes.current.get(k) ?? 0) + 1)
+  }
+  const commitTo = (id: string, log: DoseLog, day: string, slot: number) => {
+    bump(day, id, slot)
+    o.commit(id, log, day, slot)
+  }
+
+  /** Saves still confirming, by slot: an untick meanwhile stops its own (B18),
+   *  and a Save on another row never stops this one. */
+  const pendingSaves = useRef(new Map<string, number>())
+  const dropPendingSave = (day: string, id: string, slot: number) => {
+    const k = writeKey(day, id, slot)
+    window.clearTimeout(pendingSaves.current.get(k))
+    pendingSaves.current.delete(k)
+  }
 
   const isOpenRow = (id: string, slot: number) => liveRow?.dose.id === id && liveRow.slot === slot
   const logOf = (id: string, slot: number) => o.logs[o.day]?.[slotKey(id, slot)] ?? null
@@ -96,7 +138,6 @@ export function useLogRows(o: LogRowsOptions) {
     setOpenRow(null)
     setPanelOpen(false)
     setConfirming(false)
-    spareRef.current = null
     window.clearTimeout(closeTimer.current)
     closeTimer.current = window.setTimeout(() => setClosingRow(null), 520)
   }
@@ -106,10 +147,18 @@ export function useLogRows(o: LogRowsOptions) {
     if (openRow) setClosingRow(openRow)
     window.clearTimeout(closeTimer.current)
     closeTimer.current = window.setTimeout(() => setClosingRow(null), 520)
-    setOpenRow({ dose, slot, existing, day: o.day, draft: initialDraft(dose, o.day, slot, existing) })
+    opens.current += 1
+    setOpenRow({
+      dose,
+      slot,
+      existing,
+      day: o.day,
+      draft: initialDraft(dose, o.day, slot, existing),
+      openId: opens.current,
+      spare: null,
+    })
     setPanelOpen(false)
     setConfirming(false)
-    spareRef.current = null
   }
 
   async function track() {
@@ -117,35 +166,58 @@ export function useLogRows(o: LogRowsOptions) {
     if (!tapped || tapped.draft.amount <= 0 || confirming || tracking) return
     // The same door as the tick: a read-only account meets the pop-up here.
     if (!o.guard(() => {})) return
-    const spare = spareRef.current
+    const editing = tapped.existing != null
+    // Today read NOW, not from the host's once-a-minute clock (B23): a fresh
+    // dose tracked just after midnight belongs to the new day.
+    const now = new Date()
+    const { day, todayKey } = trackDay(tapped.day, o.todayKey, toDateKey(now), tapped.draft, editing)
+    // The spare this row picked, while it is still the row's container.
+    const spare = tapped.spare && tapped.draft.inventoryItemId === tapped.spare ? tapped.spare : null
+    let spareFailed = false
     // Only today: a spare started on a past day would become the oldest open
     // container and take every later dose (cold review, 2026-09-25).
-    if (spare && tapped.day === o.todayKey) {
+    if (spare && day === todayKey) {
       // Picking a spare is the moment it goes into use (build brief §5): start
       // it BEFORE the dose links to it, or the link is dropped as not started.
       setTracking(true)
-      await openStockItem(spare, tapped.day).catch(() => ({ ok: false }))
+      const started = await openStockItem(spare, day).catch(() => ({ ok: false }))
       setTracking(false)
+      spareFailed = !started.ok
     }
     // The row as it is now: an edit made while the spare started still counts,
     // and a row closed meanwhile is not logged.
     const row = openRowRef.current
     if (!row || !sameRow(row, tapped) || row.draft.amount <= 0) return
-    const log = draftToLog(row.dose, row.draft, row.day, o.todayKey, row.slot, new Date())
+    // A spare that did not start (offline, or a failed request) is not linked:
+    // the server would drop the link for good (B16). Undecided, the server's
+    // own rule picks the container in use, which is that spare if it started
+    // after all.
+    const draft =
+      spareFailed && row.draft.inventoryItemId === spare ? { ...row.draft, inventoryItemId: undefined } : row.draft
+    const log = draftToLog(row.dose, draft, day, todayKey, row.slot, now)
     if (row.existing) {
       // Edit mode: Save confirms with a calm tick, then the bar drops.
       setConfirming(true)
-      window.setTimeout(() => {
-        o.commit(row.dose.id, log, row.day, row.slot)
+      const id = row.dose.id
+      const slot = row.slot
+      const seen = writesTo(day, id, slot)
+      dropPendingSave(day, id, slot)
+      const timer = window.setTimeout(() => {
+        pendingSaves.current.delete(writeKey(day, id, slot))
+        // Unticked during the confirm (B18): the untick stands. The dose it
+        // edits is gone, or was written again since.
+        const stale = writesTo(day, id, slot) !== seen || slotIsFree(logsRef.current, day, id, slot)
+        if (!stale) commitTo(id, log, day, slot)
         // Close it only if it is still the open row: another may have been
-        // opened during the confirm.
+        // opened during the confirm, and may be confirming its own Save.
         if (sameRow(openRowRef.current, row)) close()
-        else setConfirming(false)
-        o.afterTrack?.()
+        else if (pendingSaves.current.size === 0) setConfirming(false)
+        if (!stale) o.afterTrack?.()
       }, SAVE_CONFIRM_MS)
+      pendingSaves.current.set(writeKey(day, id, slot), timer)
       return
     }
-    o.commit(row.dose.id, log, row.day, row.slot)
+    commitTo(row.dose.id, log, day, row.slot)
     close()
     o.afterTrack?.()
   }
@@ -156,6 +228,7 @@ export function useLogRows(o: LogRowsOptions) {
     condensed: liveRow !== null && panelOpen,
     draft: liveRow?.draft ?? null,
     firstRunKey: o.firstRunKey ?? null,
+    day: o.day,
     onTick: (dose, slot) => {
       o.onAnyTick?.()
       const log = logOf(dose.id, slot)
@@ -164,8 +237,21 @@ export function useLogRows(o: LogRowsOptions) {
       if (log) {
         if (isOpenRow(dose.id, slot)) close()
         const day = o.day
+        // A Save still confirming on this dose is dropped: the untick is the
+        // later decision (B18).
+        dropPendingSave(day, dose.id, slot)
+        bump(day, dose.id, slot)
         o.remove(dose.id, day, slot)
-        showToast(LOG_WORDS.unticked, { undo: () => o.commit(dose.id, log, day, slot) })
+        const removedAs = writesTo(day, dose.id, slot)
+        showToast(LOG_WORDS.unticked, {
+          undo: () => {
+            // Only into an empty slot: a dose logged there since is the newer
+            // fact, and Undo must not overwrite it (B17).
+            if (writesTo(day, dose.id, slot) !== removedAs) return
+            if (!slotIsFree(logsRef.current, day, dose.id, slot)) return
+            commitTo(dose.id, log, day, slot)
+          },
+        })
         return
       }
       // The first tap opens the row, the second logs it.
@@ -195,25 +281,31 @@ export function useLogRows(o: LogRowsOptions) {
       const live = row === liveRow
       return (
         <LogRowPanel
-          key={rowKey(dose.id, slot)}
+          // One panel per OPEN, not per row (B32).
+          key={`${rowKey(dose.id, slot)}:${row.openId}`}
           compound={row.dose}
           dateKey={row.day}
           todayKey={o.todayKey}
+          slot={row.slot}
+          editing={row.existing != null}
           draft={row.draft}
           onDraft={(patch) =>
-            // Only onto THIS row: a closing row's late stock read must not
-            // land on the row opened after it.
+            // Only onto THIS open of this row: a closing row's late stock read
+            // must not land on the row opened after it.
             live && setOpenRow((r) => (r && sameRow(r, row) ? { ...r, draft: { ...r.draft, ...patch } } : r))
           }
           catalogue={o.catalogue}
-          // The dose being logged never counts itself.
-          siteLastUsedDays={siteDaysBefore(o.logs, row.day, row.dose.id)}
+          // The dose being logged never counts itself; the compound's other
+          // doses that day do (B21).
+          siteLastUsedDays={siteDaysBefore(o.logs, row.day, { compoundId: row.dose.id, slot: row.slot })}
           bodySex={o.bodySex}
           onTileChange={(on) => live && setPanelOpen(on)}
           onAddStock={o.onAddStock ? () => o.onAddStock?.(row.dose) : undefined}
-          onSpare={(id) => {
-            spareRef.current = id
-          }}
+          onSpare={(id) =>
+            // The same guard as the draft (B7): a spare lands on the open it
+            // was read for, or nowhere.
+            setOpenRow((r) => (r && sameRow(r, row) ? { ...r, spare: id } : r))
+          }
           readKey={o.stockReadKey ?? 0}
           previewStock={o.previewStock}
         />

@@ -9,19 +9,34 @@ import { SolidIcon } from "@/components/feel/SolidIcon"
 import { usePadSession } from "@/components/feel/usePadSession"
 import { BodyAspectSwitch, BodyMap } from "@/components/sites/BodyMap"
 import { cn } from "@/lib/utils"
-import { ADD_ACTION, PRESS, TILE_LABEL } from "@/lib/ui-presets"
+import { ADD_ACTION, HIT_30, PRESS, TILE_LABEL } from "@/lib/ui-presets"
 import type { StockItem, StockRead } from "@/lib/db/inventory"
 import type { BodySex, InjectionSiteAspect, InjectionSiteRow } from "@/lib/db/types"
-import { unitFamilyOk } from "@/lib/db/doseUnits"
 import { containerColour } from "@/lib/containers/colour"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { containerNounTitle } from "@/lib/containers/labels"
 import { readDoseSheet } from "@/lib/home/doseSheetRead"
+import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
 import { decayWindow } from "@/lib/home/siteRecency"
 import { siteDisplayName, siteLabel, siteShortLabel, sitesForSex } from "@/lib/home/siteCatalog"
 import { isInjectable, type StackCompound } from "@/lib/home/stack"
-import { clockHHMM, formatStepAmount, logTimeLabel, stepFor, type RowDraft } from "@/lib/home/logDraft"
-import { containersOf } from "@/lib/protocol/stockView"
+import {
+  clockHHMM,
+  formatStepAmount,
+  logTimeLabel,
+  shownTime,
+  stepAmount,
+  stepFor,
+  type RowDraft,
+} from "@/lib/home/logDraft"
+import {
+  autoPickContainer,
+  needsStockIdLookup,
+  rowContainer,
+  rowStockOf,
+  stockCompoundId,
+  type RowStock,
+} from "@/lib/home/logRows"
 
 export type LogTile = "site" | "stock" | "note"
 
@@ -33,16 +48,14 @@ const SITE_AUTOCLOSE_MS = 500
 const EASE = "cubic-bezier(0.22, 1, 0.36, 1)"
 
 /** What the row knows about this compound's containers. */
-type StockState =
-  | { kind: "loading" }
-  | { kind: "failed" }
-  | {
-      kind: "ready"
-      open: StockItem[]
-      spares: StockItem[]
-      /** A back-dated day: the container in use THEN (null = none), and only it. */
-      dateVialId?: string | null
-    }
+type StockState = { kind: "loading" } | { kind: "failed" } | ({ kind: "ready" } & RowStock)
+
+/**
+ * Device compound id → the Postgres id its containers carry, where the two
+ * differ (cold review S11), learnt once per page load: Protocol resolves the
+ * same way (`resolveProtocolCompoundIds`).
+ */
+const stockIds = new Map<string, string>()
 
 function Plus() {
   return (
@@ -73,6 +86,8 @@ export function LogRowPanel({
   compound,
   dateKey,
   todayKey,
+  slot = 0,
+  editing = false,
   draft,
   onDraft,
   catalogue,
@@ -87,6 +102,10 @@ export function LogRowPanel({
   compound: StackCompound
   dateKey: string
   todayKey: string
+  /** Which of the day's doses this is: its scheduled time on a back-dated day. */
+  slot?: number
+  /** A dose already logged, opened to edit: its container is never re-picked. */
+  editing?: boolean
   draft: RowDraft
   onDraft: (patch: Partial<RowDraft>) => void
   catalogue: InjectionSiteRow[]
@@ -127,33 +146,35 @@ export function LogRowPanel({
       ? Promise.resolve({ stock: previewStock, dateVialId: undefined, catalogue: null })
       : readDoseSheet(compound.id, dateKey, { draw: false, stock: true, dateVial: !onToday, catalogue: needCatalogue })
     reading
-      .then((read) => {
+      .then(async (read) => {
         if (!alive) return
         if (read.catalogue && read.catalogue.length > 0) setFetchedCatalogue(read.catalogue)
         if (!read.stock?.ok) {
           setStock({ kind: "failed" })
           return
         }
-        const { open, spares } = containersOf(read.stock.items, compound.id)
-        const fit = (v: StockItem) => unitFamilyOk(v.baseUnit, compound.unit)
-        // A back-dated day offers only the container in use THEN: one started
-        // later would be dropped by the server, and a spare started on a past
-        // day would take every later dose.
-        const dateVialId = read.dateVialId ?? null
-        const next = onToday
-          ? { kind: "ready" as const, open: open.filter(fit), spares: spares.filter(fit) }
-          : { kind: "ready" as const, open: open.filter((v) => v.id === dateVialId), spares: [], dateVialId }
-        setStock(next)
-        // Undecided stays undecided unless there is an obvious answer: today,
-        // the container in use (the oldest open one), or with none open an
-        // unopened spare, which Track then starts; a back-dated day, the one
-        // in use then. A powder vial is never picked unmixed.
+        const items = read.stock.items
+        // The containers carry the Postgres id. Where none carries the device
+        // id, ask for the Postgres one the way Protocol does (S11), once.
+        let resolved = stockIds.get(compound.id) ?? null
+        if (!previewStock && !resolved && needsStockIdLookup(items, compound.id)) {
+          const map: Record<string, string> = await resolveProtocolCompoundIds([
+            { id: compound.id, name: compound.name },
+          ]).catch(() => ({}))
+          if (!alive) return
+          resolved = map[compound.id] ?? null
+          if (resolved) stockIds.set(compound.id, resolved)
+        }
+        const pcId = stockCompoundId(items, compound.id, resolved)
+        const next = rowStockOf(items, pcId, compound.unit, onToday, read.dateVialId)
+        setStock({ kind: "ready", ...next })
+        // Undecided stays undecided unless there is an obvious answer (and
+        // never for a dose already logged, B8): see `autoPickContainer`.
         if (draftRef.current.inventoryItemId === undefined) {
-          const sealed = next.spares.find((v) => v.inventoryType !== "reconstituted")
-          const pick = onToday ? (next.open[0]?.id ?? sealed?.id) : (read.dateVialId ?? undefined)
+          const pick = autoPickContainer(next, onToday, editing)
           if (pick) {
-            onDraft({ inventoryItemId: pick })
-            if (onToday && !next.open[0] && sealed) onSpare(sealed.id)
+            onDraft({ inventoryItemId: pick.id })
+            if (pick.spare) onSpare(pick.id)
           }
         }
       })
@@ -201,6 +222,14 @@ export function LogRowPanel({
   /* ---- the tile and its panel ---- */
   const [tile, setTile] = useState<LogTile | null>(null)
   const [shown, setShown] = useState<LogTile | null>(null)
+  /**
+   * Counts swaps that have landed, so the rise-in runs even when a swap lands
+   * on the content already shown (two quick taps back to the first tile):
+   * `shown` would not change, and the faded parts stayed blank (B31).
+   */
+  const [landed, setLanded] = useState(0)
+  /** The swap in flight: a newer tap, or a close, makes an older one land nowhere. */
+  const swapToken = useRef(0)
   const panRef = useRef<HTMLDivElement>(null)
   const swapFrom = useRef<number | null>(null)
   const siteTimer = useRef<number | undefined>(undefined)
@@ -208,9 +237,14 @@ export function LogRowPanel({
 
   const parts = () =>
     Array.from(panRef.current?.querySelectorAll<HTMLElement>("[data-pan-part]") ?? [])
+  /** Whatever a cut-short swap left faded is put back. */
+  const settleParts = () => {
+    for (const p of parts()) p.getAnimations().forEach((a) => a.cancel())
+  }
 
   const close = () => {
     window.clearTimeout(siteTimer.current)
+    swapToken.current += 1
     setTile(null)
     onTileChange(false)
   }
@@ -224,25 +258,36 @@ export function LogRowPanel({
     onTileChange(true)
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const pan = panRef.current
+    const token = ++swapToken.current
     if (tile && shown && pan && !reduce) {
       // Switching: the header, body and arrow fade 4px down (110ms), the
       // height eases to the new one (280ms), the new ones rise in (240ms).
+      // Interruptible: each part fades from where it is now, and a second
+      // tap mid-swap takes over the first (B31).
       swapFrom.current = pan.getBoundingClientRect().height
       setTile(next)
-      Promise.all(
-        parts().map(
-          (p) =>
-            p.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(4px)" }], {
-              duration: 110,
-              easing: "ease-in",
-              fill: "forwards",
-            }).finished,
-        ),
-      )
-        .then(() => setShown(next))
-        .catch(() => {})
+      const fades = parts().map((p) => {
+        const now = getComputedStyle(p)
+        const from = Number.parseFloat(now.opacity)
+        const at = { opacity: Number.isFinite(from) ? from : 1, transform: now.transform === "none" ? "none" : now.transform }
+        p.getAnimations().forEach((a) => a.cancel())
+        return p.animate([at, { opacity: 0, transform: "translateY(4px)" }], {
+          duration: Math.max(40, 110 * at.opacity),
+          easing: "ease-in",
+          fill: "forwards",
+        }).finished
+      })
+      // Lands on its token even when a fade was cancelled on the way.
+      const land = () => {
+        if (token !== swapToken.current) return
+        setShown(next)
+        setLanded((n) => n + 1)
+      }
+      Promise.all(fades).then(land, land)
       return
     }
+    settleParts()
+    swapFrom.current = null
     setTile(next)
     setShown(next)
     // A panel growing below the fold is brought up once it has (450ms).
@@ -254,7 +299,8 @@ export function LogRowPanel({
     const pan = panRef.current
     if (from == null || !pan) return
     swapFrom.current = null
-    for (const p of parts()) p.getAnimations().forEach((a) => a.cancel())
+    settleParts()
+    pan.getAnimations().forEach((a) => a.cancel())
     const to = pan.getBoundingClientRect().height
     if (Math.abs(to - from) > 1) {
       pan.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 280, easing: EASE })
@@ -265,14 +311,18 @@ export function LogRowPanel({
         easing: EASE,
       })
     }
-  }, [shown])
+    // `landed` re-runs it when a swap lands on the content already shown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, landed])
 
   /* ---- dose and time ---- */
   // From the PLAN, so the step does not drift as the amount changes; whole
   // steps for things you count.
   const step = stepFor(compound.dose, draft.unit)
-  const counted = step === 1 && (draft.unit === "tab" || draft.unit === "capsule" || draft.unit === "drop")
-  const setAmount = (n: number) => onDraft({ amount: Math.max(0, Number(n.toFixed(3))) })
+  // Tablets, capsules and drops: + and - move by one whole thing; typing on the
+  // pad takes any amount, a half tablet included (Adrian, 26 Sep: "if I want to
+  // specify otherwise I can type").
+  const stepBy = (dir: 1 | -1) => onDraft({ amount: stepAmount(draft.amount, dir, draft.unit, step) })
   const pad = usePadSession()
   const [padText, setPadText] = useState<string | null>(null)
   const amountText = padText ?? (draft.amount > 0 ? formatStepAmount(draft.amount) : "")
@@ -282,7 +332,8 @@ export function LogRowPanel({
     const id = window.setInterval(() => setClock(clockHHMM(new Date())), 15_000)
     return () => window.clearInterval(id)
   }, [draft.time24, onToday])
-  const timeShown = draft.time24 ?? (onToday ? clock : compound.schedule.timeOfDay)
+  // What Track will write: this slot's own time on a back-dated day (B19).
+  const timeShown = shownTime(compound, draft, dateKey, todayKey, slot, clock)
 
   /* ---- site ---- */
   const route = compound.method === "im" ? "im" : "subq"
@@ -306,17 +357,16 @@ export function LogRowPanel({
     if (next) siteTimer.current = window.setTimeout(close, SITE_AUTOCLOSE_MS)
   }
 
-  /* ---- stock: the container in use, and only it ---- */
-  const ready = stock.kind === "ready" ? stock : null
-  const inUse: StockItem | undefined = ready
-    ? ([...ready.open, ...ready.spares].find((v) => v.id === draft.inventoryItemId) ?? ready.open[0])
-    : undefined
-  const onlyUnmixed =
-    ready !== null && !inUse && ready.spares.length > 0 && ready.spares.every((v) => v.inventoryType === "reconstituted")
-  const pastNone = ready !== null && !onToday && !inUse
-  const noStock = ready !== null && !inUse && !onlyUnmixed && !pastNone
+  /* ---- stock: the container the dose comes out of, and only it ---- */
+  // The same answer Track writes (B20): see `rowContainer`.
+  const container = stock.kind === "ready" ? rowContainer(stock, draft.inventoryItemId, onToday, draft.status === "skipped") : null
+  const inUse: StockItem | undefined = container?.kind === "item" ? container.item : undefined
+  /** A back-dated day's container that is no longer listed: named, not measured. */
+  const thenOnly = container?.kind === "then"
+  const noneWhy = container?.kind === "none" ? container.why : null
   const nounOf = (v: StockItem) =>
     containerNounTitle({ inventoryType: v.inventoryType, totalAmountUnit: v.totalAmountUnit, category: compound.category, name: compound.name })
+  const compoundNoun = containerNounTitle({ inventoryType, totalAmountUnit: null, category: compound.category, name: compound.name })
   const fillOf = (v?: StockItem) =>
     v && v.remainingBase != null && v.totalBase ? Math.max(0, Math.min(1, v.remainingBase / v.totalBase)) : 0.5
   const inUseName = inUse
@@ -325,9 +375,17 @@ export function LogRowPanel({
       : inUse.acquiredOn == null
         ? `Unopened ${nounOf(inUse).toLowerCase()}`
         : `Current ${nounOf(inUse).toLowerCase()}`
-    : ""
+    : thenOnly
+      ? `${compoundNoun} in use then`
+      : ""
   const dosesLeft =
     inUse?.dosesRemaining != null ? `${inUse.dosesRemaining} ${inUse.dosesRemaining === 1 ? "dose" : "doses"} left` : null
+  const NONE_WORDS: Record<NonNullable<typeof noneWhy>, string> = {
+    noStock: "No stock yet",
+    unmixed: "No mixed vial yet",
+    pastNone: "No container was in use that day",
+    notCounted: "Not counted from stock",
+  }
 
   /* ---- the tiles ---- */
   const tiles: { key: LogTile; glyph: "site" | "stock" | "note"; label: string; sub: string; set: boolean }[] = [
@@ -344,8 +402,8 @@ export function LogRowPanel({
       key: "stock",
       glyph: "stock",
       label: "Stock",
-      sub: stock.kind !== "ready" ? " " : inUse ? nounOf(inUse) : "None",
-      set: Boolean(inUse),
+      sub: stock.kind !== "ready" ? " " : inUse ? nounOf(inUse) : thenOnly ? compoundNoun : "None",
+      set: Boolean(inUse) || thenOnly,
     },
     { key: "note", glyph: "note", label: "Note", sub: draft.note.trim() ? "Added" : "Add", set: Boolean(draft.note.trim()) },
   ]
@@ -380,11 +438,11 @@ export function LogRowPanel({
         </p>
       )
     }
-    if (noStock) {
+    if (noneWhy === "noStock") {
       return (
         <span className="flex min-w-0 flex-1 items-center gap-2.5">
           <button type="button" onClick={close} className="min-w-0 flex-1 py-1.5 text-left text-[13px] text-text-muted">
-            No stock yet
+            {NONE_WORDS.noStock}
           </button>
           {onAddStock ? (
             <button
@@ -399,10 +457,10 @@ export function LogRowPanel({
         </span>
       )
     }
-    if (onlyUnmixed || pastNone) {
+    if (noneWhy) {
       return (
         <button type="button" onClick={close} className="min-w-0 flex-1 py-1.5 text-left text-[13px] text-text-muted">
-          {pastNone ? "No container was in use that day" : "No mixed vial yet"}
+          {NONE_WORDS[noneWhy]}
         </button>
       )
     }
@@ -413,7 +471,7 @@ export function LogRowPanel({
             name={compound.name}
             inventoryType={inUse?.inventoryType ?? inventoryType}
             category={compound.category}
-            fill={inUse?.acquiredOn == null ? 1 : fillOf(inUse)}
+            fill={inUse ? (inUse.acquiredOn == null ? 1 : fillOf(inUse)) : fillOf(undefined)}
             size={30}
           />
         </span>
@@ -483,8 +541,9 @@ export function LogRowPanel({
           <button
             type="button"
             aria-label="Less"
-            onClick={() => setAmount(draft.amount - step)}
-            className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] items-center justify-center rounded-lg text-base text-foreground")}
+            onClick={() => stepBy(-1)}
+            // Drawn at 30, pressed at 44 (D8).
+            className={cn(PRESS.icon, HIT_30, "inst-ghost flex h-[30px] w-[30px] items-center justify-center rounded-lg text-base text-foreground")}
           >
             −
           </button>
@@ -501,8 +560,8 @@ export function LogRowPanel({
           <button
             type="button"
             aria-label="More"
-            onClick={() => setAmount(draft.amount + step)}
-            className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] items-center justify-center rounded-lg text-base text-foreground")}
+            onClick={() => stepBy(1)}
+            className={cn(PRESS.icon, HIT_30, "inst-ghost flex h-[30px] w-[30px] items-center justify-center rounded-lg text-base text-foreground")}
           >
             +
           </button>
@@ -515,7 +574,7 @@ export function LogRowPanel({
             label: `${compound.name} dose`,
             unit: draft.unit,
             value: amountText,
-            decimal: !counted,
+            decimal: true,
             onChange: (v) => {
               setPadText(v)
               const n = Number.parseFloat(v)

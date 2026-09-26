@@ -62,6 +62,13 @@ export interface RowDraft {
    * or `undefined` to leave it to the server's rule (the oldest open one).
    */
   inventoryItemId: string | null | undefined
+  /**
+   * A SKIPPED dose opened to edit its note or time stays skipped on Save
+   * (cold review B4): without it the log went back with no status, which
+   * means taken, so it came off stock and counted toward consistency.
+   * Absent on everything else (absent is taken).
+   */
+  status?: "skipped"
 }
 
 /** The planned amount and unit for one slot on one day. */
@@ -90,6 +97,7 @@ export function initialDraft(
     siteId: existing?.siteId ?? null,
     note: existing?.note ?? "",
     inventoryItemId: existing ? existing.inventoryItemId : undefined,
+    ...(existing?.status === "skipped" ? { status: "skipped" as const } : {}),
   }
 }
 
@@ -111,8 +119,25 @@ export function draftTime(
   slot: number,
   now: Date,
 ): string {
+  return shownTime(c, draft, dateKey, todayKey, slot, clockHHMM(now))
+}
+
+/**
+ * The Time row: exactly what Track will write, with today's clock as the
+ * panel last read it ("HH:MM"). On a back-dated day that is THIS slot's
+ * scheduled time (cold review B19: the evening dose showed the morning's
+ * 8:00 AM while Track wrote 20:00).
+ */
+export function shownTime(
+  c: StackCompound,
+  draft: RowDraft,
+  dateKey: string,
+  todayKey: string,
+  slot: number,
+  clock: string,
+): string {
   if (draft.time24 && hasTime(draft.time24)) return draft.time24
-  if (dateKey === todayKey) return clockHHMM(now)
+  if (dateKey === todayKey) return clock
   const planned = doseTimesOf(resolveScheduleOn(c, dateKey).schedule)[slot]
   return hasTime(planned) ? planned : ""
 }
@@ -145,7 +170,31 @@ export function draftToLog(
     ...(note ? { note } : {}),
     time24: draftTime(c, draft, dateKey, todayKey, slot, now),
     ...(draft.inventoryItemId !== undefined ? { inventoryItemId: draft.inventoryItemId } : {}),
+    // A skipped dose saved from its open row is still skipped (B4).
+    ...(draft.status === "skipped" ? { status: "skipped" as const } : {}),
   }
+}
+
+/**
+ * THE DAY A TRACK WRITES TO (cold review B23). The host re-reads "today" once a
+ * minute, so for up to a minute after local midnight its rows still say Today
+ * for the day that just ended. A fresh dose tracked on the clock then belongs
+ * to the NEW day: writing it to the old one at 00:00 put it a day early (and
+ * started a spare with yesterday's date).
+ *
+ * Only a fresh dose on the clock moves. An edit keeps its own day, and a time
+ * set by hand on "Today" means that day, as the row said.
+ */
+export function trackDay(
+  rowDay: string,
+  hostToday: string,
+  realToday: string,
+  draft: RowDraft,
+  editing: boolean,
+): { day: string; todayKey: string } {
+  const stale = rowDay === hostToday && realToday > hostToday
+  if (!stale || editing || (draft.time24 && hasTime(draft.time24))) return { day: rowDay, todayKey: hostToday }
+  return { day: realToday, todayKey: realToday }
 }
 
 /** Nice steps, smallest first. */
@@ -153,6 +202,28 @@ const STEPS = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 25
 
 /** Units counted in whole things: a stepper never offers 1.05 tablets. */
 const COUNT_UNITS = new Set(["tab", "capsule", "drop"])
+
+/** A dose counted in whole things (tablets, capsules, drops): the stepper and
+ *  the pad move it in whole steps (build-brief-final §3.2). */
+export function isCountedUnit(unit: string | null | undefined): boolean {
+  return Boolean(unit && COUNT_UNITS.has(unit))
+}
+
+/**
+ * The stepper's next amount. A counted dose steps by one and lands on WHOLE
+ * numbers (Adrian, 26 Sep); the pad still types any amount, a half tablet
+ * included. A plan of half a tablet steps 0.5 → 1 → 2
+ * and back 1 → 0, never 0.5 → 1.5. Anything else moves by `step`, to three
+ * places. Never below zero (zero empties the dose and the Track bar drops).
+ */
+export function stepAmount(amount: number, dir: 1 | -1, unit: string, step: number): number {
+  const from = Number.isFinite(amount) ? amount : 0
+  if (isCountedUnit(unit)) {
+    const next = dir > 0 ? Math.floor(from + 1e-9) + 1 : Math.ceil(from - 1e-9) - 1
+    return Math.max(0, next)
+  }
+  return Math.max(0, Number((from + dir * step).toFixed(3)))
+}
 
 /**
  * The stepper's step for a dose: about a quarter of it (0.5 for 2 mg), or a
@@ -162,7 +233,7 @@ const COUNT_UNITS = new Set(["tab", "capsule", "drop"])
  * "1 → 1.05 pills").
  */
 export function stepFor(dose: number, unit?: string): number {
-  if (unit && COUNT_UNITS.has(unit)) return 1
+  if (isCountedUnit(unit)) return 1
   if (!(dose > 0)) return 1
   const target = dose >= 50 ? dose / 25 : dose / 4
   let step = STEPS[0]

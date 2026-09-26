@@ -9,7 +9,7 @@ import { FirstRunBubble } from "@/components/home/FirstRunBubble"
 import { closeRowIn, rowKey, type LogFlow } from "@/components/home/log/LogFlow"
 import { Fold } from "@/components/protocol/pages/Subpage"
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW, DATA_MONO, PRESS, ROW_META, ROW_NAME } from "@/lib/ui-presets"
+import { CARD_EYEBROW, DATA_MONO, HIT_24, HIT_30, PRESS, ROW_META, ROW_NAME } from "@/lib/ui-presets"
 import {
   CATEGORY_DISPLAY_ORDER,
   CATEGORY_META,
@@ -64,8 +64,13 @@ export function FoldArrow({ open, onToggle, label }: { open: boolean; onToggle: 
         aria-expanded={false}
         aria-label={label}
         tabIndex={open ? -1 : 0}
+        // Out of the accessibility tree while its twin, the close arrow, stands
+        // in its place: a screen reader heard both (cold review S4).
+        aria-hidden={open || undefined}
         className={cn(
           PRESS.icon,
+          // Drawn at 30, pressed at 44 (D8); `absolute` after it wins.
+          HIT_30,
           "absolute inset-0 flex items-center justify-center rounded-[9px] text-text-muted transition-opacity duration-200",
           open && "pointer-events-none opacity-0",
         )}
@@ -94,11 +99,12 @@ export function RowsFold({ open, children }: { open: boolean; children: ReactNod
   )
 }
 
-/** A divider's right-hand word: "N due" in amber (the due beat), else a
- *  settled word in muted ("Logged", "Paused"). */
+/** A divider's right-hand word: "N due", else a settled word ("Logged",
+ *  "Paused"). Both muted: amber is the Log card's edge alone (Adrian's ruling
+ *  3, 26 Sep 2026). */
 export function DueAside({ pending, settled = "Logged" }: { pending: number; settled?: string }) {
   return pending > 0 ? (
-    <span className="font-mono text-[11px] tabular-nums text-accent-amber">{pending} due</span>
+    <span className="font-mono text-[11px] tabular-nums text-text-muted">{pending} due</span>
   ) : (
     <span className="text-[11px] text-text-muted">{settled}</span>
   )
@@ -213,7 +219,9 @@ export function FlowSlotRow({
           data-logged={log ? "" : undefined}
           className={cn(
             PRESS.tick,
-            "log-tick inst-tick relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border",
+            // Drawn at 24, pressed at 44; it stops 2px short of the name (D4).
+            HIT_24,
+            "log-tick inst-tick flex h-6 w-6 shrink-0 items-center justify-center rounded-full border",
             pop && "tick-lift",
             skipped ? "border-border-strong text-text-muted" : log ? "log-tick-on" : "log-tick-due",
           )}
@@ -248,7 +256,10 @@ export function FlowSlotRow({
       </div>
       {flow.firstRunKey === key && !open ? <FirstRunBubble /> : null}
       <div className="log-body" aria-hidden={!open}>
-        <div>{drawn ? flow.renderPanel(dose, slot) : null}</div>
+        {/* The clip (`.log-body > div`) reaches the row's own edge, 8px past
+            the panel on each side, so the stepper's ring and its 44-point reach
+            are not cut flat at 375 (D9). The panel itself does not move. */}
+        <div className="-mx-2 px-2">{drawn ? flow.renderPanel(dose, slot) : null}</div>
       </div>
     </li>
   )
