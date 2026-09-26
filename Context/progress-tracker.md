@@ -1,5 +1,64 @@
 # Progress Tracker
 
+## 🔨 26 Sep 2026, afternoon: the walkthrough build
+
+Branch `design/half-life-motion`, in the worktree. The pushed tip is still `6eb5062`. Nothing merged, no migration
+applied. Item by item state: next-tasks, "Adrian's rulings" and "Adrian's walk of the preview".
+
+**Committed earlier today (the four cold-review groups; local only):**
+- Stock reads and 026 (`43f8501`): every `inventory_items` / `protocol_compounds` embed names
+  `inventory_items_protocol_compound_id_fkey`; 026 runs in BEGIN/COMMIT with a 5s lock timeout; the low-stock
+  push judges per compound.
+- Cycle data (`f0c57e7`): the compound row and its schedule trail go up in one call; an unconfirmed push is replayed
+  over the pull for 30 minutes; a compound's cycle is its newest version's, and hydration heals rows that disagree; a
+  cycle ended the day it started reaches Ended.
+- Half-life (`387c67a`): two or three doses a day are judged slot by slot; Next dose and Past runs count calendar
+  days on the local clock; the doses to come reach the dose after next; the guide's layout is a tested pure function.
+- Shared pieces (`914eeba`): pop-ups animate and take focus on the first open and trap Tab; a toast raised over a
+  sheet lives inside it; sheets fade under reduced motion; "Tap the circle twice to log it."; `--text-on-input`; the
+  `HIT_*` presets give small controls a 44-point reach.
+
+**Landed this afternoon (built, not committed): his rulings and his walk.** Fourteen builder groups, then a sweep.
+- Shared: `components/feel/DateField.tsx`, the one date field, on the app's calendar; every grey gradient 25% softer.
+- Home: the journal opens upwards and saves in place; the markers rebuilt to r6; no greeting on a small iPhone;
+  "N due" grey; the dose-row bugs (B4 to B33).
+- Protocol: cards by type, bigger, "Runs dry", spares stacked behind; the three tiles stacked full width; the
+  compound sheet draws every container; Mix names only the missing amount.
+- Stacks and Cycles: "+ New stack" / "+ New cycle" as white buttons; "Morning (2)"; No colour; adding a compound
+  from inside a stack; the cycle sheet's Save never dead; End flies to Ended; the paused slide; the Timeline by type,
+  with press and hold to scrub.
+- Half-life: the "?" in the graph's corner; "Reading the curve" as an example and a key; fill and band told apart;
+  About rows; a blend's All; "Absorbing". The leader layout (`layoutGuide`, `graphAnchors`) is no longer used by any
+  screen; it is kept with its tests.
+- Explainers: new words, redrawn pictures, a new cycles mark, a small inset "?".
+- The +: hold and slide; Add stock asks "Which compound?"; Weight opens the pad; Journal opens the full writer.
+- Progress: photos fill the row; the Add pose card; the bloods box and its date; the Lose / Gain lock.
+- Calculator: the syringe at full size, the plunger fading out of frame.
+- Sweep (SW-1 to SW-16): before 026 the first Add stock already offers the right form (one probe per visit); the
+  Dropper is hidden until the database holds it; no Save sits disabled without saying why; stock re-reads after an
+  add from the +; Weight logs on the device's today.
+
+**Partial:**
+- W32: onboarding's date of birth is still the native field (iOS wheel and SE fit; needs a real SE).
+- W17: unmixed spares save only once 026 is applied; until then a powder vial is added mixed.
+- W23: No colour is kept on this phone only (`stacks.colour` must hold a palette name under 007).
+- W7: the "Pump Strength" chip reads "Pumps" until the catalogue row is renamed.
+- W53 and W55, added after the build began, are not built.
+
+**Failed to run:**
+- No builder group failed.
+- Three proof tests from the first cold review (`/private/tmp/coldbugs`, outside the repo) no longer run as written:
+  `halflife/edges.test.ts` imports `laneFit` (gone since `387c67a`), `react/homejournal-markers.test.ts` clicks a
+  "Sleep" chip that no longer exists, `home/logRowPanel.test.ts` lacks the new `slot` and `editing` props. Adapted
+  copies of the last two pass; the first one's check lives on in `lib/halflife/guideLayout.test.ts`.
+
+**Left for Adrian:**
+- The round-two cold reviews (`Context/reviews/PROMPTS-round2.md`), then paste the findings back.
+- Pick the explainer wording; skim the About copy (`lib/halflife/about.ts`); yes or no to renaming "Pumps".
+- Migrations 025 and 026 are still NOT applied. 026's step 0: merge and deploy this branch first. The merge must also
+  hint `lib/notifications/checkupFacts.ts` (`readStock`) on main by hand.
+- The branch is pushed only when he asks, and never merged to main until he says.
+
 ## 🔨 FINAL BUILD (overnight, 2026-09-26): IN PROGRESS, phase by phase (build-brief-final §7)
 
 Built on `design/half-life-motion` in the worktree; nothing pushed, no migration applied.

@@ -4,16 +4,22 @@
 
 The build brief is `Context/build-brief-final.md` (values, copy and motion in full). Where a line further down
 this file says otherwise, this section wins. When the build lands, fold each item into its section below and
-delete it from here. Line numbers (Lnnn) are to this file as it was before this section; add 62 to find them now.
+delete it from here. Line numbers (Lnnn) are to this file as it was before this section; add 137 to find them now.
 
 - **The look** (replaces Theme, Colors and Typography values below): Instrument surfaces, IBM Plex Sans and
   IBM Plex Mono (overrides L260-261 and every "Geist" mention: L280, L340, L346, L861), the Deeper black palette:
   base `#050504`, surface `#191918`, raised `#222120`, input `#282725`, inset `#131211` / `#100F0E`,
   done `#141312`, borders `#2B2A28` / `#3D3B39`, text `#F5F3F0` / muted `#8D8B89` / subtle `#4F4D4A`,
   amber AND anabolic `#D0802B` (overrides L33). Onboarding included. Landing stays, except its app previews.
+  Every grey gradient is a quarter softer than the brief's (the white button falls 4.5%, thumb and knob 7.5%, rail
+  and insets start at 75% deep inset; the canvas lift 3.75%) (26 Sep, Adrian's walkthrough). Text on an input
+  ground is `--text-on-input` `#9A9895` (5.19:1 on `--bg-input`), set by scope on `bg-bg-input` and `.pad-input`;
+  the public site pins its own muted (26 Sep, cold review).
 - **Shapes** (overrides the radius table, L381-388): rounded rectangles everywhere; cards 20, rows 12,
   buttons 10, ghost 9, chip rail 11 (thumb 8), tiles 12, insets 12, panel arrow 9, top-right "+" 10. Round
-  only: the camera shutter, avatars, the log tick, the main "+", and the half-life graph's "?".
+  only: the camera shutter, avatars, the log tick, the main "+", and the half-life graph's "?". A page's
+  top-right action is the white labelled button (radius 10); the explainer "?" is a 20px square (radius 6); calendar
+  days (radius 8) and colour swatches are rounded rectangles (26 Sep, Adrian's walkthrough).
 - **Amber ramp for sites** (refines "Injection-site recency ramp", L191): solid steps pre-mixed in OKLCH at a
   fixed hue, never amber at an opacity (it drifts olive). Formula in the brief, §2.5.
 - **Due circles are WHITE** (overrides the amber due ring, L95 and L1060).
@@ -27,47 +33,87 @@ delete it from here. Line numbers (Lnnn) are to this file as it was before this 
   value, only if the card is on screen. No auto-scroll after Track.
 - **Half-life glance** (overrides L1165-1170): a closed card shows a small down chevron; tapping any card
   centres AND opens it; it grows to full width and the graph grows out of it, lined up; no countdown row;
-  the graph's ½ line marks where "Of last dose left" crosses 50%; Now is a thin line; the key opens from a
-  circled "?" in the graph's own top strip, as a pop-up.
+  the graph's ½ line marks where "Of last dose left" crosses 50%; Now is a thin line. The circled "?" sits in
+  the graph's top-right corner on a translucent disc (no strip) and opens "Reading the curve", the same pop-up as
+  the compound page; the open graph shows the range band, the closed card's sparkline does not; a figure that
+  would read 0.00 right after a dose reads "Absorbing" (26 Sep, Adrian's walkthrough).
 - **Markers**: tick several, "Add N" adds them all, then rate; "Add more markers", "Use my last". Focus rings
-  sit inside fields.
-- **First run**: a bubble points at the first dose's circle ("Tap the circle to log it.", with a looping tap
-  preview); logging it opens a pop-up: amber ring, white check, "First Dose Logged", "Now that you’ve got the
-  basics down, have a look around.", Done.
-- **Protocol owns stock** (overrides the Stock page, the "No stock" card and the three B2 foot tiles): a type
-  rail over the compounds row; each compound shows its container, "+N vials" and Runs dry; its sheet holds Add
-  stock and Mix one (Correct and Discard behind ⋯), no vial previews. The Stock page and tile go; three tiles
-  remain: Stacks, Cycles, Half-life (Solid marks, in colour). The compound sheet: container + name, then ONE
-  long card with the half-life mark, the half-life, the dose and the route, hairline separators.
+  sit inside fields. Built to `Context/markers-spec.md` (r6 `markers8/7/6`, `extra8.css`): "Use my last", search,
+  YOURS (with Edit) and SUGGESTED, and no "All" list (search finds the rest); a ticked chip turns white and pops;
+  "Add N" stays pinned above the tab bar, the + and the keyboard (`AddBar`); five white-ramp step bars, the chosen
+  one tapped again clears; the × is a 24px raised square, removed with Undo. The suggestions are fixed in code
+  (`SUGGESTED_MARKERS`): Energy, Libido, Sleep Quality, Mood, Pump Strength (it matches "Pumps" until that row is
+  renamed), Recovery, Motivation (26 Sep, Adrian's walkthrough).
+- **First run**: a bubble points at the first dose's circle ("Tap the circle twice to log it.", with a looping
+  two-tap preview; 26 Sep, cold review); logging it opens a pop-up: amber ring, white check, "First Dose
+  Logged", "Now that you’ve got the basics down, have a look around.", Done.
+- **Protocol owns stock** (overrides the Stock page, the "No stock" card and the three B2 foot tiles): a type rail
+  over the compounds row; each compound shows its container, "+N vials" and Runs dry; its sheet holds Add stock and
+  Mix one (Correct and Discard behind ⋯), no vial previews. The Stock page and tile go; three tiles remain: Stacks,
+  Cycles, Half-life (Solid marks, in colour). The compound sheet: container + name, then ONE long card with the
+  half-life mark, the half-life, the dose and the route, hairline separators. Now (26 Sep, Adrian's walkthrough):
+  the compounds sit under their type titles in the one row (the Half-life eyebrows, in `CATEGORY_DISPLAY_ORDER`, the
+  chips in the same order); cards 124px, containers 62px; nothing held draws the real container with "Add stock" (no
+  dotted vial); the extras are drawn stacked behind the one in use (up to three) with a "+N" badge, in place of "+N
+  vials"; "Runs dry" is a label over its value (or "Paused", "Empty", "Not mixed", "Not opened"); switching type
+  slides the cards in, staggered. The sheet's Stock draws the current container with its count, then the rest in
+  groups (mixed, unmixed dry, sealed, open), so "no vial previews" above no longer holds; "Next dose" is one day.
+  The three tiles are stacked full-width buttons (side by side on a laptop), each with a small inset "?" at its
+  right.
 - **Schedule**: Protocol's card is this week as a square grid, today lit; it opens the Schedule page (back
-  through weeks), restyled to match.
+  through weeks), restyled to match. Missed is the grey square with a corner-to-corner slash in `--text-muted`;
+  Nothing due stays the bare hairline; no state colours (`WEEK_MARK`). The Schedule page has a "This week" button
+  under the week, shown only off this week. Names wrap in full (26 Sep, Adrian's walkthrough).
 - **Explainers**: a "?" beside the Stacks, Cycles and Half-life titles opens "What is a stack / cycle /
-  half-life?" with a picture and two or three lines. New stack / New cycle are a "+" at top right.
-- **Cycles** (overrides L1136, "an ENDED cycle just ends and is hidden"): the hint goes after the first tap;
-  headers show mark, type and count only; Paused sits LAST, folded, and a paused row slides down into it and
-  the header flashes; End keeps the compound running and moves the cycle to Ended; Ended offers Restart and
-  Delete ("Delete this cycle for good?" / "You can’t restart it. Your dose logs stay."). The card is "Timeline"
-  (cycles only), not "Live timeline".
-- **Half-life pages**: the list has no intro lines (the "?" holds them); a compound's card leads with In you now
-  and Next dose; the shading replaces the fill and widens away from Now; the "?" guide uses straight leaders
-  and never overlaps; no About row.
-- **Add stock** asks only what that container needs; empty fields show only their unit. **Mix** as the brief.
-- **Progress**: photos show up to three, else two and "+N"; the viewer puts date and weight at the top, dots at
-  the bottom, a 93% black backdrop, pinch that springs back, tap outside to close; Running is a folded row that
-  opens sideways; a new account shows a quiet "Your first photos" card, no button.
+  half-life?" with a picture and two or three lines. A page's own action is a white labelled button at top
+  right, "+ New stack" / "+ New cycle" (`PAGE_ACTION`), which slides toward the sheet it opens; the quick-actions +
+  stays on every page (ruling 1). The "?" is a 20px rounded square set into the surface, muted, with a 44-point
+  reach (`EXPLAINER_KEY`); the pictures are redrawn in the Solid look and play once; three short paragraphs each
+  (`lib/explainers.ts`); Cycles has a new mark, `tileCycles` (26 Sep, Adrian's walkthrough).
+- **Cycles** (overrides L1136, "an ENDED cycle just ends and is hidden"): the hint goes after the first tap; headers
+  show mark, type and count only; Paused sits LAST, folded, and a paused row slides down into it and the header
+  flashes; End keeps the compound running and moves the cycle to Ended; Ended offers Restart and Delete ("Delete
+  this cycle for good?" / "You can’t restart it. Your dose logs stay."). The card is "Timeline" (cycles only), not
+  "Live timeline". Now (26 Sep, Adrian's walkthrough): rows and their strips in the compound's own look, the
+  Timeline keeping each cycle's colour; the paused slide plays the first time the page shows a pause, remembered per
+  device by pause id; End flies the row to the Ended link, which pops and rolls its count; the cycle sheet never
+  disables Save; Pattern is a rail, "On / off | Continuous", with a line saying what each means, and the end date is
+  "Last day". The Timeline is split by type (titles, no counts, Paused last); its Today line slides in; press and
+  hold on a lane scrubs, with an "In 5 days" pill; "Next off" reads "Off from".
+- **Half-life pages**: the list has no intro lines (the "?" holds them); a compound's card leads with In you now and
+  Next dose; the range band widens away from Now. Now (26 Sep, Adrian's walkthrough): a softer tapered fill sits
+  under the line so far, and the band is flatter with hairline edges, so the two read apart; the "?" opens "Reading
+  the curve", a drawn example graph with a plain key (no leaders); a folded "About <name>" row
+  (`lib/halflife/about.ts`); a blend's rail reads All, then each part in full; "Absorbing" in place of 0.00.
+- **Add stock** asks only what that container needs; empty fields show only their unit. **Mix** as the brief,
+  except: the vial starts dry with its powder, and the line names only the missing amount ("Enter the water amount
+  to see the units to draw"), never "add water" (ruling 4). Before 026 a powder vial is added one at a time, mixed
+  (the app asks the database once per visit), and the Dropper shows only once the database holds it (26 Sep,
+  Adrian's walkthrough).
+- **Progress**: one to three photos fill the row (one column each, 3:4); past three, the first three whole and an "N
+  more" card that opens the viewer at the fourth; tiles and viewer use the pose's short name; Add pose is a long
+  card under the pose tiles that folds open, the pose search inside it; an empty Bloods card is a small boxed
+  report; an empty Block card is "None yet" and a plus (26 Sep, Adrian's walkthrough). The viewer puts date and
+  weight at the top, dots at the bottom, a 93% black backdrop, pinch that springs back, tap outside to close;
+  Running is a folded row that opens sideways; a new account shows a quiet "Your first photos" card, no button.
 - **The +** is a circle that fans out four items: Weight, Journal, Add compound, Add stock. **Nav**: the app's
-  five tabs with new monochrome Solid icons; Calculator in the middle.
+  five tabs with new monochrome Solid icons; Calculator in the middle. Hold and slide: the item under the finger
+  turns white with a dark mark and wiggles; a tap lights it for 120ms. Add stock asks "Which compound?" (skipped
+  with one compound); Weight opens the pad over the Weight page; Journal opens the full-page writer; the labels sit
+  on a soft dark backing (26 Sep, Adrian's walkthrough).
 - **Syringe and containers**: redrawn in the new look; the plunger travels with the draw; the container rules
-  stay (flat plus depth, clear glass for liquids).
-- **Where the look lives (built 2026-09-26, phase 1):** tokens in `app/globals.css` `:root` (the public site pins its
-  shipped values and Geist in `:root:has(.lp-site)`); the radius scale is `--r-*` (`rounded-2xl` card 20, `rounded-xl`
-  12, `rounded-lg` button 10, `rounded-md` 9, `rounded-sm` 8); the surfaces are `.inst-card` (= `.flow-card`),
-  `.inst-rows`, `.inst-btn`, `.inst-ghost`, `.inst-rail` / `.inst-thumb`, `.inst-knob`, `.inst-tile`, `.inst-inset`
-  (= `.inset-surface` / `.inset-graph`), `.inst-engraved`, `.inst-figure`, reached through the presets in
-  `lib/ui-presets.ts` (CARD, ROWS, PRIMARY_BUTTON, GHOST_BUTTON, CHIP_RAIL, CHIP_THUMB, TILE, INSET, FIGURE). Solid marks:
-  `components/feel/SolidIcon.tsx` over `lib/solidGlyphs.ts` (generated from the final-check page). The site ramp:
-  `lib/sites/recencyRamp.ts` + `--ramp-base` per map tone. Every ThumbGroup is a rail with a white thumb and dark
-  selected text. Readable text never in `--text-subtle` (swept: 173 uses moved to muted).
+  stay (flat plus depth, clear glass for liquids). The barrel is full size in a fixed 320x56 box: the stopper, rod
+  and thumb rest slide with the fill and the rod runs out of the frame through a fade. The app's scale labels
+  5 / 5 / 20 (1 mL reads 0 to 100 in 20s); the public calculator keeps 5 / 5 / 10 (26 Sep, Adrian's walkthrough).
+- **Where the look lives (built 2026-09-26, phase 1):** tokens in `app/globals.css` `:root` (the public site pins
+  its shipped values and Geist in `:root:has(.lp-site)`); the radius scale is `--r-*` (`rounded-2xl` card 20,
+  `rounded-xl` 12, `rounded-lg` button 10, `rounded-md` 9, `rounded-sm` 8); the surfaces are `.inst-card` (=
+  `.flow-card`), `.inst-rows`, `.inst-btn`, `.inst-ghost`, `.inst-rail` / `.inst-thumb`, `.inst-knob`, `.inst-tile`,
+  `.inst-inset` (= `.inset-surface` / `.inset-graph`), `.inst-engraved`, `.inst-figure`, reached through the presets
+  in `lib/ui-presets.ts` (CARD, ROWS, PRIMARY_BUTTON, GHOST_BUTTON, CHIP_RAIL, CHIP_THUMB, TILE, INSET, FIGURE).
+  Solid marks: `components/feel/SolidIcon.tsx` over `lib/solidGlyphs.ts` (generated from the final-check page). The
+  site ramp: `lib/sites/recencyRamp.ts` + `--ramp-base` per map tone. Every ThumbGroup is a rail with a white thumb
+  and dark selected text. Readable text never in `--text-subtle` (swept: 173 uses moved to muted).
 - **Shared pieces (built 2026-09-26, phases 4 and 5):** the pop-up `components/feel/PopDialog.tsx` (renders inside a
   host sheet); THE one confirm `components/feel/ConfirmDialog.tsx` (question, at most one line, Cancel + red action;
   fix #5, use it for every delete and end); the toast `lib/toast.ts` + `components/feel/Toast.tsx` (Undo where it can
@@ -75,7 +121,8 @@ delete it from here. Line numbers (Lnnn) are to this file as it was before this 
   over the word, destructive in red) in `components/protocol/pages/Subpage.tsx`; `TypeRail` for types.
 - **The consistency primitives (built 2026-09-26, phase 8; Context/consistency-review.md):**
   - Buttons: `PRIMARY_BUTTON` (white) and `SECONDARY_BUTTON` (= `GHOST_BUTTON`) are 44px tall at least; a
-    white action inside a row is `PRIMARY_PILL`; the top-right or in-row "+" is `ADD_ACTION` (radius 10).
+    white action inside a row is `PRIMARY_PILL`; a page's top-right action is `PAGE_ACTION` (the white labelled
+    button); `ADD_ACTION` (radius 10) stays for a sheet header's or a row's "+" (26 Sep, Adrian's walkthrough).
   - Confirm: `components/feel/ConfirmDialog.tsx` (question, one line, Cancel + red `bg-accent-destructive`). The
     red for a destructive BUTTON is `--accent-destructive`; red TEXT on a surface is
     `--accent-destructive-on-surface`. `--state-error` is for errors, never for a delete.
@@ -89,7 +136,35 @@ delete it from here. Line numbers (Lnnn) are to this file as it was before this 
     sheet; `ROW_NAME`, `ROW_META`, `TILE_LABEL`; `INNER_RADIUS` (12) inside a card. Doses through
     `lib/format/dose.ts` ("1.125 mg"); dates through `lib/format/date.ts` (`dayLong` "Tue 3 Sep", `dayShort`
     "3 Sep", `dayRange` "3 to 9 Sep"; the numeric title stays `formatDateKeyNumeric`).
-  - Toasts: `showToast(text, { undo })` for every save, pause, mix and delete; never a banner or an alert.
+  - Toasts: `showToast(text, { undo })` for every save, pause, mix and delete; never a banner or an alert. While a
+    sheet is open the toast lives inside the top sheet (`SheetLayer`) (26 Sep, cold review). Where what was saved
+    is on screen, Save turns into a tick and "Saved" instead (see below) (26 Sep, Adrian's walkthrough).
+- **Shared pieces added 26 Sep** (Adrian's walkthrough, and the cold review where marked):
+  - Dates: `components/feel/DateField.tsx` is the one date field, never `<input type="date">` (onboarding's date of
+    birth is the one left). It fills its column, shrinks long text to fit, reads "Tue 3 Sep" (the year only when not
+    this year), and opens `DatePickerPanel` in a `PopDialog`. The panel takes `min` / `max` (max defaults to today;
+    `null` opens the future), draws rounded-rectangle days, blank days for the neighbouring months and muted days
+    that cannot be picked, moves by arrow keys, and has an optional month-and-year view.
+  - Over a sheet (26 Sep, cold review): `SheetLayer` (`components/layout/BottomSheet.tsx`) renders a toast or the
+    first-dose card inside the top open sheet. `lib/feel/overlay.ts` holds `SHEET_CONTENT`, `FOCUSABLE`,
+    `topOpenSheet`, `trapTab` and `OVER_SHEET` (`[data-toast], [data-over-sheet]`): a layer rendered into a sheet
+    from another React tree carries one of those attributes, and a sheet built on `SheetContent` directly exempts
+    `isOverSheet` in `onInteractOutside`. Sheets fade under reduced motion.
+  - Reach (26 Sep, cold review): `HIT_20`, `HIT_24`, `HIT_26`, `HIT_30`, `HIT_34`, `HIT_Y_25`, `HIT_Y_30`,
+    `HIT_Y_36`, `HIT_Y_TEXT` (`lib/ui-presets.ts`) give a small control a 44-point reach without redrawing it;
+    `CLOSE_ARROW` is the close arrow's frame.
+  - `components/protocol/pages/Presence.tsx` (folds in as it arrives, out as it leaves); `NewItemCard`'s setup card
+    for an empty page (Stacks, Cycles, Blocks); `JournalPhoto` (a photo fades in once loaded); `JournalSavedMark`.
+  - Home's journal opens upwards: the page follows the growth so the card's bottom holds
+    (`lib/progress/journalGrow.ts`).
+  - Saved in place: where what was saved is on screen, Save turns into a tick and "Saved" (or `JournalSavedMark`
+    beside a section's title), not a toast.
+  - A Save is never disabled without a reason: a refused Save shakes the field, says why under it, and opens its
+    calendar or pad.
+  - Home: on a small iPhone (380 wide or less AND 700 tall or less) the greeting is hidden
+    (`lib/home/smallPhone.ts`); "N due" is muted, amber only on the Log card's edge (ruling 3).
+  - The body map's thin regions get invisible hit halos under every fill (`components/sites/regionHit.ts`); never
+    lit, never a suggestion.
 - Unchanged and still binding: no suggested site, ever (L205); readable text never in subtle; state colours
   never on health data; amber for one or two beats per screen.
 

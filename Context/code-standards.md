@@ -41,8 +41,10 @@
   `<input inputMode="decimal">` or `type="number"`; several fields in one sheet
   share a `usePadSession`. Keep the field's existing sanitiser and pass it as
   `sanitize`, so the pad refuses what the form would strip. If a form needs the
-  value posted, mirror it in a hidden input. Text, date and time fields keep the
-  system controls. See `ui-context.md` → "a number field opens the Trackd pad".
+  value posted, mirror it in a hidden input. Text and time fields keep the
+  system controls; a date field is `components/feel/DateField.tsx`, never
+  `<input type="date">` (W32, 26 Sep 2026; onboarding's date of birth is the one
+  left). See `ui-context.md` → "a number field opens the Trackd pad".
 - **Press feedback is a `PRESS` preset, never `active:scale-*`**; a single-select
   pill row is a `ThumbGroup`; a sheet's section list carries `data-sheet-body`.
   See `ui-context.md` → Motion & Interaction.

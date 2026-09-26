@@ -2,8 +2,9 @@
  * FIRST RUN (build-brief-final §3.1). A new account adds one compound through
  * the real add flow, then Home teaches the one thing to do next:
  *
- * - a bubble points at the first dose's circle ("Tap the circle to log it.")
- *   until the first tap on any circle, and never comes back;
+ * - a bubble points at the first dose's circle ("Tap the circle twice to log
+ *   it.", `FIRST_RUN_HINT` in `components/home/FirstRunBubble.tsx`) until the
+ *   first tap on any circle, and never comes back;
  * - the + stays hidden until the first dose is logged;
  * - logging that first dose opens the "First Dose Logged" pop-up, once.
  *

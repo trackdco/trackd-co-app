@@ -234,6 +234,16 @@ stored.)
   wired yet, so the per-cycle breakdown is deferred). Health data stays categorical/
   neutral throughout (no good/bad colour); amber on Progress is selection/active
   state only.
+  **26 Sep 2026:** Progress, the journal writer and Weight read the DEVICE's today
+  (`useDeviceToday`), not the server's UTC date. A bloodwork card's date is `drawn_on` as a plain
+  date key (`bloodworkDateKey`), falling back to the upload's UTC day. Home's journal reads the
+  journal again on every open, so a note written from the + or on Progress is never saved over;
+  a journal photo upload carries a ticket, and one that lands after the day or the card changed
+  is removed from the bucket. Removing one of your own markers goes through one app-level queue
+  (`components/progress/markers/ownMarkers.ts`): the server hears only after the Undo window. The
+  suggested markers are fixed in code (`SUGGESTED_MARKERS`, `lib/progress/markerPick.ts`); the
+  catalogue's `is_default` is not read. The live catalogue still calls one "Pumps"; renaming it to
+  "Pump Strength" is one UPDATE, Adrian's call, not applied.
 
 - **Cycle-ID stamping — the moat, per-cycle attribution (Spec 15).** Every
   per-cycle user entry is stamped with the user's current cycle at INSERT time so
@@ -303,7 +313,13 @@ stored.)
   `trackd.cycles.endedHidden.v1.<uid>` (ended cycles deleted for good; Ended itself
   is DERIVED from the synced schedule trail, `lib/protocol/endedCycles.ts`, so only
   the delete is per device), and the first-run flags `trakabl.firstRun.*` and
-  `trakabl.cycles.hintSeen.v1.<uid>`.
+  `trakabl.cycles.hintSeen.v1.<uid>`. Added 26 Sep 2026: `trakabl.cycles.pausedSeen.v1.<uid>`
+  (the pause ids the Cycles page has already shown sliding into Paused; pause ids, because they
+  survive a sync and compound ids may not) and, in `sessionStorage`,
+  `trakabl.firstRun.firstDoseOwed.v1.<uid>` (the First Dose pop-up is owed to a Home that mounts
+  later; cleared as it opens). A stack's "No colour" is `Stack.plain`, kept inside
+  `trackd.stacks.v2.<uid>` and NOT mirrored: Postgres `stacks.colour` keeps a palette name under
+  007's CHECK, so another device shows that colour until a migration allows NULL or `none`.
   Every one of them must be **best-effort**: the
   UI holds its own state and storage only remembers it, so a full quota or blocked
   storage costs the user the memory of a choice and never the ability to make one.
@@ -477,6 +493,28 @@ stored.)
     so an archive done offline is no longer resurrected on reconnect. A robust offline
     outbox (covering offline dose un-logging + multi-device conflicts) is post-beta work.
 
+- **A compound and its schedule trail sync together (26 Sep 2026, cold review F2, B14, F3,
+  S1; `lib/home/stack.ts` `pushCompoundAndTrail`, `lib/home/hydrateProtocol.ts`).**
+  - **One call.** `pushProtocolCompound` sends the row WITH its trail, so the server never holds
+    one without the other (server actions run one at a time, so a separate trail push sat queued
+    and a reload dropped it). A delete sends the trail alone through `pushScheduleVersions`.
+  - **The pending-push record**, `trackd.stack.pendingPush.v1.<userId>` (device-local, never
+    mirrored): per compound, a fresh token per push, the signature of what was sent, when it was
+    sent, and its supersede / trail-only flags. Only the reply to that token clears it. For 30
+    minutes (`PENDING_PUSH_TTL_MS`), while the local copy still matches, hydration replays the
+    device's copy over the pull and sends it again (keeping the first send time). This is an
+    EXCEPTION to "Postgres wins per day" (Dose & Schedule Integrity) while a push is pending; past
+    the 30 minutes, or once the local copy changes, Postgres wins again.
+  - **A compound's cycle is its newest version's.** When Postgres disagrees with itself (the row's
+    cycle against its own trail), hydration calls `reconcileCompoundCycle` (a gated server action
+    in `lib/home/protocolSync.ts`), which rewrites only the row's cycle from the server's trail.
+  - **`ScheduleVersion.endedCycle` is device-first.** It keeps the rule End removed, only where a
+    cycle begun and ended the same day would leave no version to list under Ended. Nothing that
+    decides a dose reads it. `protocol_compound_schedules` has no column for it, so it is not
+    synced: the merge carries it onto the pulled row for the same day, and a reinstall or a second
+    device does not see it. Syncing it needs a migration.
+  - Hidden ended cycles (`trackd.cycles.endedHidden.v1.<uid>`) follow a compound's id remap.
+
 - **Protocol owns stock (final design, 2026-09-26).** The Stock page and its tile are gone (`/protocol/stock`
   redirects to Protocol); stock is read on Protocol (`ProtocolScreen`: per compound the container in use, how many
   more are held, and a dry spare) and acted on from the compound's sheet: Add stock, Mix one (`MixVialSheet`,
@@ -527,6 +565,22 @@ stored.)
     half-life and "est." flag come from `compounds.csv`. **`half_life_estimated`** is a
     catalogue column (`compounds.csv`, the bundled catalogue, and the seed, which adds
     the column itself). A custom compound's optional half-life rides the custom record.
+  - **Before and after 026 (26 Sep 2026).** Every embed between `inventory_items` and
+    `protocol_compounds` on the branch names `inventory_items_protocol_compound_id_fkey`, so
+    026's second key cannot empty Stock (PGRST201); on main, `lib/notifications/checkupFacts.ts`
+    must be hinted during the merge. 026 runs in BEGIN/COMMIT with a 5s lock timeout, and its
+    step 0 is: merge and deploy the branch first. The low-stock push sums each compound's open
+    containers and names it once. Until 026 is applied, the app asks once per visit whether the
+    database holds spares (`stockSparesSupported()` in `lib/db/inventory.ts` reads one row of
+    `v_compound_stock`; a missing relation is "no"), holds the answer in memory only
+    (`lib/protocol/stockSchema.ts`, `components/protocol/stock/sparesSupport.ts`), and then offers
+    a powder vial one at a time, mixed, and no Dropper. Nothing needs switching once 026 lands.
+  - **Mix is two writes** (the powder amount if it changed, then `mixStockItem`); if the mix
+    fails, `mixVial` (`lib/protocol/mixDraw.ts`) writes the stored powder back. Correct never gives
+    a spare water: water only comes from Mix, which starts the vial.
+  - **Stock re-reads after an add.** `notifyStockChanged()` (`lib/home/doseLog.ts`) fires the
+    existing `trackd:dose-synced` event after every add, correction and Undo, so Protocol, Home,
+    the desktop rail and the draw sources re-read.
 
 - The **quick-actions menu** (A10) lives on a **floating action button** pinned
   bottom-right above the nav (`components/shortcuts/QuickActionsFab.tsx`, Spec 20),
@@ -704,6 +758,10 @@ exist as single catalogue compounds and are untouched.
   synchronous offline read path, the same shape as the rest of the protocol data.
   `lib/home/stackSync.ts` pushes/pulls; `hydrateProtocol.ts` `hydrateStacks` folds
   the pull in.
+- **Names and "No colour" (26 Sep 2026, W22, W23).** `upsertStack` makes a clashing name unique
+  ("Morning (2)", the lowest free number; case-blind, trimmed, current stacks only; a save that
+  keeps the name renames nothing). "No colour" is the device-only `Stack.plain` flag beside a
+  real palette `colour`, which is what syncs (see Storage Model, device preferences).
 - **A grouping is DATED** (`supabase/protocol/013_stack_dating.sql`). 007 gave a
   stack no time dimension at all, and the dashboard applies the grouping to
   whichever day is on screen — so a stack created this morning was drawn over
@@ -842,6 +900,8 @@ and the *deletion path* didn't honour the split.
     for an environment where the table is missing rather than the normal path.
     Hydration UNIONS the pulled versions over the device's, Postgres winning any day
     it knows about — a pull that returns nothing must never wipe the local trail.
+    (Since 26 Sep 2026, not while this device's own push is pending: see Storage Model, "A
+    compound and its schedule trail sync together".)
 - **Tests:** `lib/home/doseIntegrity.test.ts` (Vitest, `npm test`) pins each
   reproduction. `vitest.config.ts` scopes the suite to `lib/**` — pure by house
   rule, so it needs no DOM, renderer or Supabase.

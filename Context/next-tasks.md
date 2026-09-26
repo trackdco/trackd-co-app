@@ -14,23 +14,23 @@
 
 ### Adrian's rulings on the review questions (26 Sep 2026, after the cold reviews)
 1. The quick-actions + stays on EVERY page, always. A page's own top-right action becomes a white labelled
-   button with the plus and its words ("+ New stack", "+ New cycle"), so the two no longer look the same.
-2. On a small iPhone (SE), drop "Good morning, <name>" from Home to give the dose rows room.
-3. "N due" on Today's Log turns grey; amber stays for the Log card's edge only.
+   button with the plus and its words ("+ New stack", "+ New cycle"), so the two no longer look the same. **Done.**
+2. On a small iPhone (SE), drop "Good morning, <name>" from Home to give the dose rows room. **Done.**
+3. "N due" on Today's Log turns grey; amber stays for the Log card's edge only. **Done.**
 4. Mix: the vial starts with its powder, then the water goes in. The line names only what is missing, as an
    amount to type, never as an instruction to add water. He turned down "Add the water to see the draw" (it reads as
    "go add water"). Now: "Enter both amounts to see the units to draw" / "Enter the water amount ..." / "Enter the
-   powder amount ...".
-5. Right after a dose, the half-life card shows "Absorbing" instead of 0.00.
-6. "Trakabl is going paid!" keeps its exclamation mark (a one-time notice to the pre-launch accounts).
+   powder amount ...". **Done.**
+5. Right after a dose, the half-life card shows "Absorbing" instead of 0.00. **Done.**
+6. "Trakabl is going paid!" keeps its exclamation mark (a one-time notice to the pre-launch accounts). **Done** (nothing to change; a test pins it).
 7. The paused slide: his call delegated. Decision: ONE pause, the compound's (a cycle has no pause of its own;
    when the Cycles page gets a Pause, it pauses the compound). The slide plays the first time Cycles shows a cycle
-   paused since the page last saw it, so a pause made on Home is shown moving into Paused on the next visit.
-8. The branch was pushed on his request (3e26a9d..6eb5062) so the preview shows the new design; never main.
+   paused since the page last saw it, so a pause made on Home is shown moving into Paused on the next visit. **Done** (remembered per device by the pause's id).
+8. The branch was pushed on his request (3e26a9d..6eb5062) so the preview shows the new design; never main. **Done.** Nothing after `6eb5062` is pushed yet.
 9. No merge yet: the branch waits until the "other functions" (pausing a cycle and the rest) are built. Adrian says
-   when it goes to main.
+   when it goes to main. **Done** (not merged).
 10. No broken functions, and no button for anything not built yet (a Pause on Cycles, a cycle ending when a vial runs
-   out, and so on). Hide the control itself until it works. A sweep of every visible control runs before the next push.
+   out, and so on). Hide the control itself until it works. A sweep of every visible control runs before the next push. **Done:** the sweep ran (SW-1 to SW-16).
 
 ### Adrian's walk of the preview (26 Sep 2026, afternoon): what to change
 He loves the new look ("looks freaking awesome"); the injection sites, dates, logging, progress-photo delete and the
@@ -38,113 +38,187 @@ bounce back all stay as they are. Each item below is his, reworded; W-ids are fo
 it says "(my call)".
 
 **Half-life, a compound's page**
-- W1. The graph stops, then a black line and a black bar hold the "?". Make the "?" sit in the graph's own look.
+- W1. The graph stops, then a black line and a black bar hold the "?". Make the "?" sit in the graph's own look. **Done.**
 - W2. The "?" explains with a drawn graph, like the Half-life page's explainer does (it need not be this graph). A
-  plain key under it, as a normal legend, is fine in place of pointers.
-- W3. Bring the gradient under the curve back, softer, and keep the range band. The two must read as different things.
-- W4. Bring back "About this compound" (a short summary of what it is).
+  plain key under it, as a normal legend, is fine in place of pointers. **Done.**
+- W3. Bring the gradient under the curve back, softer, and keep the range band. The two must read as different things. **Done.**
+- W4. Bring back "About this compound" (a short summary of what it is). **Done** (the words are mine; skim them).
 - W5. Blends (Wolverine): an "All" choice for the whole blend, then each compound; "This run" shows the chosen one, or
-  the whole blend under All.
-- W51. Home's half-life card shows the range band too, as the graphs do.
-- W6. The half-life explainer: rewrite the "when a dose has cleared" sentence; a slightly better "?" icon.
+  the whole blend under All. **Done.**
+- W51. Home's half-life card shows the range band too, as the graphs do. **Done.**
+- W53. Home's half-life card, ONLY when it is expanded: tapping the compound's name or its figures (next to the
+  arrow) opens that compound's half-life page ("if I want to know more I'd do that"). Only the name and the figure at the top by the arrow;
+  NOT the rows below (Level, Half-life and the rest), which keep doing what they do. Collapsed, nothing changes. The arrow keeps working exactly as it does now. With a nice transition into the page (his words: "obviously nice animation"). (Added after the build started: do it by hand.) **Not done:** added after the build started; not built yet.
+- W54. Tablets and capsules: the dose + and - move by one whole tablet; typing on the pad can give any amount (a
+  half included). Done by hand after the build: the stepper already stepped whole ones; the pad now takes decimals. **Done.**
+- W55. Home's week strip stays open for good: remove the arrow that collapses it. (After the build: WeekStrip is being
+  edited by the home-screen builder.) **Not done:** not built in this round; the arrow is still there.
+- W6. The half-life explainer: rewrite the "when a dose has cleared" sentence; a slightly better "?" icon. **Done** (pick a wording below).
 
 **Journal and markers**
 - W52. Home's journal opens UPWARDS: tapped, the card grows up from where it sits so nothing needs a scroll, and
-  everything in it (the tiles, the markers panel) slides up into place.
-- W7. Suggested markers: Energy, Libido, Sleep quality, Mood, Pump strength, Recovery, Motivation.
+  everything in it (the tiles, the markers panel) slides up into place. **Done.**
+- W7. Suggested markers: Energy, Libido, Sleep quality, Mood, Pump strength, Recovery, Motivation. **Partly done:** the chip reads "Pumps" until the catalogue row is renamed (your call).
 - W8. Markers are built wrong: "Add 8" needs a scroll. Rebuild the markers panel to the final-check page's design,
   copied from ~/trakabl-mockups/final-check/r6/ (markers8.js picker and rows, markers7.js Create your own, markers6.js
   drag and wiring, extra8.css), in Plex and the Instrument presets. The white "Add N" rises in and stays pinned at the
-  bottom (he likes the pinned one in the standalone writer). The x beside a row needs fixing too.
-- W9. A photo added to an entry animates in once it has loaded (a quick fade down).
-- W10. Saving an entry must not jump the page to the top: a small tick in the journal section instead.
+  bottom (he likes the pinned one in the standalone writer). The x beside a row needs fixing too. **Done.**
+- W9. A photo added to an entry animates in once it has loaded (a quick fade down). **Done.**
+- W10. Saving an entry must not jump the page to the top: a small tick in the journal section instead. **Done.**
 - W11. Journal from the +: open the journal writer on its own page, not the drop-down on Home. ANSWERED: the
-  full-page writer (Save pinned at the bottom), wherever you are.
-- W12. The standalone writer scrolls sideways (the add button): fix. Its date becomes a calendar.
+  full-page writer (Save pinned at the bottom), wherever you are. **Done.**
+- W12. The standalone writer scrolls sideways (the add button): fix. Its date becomes a calendar. **Done** (the exact button was never found; any overflow is now clipped. Worth a look at 375).
 
 **Protocol, stock and schedule**
-- W13. Keep the vial filled to its level with "Add stock", not the dotted vial.
-- W14. The "5 days, 125 mg, intramuscular" card is too big for what it says; the press light on a compound looks off.
-- W15. He liked "When it runs dry" from the current app. Rework how stock reads, and nudge the schedule.
-- W16. Group Protocol's compounds under their type titles (Peptides, Anabolics, ...).
+- W13. Keep the vial filled to its level with "Add stock", not the dotted vial. **Done.**
+- W14. The "5 days, 125 mg, intramuscular" card is too big for what it says; the press light on a compound looks off. **Done.**
+- W15. He liked "When it runs dry" from the current app. Rework how stock reads, and nudge the schedule. **Done.**
+- W16. Group Protocol's compounds under their type titles (Peptides, Anabolics, ...). **Done.**
 - W17. Add stock: the pad must not open on its own for the water. Dry vials can be added without mixing ("Spare vials
   unavailable yet" is migration 026, not applied; see the note at the end). Show stock visually when you open a compound:
-  the current vial and its level, then unmixed and mixed vials.
+  the current vial and its level, then unmixed and mixed vials. **Partly done:** unmixed spares save only once 026 is applied; until then a powder vial is added mixed.
 - W46. Switching the type on Protocol's compounds row (All, Anabolics, Peptides...): the compounds come in one by one,
-  staggered, sliding in along the row, the Add tile last. Even when only one type shows.
-- W49. Protocol: the compound cards a little bigger, and their icons a little bigger.
+  staggered, sliding in along the row, the Add tile last. Even when only one type shows. **Done.**
+- W49. Protocol: the compound cards a little bigger, and their icons a little bigger. **Done.**
 - W50. Protocol's three tiles (Stacks, Cycles, Half-life) stacked one above the other as full-width buttons instead of
   side by side, each with a very small, inset "?" at its top left (or wherever reads best). He wants to see it built.
-  The Protocol page reads too small to him.
-- W18. The compound card's line (name, "+N vials"): make it better (my call).
+  The Protocol page reads too small to him. **Done.**
+- W18. The compound card's line (name, "+N vials"): make it better (my call). **Done** (my call: the extras stacked behind the card).
 - W19. Schedule: "Missed" gets a diagonal slash so it differs from "Nothing due" (which stays). A "This week" button to
-  jump back.
+  jump back. **Done.**
 - W20. The number pad shows only its own section's fields: a dose shows the doses; Stock on hand shows Volume and
-  Strength. More room above Volume and Strength, under the "Stock on hand" line.
+  Strength. More room above Volume and Strength, under the "Stock on hand" line. **Done.**
 
 **Stacks**
-- W21. The page's + animates and slides when tapped.
-- W22. A second stack with the same name becomes "Morning (2)" on its own.
-- W23. A "no colour" choice: the stack then shows each compound's own look.
+- W21. The page's + animates and slides when tapped. **Done.**
+- W22. A second stack with the same name becomes "Morning (2)" on its own. **Done.**
+- W23. A "no colour" choice: the stack then shows each compound's own look. **Partly done:** No colour is kept on this phone only; syncing it needs a migration.
 - W24. Adding a new compound from inside a stack keeps you in the stack editor, ticks the new compound, slides it in,
-  shows the "added" toast; Cancel also returns to the editor. Today both drop you out.
+  shows the "added" toast; Cancel also returns to the editor. Today both drop you out. **Done.**
 
 **The "?" explainers (stacks, cycles, half-life)**
-- W25. The "?" on the pictures is smaller or moved (bottom-left or wherever reads best) (my call).
-- W26. Their icons look flat: redo them in the new style.
-- W27. More words, explaining better (the stack one says too little). He may pick between versions.
+- W25. The "?" on the pictures is smaller or moved (bottom-left or wherever reads best) (my call). **Done** (my call: smaller and inset, kept beside the title).
+- W26. Their icons look flat: redo them in the new style. **Done.**
+- W27. More words, explaining better (the stack one says too little). He may pick between versions. **Done** (pick a wording below).
 
 **Cycles**
-- W28. "Continuous": keep it if it has a use (my call; it means no end date).
-- W29. Opening a cycle, the Today line fades in and slides right into place.
-- W30. "Day 2 of 5, next off": reword "next off".
+- W28. "Continuous": keep it if it has a use (my call; it means no end date). **Done** (kept, with a line saying what it means).
+- W29. Opening a cycle, the Today line fades in and slides right into place. **Done.**
+- W30. "Day 2 of 5, next off": reword "next off". **Done** ("Off from 29 Sep").
 - W31. Split the timeline by type (with type titles) so he can see what is a peptide and what is an anabolic; keep the
-  colours.
+  colours. **Done.**
 - W32. Date fields run past the screen edge, app-wide (cycles, blocks, bloods). Fix, and use one built-in calendar for
-  every date field.
-- W33. Opening the timeline's fold shows a line while it opens. Hide it until the fold is open.
-- W34. Ending a cycle: show it land in "Ended" (a small impact or count-up on the Ended link).
-- W35. Scrub along the timeline: it reads "in N days/hours" ahead and the past behind.
-- W36. A better cycles icon.
+  every date field. **Partly done:** onboarding's date of birth is still the native field (needs a look on a real SE).
+- W33. Opening the timeline's fold shows a line while it opens. Hide it until the fold is open. **Done.**
+- W34. Ending a cycle: show it land in "Ended" (a small impact or count-up on the Ended link). **Done.**
+- W35. Scrub along the timeline: it reads "in N days/hours" ahead and the past behind. **Done.**
+- W36. A better cycles icon. **Done.**
 - W47. BUG: Cycles will not save a cycle, a Continuous one at least (seen on the preview, 6eb5062). Reproduce and fix
   first. Likely cause (CycleRuleSheet): a Continuous pattern offers only "On a date" as its end, and a new cycle's
   end date starts empty, so Save stays disabled with nothing saying why, while the date field runs off the screen
-  (W32). Save must never be dead without a reason: show the missing date, or open the calendar.
+  (W32). Save must never be dead without a reason: show the missing date, or open the calendar. **Done.**
 - W48. Scrub (W35) by press and hold on a lane: that lane grows a little while you scrub and shrinks back when you
-  let go. A plain tap still opens its detail, as now.
+  let go. A plain tap still opens its detail, as now. **Done.**
 
 **Calculator**
 - W37. The syringe is small and pushed left (room for the plunger). Make it full size again; keep the moving plunger
-  if it fits (my call).
+  if it fits (my call). **Done** (full size; the plunger fades out of the frame).
 - W38. Soften the gradient on the grey surfaces (it reads as AI made). ANSWERED: everywhere, about 25% softer (not
-  50%); he noticed it on the calculator's parts.
+  50%); he noticed it on the calculator's parts. **Done.**
 
 **Progress**
-- W39. One to three photos grow to fill the row (no empty space); more than three open another way (my call).
+- W39. One to three photos grow to fill the row (no empty space); more than three open another way (my call). **Done** (more than three: an "N more" card).
 - W40. "Search poses" shows only after "Add pose"; "Add pose" becomes a long card under the photos that opens with
-  an animation.
+  an animation. **Done.**
 
 **Blocks and bloods**
-- W41. A target weight below your weight means Lose: Gain cannot be picked (and the reverse).
-- W42. The bloods preview is bare lines: make it a small box. The date drawn on bloods needs fixing.
+- W41. A target weight below your weight means Lose: Gain cannot be picked (and the reverse). **Done.**
+- W42. The bloods preview is bare lines: make it a small box. The date drawn on bloods needs fixing. **Done.**
 
 **The + (quick actions)**
-- W43. Add stock asks "Which compound?" first (a pop-up picker), then opens its Add stock.
-- W44. Weight logs the weight and opens the Weight page behind it.
+- W43. Add stock asks "Which compound?" first (a pop-up picker), then opens its Add stock. **Done.**
+- W44. Weight logs the weight and opens the Weight page behind it. **Done.**
 - W45. Press and hold, then slide across: the item under the finger turns white (inverted); release picks it. A tap
-  turns it white with a small animation too.
+  turns it white with a small animation too. **Done.**
 
 **Note on spares (W17).** Dry spare vials save only once 026 is applied, and 026 can go only after the embed hints are
 live on main (else Stock empties for every user). So on the preview, spares stay unavailable until the merge.
 
+### For Adrian to look at (built 26 Sep, afternoon; not committed, not pushed)
+- Home's journal: it opens upwards, and Save turns into "✓ Saved" in place (the card stays open).
+- The markers panel, rebuilt to the r6 design (no "All" list; search finds the rest).
+- Protocol: bigger cards under type titles, spares stacked behind, "Runs dry"; the three tiles stacked full width.
+- One calendar for every date field (cycles, blocks, bloods, journal, pause, weight, Add compound).
+- The white "+ New stack" / "+ New cycle", and how it slides toward its sheet.
+- Cycles: End flies the row into Ended; the paused slide; the Timeline by type; press and hold to scrub.
+- A compound's half-life page: the "?" in the graph's corner, "Reading the curve", fill plus band, About, a blend's All.
+- The three explainers: new pictures and words, and the new cycles mark.
+- The +: hold and slide; Add stock's "Which compound?"; Weight opens the pad over the Weight page.
+- The syringe, back to full size.
+- Progress: photos filling the row, the Add pose card, the bloods box.
+- Softer grey gradients everywhere.
+- Still to build: W53, W55, and onboarding's date of birth on the shared calendar (W32).
+
+### Choices I made (each one line; say if you want it the other way)
+- Dates (W32): the calendar opens as a pop-up, and its days are rounded rectangles as in r6 (the journal's Date tile
+  and the photo and weight sheets changed with it).
+- W38: the Solid marks' grey falls and the lift at the top of every page are softened by the same quarter.
+- A new cycle opens On / off, 7 on, 7 off, no end, so it saves as it stands (W47).
+- Continuous kept (W28): every scheduled day until a set last day; its end is labelled "Last day".
+- Spares on a card (W18): up to three drawn stacked behind the one in use, with a "+N" badge (your round-three pick).
+- The "?" on Protocol's tiles (W50) sits at the right edge, where iOS puts a row's info button.
+- Mix, if it fails halfway, puts the powder back as it was (S6), rather than one combined write.
+- Tablets, capsules and drops step in whole ones (S9); a half shows only where a draw splits a tablet.
+- Home's journal re-reads the day on every open (B5), so a note written elsewhere is never saved over.
+- The "Pump Strength" suggestion also matches the catalogue's "Pumps" (W7).
+- "+ New stack" drops 10px toward the rising sheet, shrinks and fades, its plus turning a quarter (W21).
+- No colour (W23) is a slash swatch at the start of the row; the swatches became rounded squares.
+- The Timeline's type titles show names only, no counts; the list above has the counts (W31).
+- "Next off" became "Off from 29 Sep", beside "Back on 27 Sep" (W30).
+- Schedule: the Protocol card still has no key; "This week" sits under the week; names wrap in full (W19, D10).
+- Small iPhone (ruling 2): the greeting hides only at 380 wide or less AND 700 tall or less.
+- "Reading the curve" (W2) draws a fixed example, so every mark in the key is on the picture.
+- Home's closed half-life card keeps its sparkline without the band (W51).
+- About (W4): I wrote one or two factual sentences for each of 107 compounds; nothing existed to reuse.
+- The explainer "?" (W25): 20px, set into the surface, kept beside the title.
+- The Solid half-life mark gained a faint fill (W6); one line to undo in `lib/solidGlyphs.ts`.
+- Add stock from the + (W43): with only one compound, the question is skipped.
+- The +'s labels (D27) sit on a soft dark backing.
+- More than three photos (W39): the first three show whole, and an "N more" card opens the viewer at the fourth.
+- The syringe (W37): full size, the plunger slides out of the frame through a fade; the app's 1 mL scale reads in 20s
+  (the public calculator keeps 10s).
+
+**Wording to pick (the built one first; one file, `lib/explainers.ts`):**
+- Stacks, built: "A stack is a set of compounds you take at the same time, like your morning doses." / "On Home they
+  share one row. Tick the stack once and every compound in it that is due is logged." / "Each compound keeps its own
+  dose and schedule, and you can open the stack to log one on its own."
+- Stacks, other: "A stack groups compounds you take together, at the same time." / "One tick on Home logs every
+  compound in it that is due, so a morning of five doses is one tap." / "Nothing about the compounds changes: each
+  keeps its own dose and schedule."
+- Cycles, built: "A cycle gives one compound days on and days off, such as 5 on and 2 off, and then repeats." / "On
+  days on, its schedule runs as usual. On days off it isn’t due." / "A cycle can run with no end, until a date, or for
+  a set number of rounds. The Cycles page shows where you are in it."
+- Cycles, other: "A cycle turns one compound on and off in a repeating pattern, like 5 days on and 2 days off." /
+  "Your schedule still decides which days a dose falls on. On off days the compound isn’t due at all." / "Set it to
+  run with no end, until a date, or for a number of rounds."
+- Half-life (W6), built: "From the doses you log and your schedule, Trakabl draws roughly how much is in you now, when
+  it peaks and how long it takes to clear. The curves are estimates, not measurements."
+- Half-life, other: "Using the doses you log and your schedule, Trakabl estimates how much is in you now, when it
+  peaks and how long it takes to clear. It is a guide, not a measurement."
+
 ### Next (Adrian)
-1. Read the good-morning summary and Context/reviews/sample-user.md.
-2. Paste the three prompts in Context/reviews/PROMPTS.md into three new chats (fill in the burner password).
-3. Then one chat: "act on the reviews" (reads Context/reviews/cold-*.md and fixes).
-4. Decisions waiting: the "!" in "Trakabl is going paid!"; the syringe's size (the moving plunger needs a barrel's
-   length of room); what a dose taken on an unscheduled day should do; whether Home's half-life card shows
-   anything before a first dose.
-5. At the merge: the embed hints, then 025, then 026 (brief §5), with his yes.
+1. ~~Read the good-morning summary and Context/reviews/sample-user.md.~~ (done)
+2. ~~Paste the three prompts in Context/reviews/PROMPTS.md into three new chats (fill in the burner password).~~ (done)
+3. ~~Then one chat: "act on the reviews" (reads Context/reviews/cold-*.md and fixes).~~ (done: four commits, 26 Sep)
+4. Decisions waiting: ~~the "!" in "Trakabl is going paid!"~~ (ruling 6); ~~the syringe's size (the moving plunger
+   needs a barrel's length of room)~~ (W37); what a dose taken on an unscheduled day should do; whether Home's
+   half-life card shows anything before a first dose.
+5. At the merge: the embed hints, then 025, then 026 (brief §5), with his yes. The merge must also hint
+   `lib/notifications/checkupFacts.ts` on main by hand. Fetch first: local origin/main is stale.
+6. Paste the two prompts in `Context/reviews/PROMPTS-round2.md` into new chats, one at a time (fill in the burner
+   password), then paste the findings back to the build chat to fix.
+7. Pick the explainer wording and skim the About copy (above); say yes or no to renaming "Pumps" to "Pump Strength".
+8. The branch is pushed only when he asks, so the preview shows it; never merged to main until he says.
 
 ## ✅ NOW: A NEW BUILDER CHAT BUILDS THE FINAL DESIGN (branch `design/half-life-motion`)
 

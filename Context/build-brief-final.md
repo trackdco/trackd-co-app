@@ -72,11 +72,14 @@ Other category colours, state colours and the Sorbet blend lines stay. Dark ink 
 - Eyebrows: weight 500, tracking .2em, muted, `text-shadow 0 -1px 0 rgba(0,0,0,.6), 0 1px 0 rgba(ink,.035)`.
 - Big figures: tabular-nums slashed-zero, tracking -.01em, the same engraved text-shadow.
 - Tick circle: 1px border, `inset 0 1px 1px rgba(0,0,0,.4), 0 1px 0 rgba(ink,.06)`.
+- (changed 26 Sep: every grey gradient above is a quarter softer, so the button's 6% is 4.5%; W38.)
 
 ### 2.4 Shapes
 Rounded rectangles everywhere (switches, buttons, chips, tiles, steppers, the panel close arrow at 9px, the
-top-right "+" buttons at 10px). Still round: the camera shutter, avatars, the log tick, the main "+" button, and
-the half-life graph's "?" (he asked for a circle around it). Corners inside a card are never rounder than the card.
+top-right "+" buttons at 10px). Still round: the camera shutter, avatars, the log tick, the main "+" button, and the
+half-life graph's "?" (he asked for a circle around it). Corners inside a card are never rounder than the card.
+(changed 26 Sep: a page's top-right action is a white labelled button, "+ New stack", ruling 1; the explainer "?" is
+a 20px rounded square, W25.)
 
 ### 2.5 The amber recency ramp (sites)
 Never amber at an opacity over grey (it drifts to olive, which is why it looked "too yellowy"). Pre-mix solid
@@ -90,8 +93,9 @@ Heat and windows are unchanged (IM 7 days, Sub-Q 5; `1-(d+1)/(W+1)`). The freshe
 - Adding the first compound uses the app's REAL add flow (library search, then browse by type; one compound
   at a time; dose, how often, time, stock). Do not rebuild it from the mock.
 - On Home the new row gets a bubble pointing at its tick circle: "Tap the circle to log it." with a tiny looping
-  preview of a tap on the circle. It goes after the first tap and never comes back. (Wording is mine; he picked
-  the bubble.) The + stays hidden until the first log.
+  preview of a tap on the circle. It goes after the first tap and never comes back. (Wording is mine; he picked the
+  bubble.) (changed 26 Sep: "Tap the circle twice to log it.", with a two-tap preview; cold review D1.) The + stays
+  hidden until the first log.
 - Logging the first dose opens a centred pop-up card over a dimmed Home (not full screen):
   a 140px amber ring (`--accent-amber`) that draws closed, a white check that draws inside it, amber sparks;
   title "First Dose Logged"; line "Now that you’ve got the basics down, have a look around."; white button "Done".
@@ -123,7 +127,8 @@ Heat and windows are unchanged (IM 7 days, Sub-Q 5; `1-(d+1)/(W+1)`). The freshe
   → 1 over 360ms `cubic-bezier(.3,1.1,.5,1)`, the check draws in 240ms after 100ms. The Log card's edge fills its
   share per dose (LogEdge, built); the last dose plays E4 (2 → 3.5 → 0.75px over 3000ms after 760ms,
   `cubic-bezier(.45,0,.25,1)`) and the card settles to `--bg-surface-done` over 1800ms. Nothing scrolls.
-- Dose number: tap it to type (Trakabl NumberPad); steppers step whole units for tab, capsule and drop.
+- Dose number: tap it to type (Trakabl NumberPad); steppers step whole units for tab, capsule and drop. (changed 26
+  Sep: the pad types any amount, a half tablet included; W54.)
 
 ### 3.3 Home: the half-life rail
 - Type chip rail (All = four squares) over swipe cards (84% wide). Each closed card shows its name, Circulating,
@@ -133,14 +138,16 @@ Heat and windows are unchanged (IM 7 days, Sub-Q 5; `1-(d+1)/(W+1)`). The freshe
   compound. The up arrow closes it and it shrinks back.
 - Open, the card adds the graph and the rows (Level: Climbing / Holding / Dropping; Half-life, "est." for BPC-157,
   TB-500, GHK-Cu; Next dose "X days"; "Clears in" once stopped). It does NOT repeat the two figures (as the branch
-  already does). No countdown row: Adrian chose "key only".
+  already does). No countdown row: Adrian chose "key only". (changed 26 Sep: the open graph shows the range band
+  too, W51; right after a dose a figure of 0.00 reads "Absorbing", ruling 5.)
 - The graph: past solid, future dashed (your schedule), Now a thin line (no dot), dose ticks along the bottom,
   and a dashed ½ line with a "½" label at the point where "Of last dose left" crosses 50% (the model's
   depot-plus-curve fraction; about 1.14 × the half-life after an injection, NOT last dose + half-life).
-- The graph area gets its own top strip on solid black with a circled "?" at its right. Tapping it opens a
-  pop-up (not a drop-down) titled "Reading the graph" with the key: "½ Last dose half gone", "Now",
-  "Your doses", "Ahead" (dashed), each with its mark, and one short line: "Estimated from your doses and your
-  schedule." (wording mine).
+- The graph area gets its own top strip on solid black with a circled "?" at its right. Tapping it opens a pop-up
+  (not a drop-down) titled "Reading the graph" with the key: "½ Last dose half gone", "Now", "Your doses", "Ahead"
+  (dashed), each with its mark, and one short line: "Estimated from your doses and your schedule." (wording mine).
+  (changed 26 Sep: no strip; the "?" sits in the graph's corner and opens "Reading the curve", the compound page's
+  pop-up, an example graph with a plain key; W1, W2.)
 - After Track: no auto-scroll, vertical or sideways. If that compound's card is on screen its digits roll from
   the old value (never from zero); otherwise the figures update quietly. The graph's scale eases.
 
@@ -152,43 +159,51 @@ Heat and windows are unchanged (IM 7 days, Sub-Q 5; `1-(d+1)/(W+1)`). The freshe
 
 ### 3.5 Journal and markers
 - Journal opens in place on Home; nothing is open until Markers, Photos or Date is tapped. Each panel has a header
-  row with its name and the arrow; switching cross-fades (as 3.2).
-- Markers: tick as many as you like (a ticked chip turns white with a tick; the picker stays open); one button
-  "Add N" adds them all as rows (they arrive 60ms apart, 320ms each); then rate each on its five steps (drag or
-  tap; the step animation stays as it is, "perfect"). Links "Add more markers" and "Use my last". Search
-  "Search N markers". Create your own (name, steps, which end is better) saves under Yours, with Edit (× + Undo).
+  row with its name and the arrow; switching cross-fades (as 3.2). (changed 26 Sep: it opens upwards, the page
+  following it, W52; Save turns into a tick and "Saved" and the card stays open, W10.)
+- Markers: tick as many as you like (a ticked chip turns white with a tick; the picker stays open); one button "Add
+  N" adds them all as rows (they arrive 60ms apart, 320ms each); then rate each on its five steps (drag or tap; the
+  step animation stays as it is, "perfect"). Links "Add more markers" and "Use my last". Search "Search N markers".
+  Create your own (name, steps, which end is better) saves under Yours, with Edit (× + Undo). (changed 26 Sep:
+  rebuilt to `Context/markers-spec.md`; no "All" list, search finds the rest; W8.)
 - A field's focus ring sits INSIDE the field (inset 1.2px muted), so no panel clips it.
-- Markers words, suggestions (the same for everyone) and female-only markers: as settled (reference.md §2).
+- Markers words, suggestions (the same for everyone) and female-only markers: as settled (reference.md §2). (changed
+  26 Sep: the suggestions are Energy, Libido, Sleep Quality, Mood, Pump Strength, Recovery, Motivation; W7.)
 
 ### 3.6 The + and the nav
 - The + is a CIRCLE at bottom right. Press, slide onto an item, lift to open it; or tap it and tap an item. Four
-  items fan out in an arc (132px radius, 30ms stagger, spring `cubic-bezier(.34,1.4,.64,1)`): Weight, Journal,
-  Add compound, Add stock. Items are rounded squares. No Calculator item (it is the middle tab). The + hides
-  under sheets; toasts sit above it.
+  items fan out in an arc (132px radius, 30ms stagger, spring `cubic-bezier(.34,1.4,.64,1)`): Weight, Journal, Add
+  compound, Add stock. Items are rounded squares. No Calculator item (it is the middle tab). The + hides under
+  sheets; toasts sit above it. (changed 26 Sep: the item under the finger turns white; Add stock asks "Which
+  compound?"; Weight opens the pad over the Weight page; Journal opens the full-page writer; W43, W44, W45, W11.)
 - Nav: the app's five tabs, labels as the app has them: Dashboard, Protocol, Calculator (middle), Progress,
   Profile. NEW monochrome Solid icons (filled, 24 grid, light-grey gradient; active white, others muted):
   Dashboard = four rounded squares; Protocol = a vial; Calculator = a syringe; Progress = a rising area line;
   Profile = head and shoulders. Glyph paths: `NAVG9` in `~/trakabl-mockups/final-check/r6/round4.js`.
 
 ### 3.7 Protocol (stock lives here now; the Stock page goes)
-- Top: "Protocol". "Compounds" with a type chip rail above the compounds row (the same rail as Home). Each
-  compound card: its container (fill = the one in use), full name, "+N vials" when it has spares, and Runs dry
-  as the app writes it (`runsDryText`: "Today", "Tomorrow", "In N days" in amber at 7 or fewer, else the date).
-  A compound with nothing on hand shows a dotted container and "Add stock", as the app does today. An "Add" card
-  ends the row.
+- Top: "Protocol". "Compounds" with a type chip rail above the compounds row (the same rail as Home). Each compound
+  card: its container (fill = the one in use), full name, "+N vials" when it has spares, and Runs dry as the app
+  writes it (`runsDryText`: "Today", "Tomorrow", "In N days" in amber at 7 or fewer, else the date). A compound with
+  nothing on hand shows a dotted container and "Add stock", as the app does today. (changed 26 Sep: the real
+  container with "Add stock", W13; cards grouped under type titles, W16; spares drawn stacked behind with a "+N"
+  badge, W18; "Runs dry" as a label over its value, W15.) An "Add" card ends the row.
 - Tapping a compound opens its sheet:
   - Header as before: container and full name. Under it ONE long card holding only: the curve half-life mark
     (in the compound's colour), "14 days" | "250 mg" | "IM" with hairline separators. A compound with no
     half-life (Vitamin D3) or a blend shows no half-life there.
   - Started / Schedule tiles, "Next dose".
   - Stock: the vial in use as one line ("Current vial · 7 doses left"), "+2 vials", and two actions: "Add stock"
-    and, when a spare is dry, "Mix one". Correct and Discard sit behind ⋯. No vial previews, no pager.
+    and, when a spare is dry, "Mix one". Correct and Discard sit behind ⋯. No vial previews, no pager. (changed 26
+    Sep: the sheet draws the current container, then the rest in groups, W17; "Next dose" is one day.)
   - "Edit dose & schedule"; then Skip this dose / Pause (from Home) and "Delete <name>" (red, asks).
 - Schedule card: this week as a grid, tidied: square cells (rounded 3px) in each compound's colour, today's column
-  lit, a hairline between types (no type labels), keeping the app's current done / due / missed states. Tapping
-  it opens the app's Schedule page (ScheduleWeeks: go back weeks), restyled to the same squares.
-- THREE tall tiles at the bottom: Stacks, Cycles, Half-life. Marks: Solid, in their colours (`PMK8` in
-  `r6/proto8.js`). Pages slide in (300ms, 26px, fade).
+  lit, a hairline between types (no type labels), keeping the app's current done / due / missed states. Tapping it
+  opens the app's Schedule page (ScheduleWeeks: go back weeks), restyled to the same squares. (changed 26 Sep:
+  missed gets a diagonal slash, and the Schedule page gains "This week"; W19.)
+- THREE tall tiles at the bottom: Stacks, Cycles, Half-life. (changed 26 Sep: stacked full-width buttons, each with
+  a small inset "?"; W50.) Marks: Solid, in their colours (`PMK8` in `r6/proto8.js`). Pages slide in (300ms, 26px,
+  fade).
 
 ### 3.8 Explainers
 Each page title gets a small "?" beside it: "Stacks ?", "Cycles ?", "Half-life ?". It opens a pop-up with a
@@ -202,45 +217,54 @@ picture and two or three lines (drawings: `tileHelp9` in `r6/round4.js`):
   and how slowly it is released." / "Trakabl uses it to estimate how much is in you now and when a dose has
   cleared. These curves are estimates from your doses and your schedule." (Facts only; no advice.)
 
+(changed 26 Sep: new words, three short paragraphs each, in `lib/explainers.ts`, W6, W27; the "?" is a small inset
+square, W25; the pictures are redrawn and play once, W26.)
+
 ### 3.9 Stacks
-Title "Stacks ?" with a "+" rounded square at top right (New stack). U1 cards; tap to open; Edit and Delete.
-Delete asks ("Delete this stack?" / "<A> and <B> keep running." / "Delete stack" / "Cancel"), then the toast
+Title "Stacks ?" with a "+" rounded square at top right (New stack). (changed 26 Sep: a white "+ New stack" button,
+ruling 1; a clashing name becomes "Morning (2)", W22; a "No colour" choice, W23.) U1 cards; tap to open; Edit and
+Delete. Delete asks ("Delete this stack?" / "<A> and <B> keep running." / "Delete stack" / "Cancel"), then the toast
 "<Name> deleted" with Undo. Undo needs a new `restoreStack` that re-commits the stack verbatim and refuses if a
 member joined another stack meanwhile.
 
 ### 3.10 Cycles
-- Title "Cycles ?" with the "+" (New cycle) at top right.
+- Title "Cycles ?" with the "+" (New cycle) at top right. (changed 26 Sep: a white "+ New cycle" button; ruling 1.)
 - The list card: on a first visit, "Tap a type to see its cycles." It goes after the first tap and stays gone.
   All types start folded. A type header shows only its mark, the type and a count ("Peptides 4 ›"), no names.
   A row: name, pattern ("5 days on, 2 off"), a 28-day strip. Tapping a row shows Edit and End (red, icon and
   word). The in-row Pause / Resume button waits for the event-actions spec (not this build).
-- Paused sits LAST in the same card, folded. When a cycle's compound is paused, its row dims to 45% (260ms),
-  then slides down into the Paused header and fades (560ms); the Paused header then makes an impact: a short
-  highlight flash (600ms) and its pause icon pops once. No count bump. The toast says "Paused".
+- Paused sits LAST in the same card, folded. When a cycle's compound is paused, its row dims to 45% (260ms), then
+  slides down into the Paused header and fades (560ms); the Paused header then makes an impact: a short highlight
+  flash (600ms) and its pause icon pops once. No count bump. The toast says "Paused". (changed 26 Sep: it plays the
+  first time the page shows a pause, remembered per device; ruling 7.)
 - End (e2): "End this cycle?" / "<Name> keeps going, <schedule>, without weeks off. Your logs stay, and you can
-  restart it from Ended." / "End cycle" / "Cancel". The compound keeps running (today's Remove). The cycle moves
-  to Ended. Toast "Cycle ended. <Name> carries on."
+  restart it from Ended." / "End cycle" / "Cancel". The compound keeps running (today's Remove). The cycle moves to
+  Ended. Toast "Cycle ended. <Name> carries on." (changed 26 Sep: the row flies into the Ended link, which pops and
+  rolls its count; W34.)
 - "Ended N ›" at the bottom opens Ended. A row: name, pattern, the date it ended. Tapping it shows Restart and
   Delete. Restart re-applies the cycle (new work; toast "Restarted. <Name> is back on its cycle." with Undo).
   Delete asks: "Delete this cycle for good?" / "You can’t restart it. Your dose logs stay." / "Delete cycle"
   (red) / "Cancel"; then "Cycle deleted" with Undo. Cycles that reach their own end also land in Ended.
   Today the app hides a finished cycle and erases one you end, so Ended needs storage (see §5 and §6).
-- The Timeline card (renamed from "Live timeline"): cycles only, as before — a lane per cycle with its curve
-  under it, ranges 1M / 3M / 1Y / All, smooth bars past 60 days, the Today line. No separate Timeline page.
-  Demo scale to hold: 2, 12 and 50 cycles.
+- The Timeline card (renamed from "Live timeline"): cycles only, as before — a lane per cycle with its curve under
+  it, ranges 1M / 3M / 1Y / All, smooth bars past 60 days, the Today line. No separate Timeline page. Demo scale to
+  hold: 2, 12 and 50 cycles. (changed 26 Sep: split by type, W31; press and hold to scrub, W35, W48; "Off from" for
+  "Next off", W30.)
 
 ### 3.11 Half-life pages
 - List: title "Half-life ?" (the explainer above). Grouped by type, blends as their own group; each row a
   sparkline and "Circulating" or "Cleared". No intro lines (they moved into the "?").
-- A compound's page: title with its curve mark. The card leads with "In you now" (big) and "Next dose" beside
-  it. Then the graph: the likely-range shading REPLACES the fill and looks as it did (the curve ×1.14 above and
-  ×0.86 below at Now, widening to ×1.30 / ×0.76 six days either side), past solid, future dashed, Now a thin
-  line, dose ticks, the ½ line (3.3). Rows: Level, Peaks in (from the drawn curve: the top of the stacked curve
-  between the last dose and the next; after it, "Next peak in"; days, then hours, then "<1h"), Half-life.
-  Centred line: "Usually peaks ~X after a dose and clears ~Y after the last." No About row. Past runs, tappable.
-- The "?" guide on this page ("Reading the curve"): the chart with straight vertical leaders to labels along
-  the top and bottom, never overlapping: Likely range, Now, Ahead / Your doses, Peak (when upcoming),
-  ½ Last dose half gone. Button "Got it". No paragraph.
+- A compound's page: title with its curve mark. The card leads with "In you now" (big) and "Next dose" beside it.
+  Then the graph: the likely-range shading REPLACES the fill and looks as it did (changed 26 Sep: a softer fill is
+  back beside the band, told apart; W3) (the curve ×1.14 above and ×0.86 below at Now, widening to ×1.30 / ×0.76 six
+  days either side), past solid, future dashed, Now a thin line, dose ticks, the ½ line (3.3). Rows: Level, Peaks in
+  (from the drawn curve: the top of the stacked curve between the last dose and the next; after it, "Next peak in";
+  days, then hours, then "<1h"), Half-life. Centred line: "Usually peaks ~X after a dose and clears ~Y after the
+  last." No About row. Past runs, tappable. (changed 26 Sep: a folded About row is back, W4; a blend's rail reads
+  All, then each part in full, W5.)
+- The "?" guide on this page ("Reading the curve"): the chart with straight vertical leaders to labels along the top
+  and bottom, never overlapping: Likely range, Now, Ahead / Your doses, Peak (when upcoming), ½ Last dose half gone.
+  Button "Got it". No paragraph. (changed 26 Sep: a drawn example graph with a plain key, no leaders; W2.)
 
 ### 3.12 Stock actions (from the compound sheet, the dose row and the +)
 - "Add stock" sheet: pick the compound when it isn't known ("Add stock" list); then a count stepper ("Vials" /
@@ -250,19 +274,22 @@ member joined another stack meanwhile.
   Empty fields show only their unit (no placeholder text). "Add" won't save with an empty field (it shakes and
   focuses it). Toast "Added N to <name>."
 - "Mix a vial" sheet (from "Mix one"): "Cancel" at top right; the vial starts dry and fills as you type powder and
-  water (animate a transform, never re-render the field); "Draw N units for X mg"; before both are in:
-  "Add the powder and water to see the draw"; water starts at what you used last time (`mixWaterDefault`); button
-  "Mix"; toast "Mixed. Now in use." with Undo. The Mix vial is drawn with the approved containers.
+  water (animate a transform, never re-render the field); "Draw N units for X mg"; before both are in: "Add the
+  powder and water to see the draw"; (changed 26 Sep: the vial starts with its powder, and the line names only the
+  missing amount, "Enter the water amount to see the units to draw"; ruling 4); water starts at what you used last
+  time (`mixWaterDefault`); button "Mix"; toast "Mixed. Now in use." with Undo. The Mix vial is drawn with the
+  approved containers.
 - Home's dose-row Stock tile stays (logging needs it).
 
 ### 3.13 The calculator's syringe (redesigned in the new look)
-Keep SyringeGraphic's rules (fills from the needle end; the fill is a fraction of the SELECTED capacity; scale
-from `lib/calculator/syringe`). New look: clear glass barrel with engraved graduations (a dark tick with a light
-offset line), labels in Plex Mono below; amber fill with a vertical gradient `#E7A15A → #D0802B`; dark stopper;
-MORE gradient on the grey parts (hub, flange, rod, thumb rest). New: the plunger rod travels WITH the stopper as
-the draw changes (reserve the width so the graphic's box never changes size). Switching 0.3 / 0.5 / 1 mL
-animates: the scale cross-fades (200ms) and the fill eases to its new fraction (550ms `cubic-bezier(.22,1,.36,1)`).
-Reference drawing: `syringe9` in `r6/round4.js`.
+Keep SyringeGraphic's rules (fills from the needle end; the fill is a fraction of the SELECTED capacity; scale from
+`lib/calculator/syringe`). New look: clear glass barrel with engraved graduations (a dark tick with a light offset
+line), labels in Plex Mono below; amber fill with a vertical gradient `#E7A15A → #D0802B`; dark stopper; MORE
+gradient on the grey parts (hub, flange, rod, thumb rest). New: the plunger rod travels WITH the stopper as the draw
+changes (reserve the width so the graphic's box never changes size). (changed 26 Sep: the barrel is full size and
+the rod runs out of the frame through a fade; the app's scale reads 5 / 5 / 20; W37, D21.) Switching 0.3 / 0.5 / 1
+mL animates: the scale cross-fades (200ms) and the fill eases to its new fraction (550ms
+`cubic-bezier(.22,1,.36,1)`). Reference drawing: `syringe9` in `r6/round4.js`.
 
 ### 3.14 Containers
 The approved set B (vial, oil vial, ampoule, dropper, bottle, tub, plus the syringe; artifact
@@ -272,7 +299,8 @@ for solids; the cap says whether it opens; graduations only on measured things; 
 
 ### 3.15 Progress
 - Photos card: the latest day's photos. Up to three show as tiles; with more, the first two and a "+N" tile that
-  opens the viewer there. Labels come from the pose picked when adding: Front, Side, Back or Other.
+  opens the viewer there. (changed 26 Sep: one to three fill the row; past three, the first three and an "N more"
+  card; W39.) Labels come from the pose picked when adding: Front, Side, Back or Other.
 - Viewer: grows from its tile (420ms); swipe between that day's photos; the date and weight at the TOP beside
   the ×; the dots at the BOTTOM; backdrop black at 93% so the app barely shows; tap the photo to hide or show the
   controls; tap the dark around it, swipe down, or × to close. Pinch to zoom (touch; ctrl+wheel in Chromium;
