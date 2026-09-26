@@ -6,6 +6,8 @@
  * (its `source_file_path` + `drawn_on`). Pure types + a date formatter — no React.
  */
 
+import { dayShort } from "@/lib/format/date";
+
 export interface BloodworkPhoto {
   /** lab_panels.id */
   id: string;
@@ -15,6 +17,29 @@ export interface BloodworkPhoto {
   url: string | null;
   /** Optional free-text note the user attached (lab_panels.notes). */
   note: string | null;
+}
+
+/**
+ * The day a report is filed under (W42: "the date drawn on bloods"): the draw
+ * date the user picked, read straight off the `date` column's key, never
+ * through a `Date` (which would move it a day for anyone east or west of the
+ * server). A row with no draw date, which the attach sheet never writes, falls
+ * back to the UTC day it was uploaded, the one day the server can know.
+ */
+export function bloodworkDateKey(drawnOn: string | null | undefined, createdAt: string): string {
+  if (typeof drawnOn === "string" && /^\d{4}-\d{2}-\d{2}/.test(drawnOn)) return drawnOn.slice(0, 10);
+  const uploaded = new Date(createdAt);
+  return Number.isNaN(uploaded.getTime()) ? "" : uploaded.toISOString().slice(0, 10);
+}
+
+/**
+ * The date under a report on the Bloods card, "12 Sep", or "12 Sep 2025" when
+ * it is not this year: the photo card's rule, so an old panel is never read as
+ * a recent one. The card sets it in the uppercase mono line every card uses.
+ */
+export function bloodworkDateText(date: string, todayKey: string): string {
+  const year = Number(todayKey.slice(0, 4));
+  return dayShort(date, Number.isInteger(year) && year > 0 ? year : undefined);
 }
 
 const MONTHS = [

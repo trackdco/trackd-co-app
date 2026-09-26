@@ -9,6 +9,7 @@ import { BloodworkPhotoViewer } from "@/components/progress/BloodworkPhotoViewer
 import { useProgressAction } from "@/components/progress/useProgressAction";
 import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
+import { useDeviceToday } from "@/components/home/useDeviceToday";
 
 /**
  * The Progress bloodwork section (Step 4, revised — a dated photo store). The card
@@ -22,7 +23,7 @@ export function BloodworkSection({
   compact = false,
   photos,
   userId,
-  todayKey,
+  todayKey: serverTodayKey,
 }: {
   photos: BloodworkPhoto[];
   userId: string;
@@ -32,6 +33,10 @@ export function BloodworkSection({
 }) {
   /** Guarded: attaching a bloodwork photo. The gallery is not. */
   const { guard } = useWriteAccess();
+  // The DEVICE's today, not the server's UTC one: it is the draw date a new
+  // report starts on, the last day the calendar offers, and the year the card
+  // leaves off its dates.
+  const todayKey = useDeviceToday(serverTodayKey);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [viewing, setViewing] = useState<BloodworkPhoto | null>(null);
@@ -52,6 +57,7 @@ export function BloodworkSection({
       <BloodworkCard
         compact={compact}
         photos={photos}
+        todayKey={todayKey}
         onOpen={() => setGalleryOpen(true)}
         onViewLatest={() => {
           if (photos[0]) {

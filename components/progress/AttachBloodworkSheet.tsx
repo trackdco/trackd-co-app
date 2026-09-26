@@ -4,9 +4,9 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ImageSquare, CircleNotch } from "@/components/icons";
 
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BottomSheet } from "@/components/layout/BottomSheet";
+import { DateField } from "@/components/feel/DateField";
 import {
   FIELD_LABEL,
   INSET,
@@ -139,7 +139,11 @@ export function AttachBloodworkSheet({
   }
 
   async function handleSave() {
-    if (!file) return;
+    // Save is never dead without a reason: with no report chosen it says so.
+    if (!file) {
+      setError("Choose a screenshot or photo of the report first.");
+      return;
+    }
     setBusy(true);
     setError(null);
     const ext = EXT[file.type] ?? "img";
@@ -186,7 +190,7 @@ export function AttachBloodworkSheet({
             <button
               type="button"
               onClick={handleSave}
-              disabled={busy || !file}
+              disabled={busy}
               className={cn(PRIMARY_BUTTON, "flex-1")}
             >
               {busy ? (
@@ -263,23 +267,20 @@ export function AttachBloodworkSheet({
             />
           </label>
 
-          {/* Draw date */}
+          {/* Draw date: the app's one date field (W32), never past today. It
+              only ever hands back a real day (no Clear), so the field can
+              never go blank under a back-dated report. */}
           <label className="mt-5 block">
             <span className={FIELD_LABEL}>Date drawn</span>
-            <Input
-              type="date"
+            <DateField
+              label="Date drawn"
               value={drawnOn}
-              max={todayKey}
-              onChange={(e) => {
-                // An EMPTY change event is not "today". iOS fires one while the
-                // picker wheels are still moving, and coercing it to today snapped
-                // the field back mid-pick — so a back-dated entry saved silently
-                // under today's date. Keep the last good value; the field is
-                // required, so there is nothing it should clear to.
-                if (e.target.value) setDrawnOn(e.target.value)
+              onChange={(key) => {
+                if (key) setDrawnOn(key);
               }}
-              aria-label="Date drawn"
-              className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
+              max={todayKey}
+              todayKey={todayKey}
+              className="h-12"
             />
           </label>
 

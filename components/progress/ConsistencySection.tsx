@@ -15,6 +15,7 @@ import { ConsistencyGraph } from "@/components/progress/ConsistencyGraph";
 import { DaysSketch, EmptySection } from "@/components/progress/EmptySection";
 import {
   computeAdherence,
+  consistencyEmptyNote,
   hasAnyDose,
   type AdherencePoint,
 } from "@/lib/progress/consistency";
@@ -87,13 +88,17 @@ export function ConsistencySection({
     );
   }
   // Before the first dose there is nothing to be consistent with: the card
-  // says what starts it, and has no plus (build-brief-final §3.15).
+  // says what starts it, and has no plus (build-brief-final §3.15). A user
+  // WITH history whose compounds are all archived is told that nothing is
+  // running now, never that it starts with their first dose (cold review
+  // S10). The dev preview's empty `sample` stands for a new account, so it
+  // reads as one whatever that browser's own store holds.
   if (!hasAnyDose(points)) {
     return (
       <EmptySection
         title="Consistency"
         preview={<DaysSketch />}
-        note="Starts with your first dose"
+        note={sample !== undefined ? "Starts with your first dose" : consistencyEmptyNote(stack, logs)}
       />
     );
   }

@@ -15,7 +15,7 @@ import {
 import { dayLong } from "@/lib/format/date";
 import {
   groupByMonth,
-  poseLabel,
+  poseShortLabel,
   type DayGroup,
   type ProgressPhoto,
 } from "@/lib/progress/photos";
@@ -171,10 +171,12 @@ function DayRow({
   onView: (photo: ProgressPhoto) => void;
   onEdit?: () => void;
 }) {
-  // Three places at most, as on the photos card: with more than three photos,
-  // two and a "+N", so the date beside them always fits.
+  // Three places at most: with more than three photos, two and a "+N", so the
+  // date beside them always fits. The "+N" opens the viewer at the first photo
+  // it stands for (it looked like a thumbnail and did nothing).
   const shown = day.photos.length > 3 ? day.photos.slice(0, 2) : day.photos;
   const extra = day.photos.length - shown.length;
+  const firstHidden = extra > 0 ? day.photos[shown.length] : null;
   const when = dayLong(day.date);
   return (
     <div className="flex items-center gap-3 px-4 py-3">
@@ -184,7 +186,7 @@ function DayRow({
             key={p.id}
             type="button"
             onClick={() => onView(p)}
-            aria-label={`Preview ${poseLabel(p.pose)}`}
+            aria-label={`Preview ${poseShortLabel(p.pose)}`}
             className={cn(
               PRESS.card,
               "h-12 w-9 shrink-0 overflow-hidden rounded-lg border border-border-default bg-bg-input",
@@ -196,10 +198,18 @@ function DayRow({
             )}
           </button>
         ))}
-        {extra > 0 && (
-          <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded-lg border border-border-default bg-bg-input font-mono text-xs text-text-muted">
+        {firstHidden && (
+          <button
+            type="button"
+            onClick={() => onView(firstHidden)}
+            aria-label={`${extra} more photos from ${when}`}
+            className={cn(
+              PRESS.card,
+              "flex h-12 w-9 shrink-0 items-center justify-center rounded-lg border border-border-default bg-bg-input font-mono text-xs text-text-muted",
+            )}
+          >
             +{extra}
-          </span>
+          </button>
         )}
       </div>
 

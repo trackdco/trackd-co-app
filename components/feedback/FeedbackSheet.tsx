@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useSheetDrag } from "@/components/home/useSheetDrag"
 import { PRESS, SHEET_TITLE } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
+import { isOverSheet } from "@/lib/feel/overlay"
 import { submitBetaFeedback } from "@/lib/db/feedback"
 
 const MAX_LEN = 4000
@@ -62,6 +63,11 @@ export function FeedbackSheet({
   const canSend = !signedOut && message.trim().length > 0 && !busy
 
   async function handleSend() {
+    // Send is not dead while the note is empty: it says what is missing.
+    if (!signedOut && !busy && message.trim().length === 0) {
+      setError("Write a note first.")
+      return
+    }
     if (!canSend) return
     setBusy(true)
     setError(null)
@@ -84,6 +90,11 @@ export function FeedbackSheet({
         data-desktop="dialog"
         side="bottom"
         showCloseButton={false}
+        // A tap on a toast over the sheet (its Undo) is not a tap outside:
+        // the note being written stays (BottomSheet's rule).
+        onInteractOutside={(e) => {
+          if (isOverSheet(e.target as Element | null)) e.preventDefault()
+        }}
         className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >
         <div
@@ -122,7 +133,10 @@ export function FeedbackSheet({
                 </span>
                 <Textarea
                   value={message}
-                  onChange={(e) => setMessage(e.target.value.slice(0, MAX_LEN))}
+                  onChange={(e) => {
+                    setMessage(e.target.value.slice(0, MAX_LEN))
+                    if (error) setError(null)
+                  }}
                   disabled={signedOut || busy}
                   placeholder={placeholder}
                   rows={7}
@@ -154,7 +168,9 @@ export function FeedbackSheet({
             <button
               type="button"
               onClick={() => void handleSend()}
-              disabled={!canSend}
+              // Disabled only signed out (the screen says "Sign in to send
+              // feedback.") and while sending ("Sending…").
+              disabled={signedOut || busy}
               className={cn(
                 PRESS.button,
                 "flex flex-[1.6] items-center justify-center gap-2 inst-btn py-3 text-sm font-medium text-bg-base transition-opacity hover:opacity-90 disabled:opacity-50",

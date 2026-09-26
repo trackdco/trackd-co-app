@@ -18,7 +18,7 @@ import {
 } from "@/lib/ui-presets"
 import { dayShort } from "@/lib/format/date"
 import { BlockCreateSheet } from "@/components/blocks/BlockCreateSheet"
-import { NewItemCard } from "@/components/protocol/NewItemCard"
+import { EmptySection } from "@/components/progress/EmptySection"
 import type { WeightUnit } from "@/lib/weight"
 import { BlockEndPrompt } from "@/components/blocks/BlockEndPrompt"
 import {
@@ -112,34 +112,17 @@ export function BlockBanner({
     pruneEndPromptDismissals(userId, block ? [block.id] : [])
   }
 
-  // Nothing live: the same hairline affordance Protocol uses for a new stack or
-  // cycle (Adrian), so an empty slot looks the same wherever you meet one. Also
-  // where the word gets taught, in one line.
+  // Nothing live: the same quiet card every other Progress section shows
+  // before it has anything in it (build-brief-final §3.15; cold review D29):
+  // its eyebrow, a faint picture of what it becomes, "None yet", and a plus
+  // that starts a block. Guarded, as starting one writes.
   if (!block) {
     return (
       <>
-        {/* The one hairline "New X" card (consistency fix #21): a dimmed
-            mock of the thing above the copy, so a first run shows what a block
-            IS rather than only describing it. The mock is a block's own
-            headline — a week reading over a filling bar — because that is what
-            the card becomes the moment one is running. */}
-        <NewItemCard
-          label="New block"
-          onClick={() => guard(() => setCreating(true))}
-          description="A prep, an off-season, a cut. Start and end dates, and what you ran."
-          preview={
-            <span className="flex w-40 flex-col gap-1.5">
-              <span className="flex items-baseline gap-1.5">
-                <span className="font-mono text-2xl font-light leading-none text-text-muted">
-                  3
-                </span>
-                <span className="text-[11px] text-text-muted">of 12 weeks</span>
-              </span>
-              <span className="block h-1 w-full overflow-hidden rounded-full bg-bg-input">
-                <span className="block h-full w-1/4 rounded-full bg-text-subtle" />
-              </span>
-            </span>
-          }
+        <EmptySection
+          title="Block"
+          preview={<BlockSketch />}
+          add={{ label: "New block", onClick: () => guard(() => setCreating(true)) }}
         />
 
         {/* Only when there is something to look back on. A link to an empty
@@ -314,6 +297,25 @@ export function BlockBanner({
  */
 function formatDate(key: string | null): string {
   return key ? dayShort(key) : ""
+}
+
+/**
+ * The empty card's picture (D29): what the card becomes once a block runs, a
+ * figure over a bar filling toward its end, faint and without words. Token
+ * colours only; small radii, never a pill.
+ */
+function BlockSketch() {
+  return (
+    <span className="flex w-full flex-col gap-2.5">
+      <span className="flex items-end gap-2">
+        <span className="block h-4 w-5 rounded-[3px] bg-border-strong" />
+        <span className="block h-1.5 w-16 rounded-[3px] bg-border-default" />
+      </span>
+      <span className="block h-1 w-full overflow-hidden rounded-[2px] bg-bg-input">
+        <span className="block h-full w-1/4 rounded-[2px] bg-border-strong" />
+      </span>
+    </span>
+  )
 }
 
 /** One decimal at most, trailing zero dropped: "4", "3.5". */

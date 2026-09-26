@@ -192,6 +192,33 @@ export function targetProgress(
 }
 
 /**
+ * The one way a weight target can point, given the latest weigh-in (Adrian's
+ * walk, W41: "a target weight below your weight means Lose, so Gain cannot be
+ * picked, and the reverse").
+ *
+ * - Target below the weigh-in: "down" (Lose). Above: "up" (Gain).
+ * - `null` when the numbers do not decide it and the user must: no weigh-in
+ *   yet, no usable target typed, or the target IS the weigh-in (to within half
+ *   a gram, so a pounds entry that converts to the same weight is not read as
+ *   a direction).
+ *
+ * The direction stays STORED on the target (see `BlockTarget.direction`): this
+ * only decides what can be picked when the block is set up, so crossing the
+ * target later never flips what the block meant.
+ */
+export function lockedDirection(
+  targetKg: number | null | undefined,
+  currentKg: number | null | undefined,
+): "up" | "down" | null {
+  if (targetKg == null || currentKg == null) return null
+  if (!Number.isFinite(targetKg) || !Number.isFinite(currentKg)) return null
+  if (targetKg <= 0 || currentKg <= 0) return null
+  const diff = targetKg - currentKg
+  if (Math.abs(diff) < 0.0005) return null
+  return diff < 0 ? "down" : "up"
+}
+
+/**
  * The banner's headline reading: a number and the words after it.
  *
  * ONCE A BLOCK RUNS PAST ITS END, THE DENOMINATOR IS DROPPED. "Week 31 of 9" is

@@ -24,6 +24,7 @@ import {
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { ConfirmDialog } from "@/components/feel/ConfirmDialog"
 import { showToast } from "@/lib/toast"
+import { isOverSheet } from "@/lib/feel/overlay"
 import { NumberPad, PadInput } from "@/components/feel/NumberPad"
 import { customCompoundsKey } from "@/lib/home/customCompounds"
 import { Input } from "@/components/ui/input"
@@ -49,8 +50,7 @@ import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
 import { newId } from "@/lib/home/id"
 import { isRunning, loadStack, type StackCompound } from "@/lib/home/stack"
-import { activeStacks, currentMemberIds, loadStacks, type Stack } from "@/lib/home/stacks"
-import { paletteColourVar } from "@/lib/palette"
+import { activeStacks, currentMemberIds, loadStacks, stackColourVar, type Stack } from "@/lib/home/stacks"
 import { toDateKey } from "@/lib/home/mockHomeData"
 import {
   loadRecentCompounds,
@@ -62,6 +62,8 @@ import {
   AmberNotice,
   useAmberNotice,
 } from "@/components/notifications/amber-notice"
+import { useStockSchema } from "@/components/protocol/stock/sparesSupport"
+import { dropperOffered } from "@/lib/protocol/stockSchema"
 
 interface AddToStackMenuProps {
   open: boolean
@@ -71,6 +73,12 @@ interface AddToStackMenuProps {
   /** Called with the compound that was just added. The stack editor uses it to
    *  tick the new compound straight into the stack being built. */
   onAdded?: (saved: StackCompound) => void
+  /**
+   * Cancelling the compound's form closes this picker too, so the user is
+   * back where they started (the stack editor, W24). Off by default: from the
+   * + or Protocol, Cancel returns to the picker as before.
+   */
+  closeOnFormCancel?: boolean
 }
 
 // A user-created compound, stored locally on the device for that user only.
@@ -228,6 +236,7 @@ export function AddToStackMenu({
   onOpenChange,
   userId,
   onAdded: onAddedProp,
+  closeOnFormCancel = false,
 }: AddToStackMenuProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startY: number; height: number } | null>(null)
@@ -581,6 +590,12 @@ export function AddToStackMenu({
         data-desktop="dialog"
         side="bottom"
         showCloseButton={false}
+        // A tap on the toast over the sheet ("<Name> deleted" and its Undo)
+        // is not a tap outside: the sheet stays, so the Undo can land
+        // (BottomSheet's rule).
+        onInteractOutside={(e) => {
+          if (isOverSheet(e.target as Element | null)) e.preventDefault()
+        }}
         className="h-[92dvh] gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >
         {/* The visible card. Its transform is the drag offset; the sheet's own
@@ -632,12 +647,19 @@ export function AddToStackMenu({
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!nameValid}
                 // Same tap treatment as the Cancel beside it. Without the
                 // padding this was a 30x24 target — the only way into the app
                 // for a compound that is not in the catalogue, and the same
                 // button that saves an edit.
-                className="-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:text-text-subtle"
+                //
+                // Never dead without a reason: with no name yet it is quiet
+                // (muted at reduced opacity, never subtle, cold review D24)
+                // but still answers, and a tap says "Enter a name." under
+                // the field.
+                className={cn(
+                  "-m-2 flex min-h-11 items-center justify-self-end p-2 text-base font-medium transition-colors hover:opacity-80",
+                  nameValid ? "text-foreground" : "text-text-muted opacity-60",
+                )}
               >
                 {formMode === "edit" ? "Save" : "Add"}
               </button>
@@ -711,7 +733,12 @@ export function AddToStackMenu({
       }
       userId={userId}
       onOpenChange={(o) => {
-        if (!o) setPendingCompound(null)
+        if (!o) {
+          setPendingCompound(null)
+          // Opened from the stack editor: Cancel goes back to the editor, not
+          // to this picker (W24).
+          if (closeOnFormCancel) onOpenChange(false)
+        }
       }}
       onAdded={(saved) => {
         setPendingCompound(null)
@@ -1073,7 +1100,9 @@ function CompoundList({
                 )}
               >
                 <RowMain compound={compound} query={query} />
-                <div className="flex shrink-0 items-center gap-1">
+                {/* gap-2.5, not gap-1: the + carries a 44px reach (HIT_34,
+                    5px out), so it needs room before Edit's own target. */}
+                <div className="flex shrink-0 items-center gap-2.5">
                   {/* Add-to-log, or a blocked Check when it's already active in the
                       log. A previously DELETED compound falls through to the plus,
                       exactly like one never added (Spec 02). */}
@@ -1222,6 +1251,13 @@ function CompoundForm({
 }) {
   const [halfLifePad, setHalfLifePad] = useState(false)
   const halfLifeRef = useRef<HTMLButtonElement>(null)
+  // The dropper only where the database can hold its stock (`025`/`026`);
+  // a compound that already is one keeps it (sweep, ruling 10).
+  const dropperOk = dropperOffered(useStockSchema())
+  const [openedAs] = useState(form.inventoryType)
+  const inventoryOptions = INVENTORY_TYPE_OPTIONS.filter(
+    (o) => o.value !== "dropper" || dropperOk || openedAs === "dropper",
+  )
   return (
     // The fields rise in as the form arrives (feel pass §4).
     <div
@@ -1271,7 +1307,7 @@ function CompoundForm({
         label="Inventory type"
         value={form.inventoryType}
         onChange={(v) => setForm((f) => ({ ...f, inventoryType: v }))}
-        options={INVENTORY_TYPE_OPTIONS}
+        options={inventoryOptions}
       />
 
       {/* Optional. With it, this compound gets a half-life curve like the
@@ -1403,9 +1439,11 @@ function StackReferenceList({ stacks }: { stacks: Stack[] }) {
           key={s.id}
           className="flex items-center gap-3 inst-rows px-4 py-3"
         >
+          {/* No dot for a "No colour" stack (W23); the space stays, so the
+              names line up. */}
           <span
             className="h-3 w-3 shrink-0 rounded-full"
-            style={{ background: paletteColourVar(s.colour) }}
+            style={{ background: stackColourVar(s) ?? "transparent" }}
             aria-hidden
           />
           <span className="min-w-0 flex-1 truncate text-base text-foreground">

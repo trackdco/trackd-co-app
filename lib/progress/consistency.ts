@@ -249,3 +249,33 @@ export function doseDayCount(points: AdherencePoint[]): number {
 export function hasAnyDose(points: AdherencePoint[]): boolean {
   return points.some((p) => p.logged > 0);
 }
+
+/** Whether the dose log holds a single dose TAKEN, on any day, for any
+ *  compound, archived or not. A skip is a record, not a dose. */
+export function hasLoggedADose(logs: DayLogs): boolean {
+  for (const day of Object.values(logs)) {
+    for (const log of Object.values(day ?? {})) {
+      if (log && log.status !== "skipped") return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * What the Consistency card says when it has no graph to draw (cold review
+ * S10). "Starts with your first dose" is only true for someone who has never
+ * logged one. It was also shown to a user with months of history once every
+ * compound was archived, because `computeAdherence` returns nothing then (an
+ * archived compound leaves consistency, past days included). That user is
+ * told what is true instead:
+ *
+ * - nothing ever logged: "Starts with your first dose"
+ * - doses logged, nothing running now: "Nothing running now"
+ * - doses logged, something running with no dose of its own yet:
+ *   "Starts with your next dose"
+ */
+export function consistencyEmptyNote(stack: StackCompound[], logs: DayLogs): string {
+  if (!hasLoggedADose(logs)) return "Starts with your first dose";
+  if (!stack.some(countsTowardConsistency)) return "Nothing running now";
+  return "Starts with your next dose";
+}

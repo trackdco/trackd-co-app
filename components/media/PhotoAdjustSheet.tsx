@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
+import { isOverSheet } from "@/lib/feel/overlay"
 import {
   Sheet,
   SheetContent,
@@ -77,6 +78,11 @@ export function PhotoAdjustSheet({
         side="bottom"
         showCloseButton={false}
         onOpenAutoFocus={(e) => e.preventDefault()}
+        // A tap on a toast over the sheet (its Undo) is not a tap outside:
+        // the framing in progress stays (BottomSheet's rule).
+        onInteractOutside={(e) => {
+          if (isOverSheet(e.target as Element | null)) e.preventDefault()
+        }}
         className="h-[92dvh] gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >
         {file ? (
@@ -347,7 +353,9 @@ function AdjustBody({
           type="button"
           onClick={handleConfirm}
           disabled={busy}
-          className="justify-self-end text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:text-text-subtle"
+          // Disabled only while saving, and it says "Saving…". Muted at
+          // reduced opacity, never subtle: readable text (cold review D24).
+          className="justify-self-end text-base font-medium text-foreground transition-colors hover:opacity-80 disabled:text-text-muted disabled:opacity-60"
         >
           {busy ? "Saving…" : "Done"}
         </button>

@@ -8,6 +8,7 @@ import {
   isDefaultPose,
   poseLabel,
   poseShape,
+  poseShortLabel,
   type ProgressPhoto,
 } from "./photos"
 
@@ -55,6 +56,24 @@ describe("the retired relaxed poses", () => {
 
   it("keep an illustration shape, so their thumbnails still draw", () => {
     for (const [id] of RELAXED) expect(poseShape(id)).not.toBeNull()
+  })
+})
+
+describe("poseShortLabel (cold review D18)", () => {
+  it("reads a relaxed photo by its short name, as the viewer does", () => {
+    expect(poseShortLabel("front-relaxed")).toBe("Front")
+    expect(poseShortLabel("side-relaxed")).toBe("Side")
+    expect(poseShortLabel("back-relaxed")).toBe("Back")
+  })
+
+  it("leaves every other pose as its label, and a custom one as typed", () => {
+    expect(poseShortLabel("front")).toBe("Front")
+    expect(poseShortLabel("front-double-biceps")).toBe("Front double biceps")
+    expect(poseShortLabel("Vacuum")).toBe("Vacuum")
+  })
+
+  it("never changes the label itself (the picker and compare chips)", () => {
+    expect(poseLabel("front-relaxed")).toBe("Front relaxed")
   })
 })
 

@@ -4,15 +4,21 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
-import { Trash, X } from "@/components/icons";
+import { CaretLeft, CaretRight, Trash, X } from "@/components/icons";
 
 import { ConfirmDialog } from "@/components/feel/ConfirmDialog";
 import { PRESS, ROW_META } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 import { dayShort } from "@/lib/format/date";
 import { showToast } from "@/lib/toast";
-import { dayPhotosFor, dayWeightKg, indexInDay } from "@/lib/progress/photoCard";
-import { poseLabel, type ProgressPhoto } from "@/lib/progress/photos";
+import {
+  dayPhotosFor,
+  dayWeightKg,
+  indexInDay,
+  photoPositionText,
+  stepPhoto,
+} from "@/lib/progress/photoCard";
+import { poseShortLabel, type ProgressPhoto } from "@/lib/progress/photos";
 import {
   VIEWER,
   clampZoom,
@@ -533,6 +539,15 @@ export function ProgressPhotoViewer({
     };
   }, [mounted, goTo, requestClose]);
 
+  /** Previous (-1) or Next (1), from the step keys (B35). Nothing while the
+   *  delete confirm is up or the viewer is on its way out. */
+  function step(dir: -1 | 1) {
+    const l = live.current;
+    if (l.confirming || l.closing) return;
+    const to = stepPhoto(l.at, l.count, dir);
+    if (to !== null) goTo(to, true);
+  }
+
   async function handleDelete() {
     const target = current;
     if (!target) return;
@@ -721,9 +736,32 @@ export function ProgressPhotoViewer({
                 </div>
               ) : null}
               <span className="sr-only" aria-live="polite">
-                {day.length > 1 ? `Photo ${at + 1} of ${day.length}` : ""}
+                {photoPositionText(at, day.length)}
               </span>
             </div>
+
+            {day.length > 1 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => step(-1)}
+                  aria-disabled={stepPhoto(at, day.length, -1) === null ? true : undefined}
+                  aria-label="Previous photo"
+                  className={cn(STEP_KEY, "left-3")}
+                >
+                  <CaretLeft className="h-4 w-4" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => step(1)}
+                  aria-disabled={stepPhoto(at, day.length, 1) === null ? true : undefined}
+                  aria-label="Next photo"
+                  className={cn(STEP_KEY, "right-3")}
+                >
+                  <CaretRight className="h-4 w-4" aria-hidden />
+                </button>
+              </>
+            ) : null}
 
             <ConfirmDialog
               open={confirming}
@@ -741,10 +779,27 @@ export function ProgressPhotoViewer({
   );
 }
 
-/** "Front · 25 Sep": the pose picked when it was added, and the day. */
+/** "Front · 25 Sep": the pose picked when it was added, and the day. The
+ *  pose's short name, the same words its tile on the card shows (D18). */
 function defaultLabel(p: ProgressPhoto): string {
-  return `${poseLabel(p.pose)} · ${dayShort(p.date)}`;
+  return `${poseShortLabel(p.pose)} · ${dayShort(p.date)}`;
 }
+
+/**
+ * Previous and Next for assistive tech and the keyboard (cold review B35). Out
+ * of sight until one takes focus, then a 44px ghost key at the photo's edge;
+ * always in the accessibility tree, so VoiceOver and Switch Control reach
+ * every photo of the day. Hidden by opacity rather than `sr-only`, so the key
+ * has one fixed place and size, and it never takes a finger: a tap there still
+ * reaches the photo underneath (`pointer-events-none`). At an end the key
+ * stays (so focus is never dropped) and says it is unavailable; the live
+ * region under the dots announces "Photo 2 of 5".
+ */
+const STEP_KEY =
+  "pointer-events-none absolute top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center " +
+  "inst-ghost text-foreground opacity-0 outline-none transition-opacity duration-150 " +
+  "focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none " +
+  "aria-disabled:text-text-muted";
 
 /** Safari's non-standard pinch event (not in the DOM typings). */
 interface SafariGestureEvent extends Event {

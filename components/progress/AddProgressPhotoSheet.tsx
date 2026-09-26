@@ -1,14 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { NumberPad, PadInput } from "@/components/feel/NumberPad";
 import { formatDateKeyNumeric } from "@/lib/calendar/calendar";
 import { useRouter } from "next/navigation";
 import { Camera, Check, CircleNotch, Plus, X } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
-import { PRESS, PRIMARY_BUTTON } from "@/lib/ui-presets";
+import { PRESS, PRIMARY_BUTTON, ROWS } from "@/lib/ui-presets";
 import { showToast } from "@/lib/toast";
+import { isOverSheet } from "@/lib/feel/overlay";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSheetDrag } from "@/components/home/useSheetDrag";
 import { PoseIcon } from "@/components/progress/PoseIcon";
@@ -62,9 +63,9 @@ interface Attachment {
 
 /**
  * Add a progress-photo SESSION (Spec 09 addendum). A tile per pose — Front / Side
- * / Back relaxed up front (+ more from the catalogue or custom) — each opens the
- * camera / photo library; fill any or all, add an optional note about the
- * physique, and submit them together. Photos upload client-side to the private
+ * / Back up front, then any pose added from the "Add pose" card under them (the
+ * catalogue, searched, or a custom name; W40) — each opens the camera / photo
+ * library; fill any or all and submit them together. Photos upload client-side to the private
  * `progress-photos` bucket; one server action records all the rows for the date.
  *
  * Its frame copies `BottomSheet`'s exactly (the handle, the hairline top):
@@ -98,6 +99,7 @@ export function AddProgressPhotoSheet({
   const [attachments, setAttachments] = useState<Record<string, Attachment>>({});
   const [extraPoses, setExtraPoses] = useState<string[]>(customPoses);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerId = useId();
   const [drawnOn, setDrawnOn] = useState(initialDate ?? todayKey);
   const [weight, setWeight] = useState("");
   /** The weight drop-up. Closed on open: this sheet leads with the photos. */
@@ -307,6 +309,11 @@ export function AddProgressPhotoSheet({
           e.preventDefault();
           setDateStep(false);
         }}
+        // A tap on a toast over the sheet (its Undo) is not a tap outside:
+        // the sheet, and the photos in it, stay (BottomSheet's rule).
+        onInteractOutside={(e) => {
+          if (isOverSheet(e.target as Element | null)) e.preventDefault();
+        }}
       >
         <div
           ref={cardRef}
@@ -401,32 +408,58 @@ export function AddProgressPhotoSheet({
                     </div>
                   );
                 })}
+              </div>
 
-                {/* Add a pose. */}
-                <div className="flex w-[4.5rem] flex-col items-center gap-1.5">
+              {/* ADD POSE, A LONG CARD UNDER THE PHOTOS (Adrian's walk, W40).
+                  It was a sixth tile in the row, with the search showing under
+                  it. Now the search shows only once you ask to add a pose: the
+                  card opens in place (the app's `.fold`, 420ms open, 280ms
+                  shut), its plus turns to a cross, and the search and the
+                  poses rise in one after another. Closed, what it holds is
+                  out of reach (`inert`). One child inside `ROWS`, so the
+                  card's own divider never draws a line under a shut fold. */}
+              <div data-dropup-open={pickerOpen} className={cn(ROWS, "mt-4 overflow-hidden")}>
+                <div>
                   <button
                     type="button"
                     onClick={() => setPickerOpen((o) => !o)}
                     aria-expanded={pickerOpen}
-                    aria-label="Add a pose"
+                    aria-controls={pickerId}
                     className={cn(
                       PRESS.card,
-                      "flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-xl border border-border-default bg-bg-surface-raised text-text-muted transition-colors hover:text-foreground",
+                      "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left",
                     )}
                   >
-                    <Plus className="h-6 w-6" aria-hidden />
+                    <span
+                      aria-hidden
+                      // The 10px a "+" is drawn at (CardPlus), inline because
+                      // `.inst-ghost` sets its own 9px.
+                      style={{ borderRadius: "var(--r-lg)" }}
+                      className="inst-ghost flex h-8 w-8 shrink-0 items-center justify-center text-foreground"
+                    >
+                      <Plus
+                        className={cn(
+                          "h-4 w-4 transition-transform duration-300 ease-motion motion-reduce:transition-none",
+                          pickerOpen && "rotate-45",
+                        )}
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1 text-sm text-foreground">Add pose</span>
                   </button>
-                  <span className="text-center text-[11px] leading-tight text-text-muted">
-                    Add pose
-                  </span>
+                  <div
+                    id={pickerId}
+                    className="fold"
+                    data-open={pickerOpen ? "true" : "false"}
+                    inert={!pickerOpen}
+                  >
+                    <div>
+                      <div className="fold-body hairline-t px-2 pt-2 pb-2">
+                        <PosePicker bare exclude={slots} onPick={addPose} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {pickerOpen && (
-                <div className="animate-shortcut-in mt-3">
-                  <PosePicker exclude={slots} onPick={addPose} />
-                </div>
-              )}
 
               <input
                 ref={fileRef}
@@ -505,7 +538,9 @@ export function AddProgressPhotoSheet({
             <button
               type="button"
               onClick={handleSave}
-              disabled={busy || count === 0 || dateStep}
+              // No photo yet is not a dead Save: tapping it says "Add at least
+              // one photo." The calendar step has its own way back.
+              disabled={busy || dateStep}
               className={cn(PRIMARY_BUTTON, "flex-1")}
             >
               {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}

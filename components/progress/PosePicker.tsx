@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useState } from "react";
 import { Plus, MagnifyingGlass } from "@/components/icons";
 
@@ -13,13 +14,22 @@ import { cn } from "@/lib/utils";
  * autocomplete ("side ch" → Side chest) — each with its illustration — so names
  * stay consistent and comparable. If nothing matches, you can still add your typed
  * name as a custom pose. `exclude` hides poses already chosen.
+ *
+ * `bare` drops its own box, for a picker that opens inside a card of its own
+ * (the add sheet's "Add pose" card, W40). There its search and rows rise in
+ * one after another as the card opens: they carry `.animate-dropup-item`,
+ * which plays only inside an open `[data-dropup-open="true"]` and not at all
+ * with reduced motion (globals.css).
  */
 export function PosePicker({
   exclude = [],
   onPick,
+  bare = false,
 }: {
   exclude?: string[];
   onPick: (pose: string) => void;
+  /** No box of its own: it sits inside a card that is its frame. */
+  bare?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const results = searchPoses(query, exclude);
@@ -28,8 +38,8 @@ export function PosePicker({
     q !== "" && results.some((p) => p.label.toLowerCase() === q.toLowerCase());
 
   return (
-    <div className="rounded-xl border border-border-default bg-bg-surface-raised p-2">
-      <div className="relative">
+    <div className={bare ? undefined : "rounded-xl border border-border-default bg-bg-surface-raised p-2"}>
+      <div className="animate-dropup-item relative" style={rise(0)}>
         <MagnifyingGlass
           className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-text-muted"
           aria-hidden
@@ -44,12 +54,13 @@ export function PosePicker({
       </div>
 
       <div className="mt-1">
-        {results.map((p) => (
+        {results.map((p, i) => (
           <button
             key={p.id}
             type="button"
             onClick={() => onPick(p.id)}
-            className={cn(PRESS.row, "flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-bg-input/60")}
+            style={rise(i + 1)}
+            className={cn(PRESS.row, "animate-dropup-item flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-bg-input/60")}
           >
             <PoseIcon shape={p.shape} className="h-7 w-5 shrink-0 text-text-muted" />
             <span className="text-sm text-foreground">{p.label}</span>
@@ -78,4 +89,13 @@ export function PosePicker({
       </div>
     </div>
   );
+}
+
+/**
+ * The stagger for the n-th thing to rise in: about 42ms apart (the drop-up's
+ * 26ms unit, times 1.6), the first six only, so a long list is not still
+ * arriving after the card has opened.
+ */
+function rise(n: number): CSSProperties {
+  return { "--dropup-i": Math.min(n, 6) * 1.6 } as CSSProperties;
 }

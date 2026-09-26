@@ -4,7 +4,7 @@ import { ProgressScreen } from "@/components/progress/ProgressScreen";
 import { listBlocks } from "@/lib/db/blocks";
 import { createClient } from "@/lib/supabase/server";
 import { toDateKey } from "@/lib/home/mockHomeData";
-import type { BloodworkPhoto } from "@/lib/progress/bloodwork";
+import { bloodworkDateKey, type BloodworkPhoto } from "@/lib/progress/bloodwork";
 import { readJournal } from "@/lib/db/journalRead";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { SIGNED_URL_TTL } from "@/lib/storage/signedUrl";
@@ -86,9 +86,8 @@ export default async function ProgressPage() {
     const path = p.source_file_path as string;
     return {
       id: p.id as string,
-      date:
-        (p.drawn_on as string | null) ??
-        toDateKey(new Date(p.created_at as string)),
+      // The draw date as picked, read as a key (W42).
+      date: bloodworkDateKey(p.drawn_on as string | null, p.created_at as string),
       url: signedByPath.get(path) ?? null,
       note: (p.notes as string | null) ?? null,
     };
@@ -133,6 +132,10 @@ export default async function ProgressPage() {
       blocks={blocks}
       weight={weight}
       unitPreference={profile?.units_preference ?? "metric"}
+      // The SERVER's today (UTC on Vercel): only the first paint's seed. Every
+      // client section that dates something corrects it to the device's day
+      // (`useDeviceToday`), or a new photo, report or entry defaults to
+      // yesterday before about 10am in Sydney.
       todayKey={toDateKey(new Date())}
       userId={user.id}
       bloodworkPhotos={bloodworkPhotos}

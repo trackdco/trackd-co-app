@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { CaretRight, CircleNotch } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { BottomSheet } from "@/components/layout/BottomSheet"
+import { DateField, type DateFieldHandle } from "@/components/feel/DateField"
 import {
   FIELD_LABEL,
   PRESS,
@@ -91,6 +91,8 @@ export function BlockEndPrompt({
 
   const [mode, setMode] = useState<"choose" | "extend" | "close">("choose")
   const [newEnd, setNewEnd] = useState("")
+  /** The new end's field, so an Extend with no date opens its calendar. */
+  const endRef = useRef<DateFieldHandle>(null)
   const [reflection, setReflection] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -121,7 +123,13 @@ export function BlockEndPrompt({
   const extendValid = newEnd !== "" && newEnd > todayKey
 
   async function doExtend() {
-    if (!extendValid || busy) return
+    if (busy) return
+    // Extend is never dead: with no date yet, it opens the calendar to pick one.
+    if (newEnd === "") {
+      endRef.current?.open()
+      return
+    }
+    if (!extendValid) return
     setBusy(true)
     setError(null)
     const res = await extendBlockAction(block.id, newEnd)
@@ -207,7 +215,7 @@ export function BlockEndPrompt({
             <button
               type="button"
               onClick={mode === "extend" ? doExtend : doClose}
-              disabled={busy || (mode === "extend" && !extendValid)}
+              disabled={busy}
               className={cn(PRIMARY_BUTTON, "flex-1")}
             >
               {busy && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}
@@ -255,16 +263,19 @@ export function BlockEndPrompt({
         {mode === "extend" && (
           <label className="mt-2 block">
             <span className={FIELD_LABEL}>New end date</span>
-            <Input
-              type="date"
+            <DateField
+              ref={endRef}
+              label="New end date"
               value={newEnd}
               /* Tomorrow, not today: `extendValid` requires a date STRICTLY
                  after today, so offering today was offering a value the
-                 sheet then rejected. */
+                 sheet then rejected. No `max`: an end is in the future. */
               min={nextDayKey(todayKey)}
-              onChange={(e) => setNewEnd(e.target.value)}
-              aria-label="New end date"
-              className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
+              onChange={(key) => {
+                if (key) setNewEnd(key)
+              }}
+              todayKey={todayKey}
+              className="h-12"
             />
             {newEnd !== "" && !extendValid && (
               <span className="mt-1.5 block text-xs text-state-error">

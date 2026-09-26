@@ -30,6 +30,14 @@ export interface Pose {
   id: string;
   label: string;
   shape: PoseShape;
+  /**
+   * The name a photo of this pose carries on the card and in the viewer, when
+   * it is shorter than `label` (cold review D18). Only the retired relaxed
+   * variants have one: "Front relaxed" reads "Front", the way the brief names
+   * the card's labels (Front, Side, Back or Other). The picker and the compare
+   * chips keep `label`, where two poses must never read the same.
+   */
+  short?: string;
 }
 
 /**
@@ -47,9 +55,9 @@ export const POSE_CATALOGUE: Pose[] = [
   { id: "front", label: "Front", shape: "relaxed" },
   { id: "side", label: "Side", shape: "side" },
   { id: "back", label: "Back", shape: "relaxed" },
-  { id: "front-relaxed", label: "Front relaxed", shape: "relaxed" },
-  { id: "side-relaxed", label: "Side relaxed", shape: "side" },
-  { id: "back-relaxed", label: "Back relaxed", shape: "relaxed" },
+  { id: "front-relaxed", label: "Front relaxed", shape: "relaxed", short: "Front" },
+  { id: "side-relaxed", label: "Side relaxed", shape: "side", short: "Side" },
+  { id: "back-relaxed", label: "Back relaxed", shape: "relaxed", short: "Back" },
   { id: "front-double-biceps", label: "Front double biceps", shape: "biceps" },
   { id: "front-lat-spread", label: "Front lat spread", shape: "lat" },
   { id: "side-chest", label: "Side chest", shape: "side" },
@@ -79,6 +87,17 @@ export function isCataloguePose(pose: string): boolean {
 /** A catalogue pose's friendly label, or the custom pose's own text. */
 export function poseLabel(pose: string): string {
   return CATALOGUE_BY_ID.get(pose)?.label ?? pose;
+}
+
+/**
+ * The name a PHOTO carries: on the card's tiles and at the top of the viewer,
+ * the same on both (cold review D18: the tiles read "Front relaxed" while the
+ * viewer read "Front"). A relaxed variant reads as its short name; every other
+ * pose, and a custom one, reads as `poseLabel`.
+ */
+export function poseShortLabel(pose: string): string {
+  const p = CATALOGUE_BY_ID.get(pose);
+  return p?.short ?? p?.label ?? pose;
 }
 
 /** Illustration shape for a catalogue pose, or null for a custom one. */

@@ -16,6 +16,7 @@ import { tileForIndex } from "@/lib/progress/photoCard";
 import type { WeightUnit } from "@/lib/weight";
 import type { StackCompound } from "@/lib/home/stack";
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
+import { useDeviceToday } from "@/components/home/useDeviceToday";
 
 type Return = "none" | "gallery" | "edit";
 
@@ -31,7 +32,7 @@ type Return = "none" | "gallery" | "edit";
 export function ProgressPhotoSection({
   photos,
   userId,
-  todayKey,
+  todayKey: serverTodayKey,
   unit,
   compact = false,
   previewStack,
@@ -49,6 +50,11 @@ export function ProgressPhotoSection({
 }) {
   /** Guarded: adding a photo. Viewing, comparing and the gallery are not. */
   const { guard } = useWriteAccess();
+  // The DEVICE's today. The page is a server component and its date is UTC:
+  // before about 10am in Sydney that is yesterday, so a new session of photos
+  // (and the weight logged with it) defaulted to the wrong day. The server's
+  // key seeds the first paint; the device corrects it on mount.
+  const todayKey = useDeviceToday(serverTodayKey);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -89,8 +95,8 @@ export function ProgressPhotoSection({
     else if (target === "edit") setEditOpen(true);
   }
 
-  /** The tile a latest-day photo sits on; every photo past the second, on a
-   *  day with a "+N" tile, sits on that one. */
+  /** The tile a latest-day photo sits on. A photo past the third has none
+   *  (it opened from the "N more" card), so the viewer fades for it. */
   function tileFor(p: ProgressPhoto): HTMLElement | null {
     const list = latestDay(photos)?.photos ?? [];
     const i = list.findIndex((x) => x.id === p.id);

@@ -7,6 +7,7 @@ import { Check, CircleNotch } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { BottomSheet } from "@/components/layout/BottomSheet"
+import { DateField } from "@/components/feel/DateField"
 import {
   CHIP_THUMB,
   FIELD_LABEL,
@@ -20,17 +21,16 @@ import { showToast } from "@/lib/toast"
 import { blockErrorText } from "@/lib/blocks/errorText"
 import { NumberPad, PadInput } from "@/components/feel/NumberPad"
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
-import { sanitizeWeightInput } from "@/lib/weight"
+import { formatWeight, sanitizeWeightInput } from "@/lib/weight"
 import { startBlockAction } from "@/app/(app)/blocks/actions"
 import { unitToKg, type WeightUnit } from "@/lib/weight"
-import { localToday } from "@/lib/blocks/block"
+import { localToday, lockedDirection } from "@/lib/blocks/block"
 import type { BlockTarget, BlockTargetVariable } from "@/lib/blocks/block"
 
 const NAME_MAX = 60 // matches the CHECK on blocks.name
 
 const FIELD =
   "h-12 rounded-xl border-border-default bg-bg-input px-3 text-sm dark:bg-bg-input"
-const DATE_FIELD = cn(FIELD, "font-mono [color-scheme:dark]")
 
 /**
  * Start a block (Adrian, 2026-07-30).
@@ -46,6 +46,13 @@ const DATE_FIELD = cn(FIELD, "font-mono [color-scheme:dark]")
  * partial unique index in the schema). The sheet says so before it happens
  * rather than after, because closing a sixteen-week prep is not something to
  * discover from a changed banner.
+ *
+ * The dates are the app's one date field (`DateField`, W32: the native inputs
+ * ran off the screen in their half columns). A weight target's direction is
+ * decided by the numbers once there is a weigh-in to compare with (W41,
+ * `lockedDirection`): below it is Lose and Gain cannot be picked, above it the
+ * reverse, and the last weigh-in is shown so the lock says why. Start block is
+ * never dead: with no name it says so and takes you to the field.
  *
  * The one sheet frame (`BottomSheet`, consistency fix #1) with Cancel and
  * Start block (fix #2); every label is `FIELD_LABEL` (fix #19); the two
@@ -65,7 +72,7 @@ export function BlockCreateSheet({
   todayKey: string
   /** The live block's name, when one is running and is about to be closed. */
   liveBlockName?: string | null
-  /** The latest weigh-in, used only to pre-select the target's direction. */
+  /** The latest weigh-in: decides which way a weight target can point. */
   currentWeightKg?: number | null
   /** The unit the target is TYPED in. Storage stays kg; converted on save. */
   unit?: WeightUnit
@@ -77,14 +84,14 @@ export function BlockCreateSheet({
   const [endsOn, setEndsOn] = useState("")
   const [targetKind, setTargetKind] = useState<BlockTargetVariable | "none">("none")
   const [targetValue, setTargetValue] = useState("")
+  // The user's own pick, used only while the numbers do not decide it (no
+  // weigh-in yet, or the target equals it).
   const [direction, setDirection] = useState<"up" | "down">("down")
-  // Set once the user picks Lose/Gain themselves. After that the number stops
-  // moving it: `direction` is the one field the design says must be STORED
-  // rather than inferred, and re-deriving it on every keystroke silently undid
-  // the choice the moment they adjusted a decimal.
-  const [directionTouched, setDirectionTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Set by a Start with no name, so the field says what is missing. */
+  const [nameMissing, setNameMissing] = useState(false)
+  const nameRef = useRef<HTMLInputElement>(null)
 
   // Reset when the sheet closes, so the next open is a fresh form rather than
   // the last abandoned one. Adjust-during-render rather than an effect: an
@@ -98,20 +105,18 @@ export function BlockCreateSheet({
       setEndsOn("")
       setTargetKind("none")
       setTargetValue("")
-      setDirectionTouched(false)
-      // Pre-select from where they are now. STORED rather than re-derived, so
-      // crossing the target later never flips the meaning of the block.
       setDirection("down")
       setBusy(false)
       setError(null)
+      setNameMissing(false)
     }
   }
 
   const trimmedName = name.trim()
   const numericTarget = Number(targetValue)
   // The typed weight in KILOGRAMS. Everything downstream — the direction
-  // inference below, and the value that is stored — works in kg, because that
-  // is the unit `blocks`/`block_targets` and every weigh-in are held in. A
+  // below, and the value that is stored — works in kg, because that is the
+  // unit `blocks`/`block_targets` and every weigh-in are held in. A
   // consistency target is a percentage and is never converted.
   const targetKg = targetKind === "weight" ? unitToKg(numericTarget, unit) : numericTarget
   const targetFilled = targetKind !== "none" && targetValue.trim() !== ""
@@ -123,6 +128,14 @@ export function BlockCreateSheet({
   const targetValid =
     !targetFilled ||
     (Number.isFinite(numericTarget) && numericTarget > 0 && !targetTooHigh)
+  // W41: the way a weight target points, when the numbers decide it.
+  const locked =
+    targetKind === "weight" && targetFilled && targetValid
+      ? lockedDirection(targetKg, currentWeightKg)
+      : null
+  // What shows AND what is stored: consistency only ever goes up.
+  const shownDirection: "up" | "down" =
+    targetKind === "consistency" ? "up" : (locked ?? direction)
   // A start date in the future has no honest meaning here and, worse, cannot be
   // closed: `blocks_closed_after_start` rejects it and only one block may be
   // active, so the account is locked out of Blocks until the date arrives.
@@ -136,66 +149,35 @@ export function BlockCreateSheet({
     targetValid
 
   function pickTarget(kind: BlockTargetVariable | "none") {
-    const changed = kind !== targetKind
-    if (changed) {
+    if (kind !== targetKind) {
       // Kilograms and percent are not the same number. Carrying the value across
       // turned a 90% consistency target into a 90 kg weight target, or a 500%
       // one into 500 kg.
       setTargetValue("")
-      setDirectionTouched(false)
+      setDirection("down")
     }
     setTargetKind(kind)
-    if (kind === "consistency") {
-      // There is no such thing as targeting LOWER consistency, so the control
-      // that would ask is not shown and the direction is simply up.
-      setDirection("up")
-      return
-    }
-    // Infer the direction from the number only when there is a number that is
-    // STAYING, and only while the user has not chosen a direction themselves.
-    // Neither guard was here: re-tapping the already-selected "Weight" chip fell
-    // straight through and overwrote an explicit Lose or Gain, and switching TO
-    // weight inferred a direction from the value it was in the middle of
-    // clearing.
-    if (
-      kind === "weight" &&
-      !changed &&
-      !directionTouched &&
-      currentWeightKg != null &&
-      targetValue !== ""
-    ) {
-      setDirection(targetKg < currentWeightKg ? "down" : "up")
-    }
   }
 
   // The target is typed on the Trakabl pad (feel pass §3).
   const [padOpen, setPadOpen] = useState(false)
   const targetRef = useRef<HTMLButtonElement>(null)
 
-  function onTargetValueChange(next: string) {
-    setTargetValue(next)
-    const n = Number(next)
-    // Follow the number while they type, so the common case needs no second
-    // tap. They can still override it, and whatever is showing is what gets
-    // stored.
-    if (
-      !directionTouched &&
-      targetKind === "weight" &&
-      currentWeightKg != null &&
-      Number.isFinite(n) &&
-      n > 0
-    ) {
-      setDirection(unitToKg(n, unit) < currentWeightKg ? "down" : "up")
-    }
-  }
-
   async function save() {
-    if (!canSave || busy) return
+    if (busy) return
+    // Never a dead button: a missing name is said, and the field takes focus.
+    if (trimmedName.length === 0) {
+      setNameMissing(true)
+      nameRef.current?.focus()
+      return
+    }
+    // Every other reason is already on screen under the fields.
+    if (!canSave) return
     setBusy(true)
     setError(null)
     // `targetFilled` already narrows `targetKind` away from "none".
     const targets: BlockTarget[] = targetFilled
-      ? [{ variable: targetKind, value: targetKg, direction }]
+      ? [{ variable: targetKind, value: targetKg, direction: shownDirection }]
       : []
     const res = await startBlockAction({
       name: trimmedName,
@@ -231,7 +213,7 @@ export function BlockCreateSheet({
           <button
             type="button"
             onClick={save}
-            disabled={!canSave || busy}
+            disabled={busy}
             className={cn(PRIMARY_BUTTON, "flex-1")}
           >
             {busy ? (
@@ -249,43 +231,52 @@ export function BlockCreateSheet({
         <label className="mt-1 block">
           <span className={FIELD_LABEL}>Name</span>
           <Input
+            ref={nameRef}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value)
+              if (nameMissing) setNameMissing(false)
+            }}
             maxLength={NAME_MAX}
             placeholder="First bodybuilding prep"
             aria-label="Block name"
+            aria-invalid={nameMissing ? true : undefined}
             className={FIELD}
           />
+          {nameMissing && (
+            <span className="mt-1.5 block px-1 text-sm text-state-error">Give the block a name.</span>
+          )}
         </label>
 
+        {/* Two dates side by side, each held to its half (`min-w-0`): the
+            field never grows past its column, and a long date steps its type
+            down rather than running off the screen (W32). */}
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <label className="block">
+          <label className="block min-w-0">
             <span className={FIELD_LABEL}>Starts</span>
-            <Input
-              type="date"
+            <DateField
+              label="Start date"
               value={startedOn}
-              max={todayKey}
-              onChange={(e) => {
-                // An EMPTY change event is not "today". iOS fires one while the
-                // picker wheels are still moving, and coercing it to today snapped
-                // the field back mid-pick — so a back-dated entry saved silently
-                // under today's date. Keep the last good value; the field is
-                // required, so there is nothing it should clear to.
-                if (e.target.value) setStartedOn(e.target.value)
+              // Only a real day comes back (no Clear): the start is required.
+              onChange={(key) => {
+                if (key) setStartedOn(key)
               }}
-              aria-label="Start date"
-              className={DATE_FIELD}
+              max={todayKey}
+              todayKey={todayKey}
+              className="h-12"
             />
           </label>
-          <label className="block">
+          <label className="block min-w-0">
             <span className={FIELD_LABEL}>Ends (optional)</span>
-            <Input
-              type="date"
+            <DateField
+              label="End date"
               value={endsOn}
+              onChange={setEndsOn}
               min={startedOn}
-              onChange={(e) => setEndsOn(e.target.value)}
-              aria-label="End date"
-              className={DATE_FIELD}
+              clearable
+              placeholder="None"
+              todayKey={todayKey}
+              className="h-12"
             />
           </label>
         </div>
@@ -335,7 +326,7 @@ export function BlockCreateSheet({
 
           {targetKind !== "none" && (
             <div className="mt-3 flex items-end gap-3">
-              <label className="block flex-1">
+              <label className="block min-w-0 flex-1">
                 <span className={FIELD_LABEL}>
                   {targetKind === "weight"
                     ? `Target weight (${unit})`
@@ -362,7 +353,7 @@ export function BlockCreateSheet({
                       label: targetKind === "weight" ? "Target weight" : "Target",
                       unit: targetKind === "weight" ? unit : "%",
                       value: targetValue,
-                      onChange: onTargetValueChange,
+                      onChange: setTargetValue,
                       // A weight takes decimals; a percentage is whole, and
                       // three digits covers 100.
                       decimal: targetKind === "weight",
@@ -380,10 +371,11 @@ export function BlockCreateSheet({
                 />
               </label>
 
-              {/* Only weight can go either way, so only weight is asked. */}
+              {/* Only weight can go either way, so only weight is asked. Once
+                  a weigh-in decides it (W41), the other way cannot be picked. */}
               {targetKind === "weight" && (
                 <ThumbGroup
-                  selection={direction}
+                  selection={shownDirection}
                   thumbClassName={CHIP_THUMB}
                   role="group"
                   aria-label="Direction"
@@ -394,29 +386,36 @@ export function BlockCreateSheet({
                       { id: "down", label: "Lose" },
                       { id: "up", label: "Gain" },
                     ] as const
-                  ).map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => {
-                        setDirection(opt.id)
-                        setDirectionTouched(true)
-                      }}
-                      aria-pressed={direction === opt.id}
-                      className={cn(
-                        SEGMENTED_ITEM_LG,
-                        "min-h-10",
-                        direction === opt.id
-                          ? "font-medium text-bg-base"
-                          : "text-text-muted hover:text-foreground",
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                  ).map((opt) => {
+                    const blocked = locked !== null && locked !== opt.id
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setDirection(opt.id)}
+                        disabled={blocked}
+                        aria-pressed={shownDirection === opt.id}
+                        className={cn(
+                          SEGMENTED_ITEM_LG,
+                          "min-h-10 disabled:pointer-events-none disabled:opacity-60",
+                          shownDirection === opt.id
+                            ? "font-medium text-bg-base"
+                            : "text-text-muted hover:text-foreground",
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
                 </ThumbGroup>
               )}
             </div>
+          )}
+          {/* Why one way is locked: the weigh-in it is measured against. */}
+          {targetKind === "weight" && currentWeightKg != null && (
+            <p className="mt-1.5 text-xs text-text-muted">
+              Last weigh-in {formatWeight(currentWeightKg, unit)} {unit}
+            </p>
           )}
         </div>
 

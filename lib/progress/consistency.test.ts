@@ -4,7 +4,14 @@
  */
 import { describe, it, expect } from "vitest"
 
-import { computeAdherenceOver, hasAnyDose, overallPct } from "@/lib/progress/consistency"
+import {
+  computeAdherence,
+  computeAdherenceOver,
+  consistencyEmptyNote,
+  hasAnyDose,
+  hasLoggedADose,
+  overallPct,
+} from "@/lib/progress/consistency"
 import type { StackCompound } from "@/lib/home/stack"
 
 describe("overallPct — today is not yet missed", () => {
@@ -182,5 +189,57 @@ describe("hasAnyDose: the card starts with your first dose", () => {
 
   it("is true once any dose is logged", () => {
     expect(hasAnyDose([pt(0, 2), pt(1, 2)])).toBe(true)
+  })
+})
+
+/**
+ * Cold review S10: once every compound was archived, `computeAdherence`
+ * returned nothing and the card told a user with months of doses that it
+ * "Starts with your first dose".
+ */
+describe("consistencyEmptyNote (S10): the empty card says what is true", () => {
+  const compound = (over: Partial<StackCompound> = {}): StackCompound => ({
+    id: "c1",
+    name: "Testosterone Cypionate",
+    category: "anabolic",
+    method: "im",
+    dose: 125,
+    unit: "mg",
+    schedule: { cadence: { type: "daily" }, timeOfDay: "08:00", startDate: "2026-08-01" },
+    rotationSites: [],
+    rotationIndex: 0,
+    ...over,
+  })
+  const taken = { amount: "125", time24: "08:00", siteId: null }
+  const skipped = { ...taken, status: "skipped" as const }
+  const history = { "2026-08-02": { c1: taken }, "2026-08-03": { c1: taken } }
+
+  it("starts with the first dose for someone who has never logged one", () => {
+    expect(consistencyEmptyNote([], {})).toBe("Starts with your first dose")
+    expect(consistencyEmptyNote([compound()], {})).toBe("Starts with your first dose")
+  })
+
+  it("does not count a skip as a first dose", () => {
+    expect(consistencyEmptyNote([compound()], { "2026-08-02": { c1: skipped } })).toBe(
+      "Starts with your first dose",
+    )
+  })
+
+  it("never tells a user with history it starts with their first dose once all is archived", () => {
+    const stack = [compound({ archived: true })]
+    // The exact state that produced the wrong line: no points at all.
+    expect(computeAdherence(stack, history, "2026-09-26")).toEqual([])
+    expect(consistencyEmptyNote(stack, history)).toBe("Nothing running now")
+  })
+
+  it("says the next dose starts it when something runs again with no dose yet", () => {
+    const stack = [compound({ archived: true }), compound({ id: "c2" })]
+    expect(consistencyEmptyNote(stack, history)).toBe("Starts with your next dose")
+  })
+
+  it("finds a taken dose among skips, on any day", () => {
+    expect(hasLoggedADose({ a: { c1: skipped }, b: { c1: skipped, "c1#1": taken } })).toBe(true)
+    expect(hasLoggedADose({ a: { c1: skipped } })).toBe(false)
+    expect(hasLoggedADose({})).toBe(false)
   })
 })
