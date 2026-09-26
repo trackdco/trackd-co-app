@@ -14,7 +14,7 @@ import { SubpageShell } from "@/components/protocol/pages/Subpage"
 import { blendFor } from "@/lib/compound-blends"
 import { CATEGORY_DISPLAY_ORDER, CATEGORY_META } from "@/lib/compound-categories"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
-import { formatAmount, type HalfLifeFigures } from "@/lib/halflife/model"
+import { listRowFigure } from "@/lib/halflife/model"
 import { getDoseLogsSnapshot, subscribeDoseLogs, type DayLogs } from "@/lib/home/doseLog"
 import { getHydrationState, subscribeHydrationState, type HydrationState } from "@/lib/home/hydrationState"
 import { toDateKey } from "@/lib/home/mockHomeData"
@@ -26,18 +26,13 @@ import { cn } from "@/lib/utils"
 const EMPTY_STACK: StackCompound[] = []
 const EMPTY_LOGS: DayLogs = {}
 
-/** A row's figure: what is circulating, or "Cleared" once it has. */
-function circulatingWords(f: HalfLifeFigures | null, unit: string): string {
-  if (!f || f.lastDoseLeft == null) return "No doses yet"
-  if (f.clearsInH != null && f.clearsInH <= 0) return "Cleared"
-  return `${formatAmount(f.circulating)} ${unit}`
-}
-
 interface RowModel {
   compound: StackCompound
   name: string
   graph: GraphLine[]
   figure: string
+  /** A dose has been taken: until then there is no curve, so no line. */
+  line: boolean
 }
 
 /**
@@ -85,7 +80,12 @@ export function HalfLifeScreen({
     for (const k of CATEGORY_DISPLAY_ORDER) {
       const rows = singles
         .filter((m) => m.compound.category === k)
-        .map((m) => ({ compound: m.compound, name: m.compound.name, graph: m.graph, figure: circulatingWords(m.figures, m.line.unit) }))
+        .map((m) => ({
+          compound: m.compound,
+          name: m.compound.name,
+          graph: m.graph,
+          ...listRowFigure(m.figures, m.line.unit),
+        }))
       if (rows.length) {
         out.push({ key: k, label: CATEGORY_META[k].label, glyph: CATEGORY_GLYPH[k] ?? "catPeptide", hue: `var(--cat-${k})`, rows })
       }
@@ -102,7 +102,7 @@ export function HalfLifeScreen({
             compound: b.compound,
             name: blendFor(b.compound.name)?.label ?? b.compound.name,
             graph: b.graph,
-            figure: circulatingWords(b.figures[i] ?? null, b.all[i]?.unit ?? b.compound.unit),
+            ...listRowFigure(b.figures[i] ?? null, b.all[i]?.unit ?? b.compound.unit),
           }
         }),
       })
@@ -134,7 +134,7 @@ export function HalfLifeScreen({
                   href={`${hrefBase}/${encodeURIComponent(r.compound.id)}`}
                   className={cn(PRESS.row, "block py-3", i > 0 && "hairline-t border-border-default")}
                 >
-                  <span className="mb-1.5 flex items-center gap-2">
+                  <span className={cn("flex items-center gap-2", r.line && "mb-1.5")}>
                     <Container
                       name={r.compound.name}
                       inventoryType={inventoryTypeForCompound(r.compound.name, r.compound.method, r.compound.inventoryForm)}
@@ -145,7 +145,8 @@ export function HalfLifeScreen({
                     <span className="min-w-0 flex-1 truncate text-[13.5px] text-foreground">{r.name}</span>
                     <span className="shrink-0 font-mono text-[11.5px] text-text-muted">{r.figure}</span>
                   </span>
-                  <Sparkline lines={r.graph} nowH={nowH} width={300} height={24} className="w-full" />
+                  {/* No line before the first dose: a flat one says nothing (D28). */}
+                  {r.line ? <Sparkline lines={r.graph} nowH={nowH} width={300} height={24} className="w-full" /> : null}
                 </Link>
               ))}
             </div>

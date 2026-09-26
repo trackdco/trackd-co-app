@@ -11,7 +11,7 @@ import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { CATEGORY_META, type CompoundCategory } from "@/lib/compound-categories"
 import type { DayLogs } from "@/lib/home/doseLog"
 import type { StackCompound } from "@/lib/home/stack"
-import { formatAmount, formatPercent, halfGoneAtH } from "@/lib/halflife/model"
+import { formatAmount, formatPercent, halfGoneAtH, heldScroll } from "@/lib/halflife/model"
 
 import { HalfLifeGraph } from "./HalfLifeGraph"
 import { RollNumber } from "./RollNumber"
@@ -26,6 +26,8 @@ import {
 
 /** The card grows to full width over this long, and the rail is held on it. */
 const GROW_MS = 460
+/** Reduced motion: how long the rail fades in after a card jumps to centre. */
+const REDUCED_FADE_MS = 160
 /** A scroll that has settled this long while a card is open picks its card. */
 const SETTLE_MS = 140
 
@@ -101,19 +103,33 @@ export function HalfLifeGlance({
     const svgW = cardW - 28 - 20
     card.style.setProperty("--open-h", `${Math.round(36 + 8 + (svgW * 106) / 270 + 6)}px`)
   }
-  /** Hold the rail on `id` every frame while the widths change. */
+  /** Reduced motion: a card that jumps into place does so behind a short fade
+   *  (build-brief-final §3.16), never a slide. */
+  const fadeRail = (sw: HTMLElement) => {
+    sw.animate([{ opacity: 0.25 }, { opacity: 1 }], { duration: REDUCED_FADE_MS, easing: "ease-out" })
+  }
+  /**
+   * Hold the rail on `id` every frame while the widths change. A side card
+   * does not jump: its offset from the centre eases to nothing over the grow
+   * (`heldScroll`), so it slides in as it widens (cold review F7). The centre
+   * card is already there, so it simply stays held.
+   */
   const pin = (id: string, ms: number) => {
     const sw = swipeRef.current
-    if (!sw) return
+    const card = cardRefs.current.get(id)
+    if (!sw || !card) return
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const offset = sw.scrollLeft - centreLeft(card)
+    if (reduce && Math.abs(offset) > 1) fadeRail(sw)
+    const from = reduce ? 0 : offset
     pinning.current = true
     sw.style.scrollSnapType = "none"
     let t0 = -1
     const step = (t: number) => {
       if (t0 < 0) t0 = t
-      const card = cardRefs.current.get(id)
-      if (card) sw.scrollLeft = centreLeft(card)
-      if (!reduce && t - t0 < ms) requestAnimationFrame(step)
+      const c = cardRefs.current.get(id)
+      if (c) sw.scrollLeft = heldScroll(centreLeft(c), from, t - t0, GROW_MS)
+      if (t - t0 < ms) requestAnimationFrame(step)
       else {
         sw.style.scrollSnapType = ""
         pinning.current = false
@@ -138,7 +154,10 @@ export function HalfLifeGlance({
       const card = cardRefs.current.get(id)
       const sw = swipeRef.current
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      if (card && sw) sw.scrollTo({ left: centreLeft(card), behavior: reduce ? "auto" : "smooth" })
+      if (card && sw) {
+        if (reduce) fadeRail(sw)
+        sw.scrollTo({ left: centreLeft(card), behavior: reduce ? "auto" : "smooth" })
+      }
       return
     }
     setOpenId(id)

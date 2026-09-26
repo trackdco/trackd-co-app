@@ -171,11 +171,16 @@ export interface BlendComponent {
   label: string
   /** How much of this component ONE unit of the compound's dose holds, in
    *  {@link unit}: Glow's 1750 mcg dose is 250 BPC-157 : 250 TB-500 : 1250
-   *  GHK-Cu, so BPC-157 is 1/7. */
+   *  GHK-Cu, so BPC-157 is 1/7. The dose unit is {@link per} when set. */
   perDoseUnit: number
   /** The component's own unit when it differs from the compound's: NDT is
    *  dosed in mg of tablet, its T4 is counted in mcg. Absent = the same. */
   unit?: string
+  /** The dose unit {@link perDoseUnit} counts per, when it is a fixed one:
+   *  NDT's parts are per mg of tablet, so a dose added in mcg is converted to
+   *  mg first. Absent = whatever unit the compound is dosed in (a same-unit
+   *  blend splits its dose as it is). */
+  per?: string
 }
 
 /**
@@ -209,8 +214,8 @@ const COMPONENTS: Record<string, BlendComponent[]> = {
     { name: "Ipamorelin", label: "IPA", perDoseUnit: 1 / 2 },
   ],
   "natural desiccated thyroid": [
-    { name: "Levothyroxine (T4)", label: "T4", perDoseUnit: 38 / 60, unit: "mcg" },
-    { name: "Liothyronine (T3)", label: "T3", perDoseUnit: 9 / 60, unit: "mcg" },
+    { name: "Levothyroxine (T4)", label: "T4", perDoseUnit: 38 / 60, unit: "mcg", per: "mg" },
+    { name: "Liothyronine (T3)", label: "T3", perDoseUnit: 9 / 60, unit: "mcg", per: "mg" },
   ],
 }
 

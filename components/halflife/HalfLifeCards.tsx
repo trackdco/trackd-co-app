@@ -12,6 +12,7 @@ import {
   curveLines,
   hoursOf,
   nextDoseAt,
+  nextDoseWords,
   type CurveLine,
   type HalfLifeSource,
 } from "@/lib/halflife/compoundCurve"
@@ -145,7 +146,9 @@ export function FigureRows({ source, figures }: { source: HalfLifeSource; figure
         {source.estimated ? <span className="ml-1 font-sans text-[11.5px] text-text-muted">est.</span> : null}
       </>,
     ],
-    ...(figures.nextDoseInH == null ? [] : ([["Next dose", nextDoseWords(figures.nextDoseInH)]] as [string, ReactNode][])),
+    ...(figures.nextDoseAtH == null
+      ? []
+      : ([["Next dose", nextDoseWords(figures.nowH, figures.nextDoseAtH)]] as [string, ReactNode][])),
     ...(stopped && figures.clearsInH != null ? ([["Clears in", formatClearsIn(figures.clearsInH)]] as [string, ReactNode][]) : []),
   ]
   return (
@@ -166,11 +169,8 @@ export function levelWord(figures: HalfLifeFigures): string {
   return figures.steady.kind === "in" ? "Climbing" : "Holding"
 }
 
-/** Next dose as days: "Today", "1 day", "3 days". */
-export function nextDoseWords(h: number): string {
-  const d = Math.round(h / 24)
-  return d <= 0 ? "Today" : d === 1 ? "1 day" : `${d} days`
-}
+/** Next dose as calendar days: "Today", "1 day", "3 days" (the lib's own). */
+export { nextDoseWords }
 
 /* ----------------------------------------------------------------- model */
 
@@ -209,7 +209,8 @@ export function useHalfLifeModels(
     for (const c of compounds) {
       const hue = containerColour({ category: c.category })
       const next = nextDoseAt(c, logs, now)
-      // Enough schedule ahead for the longest window any line could show.
+      // Enough schedule ahead for the longest window any line could show; the
+      // lines also reach the dose after next however far off, for Peaks in.
       const lines = curveLines(c, logs, now, nowH + 192, customs)
       const figuresOf = (l: CurveLine) =>
         l.source

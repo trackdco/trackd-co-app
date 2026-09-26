@@ -21,7 +21,7 @@ import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { CaretRight } from "@/components/icons"
 import { Fold, SubpageShell } from "@/components/protocol/pages/Subpage"
 import { blendFor } from "@/lib/compound-blends"
-import { dateKeyOfHours, type HalfLifeSource } from "@/lib/halflife/compoundCurve"
+import { dateKeyOfHours, runLengthDays, type HalfLifeSource } from "@/lib/halflife/compoundCurve"
 import {
   clearsAfterH,
   curvePoints,
@@ -225,7 +225,11 @@ export function HalfLifeCompoundScreen({
           <div className="text-right">
             <p className="text-[11.5px] text-text-muted">{stopped ? "Clears in" : "Next dose"}</p>
             <p className="font-mono text-[20px] leading-tight font-light text-foreground">
-              {stopped ? (f.clearsInH != null ? formatClearsIn(f.clearsInH) : "None") : nextDoseWords(f.nextDoseInH!)}
+              {stopped || f.nextDoseAtH == null
+                ? f.clearsInH != null
+                  ? formatClearsIn(f.clearsInH)
+                  : "None"
+                : nextDoseWords(f.nowH, f.nextDoseAtH)}
             </p>
           </div>
         </div>
@@ -299,7 +303,7 @@ function PastRuns({ focus, nowH }: { focus: Focus; nowH: number }) {
           const r1 = r.current ? nowH : Math.min(nowH, r.toH + clearsAfterH(hl, route))
           const line: GraphLine[] = [{ source: focus.source, taken: doses, toCome: [], hue: focus.hue }]
           const peak = Math.max(0, ...curvePoints(doses, r0, r1, 200, hl, route).map((p) => p[1]))
-          const days = Math.max(1, Math.round((r.toH - r.fromH) / 24) + 1)
+          const days = runLengthDays(r.fromH, r.toH)
           return (
             <div key={r.fromH} className={cn(i > 0 && "hairline-t border-border-default")}>
               <button
