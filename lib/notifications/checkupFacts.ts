@@ -291,9 +291,9 @@ export async function readStreak(
 /**
  * Check-ups and the rotating wordings go out only with `NOTIFICATION_CHECKUPS=on`.
  *
- * Off until the Notifications page that carries the Check-ins switch ships, so
- * nobody is sent a check-up they have no way to turn off. The column behind the
- * switch defaults to on, which is right once the switch exists and wrong before.
+ * A deploy switch, off until the new Notifications page ships with the check-up
+ * engine, so the two go live together. There is no per-account Check-ins switch
+ * (Adrian, 2026-09-26): the Notifications switch turns check-ups off with the rest.
  */
 export function checkupsEnabled(): boolean {
   return process.env.NOTIFICATION_CHECKUPS === "on";

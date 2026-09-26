@@ -11,6 +11,8 @@ export default function Loading() {
       back={{ href: "/profile", label: "Profile" }}
       title="Notifications"
       subtitle="Reminders for your protocol, sent to this device."
+      // The preview and the one settings card.
+      cards={2}
     />
   )
 }

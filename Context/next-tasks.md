@@ -213,25 +213,26 @@ check-up engine. The settings page is task 3, on a branch off
 `design/half-life-motion`, because half-life restyles that exact page. Details in
 `progress-tracker.md`.
 
-### 1. Merge `notifications/copy-refresh` (Adrian says when)
-`npm run check` green (2219 tests). Safe to deploy before 007: the new columns are
-read on their own. After it deploys, check one real push on an iPhone and an
-Android: the prefix only on iPhone, Kyle in the Android status bar.
+### 1. ✅ `notifications/copy-refresh` MERGED to `main` (2026-09-26)
+Live: the wording, the iPhone prefix, the Android icon. Check one real push on an
+iPhone and an Android.
 
-### 2. Apply `supabase/notifications/007_privacy_and_checkups.sql` (Adrian, or Claude via MCP on his word)
-Adds `hide_compound_names`, `checkins_on`, `last_checkup_on` and the
-`notification_log` table, and adds `last_checkup_on` to the stamp guard. VERIFY
-block at the foot of the file.
+### 2. The simpler Notifications page — BUILT on `notifications/settings-page`, HELD (2026-09-26)
+Adrian: "just get rid of all these switches". The page is the preview, Notifications,
+the daily reminder time and Hide compound names. The runner now ignores the per-type
+switches, the don't-forget wait and the quiet-hours columns: quiet hours are fixed at
+22:00 to 08:00 for what we time, and the user's own reminder goes at their time.
+Still ONE daily digest, not one per dose time (16+ compounds; most dose times are the
+add form's prefill). Built on half-life, so it merges AFTER half-life; he said to keep
+it for now. `npm run check` green (2530 tests); seen at 375 and 390 with push faked on.
 
-### 3. The Notifications page, layout A — BUILT on `notifications/settings-page` (2026-09-26)
-Branched from `design/half-life-motion` (1f77303) with `notifications/copy-refresh` merged
-in, so it merges AFTER half-life. `npm run check` green (2526 tests). Seen at 390x844 on a
-dev server with push faked on (preview, rows, hidden names, low-stock preview). Still to
-see on a real phone: the native time pickers, and the page with 007 applied on the burner.
+### 3. Apply `supabase/notifications/007` FROM THIS BRANCH, when it merges
+This branch's 007 no longer has `checkins_on` (there is no Check-ins switch). The copy
+of 007 on `main` still does, so do not apply that one; if it is applied first, the
+column is simply unused.
 
 ### 4. Turn check-ups on: `NOTIFICATION_CHECKUPS=on` in Vercel
-Only once task 3 has shipped and 007 is applied: the Check-ins switch has to exist
-before anybody gets a check-up. The dry run (`/api/notifications/run?dryRun=1`) reports
+With the page and 007. The dry run (`/api/notifications/run?dryRun=1`) reports
 `checkup: would-send:<key>` per user, so the first day can be read before it sends.
 
 ### 5. The app shows no streak (Adrian to decide)

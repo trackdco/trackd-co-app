@@ -67,6 +67,13 @@ const VAPID_SUBJECT = process.env.VAPID_SUBJECT ?? "mailto:notifications@trackdc
 /** Founders are AU; a user with no stored timezone falls back to this. */
 const DEFAULT_TZ = "Australia/Sydney";
 
+/**
+ * Quiet hours, fixed (Adrian, 2026-09-26): nothing WE time goes out between 22:00
+ * and 08:00 local. The user's own daily reminder is exempt; see `runForUser`.
+ */
+const QUIET_START = 22 * 60;
+const QUIET_END = 8 * 60;
+
 
 type Client = SupabaseClient;
 
@@ -607,7 +614,7 @@ async function collectUserData(
     supabase
       .from("notification_preferences")
       .select(
-        "dose_reminders_on, unlogged_alert_on, low_inventory_alert_on, reminder_time, missed_cutoff_time, unlogged_alert_wait, quiet_start, quiet_end, low_stock_days, last_dose_reminder_on, last_missed_nudge_on, last_low_stock_on",
+        "reminder_time, missed_cutoff_time, low_stock_days, last_dose_reminder_on, last_missed_nudge_on, last_low_stock_on",
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -918,23 +925,21 @@ async function collectCheckupPrefs(
   available: boolean;
   hasRow: boolean;
   hideNames: boolean;
-  checkinsOn: boolean;
   lastCheckupOn: string | null;
 }> {
   const { data, error } = await supabase
     .from("notification_preferences")
-    .select("hide_compound_names, checkins_on, last_checkup_on")
+    .select("hide_compound_names, last_checkup_on")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) {
-    return { available: false, hasRow: false, hideNames: false, checkinsOn: false, lastCheckupOn: null };
+    return { available: false, hasRow: false, hideNames: false, lastCheckupOn: null };
   }
   const r = data as Record<string, unknown> | null;
   return {
     available: true,
     hasRow: !!r,
     hideNames: r?.hide_compound_names === true,
-    checkinsOn: !!r && r.checkins_on !== false,
     lastCheckupOn: (r?.last_checkup_on as string | null) ?? null,
   };
 }
@@ -1064,31 +1069,40 @@ export async function runForUser(
     };
   }
 
-  const quietStart = toMinutes((p.quiet_start as string) ?? "22:00:00");
-  const quietEnd = toMinutes((p.quiet_end as string) ?? "08:00:00");
-  if (!force && inQuietHours(data.nowMinutes, quietStart, quietEnd)) {
-    return {
-      ok: true, sent: 0, dueCount: 0, lowCount: 0, loggedCount: 0, reason: "quiet-hours",
-      trialReminder: data.trial ? "quiet-hours" : undefined,
-    };
-  }
+  /**
+   * QUIET HOURS ARE FIXED, AND THEY NO LONGER SILENCE THE USER'S OWN REMINDER.
+   *
+   * Adrian, 2026-09-26: the page keeps one time, the daily reminder, and loses
+   * every other setting. Of 19 people with notifications on, one had ever changed
+   * quiet hours and nobody had turned a reminder type off. So:
+   *
+   *  - The daily reminder (and the low-stock note that rides with it) goes at the
+   *    time the user chose, even inside 22:00 to 08:00. Choosing 7:00 is consent
+   *    to 7:00; the old early return turned it into 8:00, and a time chosen inside
+   *    the window never went out at all, because the day ended first.
+   *  - Everything WE time — the evening don't-forget, check-ups, the trial and
+   *    grace notices — waits outside the window.
+   *
+   * `quiet_start` / `quiet_end` stay in the table and are no longer read.
+   */
+  const quiet = !force && inQuietHours(data.nowMinutes, QUIET_START, QUIET_END);
 
   const extra = await collectCheckupPrefs(supabase, userId);
   /** Lock-screen privacy: every body worded from counts alone. Honoured by the test send too. */
   const hideNames = extra.hideNames;
   /**
    * THE PERSONALITY LAYER: check-ups and the rotating wordings (Adrian,
-   * 2026-09-25/26). Behind the deploy switch, the account's own Check-ins
-   * switch, a preferences row to stamp (see `collectCheckupPrefs`), and write
-   * access — a read-only account is not coaxed toward logging it cannot do. Never
-   * on a test send, which must show the plain wording it is testing.
+   * 2026-09-25/26). Behind the deploy switch, a preferences row to stamp (see
+   * `collectCheckupPrefs`), and write access — a read-only account is not coaxed
+   * toward logging it cannot do. Never on a test send, which must show the plain
+   * wording it is testing. There is no Check-ins switch (Adrian, 2026-09-26): the
+   * Notifications switch turns these off with everything else.
    */
   const personality =
     !force &&
     checkupsEnabled() &&
     extra.available &&
     extra.hasRow &&
-    extra.checkinsOn &&
     data.canWrite;
   const swapCtx: SwapContext = {
     userId,
@@ -1159,7 +1173,9 @@ export async function runForUser(
   const reminderMin = toMinutes((p.reminder_time as string) ?? "09:00:00");
   const missedMin = toMinutes((p.missed_cutoff_time as string) ?? "20:00:00");
   /** How long past a dose's own time before it counts as still unlogged. */
-  const waitMin = waitMinutes(p.unlogged_alert_wait);
+  // The page no longer offers the wait, so the column is not read: a value
+  // nobody can see or change must not decide anything. Everyone had the default.
+  const waitMin = waitMinutes("hour_2");
 
   /**
    * WHEN THE TRIAL REMINDER MAY FIRE, WHICH IS NOT ALWAYS `reminder_time`.
@@ -1180,7 +1196,22 @@ export async function runForUser(
    * disturbed, which is the closest thing to their intent that still keeps the
    * promise.
    */
-  const trialMin = inQuietHours(reminderMin, quietStart, quietEnd) ? quietEnd : reminderMin;
+  const trialMin = inQuietHours(reminderMin, QUIET_START, QUIET_END) ? QUIET_END : reminderMin;
+  /**
+   * May the user's own reminder go out now? Outside quiet hours, yes. Inside
+   * them, only when the time they CHOSE is itself inside the window and has come:
+   * a 7:00 reminder goes at 7:00, a 23:00 one at 23:00. A 9:00 reminder that has
+   * not gone out yet does not go at 23:30 — the night somebody first switches
+   * notifications on, or the runner recovers from an outage — because 9:00 was
+   * never a choice to be woken.
+   */
+  const reminderInQuiet = inQuietHours(reminderMin, QUIET_START, QUIET_END);
+  const userTimeOk =
+    !quiet ||
+    (reminderInQuiet &&
+      (reminderMin >= QUIET_START
+        ? data.nowMinutes >= reminderMin
+        : data.nowMinutes >= reminderMin && data.nowMinutes < QUIET_END));
   /**
    * ⚠️ A READ ONLY ACCOUNT IS NOT NUDGED TO LOG ANYTHING.
    *
@@ -1196,9 +1227,15 @@ export async function runForUser(
    * their access is ending, and the person that matters most to is exactly the
    * one who can no longer write.
    */
-  const doseOn = data.canWrite && p.dose_reminders_on !== false && !cannotJudgeDoses && !spacePaused;
-  const missedOn = data.canWrite && p.unlogged_alert_on !== false && !cannotJudgeDoses && !spacePaused;
-  const lowOn = data.canWrite && p.low_inventory_alert_on !== false && !cannotJudgeStock && !spacePaused;
+  /**
+   * The three reminder types are no longer switches (Adrian, 2026-09-26: nobody
+   * had turned one off). Their columns are not read: a switch the page does not
+   * show must not be able to silence anybody. The Notifications switch is the one
+   * off switch, and it returned above.
+   */
+  const doseOn = data.canWrite && !cannotJudgeDoses && !spacePaused;
+  const missedOn = data.canWrite && !cannotJudgeDoses && !spacePaused && !quiet;
+  const lowOn = data.canWrite && !cannotJudgeStock && !spacePaused;
 
   /** The check-up chosen this tick, and why none was, for {@link RunResult.checkup}. */
   let checkup: Checkup | null = null;
@@ -1221,7 +1258,7 @@ export async function runForUser(
     }
   } else {
     // Scheduled: each type fires at its time, once per local day.
-    if (doseOn && due.length > 0 && data.nowMinutes >= reminderMin && p.last_dose_reminder_on !== data.todayKey) {
+    if (doseOn && due.length > 0 && data.nowMinutes >= reminderMin && userTimeOk && p.last_dose_reminder_on !== data.todayKey) {
       // Another wording on some days, never another notification.
       const m = (personality ? doseSwap(due, swapCtx) : null) ?? doseReminderMessage(due, { hideNames });
       if (m) {
@@ -1282,7 +1319,7 @@ export async function runForUser(
         stamps.push({ column: "last_missed_nudge_on", value: data.todayKey, tag: m.tag });
       }
     }
-    if (lowOn && low.length > 0 && data.nowMinutes >= reminderMin && p.last_low_stock_on !== data.todayKey) {
+    if (lowOn && low.length > 0 && data.nowMinutes >= reminderMin && userTimeOk && p.last_low_stock_on !== data.todayKey) {
       const m = (personality ? lowSwap(low, swapCtx) : null) ?? lowStockMessage(low, { hideNames });
       if (m) {
         messages.push(m);
@@ -1305,6 +1342,8 @@ export async function runForUser(
       checkupReason = "off";
     } else if (spacePaused) {
       checkupReason = "paused-for-space";
+    } else if (quiet) {
+      checkupReason = "quiet-hours";
     } else if (extra.lastCheckupOn === data.todayKey) {
       checkupReason = "already-today";
     } else if (data.nowMinutes < EARLIEST_CHECKUP_MIN || now.getUTCMinutes() >= 15) {
@@ -1340,7 +1379,11 @@ export async function runForUser(
      * repairs from a cold review — see `claimTrialReminder`, and the ordering
      * note below.
      */
-    if (data.trialSentFor === undefined) {
+    if (quiet) {
+      // The trial and grace notices are ours to time, so they wait out the
+      // window like the rest (`trialMin` moves a reminder time inside it to 08:00).
+      if (data.trial) trialReason = "quiet-hours";
+    } else if (data.trialSentFor === undefined) {
       // `supabase/notifications/004` is not applied — there is nowhere to record
       // a send, and sending without recording would repeat every fifteen
       // minutes for a whole day. Withholding is the safe direction.

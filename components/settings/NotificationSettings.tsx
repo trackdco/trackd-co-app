@@ -6,12 +6,7 @@ import { CircleNotch } from "@/components/icons";
 import { AddToHomeScreenPrompt } from "@/components/push/AddToHomeScreenPrompt";
 import { usePushNotifications } from "@/components/push/usePushNotifications";
 import { NotificationPreview } from "@/components/settings/NotificationPreview";
-import {
-  doseReminderMessage,
-  lowStockMessage,
-  missedNudgeMessage,
-  type ReminderCompound,
-} from "@/lib/notifications/reminders";
+import { doseReminderMessage, type ReminderCompound } from "@/lib/notifications/reminders";
 import { sendMyRemindersNow } from "@/lib/notifications/actions";
 import {
   saveReminderPrefs,
@@ -20,71 +15,47 @@ import {
 } from "@/lib/notifications/prefsActions";
 import { guessPlatform } from "@/lib/onboarding/platform";
 import { showToast } from "@/lib/toast";
-import { CARD, CARD_EYEBROW, INLINE_NOTE, PRESS, ROWS, ROW_NAME } from "@/lib/ui-presets";
+import { CARD, PRESS, ROWS, ROW_NAME } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 
 /**
- * The Notifications page's controls — layout "A · Preview first", which Adrian
- * picked on 2026-09-25 over a plain list.
+ * The Notifications page's controls.
  *
- * ## What changed from the page it replaces, and why
+ * ## Three things to set, and nothing else (Adrian, 2026-09-26)
  *
- *  - **It saves as you go.** The master switch always saved instantly and the
- *    reminder switches waited for a "Save reminders" button, so a switch flipped
- *    on the way out was quietly lost. Every change now saves on its own, with the
- *    one "Saved" toast and its Undo.
- *  - **It shows the notification.** The preview at the top is the message you
- *    would get for whichever row you last touched, worded by the SAME functions
- *    the reminder runner sends with, so it cannot show a sentence the phone would
- *    not.
- *  - **No hint under every row.** The preview does that job.
- *  - **Two new switches**: Check-ins and Hide compound names
- *    (`supabase/notifications/007`). Both are left out while 007 cannot be read,
- *    so there is never a switch on screen that cannot save.
+ * He asked whether people need to choose all this, and the account data said
+ * no: of 19 people with notifications on, 3 had ever changed a setting (all the
+ * reminder time), one had changed quiet hours, and nobody had turned a reminder
+ * type off or changed the don't-forget wait. So the page is the Notifications
+ * switch, the daily reminder time, and Hide compound names. The reminder types,
+ * the wait and quiet hours are fixed in the runner (`runner.ts`), and there is
+ * no Check-ins switch: the Notifications switch turns everything off.
+ *
+ * Reminders stay ONE daily digest rather than one per dose time, on purpose:
+ * somebody running 16 compounds would otherwise be pinged all day, and most
+ * dose times are the add form's prefill rather than a time anybody chose.
+ *
+ * ## Kept from layout A
+ *
+ *  - **The preview**: the reminder as the phone draws it, worded by the runner's
+ *    own builder from the user's own compounds, so hiding names shows its effect
+ *    without a line of explanation.
+ *  - **Saving as you go**, with the one "Saved" toast and its Undo, and a change
+ *    still waiting when you leave is saved on the way out.
  */
 
-export interface NotificationPrefsInitial extends ReminderPrefsInput {
-  /** False while `supabase/notifications/007` is unapplied: no Check-ins, no Hide names. */
+export interface NotificationPrefsInitial {
+  reminderTime: string; // "HH:MM"
+  /** False while `supabase/notifications/007` is unapplied: no Hide names row. */
   privacyAvailable: boolean;
   hideNames: boolean;
-  checkinsOn: boolean;
 }
 
-type Focus = "dose" | "missed" | "low" | "checkins" | "test";
-
-const WAITS = [
-  { value: "min_30", label: "after 30 min" },
-  { value: "hour_1", label: "after 1 hr" },
-  { value: "hour_2", label: "after 2 hr" },
-  { value: "hour_4", label: "after 4 hr" },
-];
-
-/** When the evening don't-forget goes out: the runner's `missed_cutoff_time` default. */
-const MISSED_AT = "20:00";
-/** The Sunday recap, the check-up the preview uses as its example. */
-const CHECKIN_AT = "18:00";
-
-/**
- * A compact time field or select inside a row. Mono, like every figure. The
- * desktop picker glyph is hidden: at row width it pushed "AM" out of the box,
- * and a phone opens its own picker on tap whatever the field draws.
- */
+/** A compact time field inside a row. Mono, like every figure. The desktop picker
+ *  glyph is hidden: it pushed "AM" out of the box at row width, and a phone opens
+ *  its own picker on tap whatever the field draws. */
 const ROW_FIELD =
-  "h-9 shrink-0 rounded-lg border border-border-default bg-bg-input px-2 font-mono text-sm tabular-nums text-foreground outline-none [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
-
-/** The platform does not change while the page is open, so nothing to subscribe to. */
-const noSubscribe = () => () => {};
-
-const toMin = (t: string) => {
-  const [h, m] = t.split(":").map(Number);
-  return (h || 0) * 60 + (m || 0);
-};
-
-function inQuiet(t: string, start: string, end: string): boolean {
-  const x = toMin(t), a = toMin(start), b = toMin(end);
-  if (a === b) return false;
-  return a < b ? x >= a && x < b : x >= a || x < b;
-}
+  "h-9 w-[5.75rem] shrink-0 rounded-lg border border-border-default bg-bg-input px-2 text-center font-mono text-sm tabular-nums text-foreground outline-none [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 /** "09:00" in the viewer's own clock style ("9:00 am" or "09:00"). */
 function clock(t: string): string {
@@ -94,6 +65,9 @@ function clock(t: string): string {
     minute: "2-digit",
   });
 }
+
+/** The platform does not change while the page is open, so nothing to subscribe to. */
+const noSubscribe = () => () => {};
 
 export function NotificationSettings({
   initialEnabled,
@@ -123,10 +97,14 @@ export function NotificationSettings({
   const [prefs, setPrefs] = useState<NotificationPrefsInitial>(initial);
   /** The latest values, for a save scheduled from an event handler. */
   const prefsRef = useRef<NotificationPrefsInitial>(initial);
-  const [focus, setFocus] = useState<Focus>("dose");
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
 
   /* ------------------------------------------------------------ saving */
+
+  const toInput = (p: NotificationPrefsInitial): ReminderPrefsInput =>
+    p.privacyAvailable
+      ? { reminderTime: p.reminderTime, hideNames: p.hideNames }
+      : { reminderTime: p.reminderTime };
 
   /** What is saved right now. Undo puts this back. */
   const savedRef = useRef<ReminderPrefsInput>(toInput(initial));
@@ -134,28 +112,15 @@ export function NotificationSettings({
   /** A change waiting out the pause, so leaving the page still saves it. */
   const pending = useRef<NotificationPrefsInitial | null>(null);
 
-  function toInput(p: NotificationPrefsInitial): ReminderPrefsInput {
-    const base: ReminderPrefsInput = {
-      doseRemindersOn: p.doseRemindersOn,
-      missedOn: p.missedOn,
-      unloggedWait: p.unloggedWait,
-      lowStockOn: p.lowStockOn,
-      reminderTime: p.reminderTime,
-      quietStart: p.quietStart,
-      quietEnd: p.quietEnd,
-    };
-    return p.privacyAvailable ? { ...base, hideNames: p.hideNames, checkinsOn: p.checkinsOn } : base;
-  }
-
   /**
    * One save per pause, not per keystroke: a time field fires as each digit
    * changes, and three toasts for one time would bury the Undo that matters.
    */
-  function change(patch: Partial<NotificationPrefsInitial>, nextFocus?: Focus) {
-    if (nextFocus) setFocus(nextFocus);
+  function change(patch: Partial<NotificationPrefsInitial>) {
     const next = { ...prefsRef.current, ...patch };
     prefsRef.current = next;
     setPrefs(next);
+    setTested("idle");
     if (timer.current) clearTimeout(timer.current);
     pending.current = next;
     timer.current = setTimeout(() => {
@@ -188,8 +153,9 @@ export function NotificationSettings({
     });
   }
 
-  // Leaving within the pause must not lose the change: that is the bug this page
-  // replaced. The toast is app-wide, so its "Saved" still shows on the next screen.
+  // Leaving within the pause must not lose the change: that is the bug the old
+  // "Save reminders" button caused. The toast is app-wide, so its "Saved" still
+  // shows on the next screen.
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
     if (pending.current) void save(pending.current);
@@ -218,7 +184,6 @@ export function NotificationSettings({
   const [tested, setTested] = useState<"idle" | "sent" | "failed">("idle");
   function sendTest() {
     setTested("idle");
-    setFocus("test");
     startTest(async () => {
       const { ok } = await sendMyRemindersNow();
       setTested(ok ? "sent" : "failed");
@@ -228,41 +193,25 @@ export function NotificationSettings({
   /* ------------------------------------------------------------ the preview */
 
   // "Trakabl • " on iPhone only, exactly as public/sw.js does it: Android and
-  // desktop print the app name in their own header. Read after mount, since the
-  // server cannot know the phone.
-  const iphone = useSyncExternalStore(
-    noSubscribe,
-    () => guessPlatform() === "ios",
-    () => false,
-  );
+  // desktop print the app name in their own header.
+  const iphone = useSyncExternalStore(noSubscribe, () => guessPlatform() === "ios", () => false);
 
   const preview = useMemo(() => {
-    const names = compoundNames.length ? compoundNames : ["BPC-157"];
     const hide = prefs.hideNames || compoundNames.length === 0;
-    const compounds = names.map(
+    const compounds = (compoundNames.length ? compoundNames : ["BPC-157"]).map(
       (name, i): ReminderCompound => ({
         id: `p${i}`, name, schedule_type: "every_day", days_of_week: null,
         interval_days: null, first_dose_on: "2000-01-01", end_date: null,
       }),
     );
-    const at = (m: { title: string; body: string } | null, time: string) =>
-      m ? { title: m.title, body: m.body, time } : null;
-    const pick =
-      focus === "test"
-        ? { title: "Trakabl", body: "Notifications are working. Nothing’s due right now", time: "now" }
-        : focus === "missed"
-          ? at(missedNudgeMessage(compounds.slice(0, 1), { hideNames: hide }), MISSED_AT)
-          : focus === "low"
-            ? at(lowStockMessage([{ name: names[0], estEmptyDate: null, daysToEmpty: 5, dosesRemaining: 4 }], { hideNames: hide }), prefs.reminderTime)
-            : focus === "checkins"
-              // One of the signed-off check-ups (lib/notifications/checkups.ts),
-              // the Sunday recap, as the example of the kind.
-              ? { title: "Your Week", body: "13 of 14 doses logged. Nearly perfect. Nearly", time: CHECKIN_AT }
-              : at(doseReminderMessage(compounds, { hideNames: hide }), prefs.reminderTime);
-    const m = pick ?? { title: "Dose Reminder", body: "", time: prefs.reminderTime };
-    const title = !m.title || m.title === "Trakabl" ? "Trakabl" : iphone ? `Trakabl • ${m.title}` : m.title;
-    return { title, body: m.body, time: m.time === "now" ? "now" : clock(m.time) };
-  }, [focus, prefs.hideNames, prefs.reminderTime, compoundNames, iphone]);
+    const m = doseReminderMessage(compounds, { hideNames: hide });
+    const t = m?.title ?? "Dose Reminder";
+    return {
+      title: iphone ? `Trakabl • ${t}` : t,
+      body: m?.body ?? "",
+      time: clock(prefs.reminderTime),
+    };
+  }, [prefs.hideNames, prefs.reminderTime, compoundNames, iphone]);
 
   const controllable = status === "on" || status === "off";
 
@@ -325,123 +274,37 @@ export function NotificationSettings({
         {switchMessage && (
           <p role="alert" className="mt-2 text-sm leading-relaxed text-text-muted">{switchMessage}</p>
         )}
-      </section>
 
-      {on && (
-        <>
-          <section className={cn(CARD, "p-5")}>
-            <p className={CARD_EYEBROW}>Reminders</p>
-            <div className={cn(ROWS, "mt-3 overflow-hidden")}>
-              <Row label="Dose reminder" onFocus={() => setFocus("dose")} dim={!prefs.doseRemindersOn}>
-                <input
-                  type="time"
-                  aria-label="Dose reminder time"
-                  value={prefs.reminderTime}
-                  onChange={(e) => e.target.value && change({ reminderTime: e.target.value }, "dose")}
-                  className={cn(ROW_FIELD, "w-[6.75rem]")}
+        {on && (
+          <div className={cn(ROWS, "mt-4 overflow-hidden")}>
+            <div className="flex min-h-[3.25rem] items-center gap-3 px-4 py-2.5">
+              <label htmlFor="reminder-time" className={cn(ROW_NAME, "min-w-0 flex-1")}>
+                Daily reminder
+              </label>
+              <input
+                id="reminder-time"
+                type="time"
+                value={prefs.reminderTime}
+                onChange={(e) => e.target.value && change({ reminderTime: e.target.value })}
+                className={ROW_FIELD}
+              />
+            </div>
+            {prefs.privacyAvailable && (
+              <div className="flex min-h-[3.25rem] items-center gap-3 px-4 py-2.5">
+                <span className="min-w-0 flex-1">
+                  <span className={cn(ROW_NAME, "block")}>Hide compound names</span>
+                  <span className="block text-xs text-text-muted">On the lock screen</span>
+                </span>
+                <Switch
+                  label="Hide compound names"
+                  on={prefs.hideNames}
+                  onFlip={() => change({ hideNames: !prefs.hideNames })}
                 />
-                <Switch label="Dose reminder" on={prefs.doseRemindersOn} onFlip={() => change({ doseRemindersOn: !prefs.doseRemindersOn }, "dose")} />
-              </Row>
-              <Row label="Don’t forget" onFocus={() => setFocus("missed")} dim={!prefs.missedOn}>
-                <select
-                  aria-label="Nudge after"
-                  value={prefs.unloggedWait}
-                  onChange={(e) => change({ unloggedWait: e.target.value }, "missed")}
-                  className={cn(ROW_FIELD, "appearance-none text-center")}
-                >
-                  {WAITS.map((w) => (
-                    <option key={w.value} value={w.value}>{w.label}</option>
-                  ))}
-                </select>
-                <Switch label="Don’t forget" on={prefs.missedOn} onFlip={() => change({ missedOn: !prefs.missedOn }, "missed")} />
-              </Row>
-              <Row label="Low stock" onFocus={() => setFocus("low")} dim={!prefs.lowStockOn}>
-                <Switch label="Low stock" on={prefs.lowStockOn} onFlip={() => change({ lowStockOn: !prefs.lowStockOn }, "low")} />
-              </Row>
-              {prefs.privacyAvailable && (
-                <Row label="Check-ins" onFocus={() => setFocus("checkins")} dim={!prefs.checkinsOn}>
-                  <Switch label="Check-ins" on={prefs.checkinsOn} onFlip={() => change({ checkinsOn: !prefs.checkinsOn }, "checkins")} />
-                </Row>
-              )}
-            </div>
-            {prefs.doseRemindersOn && inQuiet(prefs.reminderTime, prefs.quietStart, prefs.quietEnd) && (
-              <p className={cn(INLINE_NOTE, "mt-3")}>
-                {clock(prefs.reminderTime)} is in quiet hours, so it arrives at {clock(prefs.quietEnd)}
-              </p>
+              </div>
             )}
-          </section>
-
-          <section className={cn(CARD, "p-5")}>
-            <p className={CARD_EYEBROW}>Privacy</p>
-            <div className={cn(ROWS, "mt-3 overflow-hidden")}>
-              {prefs.privacyAvailable && (
-                <Row label="Hide compound names" meta="On the lock screen" onFocus={() => setFocus("dose")}>
-                  <Switch
-                    label="Hide compound names"
-                    on={prefs.hideNames}
-                    onFlip={() => change({ hideNames: !prefs.hideNames }, focus === "checkins" || focus === "test" ? "dose" : undefined)}
-                  />
-                </Row>
-              )}
-              <Row label="Quiet hours" wrap>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    aria-label="Quiet hours start"
-                    value={prefs.quietStart}
-                    onChange={(e) => e.target.value && change({ quietStart: e.target.value })}
-                    className={cn(ROW_FIELD, "w-[6.75rem]")}
-                  />
-                  <span className="text-sm text-text-muted">to</span>
-                  <input
-                    type="time"
-                    aria-label="Quiet hours end"
-                    value={prefs.quietEnd}
-                    onChange={(e) => e.target.value && change({ quietEnd: e.target.value })}
-                    className={cn(ROW_FIELD, "w-[6.75rem]")}
-                  />
-                </div>
-              </Row>
-            </div>
-          </section>
-        </>
-      )}
-    </div>
-  );
-}
-
-/**
- * One row: its name (tapping it shows that notification in the preview), then
- * its controls. `wrap` lets a wide control drop under the name on a narrow
- * phone rather than squeezing it (quiet hours is two times and a "to").
- */
-function Row({
-  label,
-  meta,
-  onFocus,
-  dim,
-  wrap,
-  children,
-}: {
-  label: string;
-  meta?: string;
-  onFocus?: () => void;
-  dim?: boolean;
-  wrap?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={cn("flex min-h-[3.25rem] items-center gap-3 px-4 py-2.5", wrap && "flex-wrap")}>
-      <button
-        type="button"
-        tabIndex={-1}
-        onClick={onFocus}
-        className={cn("min-w-0 flex-1 text-left transition-opacity", dim && "opacity-60", wrap && "basis-full")}
-      >
-        <span className={cn(ROW_NAME, "block")}>{label}</span>
-        {meta ? <span className="block text-xs text-text-muted">{meta}</span> : null}
-      </button>
-      <div className={cn("flex items-center gap-3", wrap && "ml-auto")}>{children}</div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

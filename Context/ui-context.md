@@ -193,7 +193,7 @@ a control is white; the tab bar is monochrome (active white, inactive
 `--text-subtle`). Rarity is what makes amber read — if half the screen is amber,
 nothing is urgent. **Three sanctioned many-amber surfaces**, and only three: the
 injection-site recency ramp below, a **settings screen carrying several
-switches** (`/notifications` shows four amber tracks with everything on), and
+switches** (Profile's settings pages; `/notifications` is down to two since 2026-09-26), and
 an **onboarding answer list** (a selected chip reads amber: text, icon, tick,
 and a 10% wash). All three are the same argument rather than three excuses: on
 each of those surfaces the amber thing IS the live state, and it is the thing
@@ -223,8 +223,9 @@ mistake this rule exists to prevent; it was fixed on the cycle toggle first
 (2026-07-30) and the notification switches were left behind until they were
 caught side by side on a phone.
 
-Applies to: notifications master, each reminder row (dose / missed-dose / low
-stock), and "Run this compound on a cycle". Any new switch inherits it.
+Applies to: the notifications master, Hide compound names, and "Run this compound
+on a cycle". Any new switch inherits it. (The per-type reminder switches were
+removed on 2026-09-26; the Notifications page keeps only these, plus the time.)
 
 ### Category legend — compound type icons
 

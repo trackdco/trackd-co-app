@@ -84,7 +84,7 @@ function account(over: { prefs?: Row; logs?: Row[]; log?: Row[] } = {}): Fake {
       notification_preferences: [{
         dose_reminders_on: true, unlogged_alert_on: true, low_inventory_alert_on: true,
         reminder_time: "09:00:00", quiet_start: "22:00:00", quiet_end: "07:00:00",
-        hide_compound_names: false, checkins_on: true, last_checkup_on: null,
+        hide_compound_names: false, last_checkup_on: null,
         ...over.prefs,
       }],
       protocol_compounds: [{
@@ -161,12 +161,6 @@ describe("runner: check-ups", () => {
     expect(sent.some((m) => m.tag === "trackd-checkup")).toBe(false);
   });
 
-  it("respect the Check-ins switch", async () => {
-    vi.stubEnv("NOTIFICATION_CHECKUPS", "on");
-    const r = await run(account({ logs: yesterday, prefs: { checkins_on: false } }));
-    expect(r.checkup).toBe("off");
-  });
-
   it("wait for the first tick of the hour", async () => {
     vi.stubEnv("NOTIFICATION_CHECKUPS", "on");
     const r = await runForUser(fakeClient(account({ logs: yesterday })) as never, "u1", {
@@ -192,5 +186,38 @@ describe("runner: 'Giving You Space'", () => {
     const r = await run(account({ logs: lastLog, log: [{ key: "quiet:21:2026-09-01" }] }));
     expect(r.checkup).toBe("paused-for-space");
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe("runner: fixed quiet hours (22:00 to 08:00)", () => {
+  // Sydney is UTC+10 on 28 Sep 2026.
+  const at = (iso: string) => ({ now: new Date(iso) });
+
+  it("sends the user's own reminder at the time they chose, even inside the window", async () => {
+    const fake = account({ prefs: { reminder_time: "07:00:00" } });
+    await runForUser(fakeClient(fake) as never, "u1", at("2026-09-27T21:00:00Z")); // 07:00 local
+    expect(sent.find((m) => m.tag === "trackd-dose-daily")?.body).toBe("BPC-157 is due today");
+  });
+
+  it("does not send a 9:00 reminder late at night", async () => {
+    await runForUser(fakeClient(account()) as never, "u1", at("2026-09-28T13:30:00Z")); // 23:30 local
+    expect(sent.some((m) => m.tag === "trackd-dose-daily")).toBe(false);
+  });
+
+  it("ignores the old quiet-hours columns", async () => {
+    // Somebody who once set quiet hours to cover 9:00 still gets their 9:00 reminder.
+    await run(account({ prefs: { quiet_start: "08:30:00", quiet_end: "10:00:00" } }));
+    expect(sent.some((m) => m.tag === "trackd-dose-daily")).toBe(true);
+  });
+
+  it("ignores the old per-type switches", async () => {
+    await run(account({ prefs: { dose_reminders_on: false } }));
+    expect(sent.some((m) => m.tag === "trackd-dose-daily")).toBe(true);
+  });
+
+  it("holds check-ups until the window ends", async () => {
+    vi.stubEnv("NOTIFICATION_CHECKUPS", "on");
+    const r = await runForUser(fakeClient(account()) as never, "u1", at("2026-09-27T21:00:00Z")); // 07:00 local
+    expect(r.checkup).toBe("quiet-hours");
   });
 });

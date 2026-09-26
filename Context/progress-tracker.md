@@ -737,6 +737,19 @@ Found along the way:
 
 ## 🟡 NOTIFICATIONS — ON BRANCH `notifications/copy-refresh`, NOT MERGED (2026-09-25/26)
 
+### The page, simplified (2026-09-26, same branch, held)
+
+- Adrian asked whether people need all these choices. The account data: 19 people with
+  notifications on, 3 had changed a setting (the reminder time), one quiet hours, nobody
+  a reminder type or the wait. He chose: keep one daily digest, drop the switches.
+- The page: preview, Notifications, Daily reminder, Hide compound names. `prefsActions`
+  saves only the time and the hide switch.
+- The runner reads no per-type switch, no wait (fixed 2 hr), no quiet-hours column.
+  Quiet hours are 22:00 to 08:00 for the don't-forget, check-ups and trial notices; the
+  daily reminder goes at the chosen time even inside them, but a 9:00 reminder never
+  goes out at night (the night notifications are switched on, or after an outage).
+- No Check-ins switch: 007 on this branch drops `checkins_on`.
+
 ### The Notifications page, layout A (2026-09-26, branch `notifications/settings-page`)
 
 - Built on half-life's look: `PushedPageHead`, `CARD` + `ROWS`, the amber switch, the toast.

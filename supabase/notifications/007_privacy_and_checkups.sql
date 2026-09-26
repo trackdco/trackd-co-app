@@ -1,18 +1,14 @@
 -- ============================================================
 --  Notifications 007 - hide compound names, check-ups, and their log (2026-09-26).
 --
---  Adrian signed off three things on 2026-09-25/26 that need somewhere to live:
+--  Adrian signed off two things on 2026-09-25/26 that need somewhere to live:
 --
 --   1. hide_compound_names - the lock-screen privacy switch. A peptide or hormone
 --      name on a lock screen tells whoever is holding the phone what somebody is
 --      taking. On, every push is worded from counts alone
 --      (`lib/notifications/reminders.ts` -> MessageOptions).
 --
---   2. checkins_on - the "Check-ins" switch: the check-up notifications (streaks,
---      recaps, weigh-ins, the quiet-spell nudges) and the rotating wordings of the
---      three daily reminders. Defaults ON, like every other reminder type.
---
---   3. last_checkup_on + notification_log - at most ONE check-up a day, and the
+--   2. last_checkup_on + notification_log - at most ONE check-up a day, and the
 --      one-off ones (a 100-day streak, a new compound's first dose, one year) only
 --      ever once. Both are RUNNER-OWNED, like the stamps 005/006 lock: an account
 --      that could clear them would be sent the same check-up every 15 minutes, and
@@ -25,25 +21,22 @@
 --   block at the bottom. Safe to re-run.
 --
 --   ⚠️ DEPLOYING THE CODE BEFORE THIS IS SAFE, and it has to be: the runner reads
---   these three columns in their OWN query (`collectCheckupPrefs` in runner.ts),
+--   these columns in their OWN query (`collectCheckupPrefs` in runner.ts),
 --   so while they are missing that one read fails, names stay shown, and no
 --   check-up goes out. The reminders themselves are untouched. See the preferences
 --   select comment in runner.ts for what a shared select would have cost.
 --
 --   ⚠️ CHECK-UPS STAY OFF UNTIL `NOTIFICATION_CHECKUPS=on` IS SET in Vercel, which
---   waits for the Notifications page that carries the Check-ins switch. Nobody is
---   sent a check-up they have no way to turn off.
+--   waits for the new Notifications page. There is no Check-ins switch (Adrian,
+--   2026-09-26): the Notifications switch turns check-ups off with everything else.
 -- ============================================================
 
 alter table public.notification_preferences
   add column if not exists hide_compound_names boolean not null default false,
-  add column if not exists checkins_on         boolean not null default true,
   add column if not exists last_checkup_on     date;
 
 comment on column public.notification_preferences.hide_compound_names is
   'Word every push from counts alone, never naming a compound (lock-screen privacy).';
-comment on column public.notification_preferences.checkins_on is
-  'Check-up notifications and the rotating reminder wordings. Runner reads it; the account sets it.';
 comment on column public.notification_preferences.last_checkup_on is
   'Runner-owned: the user-local day the last check-up went out. One a day at most.';
 
@@ -139,10 +132,10 @@ create trigger guard_trial_reminder_stamp
 --  ▶ VERIFY afterwards.
 -- ------------------------------------------------------------
 --  1. The columns exist with their defaults:
---       select hide_compound_names, checkins_on, last_checkup_on
---         from notification_preferences limit 1;       -- false, true, null
+--       select hide_compound_names, last_checkup_on
+--         from notification_preferences limit 1;       -- false, null
 --
---  2. The account can set the two switches but not the stamp (as a user, via
+--  2. The account can set the switch but not the stamp (as a user, via
 --     PostgREST or impersonation). Expect success, then 42501:
 --       update notification_preferences set hide_compound_names = true where user_id = auth.uid();
 --       update notification_preferences set last_checkup_on = null  where user_id = auth.uid();

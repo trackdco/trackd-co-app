@@ -1,10 +1,10 @@
 "use server";
 
 /**
- * Save the user's reminder preferences (Spec 14, Phase 2) — the per-type toggles
- * (reusing the schema's existing booleans), the daily reminder time, and the quiet
- * window. RLS scopes the write to the user's own notification_preferences row;
- * identity comes from the verified session, never the client.
+ * Save the user's reminder preferences — since 2026-09-26 just the daily reminder
+ * time and Hide compound names (see `ReminderPrefsInput`). RLS scopes the write
+ * to the user's own notification_preferences row; identity comes from the
+ * verified session, never the client.
  *
  * ## ⚠️ TWO THINGS THIS ROW WILL NOT LET YOU DO
  *
@@ -56,30 +56,23 @@ export async function saveTimezone(tz: string): Promise<{ ok: boolean }> {
   }
 }
 
+/**
+ * What the Notifications page sets, and all it sets (Adrian, 2026-09-26): the
+ * daily reminder time and whether to hide compound names. The reminder types,
+ * the don't-forget wait and quiet hours are no longer settings; the runner reads
+ * none of their columns.
+ */
 export interface ReminderPrefsInput {
-  doseRemindersOn: boolean;
-  missedOn: boolean;
-  /** One of the `unlogged_wait` enum labels. */
-  unloggedWait: string;
-  lowStockOn: boolean;
   reminderTime: string; // "HH:MM"
-  quietStart: string; // "HH:MM"
-  quietEnd: string; // "HH:MM"
   /**
-   * The two `supabase/notifications/007` switches. OPTIONAL, and written in their
-   * own update below: the page leaves them out when it could not read them (007
-   * not applied), so a missing column can never fail the rest of the save.
+   * The `supabase/notifications/007` switch. OPTIONAL, and written in its own
+   * update below: the page leaves it out when it could not read it (007 not
+   * applied), so a missing column can never fail the time's save.
    */
   hideNames?: boolean;
-  checkinsOn?: boolean;
 }
 
-/** The `unlogged_wait` enum labels, in the order the settings screen offers them. */
-const UNLOGGED_WAITS = ["min_30", "hour_1", "hour_2", "hour_4"];
-
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-const toDbTime = (v: string, fallback: string) =>
-  TIME_RE.test(v) ? `${v}:00` : fallback;
 
 export async function saveReminderPrefs(
   input: ReminderPrefsInput,
@@ -91,32 +84,17 @@ export async function saveReminderPrefs(
     } = await supabase.auth.getUser();
     if (!user) return { ok: false };
 
+    if (!TIME_RE.test(input.reminderTime)) return { ok: false };
     const { error } = await supabase
       .from("notification_preferences")
-      .update({
-        dose_reminders_on: Boolean(input.doseRemindersOn),
-        unlogged_alert_on: Boolean(input.missedOn),
-        // VALIDATED against the enum rather than passed through: the column is a
-        // Postgres enum, so an unrecognised string is a failed write for the
-        // whole row, taking the user's other changes down with it.
-        unlogged_alert_wait: UNLOGGED_WAITS.includes(input.unloggedWait)
-          ? input.unloggedWait
-          : "hour_2",
-        low_inventory_alert_on: Boolean(input.lowStockOn),
-        reminder_time: toDbTime(input.reminderTime, "09:00:00"),
-        quiet_start: toDbTime(input.quietStart, "22:00:00"),
-        quiet_end: toDbTime(input.quietEnd, "08:00:00"),
-      })
+      .update({ reminder_time: `${input.reminderTime}:00` })
       .eq("user_id", user.id);
     if (error) return { ok: false };
 
-    if (input.hideNames !== undefined || input.checkinsOn !== undefined) {
-      const patch: Record<string, boolean> = {};
-      if (input.hideNames !== undefined) patch.hide_compound_names = Boolean(input.hideNames);
-      if (input.checkinsOn !== undefined) patch.checkins_on = Boolean(input.checkinsOn);
+    if (input.hideNames !== undefined) {
       const { error: privacyError } = await supabase
         .from("notification_preferences")
-        .update(patch)
+        .update({ hide_compound_names: Boolean(input.hideNames) })
         .eq("user_id", user.id);
       if (privacyError) return { ok: false };
     }
