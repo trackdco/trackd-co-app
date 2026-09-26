@@ -6,6 +6,7 @@ import { CalendarBlank, CaretRight, NotePencil, Plus, Tag } from "@/components/i
 import { cn } from "@/lib/utils";
 import { BottomSheet } from "@/components/layout/BottomSheet";
 import { CloseArrow, CloseArrowIcon } from "@/components/feel/CloseArrow";
+import { JournalSavedMark } from "@/components/progress/JournalSavedMark";
 import {
   ADD_ACTION,
   CARD_EYEBROW,
@@ -30,7 +31,8 @@ import {
  * The one sheet frame (`BottomSheet`, consistency fix #1), its title with the
  * small "+" at the top right (fix #21). The month filter opens in place, so it
  * closes with the one close arrow (fix #11); an entry goes somewhere, so it
- * keeps the chevron.
+ * keeps the chevron. Back here from a save, the day's row shows a small tick
+ * and "Saved" for a couple of seconds (W10).
  */
 export function JournalFeedSheet({
   open,
@@ -40,6 +42,7 @@ export function JournalFeedSheet({
   onMarkers,
   onEdit,
   composeOnOpen = false,
+  savedMark = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,6 +52,8 @@ export function JournalFeedSheet({
   onEdit: (entry: JournalEntry) => void;
   /** Open with the Write/Markers branch already expanded (the + menu's Journal). */
   composeOnOpen?: boolean;
+  /** The save just made (a count and its day): that day's row shows the tick. */
+  savedMark?: { n: number; date: string } | null;
 }) {
   const [branchOpen, setBranchOpen] = useState(false);
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
@@ -208,8 +213,11 @@ export function JournalFeedSheet({
                           )}
                         >
                           <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-medium text-foreground">
-                              {dayLong(e.date)}
+                            <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                              <span className="truncate">{dayLong(e.date)}</span>
+                              {savedMark && savedMark.date === e.date ? (
+                                <JournalSavedMark key={savedMark.n} className="shrink-0 font-normal" />
+                              ) : null}
                             </span>
                             {line && (
                               <span className="mt-1 block truncate text-xs text-text-muted">

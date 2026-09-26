@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { Check, CircleNotch, ImageSquare, Tag, Trash, X } from "@/components/icons";
 
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BottomSheet } from "@/components/layout/BottomSheet";
 import { ConfirmDialog } from "@/components/feel/ConfirmDialog";
+import { DateField } from "@/components/feel/DateField";
+import { JournalPhoto } from "@/components/progress/JournalPhoto";
 import { MarkerDialer } from "@/components/progress/MarkerDialer";
 import { ProgressPhotoViewer } from "@/components/progress/ProgressPhotoViewer";
 import {
@@ -33,6 +34,14 @@ import {
   type JournalRestoreInput,
   type MarkerOption,
 } from "@/lib/progress/journal";
+import {
+  journalSaveBlock,
+  mergeRatedIntoRows,
+  ratedRows,
+  rowsFromEntry,
+  uploadLands,
+  type DraftRow,
+} from "@/lib/progress/journalDraft";
 import type { ProgressPhoto } from "@/lib/progress/photos";
 import { deleteJournalEntry, saveJournalEntry } from "@/app/(app)/progress/actions";
 
@@ -52,26 +61,64 @@ function randomId(): string {
     : `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
 }
 
-function markersOf(entry: JournalEntry | null) {
-  return entry ? entry.markers.map((m) => ({ markerId: m.markerId, tierValue: m.tierValue })) : [];
+export interface JournalEntrySheetProps {
+  /** Shown or not. The sheet resets to `initialDate`'s entry each time it opens. */
+  open: boolean;
+  /** Every close: Save, Delete, the handle, a tap outside, Escape. */
+  onOpenChange: (open: boolean) => void;
+  /** "write": the note, an optional "Add markers", photos, a date.
+   *  "markers": the dialer and photos, no note (an existing note is left as it is).
+   *  "edit": an existing day's note, markers and photos, with Delete; no date. */
+  mode: Mode;
+  /** The markers the dialer offers: `readJournal(...).options` (or `readJournalForHome`). */
+  options: MarkerOption[];
+  /** Every entry: `readJournal(...).entries`. The day picked starts from its
+   *  entry, so an entry written here never writes over one it has not shown. */
+  entries: JournalEntry[];
+  /** The signed-in user's id: the first folder of an uploaded photo's path. */
+  userId: string;
+  /** Today on this device ("YYYY-MM-DD"): the last day the date can take. */
+  todayKey: string;
+  /** The day it opens on (usually today). */
+  initialDate: string;
+  /**
+   * Called after a successful save with the day saved, INSTEAD of the "Saved"
+   * toast: a caller with a journal on screen confirms in place, with a small
+   * tick (W10). Left out (the + from any page), the sheet shows the toast.
+   */
+  onSaved?: (date: string) => void;
 }
 
 /**
- * The journal editor (Step 5; photo attachments added by Spec 22 · 3). One sheet,
- * three entry points that all write to the day's single row:
- * - "write"   → free-text body + an optional "add markers" dialer (touches body).
- * - "markers" → just the dialer, no body (leaves an existing body untouched).
- * - "edit"    → an existing day's body + markers, with Delete (touches body).
+ * THE FULL-PAGE JOURNAL WRITER (Step 5; photos, Spec 22 · 3). One sheet, three
+ * entry points that all write to the day's single row (see `mode`).
  *
- * Photos are a QUIET affordance: a small icon, not a CTA. New photos upload straight
- * to the private `journal` bucket (bytes off the Next server) and are recorded when
- * the entry saves; unsaved uploads are rolled back on close.
+ * It works on its own from anywhere (W11): the + renders it with a journal read
+ * (`readJournalForHome`) on any page, and Progress renders it from its journal
+ * section. Everything it needs comes in through its props; it reads nothing
+ * itself, and after a save it refreshes the route (`router.refresh()`), which
+ * keeps the scroll where it is.
+ *
+ * Props, in short: `open` / `onOpenChange`, `mode`, `options` and `entries`
+ * (the journal read), `userId`, `todayKey` (the device's today), `initialDate`,
+ * and optional `onSaved(date)` (see above).
  *
  * The one sheet frame (`BottomSheet`, consistency fix #1): a handle to drag
- * down, the title, a footer of Delete + Save. A photo opens in the photo
- * viewer, the same one Progress uses, rather than an overlay of its own. The
- * delete asks through the one confirm (fix #5), and an entry with no photos
- * can be brought back from the toast's Undo.
+ * down, the title, and the footer of Delete + Save pinned at the bottom (Adrian
+ * likes it pinned). Save is never dead without a reason: while it cannot save
+ * it is dimmed, and a tap says why above it (ruling 10). The date is the shared
+ * `DateField` (W12, W32), which opens the app's calendar; nothing in the sheet
+ * is wider than the screen (W12: at 375 and 390 it scrolled sideways), and
+ * anything that would be is clipped at the sheet's edge rather than scrolled.
+ *
+ * Photos are a QUIET affordance: a small icon, not a CTA. New photos upload
+ * straight to the private `journal` bucket and are recorded when the entry
+ * saves; unsaved uploads are rolled back on close. An upload still in flight
+ * when the day changes or the sheet closes belongs to the draft it started in
+ * and is taken back out (cold review S8). Each photo fades down into place once
+ * it has loaded (W9). A photo opens in the photo viewer Progress uses. The
+ * delete asks through the one confirm (fix #5), and an entry with no photos can
+ * be brought back from the toast's Undo.
  */
 export function JournalEntrySheet({
   open,
@@ -82,27 +129,22 @@ export function JournalEntrySheet({
   userId,
   todayKey,
   initialDate,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  mode: Mode;
-  options: MarkerOption[];
-  entries: JournalEntry[];
-  userId: string;
-  todayKey: string;
-  initialDate: string;
-}) {
+  onSaved,
+}: JournalEntrySheetProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   const bodyVisible = mode !== "markers";
   const [date, setDate] = useState(initialDate);
   const [body, setBody] = useState("");
-  const [markers, setMarkers] = useState<{ markerId: string; tierValue: number }[]>([]);
+  /** Every marker row on the draft, rated or not (`tierValue` 0 = not rated). */
+  const [rows, setRows] = useState<DraftRow[]>([]);
   const [showDialer, setShowDialer] = useState(false);
   const [dialerAnim, setDialerAnim] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Save was tapped while it could not save: the reason shows. */
+  const [asked, setAsked] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Attachments: photos removed from the existing entry, and new uploads (with a
@@ -122,6 +164,8 @@ export function JournalEntrySheet({
   // Every path uploaded this session; rollback/commit consult it so an upload still
   // in flight when the sheet closes is never orphaned (it's tracked before setState).
   const uploadedRef = useRef<string[]>([]);
+  /** The draft's ticket (S8): bumped when the day changes, and on each open and close. */
+  const ticketRef = useRef(0);
   /** Each thumbnail, so the viewer grows out of the one tapped and back into it. */
   const thumbRefs = useRef(new Map<string, HTMLElement>());
 
@@ -131,13 +175,14 @@ export function JournalEntrySheet({
     if (open) {
       savedRef.current = false;
       uploadedRef.current = [];
+      ticketRef.current += 1;
     }
   }, [open]);
 
   function preload(forDate: string) {
     const e = entries.find((x) => x.date === forDate) ?? null;
     setBody(e?.body ?? "");
-    setMarkers(markersOf(e));
+    setRows(rowsFromEntry(e));
     setShowDialer(mode !== "write" || (e?.markers.length ?? 0) > 0);
   }
 
@@ -149,6 +194,7 @@ export function JournalEntrySheet({
       setDate(initialDate);
       preload(initialDate);
       setError(null);
+      setAsked(false);
       setAttachError(null);
       setConfirmingDelete(false);
       setDialerAnim(false);
@@ -165,9 +211,15 @@ export function JournalEntrySheet({
   const keptAttachments = (entryForDate?.attachments ?? []).filter(
     (a) => !removedIds.includes(a.id),
   );
-  const hasPhotos = keptAttachments.length > 0 || pendingAdds.length > 0;
-  const canSave =
-    (bodyVisible && body.trim().length > 0) || markers.length > 0 || hasPhotos;
+  const photoCount = keptAttachments.length + pendingAdds.length;
+  const reason = journalSaveBlock({
+    read: "ready",
+    uploading,
+    body,
+    rows,
+    photoCount,
+    noteShown: bodyVisible,
+  });
   const title = mode === "edit" ? "Edit entry" : mode === "markers" ? "Log markers" : "Write";
   // What the viewer swipes through: the photos kept on the entry, then the new ones.
   const viewPhotos = attachmentsAsPhotos(
@@ -186,16 +238,15 @@ export function JournalEntrySheet({
   }
 
   function changeDate(next: string) {
-    // An empty change event is the picker mid-wheel, not a new date. iOS fires
-    // one while the wheels are still moving, and coercing it to today did THREE
-    // destructive things here at once: it moved the entry to today, it deleted
-    // photos already uploaded in this session from the journal bucket
-    // (rollbackPending), and it overwrote the note being typed (preload). The
-    // other four date fields were fixed in ed3eed5; this one was missed, and it
-    // is the only one of the five with side effects. Hold the last good date.
-    if (!next) return;
+    // An empty change is never a new date (the field only hands one back from
+    // Clear, which this field does not offer). A date change with side effects
+    // (the photos uploaded this session leave the bucket, the day's own entry
+    // loads) must never run on a non-date.
+    if (!next || next === date) return;
     void rollbackPending();
+    ticketRef.current += 1;
     setRemovedIds([]);
+    setAsked(false);
     setDate(next);
     preload(next);
   }
@@ -203,6 +254,7 @@ export function JournalEntrySheet({
   // Any close that ISN'T a successful save rolls back unsaved uploads (no orphans).
   function handleOpenChange(next: boolean) {
     if (!next && !savedRef.current) void rollbackPending();
+    if (!next) ticketRef.current += 1;
     onOpenChange(next);
   }
 
@@ -232,6 +284,8 @@ export function JournalEntrySheet({
 
   async function uploadFiles(files: File[]) {
     if (files.length === 0) return;
+    // S8: these photos belong to the draft (the day) they were started in.
+    const mine = ticketRef.current;
     setAttachError(null);
     setUploading(true);
     const added: { path: string; url: string }[] = [];
@@ -245,10 +299,21 @@ export function JournalEntrySheet({
           .from("journal")
           .upload(path, file, { contentType: file.type, upsert: false });
         if (up.error) throw new Error(up.error.message);
+        if (uploadLands(mine, ticketRef.current) === "discard") {
+          // The day changed, or the sheet closed, while it uploaded: it is not
+          // this draft's photo. Take it back out rather than attach it.
+          await supabase.storage.from("journal").remove([path]);
+          continue;
+        }
         // Track the path the instant it lands (before setState), so rollback covers
         // it even if the sheet closes / date changes mid-batch.
         uploadedRef.current.push(path);
         added.push({ path, url: URL.createObjectURL(file) });
+      }
+      if (uploadLands(mine, ticketRef.current) === "discard") {
+        // The rollback that came with the change already took these out.
+        added.forEach((a) => URL.revokeObjectURL(a.url));
+        return;
       }
       setPendingAdds((prev) => [...prev, ...added]);
     } catch (err) {
@@ -258,7 +323,9 @@ export function JournalEntrySheet({
         uploadedRef.current = uploadedRef.current.filter((p) => !failed.includes(p));
       }
       added.forEach((a) => URL.revokeObjectURL(a.url));
-      setAttachError(err instanceof Error ? err.message : "Couldn’t add that photo.");
+      if (mine === ticketRef.current) {
+        setAttachError(err instanceof Error ? err.message : "Couldn’t add that photo.");
+      }
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -283,13 +350,19 @@ export function JournalEntrySheet({
   }
 
   async function handleSave() {
+    if (busy) return;
+    if (reason) {
+      setAsked(true);
+      return;
+    }
     setBusy(true);
     setError(null);
+    setAsked(false);
     const res = await saveJournalEntry({
       entryDate: date,
       touchBody: bodyVisible,
       body,
-      markers,
+      markers: ratedRows(rows),
       attachmentsAdd: pendingAdds.map((a) => a.path),
       attachmentsRemove: removedIds,
     });
@@ -300,7 +373,9 @@ export function JournalEntrySheet({
       pendingAdds.forEach((a) => URL.revokeObjectURL(a.url));
       onOpenChange(false);
       router.refresh();
-      showToast("Saved");
+      // A journal on screen confirms in place (W10); elsewhere, the toast.
+      if (onSaved) onSaved(date);
+      else showToast("Saved");
     } else {
       setError(res.error ?? "Couldn’t save. Try again.");
     }
@@ -337,8 +412,6 @@ export function JournalEntrySheet({
     }
   }
 
-  const photoCount = keptAttachments.length + pendingAdds.length;
-
   return (
     <>
       <BottomSheet
@@ -357,63 +430,76 @@ export function JournalEntrySheet({
           </div>
         }
         footer={
-          <>
-            {entryForDate && (
+          <div className="flex w-full min-w-0 flex-col gap-2">
+            {error ? (
+              <p className="px-1 text-sm text-state-error">{error}</p>
+            ) : asked && reason ? (
+              <p role="status" className="px-1 text-[12.5px] text-text-muted">
+                {reason}
+              </p>
+            ) : null}
+            <div className="flex min-w-0 gap-2">
+              {entryForDate && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(true)}
+                  disabled={busy}
+                  aria-label="Delete entry"
+                  className={cn(SECONDARY_BUTTON, "w-11 shrink-0 px-0 text-text-muted")}
+                >
+                  <Trash className="h-4 w-4" aria-hidden />
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setConfirmingDelete(true)}
+                onClick={handleSave}
                 disabled={busy}
-                aria-label="Delete entry"
-                className={cn(SECONDARY_BUTTON, "w-11 shrink-0 px-0 text-text-muted")}
+                aria-disabled={reason !== null ? true : undefined}
+                className={cn(PRIMARY_BUTTON, "min-w-0 flex-1 aria-disabled:opacity-50")}
               >
-                <Trash className="h-4 w-4" aria-hidden />
+                {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
+                {busy ? "Saving…" : "Save"}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={busy || !canSave}
-              className={cn(PRIMARY_BUTTON, "flex-1")}
-            >
-              {busy ? <CircleNotch className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
-              {busy ? "Saving…" : "Save"}
-            </button>
-          </>
+            </div>
+          </div>
         }
       >
-        {/* The fields rise in as the sheet lands (feel pass §4). */}
-        <div data-sheet-body>
+        {/* The fields rise in as the sheet lands (feel pass §4). The body
+            reaches to the sheet's edges and clips there, sideways only, so
+            nothing can make the sheet scroll sideways (W12) while focus rings
+            and hit areas keep the 20px margin. */}
+        <div data-sheet-body className="-mx-5 min-w-0 overflow-x-clip px-5">
           {/* Date (new entries only — editing keeps the entry's day) */}
           {mode !== "edit" && (
-            <label className="mt-1 block">
+            <label className="mt-1 block min-w-0">
               <span className={FIELD_LABEL}>Date</span>
-              <Input
-                type="date"
+              <DateField
+                label="Entry date"
                 value={date}
+                onChange={changeDate}
                 max={todayKey}
-                onChange={(e) => changeDate(e.target.value)}
-                aria-label="Entry date"
-                className="h-12 rounded-xl border-border-default bg-bg-input px-3 font-mono text-sm [color-scheme:dark] dark:bg-bg-input"
+                todayKey={todayKey}
+                className="h-12"
               />
             </label>
           )}
 
           {/* Body */}
           {bodyVisible && (
-            <label className="mt-4 block">
+            <label className="mt-4 block min-w-0">
               <span className={FIELD_LABEL}>Note</span>
               <Textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 placeholder="Training, sleep, how the protocol’s treating you"
                 rows={7}
-                className="min-h-[9.5rem] rounded-xl border-border-default bg-bg-input text-sm leading-relaxed dark:bg-bg-input"
+                className="min-h-[9.5rem] w-full min-w-0 rounded-xl border-border-default bg-bg-input text-sm leading-relaxed dark:bg-bg-input"
               />
             </label>
           )}
 
           {/* Markers */}
-          <div className="mt-5">
+          <div className="mt-5 min-w-0">
             {bodyVisible && mode === "write" && !showDialer ? (
               <button
                 type="button"
@@ -421,19 +507,20 @@ export function JournalEntrySheet({
                   setShowDialer(true);
                   setDialerAnim(true);
                 }}
-                className={cn(SECONDARY_BUTTON, "w-full")}
+                className={cn(SECONDARY_BUTTON, "w-full min-w-0")}
               >
                 <Tag className="h-4 w-4" aria-hidden />
                 Add markers
               </button>
             ) : (
-              <div className={cn(dialerAnim && "animate-shortcut-in")}>
+              <div className={cn("min-w-0", dialerAnim && "animate-shortcut-in")}>
                 <p className={cn(FIELD_LABEL, "mb-2")}>Markers</p>
                 <MarkerDialer
                   key={date}
                   options={options}
                   initial={entryForDate?.markers ?? []}
-                  onChange={setMarkers}
+                  onChange={(rated) => setRows((prev) => mergeRatedIntoRows(prev, rated))}
+                  onRowsChange={(all) => setRows(all.map((r) => ({ markerId: r.markerId, tierValue: r.tierValue })))}
                 />
               </div>
             )}
@@ -441,8 +528,8 @@ export function JournalEntrySheet({
 
           {/* Photos — a QUIET affordance (Spec 22 · 3): a small icon, not a CTA.
               A thumbnail opens the photo viewer; each has a remove ×. */}
-          <div className="mt-5">
-            {photoCount > 0 && (
+          <div className="mt-5 min-w-0">
+            {(photoCount > 0 || uploading) && (
               <div className="mb-2 flex flex-wrap gap-2">
                 {keptAttachments.map((a) => (
                   <Thumb
@@ -462,6 +549,8 @@ export function JournalEntrySheet({
                     onRemove={() => removePending(a.path)}
                   />
                 ))}
+                {/* The one on its way: a grey place it will fade into (W9). */}
+                {uploading ? <span aria-hidden className="sk block h-16 w-12 rounded-lg bg-bg-surface-raised" /> : null}
               </div>
             )}
             <input
@@ -478,13 +567,13 @@ export function JournalEntrySheet({
               disabled={uploading}
               className={cn(
                 PRESS.text,
-                "flex min-h-11 items-center gap-1.5 px-1 text-xs text-text-muted transition-colors hover:text-foreground disabled:opacity-50",
+                "flex min-h-11 max-w-full items-center gap-1.5 px-1 text-xs text-text-muted transition-colors hover:text-foreground disabled:opacity-50",
               )}
             >
               {uploading ? (
-                <CircleNotch className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                <CircleNotch className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
               ) : (
-                <ImageSquare className="h-3.5 w-3.5" aria-hidden />
+                <ImageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden />
               )}
               {uploading ? "Adding…" : photoCount > 0 ? "Add another photo" : "Add a photo"}
             </button>
@@ -493,7 +582,6 @@ export function JournalEntrySheet({
             )}
           </div>
 
-          {error && <p className="mt-4 px-1 text-sm text-state-error">{error}</p>}
           <div className="h-2" />
         </div>
 
@@ -565,10 +653,8 @@ function Thumb({
         )}
         aria-label="View photo"
       >
-        {url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="h-full w-full object-cover object-top" />
-        )}
+        {/* It fades down into place once it has loaded (W9). */}
+        {url && <JournalPhoto src={url} className="h-full w-full object-cover object-top" />}
       </button>
       <button
         type="button"
@@ -576,7 +662,7 @@ function Thumb({
         aria-label="Remove photo"
         className={cn(
           PRESS.icon,
-          "absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-border-strong bg-bg-surface text-text-muted transition-colors hover:text-foreground before:absolute before:-inset-2.5 before:content-['']",
+          "absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-md border border-border-strong bg-bg-surface text-text-muted transition-colors hover:text-foreground before:absolute before:-inset-2.5 before:content-['']",
         )}
       >
         <X className="h-3 w-3" aria-hidden />

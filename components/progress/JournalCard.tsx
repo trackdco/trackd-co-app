@@ -3,6 +3,7 @@
 import { CaretRight } from "@/components/icons";
 
 import { EmptySection, JournalSketch } from "@/components/progress/EmptySection";
+import { JournalSavedMark } from "@/components/progress/JournalSavedMark";
 import { CARD_EYEBROW, PRESS, ROW_CHEVRON } from "@/lib/ui-presets";
 import { cn } from "@/lib/utils";
 import { dayShort } from "@/lib/format/date";
@@ -15,12 +16,16 @@ import { bodyFirstLine, type JournalEntry } from "@/lib/progress/journal";
  *
  * Empty on Progress it is the quiet "None yet" card, and its plus opens the
  * journal ready to write (build-brief-final §3.15).
+ *
+ * Just after a save, a small tick and "Saved" sit beside its title for a
+ * couple of seconds (W10): the confirmation in place of a toast.
  */
 export function JournalCard({
   entries,
   onOpen,
   onAdd,
   compact = false,
+  savedMark = 0,
 }: {
   entries: JournalEntry[];
   onOpen: () => void;
@@ -36,10 +41,19 @@ export function JournalCard({
    * and the full pairing is one tap away inside the journal).
    */
   compact?: boolean;
+  /** Bumped by each save made from this section: above 0, the "Saved" tick
+   *  shows beside the title (and plays again for each new value). */
+  savedMark?: number;
 }) {
   const latest = entries[0] ?? null;
   const line = latest ? bodyFirstLine(latest.body) : null;
   const latestPhotoUrl = latest?.attachments.find((a) => a.url)?.url ?? null;
+  const title = (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className={CARD_EYEBROW}>Journal</span>
+      {savedMark > 0 ? <JournalSavedMark key={savedMark} /> : null}
+    </span>
+  );
 
   if (compact && !latest) {
     return (
@@ -59,7 +73,7 @@ export function JournalCard({
         aria-label="Open journal"
         className={cn(PRESS.card, "flow-card flex flex-col inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40")}
       >
-        <span className={`block ${CARD_EYEBROW}`}>Journal</span>
+        {title}
         {latest ? (
           <span className="mt-3 flex flex-1 flex-col">
             <span className="block text-sm text-foreground">
@@ -110,7 +124,7 @@ export function JournalCard({
       className={cn(PRESS.card, "flow-card flex w-full items-start gap-3.5 inst-card p-5 text-left transition-colors hover:bg-bg-surface-raised/40")}
     >
       <span className="min-w-0 flex-1">
-        <span className={`block ${CARD_EYEBROW}`}>Journal</span>
+        {title}
         {latest ? (
           <>
             <span className="mt-1.5 block text-sm text-foreground">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { JournalCard } from "@/components/progress/JournalCard";
 import { JournalFeedSheet } from "@/components/progress/JournalFeedSheet";
@@ -9,8 +9,19 @@ import { JournalViewSheet } from "@/components/progress/JournalViewSheet";
 import { useProgressAction } from "@/components/progress/useProgressAction";
 import type { JournalEntry, MarkerOption } from "@/lib/progress/journal";
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
+import { toDateKey } from "@/lib/home/mockHomeData";
 
-type EditorConfig = { mode: "write" | "markers" | "edit"; initialDate: string };
+type EditorConfig = { mode: "write" | "markers" | "edit"; initialDate: string; todayKey: string };
+
+/**
+ * Today on THIS device, read when it is needed. The page's own date is worked
+ * out on the server, in UTC, which is a different day for part of every day
+ * east or west of it: Write would open on the wrong day, and the date field
+ * would refuse the right one.
+ */
+function deviceToday(): string {
+  return toDateKey(new Date());
+}
 
 /**
  * The Progress journal section (Step 5). Card → feed (the journal page). The
@@ -28,6 +39,10 @@ type EditorConfig = { mode: "write" | "markers" | "edit"; initialDate: string };
  * `journal-write` signal exists to prevent, and it survived the first fix, which
  * only covered the viewer's own close and left every editor close still opening
  * the feed.
+ *
+ * **Saving confirms in place (W10).** No toast and nothing moves: a small tick
+ * and "Saved" on the journal card, or on the entry's row when the feed is
+ * where the chain returns to. Today is the device's (see `deviceToday`).
  */
 export function JournalSection({
   entries,
@@ -39,7 +54,9 @@ export function JournalSection({
   entries: JournalEntry[];
   options: MarkerOption[];
   userId: string;
-  todayKey: string;
+  /** Kept for the page's call. Today is read from the device instead, at the
+   *  moment the writer opens (the page's date is the server's). */
+  todayKey?: string;
   /** Progress's two-up grid (spec 08 · part two). */
   compact?: boolean;
 }) {
@@ -55,10 +72,20 @@ export function JournalSection({
   // through viewer → editor, so closing any surface in it lands where the user
   // actually started rather than in the feed by default.
   const [returnToFeed, setReturnToFeed] = useState(false);
-  const [editor, setEditor] = useState<EditorConfig>({
+  const [editor, setEditor] = useState<EditorConfig>(() => ({
     mode: "write",
-    initialDate: todayKey,
-  });
+    initialDate: todayKey ?? "",
+    todayKey: todayKey ?? "",
+  }));
+  /** The last save, for the tick: on the card, or on the feed's row for its day. */
+  const [saved, setSaved] = useState<{ n: number; date: string; inFeed: boolean } | null>(null);
+  // Once it has shown and faded, it goes: reopening the feed later never
+  // replays an old "Saved".
+  useEffect(() => {
+    if (!saved) return;
+    const t = setTimeout(() => setSaved(null), 3200);
+    return () => clearTimeout(t);
+  }, [saved]);
 
   // The global "+" menu's Journal tile lands here → open the feed with the
   // Write/Markers branch already expanded (the entry then saves to the journal).
@@ -99,10 +126,10 @@ export function JournalSection({
    * Reading a journal entry is NOT guarded and never will be. `openViewer` is
    * untouched.
    */
-  function openEditor(config: EditorConfig, fromFeed: boolean) {
+  function openEditor(config: Omit<EditorConfig, "todayKey">, fromFeed: boolean) {
     guard(() => {
       setReturnToFeed(fromFeed);
-      setEditor(config);
+      setEditor({ ...config, todayKey: deviceToday() });
       setFeedOpen(false);
       setEditorOpen(true);
     });
@@ -120,6 +147,7 @@ export function JournalSection({
           setFeedOpen(true);
         }}
         compact={compact}
+        savedMark={saved && !saved.inFeed ? saved.n : 0}
       />
 
       <JournalFeedSheet
@@ -130,9 +158,10 @@ export function JournalSection({
         }}
         composeOnOpen={feedCompose}
         entries={entries}
-        onWrite={() => openEditor({ mode: "write", initialDate: todayKey }, true)}
-        onMarkers={() => openEditor({ mode: "markers", initialDate: todayKey }, true)}
+        onWrite={() => openEditor({ mode: "write", initialDate: deviceToday() }, true)}
+        onMarkers={() => openEditor({ mode: "markers", initialDate: deviceToday() }, true)}
         onEdit={(entry) => openViewer(entry, true)}
+        savedMark={saved && saved.inFeed ? { n: saved.n, date: saved.date } : null}
       />
 
       <JournalViewSheet
@@ -164,8 +193,10 @@ export function JournalSection({
         options={options}
         entries={entries}
         userId={userId}
-        todayKey={todayKey}
+        todayKey={editor.todayKey}
         initialDate={editor.initialDate}
+        // In place, never a jump (W10): the tick goes where the chain lands.
+        onSaved={(date) => setSaved((s) => ({ n: (s?.n ?? 0) + 1, date, inFeed: returnToFeed }))}
       />
     </>
   );
