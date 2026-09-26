@@ -3,6 +3,10 @@
 -- ============================================================================
 --
 -- ▶ HOW TO RUN THIS
+--   0. NOT YET, unless the build serving production names its foreign key in
+--      every embed between `inventory_items` and `protocol_compounds`: step 0
+--      of `026`. This file breaks nothing on its own, but it starts the pair,
+--      and `026` without the hinted code empties Stock for every user.
 --   1. Paste the WHOLE file into the SQL Editor and run it. It is two
 --      statements and nothing else.
 --   2. "Success. No rows returned" is the success message.

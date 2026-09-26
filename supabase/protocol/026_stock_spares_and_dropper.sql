@@ -4,12 +4,38 @@
 -- ============================================================================
 --
 -- ▶ HOW TO RUN THIS
+--   0. BEFORE `025` AND BEFORE THIS FILE: merge `design/half-life-motion` into
+--      `main`, let Vercel deploy it, and confirm production is serving that
+--      build. Section 5 adds a SECOND foreign key between `protocol_compounds`
+--      and `inventory_items`, and PostgREST then refuses (PGRST201) every embed
+--      between the two tables that does not name its key
+--      (`protocol_compounds!inventory_items_protocol_compound_id_fkey!inner`).
+--      `main` (a938d5a, 26 Sep 2026) has FOUR such embeds and names it in none:
+--        a. `lib/db/inventory.ts`, twice (Stock). The branch hints both.
+--        b. the low-stock read in `lib/notifications/runner.ts`. The branch
+--           moves it to `INVENTORY_REMINDER_SELECT` in
+--           `lib/notifications/reminders.ts`, hinted. Keep that in the merge.
+--        c. `readStock` in `lib/notifications/checkupFacts.ts` (the check-ups,
+--           `NOTIFICATION_CHECKUPS=on`). It is on `main` ONLY, so the branch
+--           cannot hint it: the MERGE must, by hand.
+--      Run this file against a build with any of them bare and Stock fails to
+--      load for every user, the low-stock push goes silent, and the check-ups
+--      quietly lose their stock. The gate, run on the exact commit production
+--      serves (it reads every file, so it also catches an embed added later):
+--        npx vitest run lib/db/embedHints.test.ts     (must pass)
 --   1. Apply `025` FIRST, on its own. This file uses the two enum values it
 --      adds, and fails with "invalid input value for enum" without them.
---   2. Paste the WHOLE file into the SQL Editor and run it. Everything that is
---      not a statement is a comment, so there is no part to leave out.
---   3. "Success. No rows returned" is the success message.
---   4. CHECK (paste this afterwards; it should return THREE rows):
+--   2. Pick the minute: NOT :00, :15, :30 or :45. The reminder cron reads
+--      these tables then. Start at, say, :05 or :20.
+--   3. Paste the WHOLE file into the SQL Editor and run it. Everything that is
+--      not a statement is a comment, so there is no part to leave out. It is
+--      ONE transaction (`BEGIN` … `COMMIT`) with `SET LOCAL lock_timeout =
+--      '5s'`: a busy table stops it within 5 seconds instead of queueing every
+--      reader behind it. Any error, "canceling statement due to lock timeout"
+--      included, rolls the WHOLE file back and changes nothing: wait a minute
+--      and run it again.
+--   4. "Success. No rows returned" is the success message.
+--   5. CHECK (paste this afterwards; it should return THREE rows):
 --        SELECT 'column'  FROM information_schema.columns
 --         WHERE table_name = 'protocol_compounds' AND column_name = 'cycle_end_item_id'
 --        UNION ALL
@@ -17,11 +43,35 @@
 --        UNION ALL
 --        SELECT 'started' FROM information_schema.columns
 --         WHERE table_name = 'v_inventory_math' AND column_name = 'is_started';
---   5. Idempotent: every statement is `IF NOT EXISTS`, `DROP ... IF EXISTS`
+--   6. CHECK the views' options and grants (TWO rows; each `reloptions` is
+--      `{security_invoker=true}` and both `_reads` columns are `true`):
+--        SELECT relname, reloptions,
+--               has_table_privilege('authenticated', oid, 'SELECT') AS authenticated_reads,
+--               has_table_privilege('service_role', oid, 'SELECT')  AS service_role_reads
+--          FROM pg_class
+--         WHERE relname IN ('v_inventory_math', 'v_compound_stock');
+--      Not `relacl` by eye: `grants/002`'s default privileges give
+--      `service_role` more than SELECT, so its entry reads like
+--      `service_role=arwdDxtm/postgres`, and that is correct.
+--   7. CHECK the API logs (Logs → API) for PGRST201 over the next few minutes:
+--      there should be none. If there is, a caller was missed at step 0. The
+--      two keys below are what make the embed ambiguous, so dropping them puts
+--      the reads back at once (nothing writes `cycle_end_item_id` yet):
+--        ALTER TABLE public.protocol_compounds
+--          DROP CONSTRAINT protocol_compounds_cycle_end_item_fk;
+--        ALTER TABLE public.protocol_compound_schedules
+--          DROP CONSTRAINT protocol_compound_schedules_cycle_end_item_fk;
+--      Then hint the caller, deploy, and run this file again.
+--   8. Idempotent: every statement is `IF NOT EXISTS`, `DROP ... IF EXISTS`
 --      then `ADD`, or `CREATE OR REPLACE`. Running it twice is harmless.
 --
--- BACKWARD COMPATIBLE WITH `main`. Production runs `main` against this same
--- database, so nothing here narrows what `main` writes or renames what it reads:
+-- NOT BACKWARD COMPATIBLE WITH AN UNHINTED `main`: see step 0. Section 5's key
+-- (`protocol_compounds.cycle_end_item_id` → `inventory_items`) is a second
+-- relationship between the two tables, and it makes `protocol_compound_schedules`
+-- a junction between them too, so an embed that does not name
+-- `inventory_items_protocol_compound_id_fkey` fails (PGRST201). `main` has four
+-- such embeds, one of them (`checkupFacts.ts`) not on this branch. Everything else here is compatible with what `main`
+-- writes and reads, so nothing narrows what it writes or renames what it reads:
 --   - every CHECK is WIDENED, never narrowed; every existing row still passes;
 --   - `acquired_on` KEEPS its `DEFAULT current_date`, so a row `main` inserts
 --     is started exactly as today. Only the new code writes NULL (a spare);
@@ -34,7 +84,18 @@
 -- 17 (PGlite) from `trackd_schema_v0_4_2.sql` + `protocol/001`–`024`, its view
 -- hash and columns matched production's exactly, and `025` + this file were
 -- applied on top and exercised (scratchpad/pg in the session that wrote it).
+-- Re-run on 26 Sep 2026 with the transaction wrapper: the same 21 checks pass,
+-- twice over; run without `025` it fails and leaves nothing behind (the CHECK
+-- it had dropped is back, no column, no view); `lock_timeout` is back to its
+-- default after `COMMIT`; and the replay's only key from `inventory_items` to
+-- `protocol_compounds` is `inventory_items_protocol_compound_id_fkey`, with
+-- `protocol_compounds_cycle_end_item_fk` beside it once this has run.
 -- ============================================================================
+
+-- One transaction, so a failure anywhere leaves the database as it was. The
+-- lock timeout is LOCAL: it ends with the transaction.
+BEGIN;
+SET LOCAL lock_timeout = '5s';
 
 
 -- ---------------------------------------------------------------------------
@@ -432,3 +493,8 @@ COMMENT ON COLUMN public.protocol_compounds.cycle_end_item_id IS
     'The container whose running out ends a when_vial_empty cycle. NULL = the '
     'container being logged from. Only ever set when cycle_end_type is '
     'when_vial_empty (026).';
+
+
+-- The end of the transaction opened at the top. Nothing above is kept unless
+-- this runs.
+COMMIT;

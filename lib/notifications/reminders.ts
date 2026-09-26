@@ -119,8 +119,48 @@ export interface ReminderCompound {
 export const PC_REMINDER_SELECT =
   "id, schedule_type, days_of_week, interval_days, first_dose_on, end_date, dose_times, cycle_anchor, cycle_on_days, cycle_off_days, cycle_end_type, cycle_end_date, cycle_end_rounds, cycle_colour, compounds(name)";
 
+/**
+ * The runner's `inventory_items` read, as one literal for the same reason as
+ * {@link PC_REMINDER_SELECT}.
+ *
+ * ⚠️ THE EMBED NAMES ITS FOREIGN KEY. `026` adds a second key between these two
+ * tables (`protocol_compounds.cycle_end_item_id` → `inventory_items`) and makes
+ * `protocol_compound_schedules` a junction between them. PostgREST then finds
+ * several relationships for a bare `protocol_compounds!inner(...)` and refuses
+ * it (PGRST201): the inventory read fails and every low-stock push goes silent.
+ * Naming `inventory_items_protocol_compound_id_fkey` picks the one this read
+ * means, and works the same before `026` as after it. `embedHints.test.ts`
+ * fails on any unhinted embed between the two tables.
+ *
+ * `acquired_on` says whether a container is STARTED: NULL is a spare (`026`),
+ * which counts no doses. It is read off the row, not the view's `is_started`,
+ * because the view only has that column after `026`, and a spare oral can be
+ * written before it. `custom_name` names a custom compound, whose catalogue
+ * join is null.
+ */
+export const INVENTORY_REMINDER_SELECT =
+  "id, protocol_compound_id, acquired_on, protocol_compounds!inventory_items_protocol_compound_id_fkey!inner(is_active, custom_name, compounds(name))";
+
+/**
+ * One CONTAINER of stock, as the runner reads it. {@link lowStock} judges them
+ * per COMPOUND: several containers of one compound can be open at once
+ * (Adrian, 2026-09-24), so one container alone says nothing about whether the
+ * compound is running low.
+ */
 export interface LowStockItem {
   name: string;
+  /**
+   * The compound this container belongs to (`protocol_compound_id`). Containers
+   * that share it are judged together, as the screen's Runs dry judges them.
+   * Absent: grouped by {@link name}, which is all a caller without the id has.
+   */
+  compoundId?: string;
+  /**
+   * False for a SPARE: held but not started (`acquired_on` NULL, `026`). A spare
+   * counts no doses and no runway until it is mixed or opened, exactly as in
+   * `v_compound_stock`. Absent = started, which is every row `main` writes.
+   */
+  started?: boolean;
   /** True when the compound this stock belongs to is paused today. Its stock is
    *  not moving, so "running low" is noise rather than news. */
   paused?: boolean;
@@ -390,29 +430,174 @@ export function dueUnlogged(
 }
 
 /**
- * Vials projected to run out within `withinDays` of today.
+ * How far ahead a runway is walked. The same number as `RUNS_DRY_HORIZON_DAYS`
+ * in `lib/protocol/runsDry.ts`, restated rather than imported because that
+ * module pulls the client's schedule model (and its sync actions) into the cron.
+ * `lowStockPerCompound.test.ts` pins the two equal.
+ */
+export const STOCK_HORIZON_DAYS = 730;
+
+/** What the runway walk needs to know about one compound, keyed by its id. */
+export interface StockSchedule {
+  compound: ReminderCompound;
+  /**
+   * How many of today's doses are already logged, taken or skipped: the
+   * screen's `loggedCountFor`. A taken one already came out of the view's
+   * figures, and neither needs stock any more, so only today's other slots are
+   * still to spend.
+   */
+  loggedToday: number;
+}
+
+/**
+ * Days from `todayKey` until a compound's stock runs dry: 0 = today's doses
+ * cannot be covered. The server's copy of the screen's `runsDryInDays`
+ * (`lib/protocol/runsDry.ts`): the same walk over the days a dose is DUE, asked
+ * of {@link isDueToday}, which is this module's mirror of the client's
+ * `isDueOnFor`. An average week (the view's `days_to_empty`) cannot see that
+ * Mon/Thu from a Wednesday runs out on a Monday, that a cycle rests, or that
+ * today's dose is already logged, so it put the push a day or more off the
+ * screen at the amber line. `lowStockPerCompound.test.ts` runs both walks side
+ * by side.
  *
- * Reads the view's own `days_to_empty` wherever it is available, which is the
- * same figure `CompoundStorageCard` shows, so the phone and the screen cannot
- * disagree about whether a vial is running low. Falls back to differencing
- * `est_empty_date` only when the count is absent — that subtraction takes a
- * UTC-anchored date away from a local today and is a day out for part of every
- * day, which is why `supabase/protocol/010` added the count.
+ * Null when nothing is held (`dosesReady` null), or when no due day up to
+ * `horizon` runs short.
+ */
+export function runsDryDays(
+  c: ReminderCompound,
+  dosesReady: number | null,
+  todayKey: string,
+  loggedToday = 0,
+  horizon = STOCK_HORIZON_DAYS,
+): number | null {
+  if (dosesReady == null || !Number.isFinite(dosesReady)) return null;
+  let left = Math.max(0, Math.floor(dosesReady));
+  // `dose_times` holds one element per dose of the day (`dose_times_match`), a
+  // NULL element included: the client's `timesPerDayOf`. Never below 1.
+  const slots = Math.max(1, c.doseTimes?.length ?? 0);
+  for (let d = 0; d <= horizon; d++) {
+    const key = d === 0 ? todayKey : shiftDateKey(todayKey, d);
+    if (!isDueToday(c, key)) continue;
+    const need = d === 0 ? Math.max(0, slots - loggedToday) : slots;
+    if (need > left) return d;
+    left -= need;
+  }
+  return null;
+}
+
+/**
+ * Containers folded into ONE item per compound: what the compound holds, and
+ * when it runs dry.
+ *
+ * Adding stock no longer archives the compound's other containers, so a used-up
+ * vial can sit open beside a full one. Judged alone, the empty one said "about 0
+ * doses left" every day while the full one was right there, and two short ones
+ * named the compound twice. So:
+ *  - doses are SUMMED over started containers, the sum `v_compound_stock` makes
+ *    (`026`) and the app's pre-`026` stand-in makes (`compoundsFromItems` in
+ *    `lib/db/inventory.ts`). A spare counts nothing until it is started;
+ *  - an empty container is left out while another open one still has doses, so
+ *    its zero cannot speak for the compound;
+ *  - days are walked from the sum over the compound's schedule
+ *    ({@link runsDryDays}) when the schedule was read. Without it (the compounds
+ *    read failed) they fall back to the view's own runways, added up: each open
+ *    container's `days_to_empty` is its doses over the same weekly rate, so the
+ *    sum is the runway of the sum, give or take a day of rounding. One
+ *    container is exactly the old figure.
+ *
+ * Paused and stopped belong to the compound, so any container carrying them
+ * marks the whole compound. The first container's name names it.
+ */
+export function stockPerCompound(
+  stock: readonly LowStockItem[],
+  todayKey: string,
+  schedules?: ReadonlyMap<string, StockSchedule>,
+  horizon = STOCK_HORIZON_DAYS,
+): LowStockItem[] {
+  const today = dayNumber(todayKey);
+  const groups = new Map<string, LowStockItem[]>();
+  for (const s of stock) {
+    const key = s.compoundId != null ? `id:${s.compoundId}` : `name:${s.name}`;
+    const list = groups.get(key);
+    if (list) list.push(s);
+    else groups.set(key, [s]);
+  }
+  const out: LowStockItem[] = [];
+  for (const box of groups.values()) {
+    const first = box[0];
+    const started = box.filter((s) => s.started !== false);
+    const withDoses = started.filter((s) => (s.dosesRemaining ?? 0) > 0);
+    const counted = withDoses.length > 0 ? withDoses : started;
+
+    let dosesRemaining: number | null = null;
+    for (const s of counted) {
+      if (s.dosesRemaining != null && Number.isFinite(s.dosesRemaining)) {
+        dosesRemaining = (dosesRemaining ?? 0) + s.dosesRemaining;
+      }
+    }
+
+    const schedule =
+      first.compoundId != null ? schedules?.get(first.compoundId) : undefined;
+    let daysToEmpty: number | null = null;
+    if (schedule && dosesRemaining != null) {
+      daysToEmpty = runsDryDays(
+        schedule.compound,
+        dosesRemaining,
+        todayKey,
+        schedule.loggedToday,
+        horizon,
+      );
+    } else {
+      for (const s of counted) {
+        const days =
+          s.daysToEmpty ?? (s.estEmptyDate ? dayNumber(s.estEmptyDate) - today : null);
+        if (days != null && Number.isFinite(days)) daysToEmpty = (daysToEmpty ?? 0) + days;
+      }
+    }
+
+    out.push({
+      name: first.name,
+      ...(first.compoundId != null ? { compoundId: first.compoundId } : {}),
+      started: started.length > 0,
+      paused: box.some((s) => s.paused === true),
+      stopped: box.some((s) => s.stopped === true),
+      estEmptyDate: null,
+      daysToEmpty,
+      dosesRemaining,
+    });
+  }
+  return out;
+}
+
+/**
+ * Compounds projected to run out within `withinDays` of today, ONE item per
+ * compound however many containers it has open ({@link stockPerCompound}).
+ *
+ * With the compound's schedule (`schedules`, keyed by `protocol_compound_id`)
+ * the runway is walked over the days a dose is due, which is the Protocol
+ * card's Runs dry, so the phone and the screen cannot disagree about whether a
+ * compound is running low. Without it, the view's own `days_to_empty` is read,
+ * and `est_empty_date` is differenced only when the count is absent: that
+ * subtraction takes a UTC-anchored date away from a local today and is a day
+ * out for part of every day, which is why `supabase/protocol/010` added the
+ * count.
  */
 export function lowStock(
   stock: LowStockItem[],
   todayKey: string,
   withinDays: number,
+  schedules?: ReadonlyMap<string, StockSchedule>,
 ): LowStockItem[] {
-  const today = dayNumber(todayKey);
-  return stock.filter((s) => {
+  // The walk need not look past the window: a runway beyond it is not low.
+  const horizon = Number.isFinite(withinDays)
+    ? Math.min(STOCK_HORIZON_DAYS, Math.max(0, Math.floor(withinDays)))
+    : -1;
+  return stockPerCompound(stock, todayKey, schedules, horizon).filter((s) => {
     // A paused compound is consuming nothing, so its stock is not running out —
     // it is simply sitting there. Nudging about it is noise, and the user has
     // already told us they are not taking it. A DELETED one said so louder.
     if (s.paused || s.stopped) return false;
-    const daysLeft =
-      s.daysToEmpty ??
-      (s.estEmptyDate ? dayNumber(s.estEmptyDate) - today : null);
+    const daysLeft = s.daysToEmpty;
     if (daysLeft === null) return false;
     return daysLeft >= 0 && daysLeft <= withinDays;
   });

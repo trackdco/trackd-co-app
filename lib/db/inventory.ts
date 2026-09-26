@@ -24,20 +24,32 @@ import { refuseWrite, type WriteRefusalKind } from "@/lib/billing/gate"
 
 /**
  * `inventory_items` + its joined compound, as of `supabase/protocol/016`.
- * `protocol_compounds!inner` + the is_active filter makes Stock a strict subset
+ * The inner join + the is_active filter makes Stock a strict subset
  * of the user's ACTIVE compounds: archiving a compound on Home drops its vial
  * from Stock too, so Stock can never show a compound Home doesn't.
  * custom_name/custom_category cover a CUSTOM compound (compound_id NULL, so the
  * nested `compounds` join is null) — coalesced when the row is mapped.
+ *
+ * ⚠️ THE EMBED NAMES ITS FOREIGN KEY, `inventory_items_protocol_compound_id_fkey`.
+ * `026` adds a second key between these two tables
+ * (`protocol_compounds.cycle_end_item_id` → `inventory_items`) and makes
+ * `protocol_compound_schedules` a junction between them. A bare
+ * `protocol_compounds!inner(...)` is then ambiguous, PostgREST refuses it
+ * (PGRST201), and Stock fails to load for every user. The hint works the same
+ * before `026` as after it. The embedded resource keeps its name, so the
+ * `protocol_compounds.is_active` filter and `r.protocol_compounds` still read
+ * it. `lib/db/embedHints.test.ts` fails on any unhinted embed between the two.
  */
+const INVENTORY_COMPOUND_EMBED =
+  "protocol_compounds!inventory_items_protocol_compound_id_fkey!inner(is_active, custom_name, custom_category, compounds(name, category))"
 const ITEM_COLUMNS_POST_016 =
-  "id, created_at, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit, serving_size_g, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
+  `id, created_at, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit, serving_size_g, prior_used_base, ${INVENTORY_COMPOUND_EMBED}`
 
 /** The same list before `016` renamed the strength column and `014` added the
  *  serving size — the retry list, so the app still runs against a database that
  *  has had neither applied. */
 const ITEM_COLUMNS_PRE_016 =
-  "id, created_at, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, prior_used_base, protocol_compounds!inner(is_active, custom_name, custom_category, compounds(name, category))"
+  `id, created_at, protocol_compound_id, inventory_type, base_unit, acquired_on, reconstituted_on, total_amount, total_amount_unit, bac_water_ml, concentration_mg_per_ml, strength_per_unit_mg, prior_used_base, ${INVENTORY_COMPOUND_EMBED}`
 
 /** The math view's columns as they exist before `supabase/protocol/010`. */
 const MATH_COLUMNS =
@@ -246,7 +258,7 @@ export async function listStock(): Promise<StockRead> {
     const itemsQuery = (columns: string) =>
       ctx.supabase
         .from("inventory_items")
-        // `protocol_compounds!inner` + the is_active filter below makes Stock a
+        // The hinted inner embed + the is_active filter below makes Stock a
         // strict subset of the user's ACTIVE compounds: archiving or removing a
         // compound on Home (which sets/clears its protocol_compounds row) drops its
         // stock too, so Stock can never show a compound Home doesn't.

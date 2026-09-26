@@ -24,8 +24,10 @@ import {
   missedNudgeMessage,
   lowStockMessage,
   PC_REMINDER_SELECT,
+  INVENTORY_REMINDER_SELECT,
   type ReminderCompound,
   type LowStockItem,
+  type StockSchedule,
   type PushMessage,
 } from "@/lib/notifications/reminders";
 import {
@@ -118,7 +120,11 @@ interface UserData {
   loggedTodayIds: Set<string>;
   /** Reads that came back with an error, by name. See {@link RunResult.unreadable}. */
   unreadable: string[];
+  /** One item per CONTAINER; `lowStock` folds them into compounds. */
   stock: LowStockItem[];
+  /** Each compound's schedule and today's logged count, for the runway walk.
+   *  Empty when the compounds read failed: `lowStock` then reads the view. */
+  stockSchedules: Map<string, StockSchedule>;
   todayKey: string;
   nowMinutes: number;
   /** The user's trialing subscription, if they have one. */
@@ -628,10 +634,12 @@ async function collectUserData(
       .gte("taken_at", since),
     supabase
       .from("inventory_items")
-      // `protocol_compound_id` rides along so a vial can be matched to a PAUSE.
+      // `protocol_compound_id` rides along so a vial can be matched to a PAUSE,
+      // and so a compound's containers are judged together (`lowStock`).
       // Without it the paused lookup below silently reads `undefined` and never
-      // matches, so a paused compound keeps sending low-stock nudges.
-      .select("id, protocol_compound_id, protocol_compounds!inner(is_active, compounds(name))")
+      // matches, so a paused compound keeps sending low-stock nudges. The embed
+      // is HINTED with its foreign key: see `INVENTORY_REMINDER_SELECT`.
+      .select(INVENTORY_REMINDER_SELECT)
       .eq("user_id", userId)
       .eq("is_active", true)
       .eq("protocol_compounds.is_active", true),
@@ -804,6 +812,9 @@ async function collectUserData(
    * 011, exactly as the client's own fallback chain does.
    */
   const loggedTodayIds = new Set<string>();
+  /** Rows logged for today per compound, taken or skipped: one per dose slot.
+   *  The runway walk spends only today's slots still open (`loggedCountFor`). */
+  const loggedTodayCount = new Map<string, number>();
   for (const row of logRes.data ?? []) {
     const r = row as Record<string, unknown>;
     const day = loggedDayOf(
@@ -813,7 +824,11 @@ async function collectUserData(
       },
       tz,
     );
-    if (day === todayKey) loggedTodayIds.add(r.protocol_compound_id as string);
+    if (day === todayKey) {
+      const pcId = r.protocol_compound_id as string;
+      loggedTodayIds.add(pcId);
+      loggedTodayCount.set(pcId, (loggedTodayCount.get(pcId) ?? 0) + 1);
+    }
   }
 
   // Stitch each active vial to its v_inventory_math runway.
@@ -821,23 +836,41 @@ async function collectUserData(
   const ids = items.map((r) => r.id as string);
   const mathById = new Map<string, Record<string, unknown>>();
   if (ids.length > 0) {
-    const { data: math } = await supabase
+    const { data: math, error: mathError } = await supabase
       .from("v_inventory_math")
       // `days_to_empty` is the timezone-free count (`supabase/protocol/010`) the
       // Protocol card reads; `est_empty_date` stays only as the fallback.
       .select("inventory_item_id, est_empty_date, days_to_empty, doses_remaining")
       .in("inventory_item_id", ids);
+    if (mathError) {
+      // Every container would read as holding nothing known, and nothing is
+      // judged low from that. Named, so the silence is not invisible.
+      unreadable.push("inventory_math");
+      console.error(
+        `[reminders] inventory_math unreadable for ${userId} (${mathError.message}); ` +
+          "this run withholds anything that depends on it",
+      );
+    }
     for (const m of math ?? []) {
       mathById.set((m as Record<string, unknown>).inventory_item_id as string, m as Record<string, unknown>);
     }
   }
   const stock: LowStockItem[] = items.map((r) => {
-    const pc = r.protocol_compounds as { compounds?: { name?: string } } | null;
+    const pc = r.protocol_compounds as {
+      custom_name?: string | null;
+      compounds?: { name?: string } | null;
+    } | null;
     const m = mathById.get(r.id as string) ?? {};
     return {
       // Not "a vial" — this row may be a tub or a bottle, and the fallback also
-      // has to read as a NAME, since it is dropped into a comma-joined list.
-      name: pc?.compounds?.name ?? "Something",
+      // has to read as a NAME, since it is dropped into a comma-joined list. A
+      // custom compound has no catalogue row, so its own name comes next, or
+      // two of them would both read "Something".
+      name: pc?.compounds?.name ?? pc?.custom_name ?? "Something",
+      // The compound's containers are judged TOGETHER (`lowStock`).
+      compoundId: r.protocol_compound_id as string,
+      // A spare (`acquired_on` NULL, `026`) holds no doses until it is started.
+      started: r.acquired_on != null,
       // Its compound is paused, so the stock is not moving and "running low" is
       // noise. `019` already returns a longer (or null) runway for these; this
       // is the belt to that braces, and it holds even before 019 is applied.
@@ -854,6 +887,19 @@ async function collectUserData(
     };
   });
 
+  /**
+   * Each compound's schedule, for walking its runway the way the Protocol card
+   * does. Empty when the compounds read failed (then `compounds` is empty too),
+   * and `lowStock` falls back to the view's own runways: low stock keeps its
+   * own inputs rather than going silent with the dose messages. A failed
+   * dose-log read leaves every count at 0, which can only bring a runway in by
+   * today's slots, never push it out.
+   */
+  const stockSchedules = new Map<string, StockSchedule>();
+  for (const c of compounds) {
+    stockSchedules.set(c.id, { compound: c, loggedToday: loggedTodayCount.get(c.id) ?? 0 });
+  }
+
   const { trial, isBetaGrace, sentFor, canWrite, entitlementsUnknown, subscriptionsUnknown } =
     await collectTrial(supabase, userId);
 
@@ -865,6 +911,7 @@ async function collectUserData(
     loggedTodayIds,
     unreadable,
     stock,
+    stockSchedules,
     todayKey,
     nowMinutes,
     trial,
@@ -1012,7 +1059,8 @@ export async function runForUser(
 
   const due = dueUnlogged(data.compounds, data.loggedTodayIds, data.todayKey);
   const lowDays = Number(p.low_stock_days ?? 7);
-  const low = lowStock(data.stock, data.todayKey, lowDays);
+  // Judged per COMPOUND, its runway walked over its schedule when that was read.
+  const low = lowStock(data.stock, data.todayKey, lowDays, data.stockSchedules);
 
   /**
    * ⚠️ WHEN WE COULD NOT CHECK, WE DO NOT NAG. FAIL CLOSED.
@@ -1032,11 +1080,14 @@ export async function runForUser(
    *
    * LOW STOCK IS DELIBERATELY NOT GATED ON `dose_logs`: its inputs are the
    * inventory read and the runway view, and it makes no claim about what the
-   * user did today. It is gated on its own read instead, just below.
+   * user did today. The schedule and today's logs only sharpen its runway, and
+   * without them it reads the view's (`lowStock`). It is gated on its own reads
+   * instead, just below.
    */
   const cannotJudgeDoses =
     data.unreadable.includes("dose_logs") || data.unreadable.includes("compounds");
-  const cannotJudgeStock = data.unreadable.includes("inventory");
+  const cannotJudgeStock =
+    data.unreadable.includes("inventory") || data.unreadable.includes("inventory_math");
 
   const messages: PushMessage[] = [];
   /**
