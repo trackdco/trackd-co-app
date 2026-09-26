@@ -8,13 +8,13 @@ import { CaretLeft, CaretRight } from "@/components/icons"
 import { ScheduleGrid } from "@/components/protocol/ScheduleGrid"
 import {
   compoundsInWeek,
-  daysBetween,
   historyFloor,
   mondayOf,
   relativeWeekLabel,
   shiftWeeks,
   weekDaysFrom,
   weekMatrix,
+  weekNav,
 } from "@/lib/protocol/scheduleWeek"
 import type { StackCompound } from "@/lib/home/stack"
 import type { DayLogs } from "@/lib/home/doseLog"
@@ -53,8 +53,18 @@ function rangeLabel(weekDays: Date[], todayKey: string): string {
  * fact rather than an error.
  *
  * **Read-only. Nothing on the grid is tappable** (Adrian, 2026-09-03). The only
- * controls are the two arrows, and a mark is never a button: tapping a hollow
- * square to log a backdated dose was considered and explicitly rejected.
+ * controls are the two arrows and, off this week, "This week", and a mark is
+ * never a button: tapping a hollow square to log a backdated dose was
+ * considered and explicitly rejected.
+ *
+ * **"This week"** (Adrian's walk, W19) jumps straight back from any week in
+ * one step, with the same parallax as a step forward. It sits centred under the
+ * week, as the calendar's "Today" sits under its month (`DatePickerPanel`), on
+ * the arrows' own ghost surface, and it is there only while you are off this
+ * week: on it, it is hidden and inert. It stays mounted so its entrance and
+ * exit are one interruptible transition on the same path (`.schedule-thisweek`
+ * in globals.css), and its slot is the last thing on the page, so appearing
+ * moves nothing you are reading.
  */
 export function ScheduleWeeks({
   compounds,
@@ -83,10 +93,23 @@ export function ScheduleWeeks({
   }
 
   const floor = historyFloor(logs, todayKey, blockStart)
-  const canGoBack = daysBetween(floor, monday) >= 7
   // A day rolling over into a new week while the page sits open leaves the
-  // grid one week back, with the forward arrow live to catch up.
-  const canGoForward = monday < thisMonday
+  // grid one week back, with the forward arrow and "This week" live to catch
+  // up. The rules are `weekNav`'s, tested in lib.
+  const { canGoBack, canGoForward, away, toThisWeek } = weekNav(monday, thisMonday, floor)
+
+  const backRef = useRef<HTMLButtonElement>(null)
+  const thisWeekRef = useRef<HTMLButtonElement>(null)
+
+  /** Back to this week in one step. The button hides once there, so focus that
+   *  was on it moves to the back arrow rather than falling to the page. */
+  function jumpToThisWeek() {
+    if (!toThisWeek) return
+    const hadFocus = document.activeElement === thisWeekRef.current
+    setMonday(thisMonday)
+    setTravel((t) => ({ dir: toThisWeek, n: (t?.n ?? 0) + 1 }))
+    if (hadFocus) backRef.current?.focus()
+  }
 
   /* Memoised on purpose. `weekDaysFrom` and the membership filter both build
      fresh arrays, and handing those to `ScheduleGrid` meant its own memos could
@@ -127,6 +150,7 @@ export function ScheduleWeeks({
     <section aria-label="Schedule by week" className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <StepButton
+          ref={backRef}
           label="Previous week"
           disabled={!canGoBack}
           onClick={() => step("back")}
@@ -184,6 +208,21 @@ export function ScheduleWeeks({
             `paused ${matrix.pausedDays} ${matrix.pausedDays === 1 ? "day" : "days"}`}
         </p>
       )}
+
+      {/* "This week" (W19). The wrapper carries the show and hide, so the
+          button's own press (scale and dim) never fights it. */}
+      <div className="flex justify-center">
+        <span className="schedule-thisweek" data-shown={away ? "true" : "false"} inert={!away}>
+          <button
+            ref={thisWeekRef}
+            type="button"
+            onClick={jumpToThisWeek}
+            className={GHOST_BUTTON}
+          >
+            This week
+          </button>
+        </span>
+      </div>
     </section>
   )
 }
@@ -191,11 +230,13 @@ export function ScheduleWeeks({
 /** A ghost button, radius 9 (rounded rectangles everywhere, §2.4), 44px square:
  *  the arrows are the only way through the history. */
 function StepButton({
+  ref,
   label,
   disabled,
   onClick,
   children,
 }: {
+  ref?: React.Ref<HTMLButtonElement>
   label: string
   disabled: boolean
   onClick: () => void
@@ -203,6 +244,7 @@ function StepButton({
 }) {
   return (
     <button
+      ref={ref}
       type="button"
       aria-label={label}
       disabled={disabled}

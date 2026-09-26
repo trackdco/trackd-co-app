@@ -349,6 +349,107 @@ export function weekMatrix(
   return { states, logged, due, pausedDays: pausedKeys.size }
 }
 
+/* ------------------------------------------------------------------- marks */
+
+/**
+ * What a mark is drawn in. `compound` is the row's own colour (its type's
+ * container colour); the other two are neutral inks. There is deliberately no
+ * red, green or amber here: state colours never go on health data
+ * (ui-context, "Unchanged and still binding"), so a missed dose is told apart
+ * by its SHAPE, never by an alarm colour.
+ */
+export type WeekMarkInk = "compound" | "muted" | "hairline"
+
+/** The neutral inks as CSS. The compound's colour comes from its row. */
+export const WEEK_MARK_INK: Record<Exclude<WeekMarkInk, "compound">, string> = {
+  muted: "var(--text-muted)",
+  hairline: "var(--border-default)",
+}
+
+/** How one state is drawn: a 12px square (3px corners), or the pause bars. */
+export interface WeekMarkSpec {
+  shape: "square" | "pause"
+  /** Filled in this ink, or hollow. */
+  fill: WeekMarkInk | null
+  /** An inset outline, or none. */
+  outline: { ink: WeekMarkInk; width: number } | null
+  /** A rising diagonal slash across the square, or none. */
+  slash: WeekMarkInk | null
+}
+
+/**
+ * THE DRAWING OF EACH STATE, in one place so the grid and its key can never
+ * disagree (both read this).
+ *
+ * - logged: filled in the compound's colour.
+ * - due: the same square outlined in it, so logging reads as filling it in.
+ * - missed: a muted outline WITH A DIAGONAL SLASH (Adrian's walk, W19; cold
+ *   review D19). It used to be the muted outline alone, which sat beside
+ *   "nothing due" (the same square in the hairline ink) and read as the same
+ *   blank day: a whole missed week looked like a week off. The slash is a
+ *   shape, so it survives any colour and any screen.
+ * - nothing due: the bare hairline square, unchanged ("which stays").
+ * - paused: the pause bars, a glyph rather than a square.
+ */
+export const WEEK_MARK: Record<WeekCellState, WeekMarkSpec> = {
+  logged: { shape: "square", fill: "compound", outline: null, slash: null },
+  due: { shape: "square", fill: null, outline: { ink: "compound", width: 1.5 }, slash: null },
+  missed: { shape: "square", fill: null, outline: { ink: "muted", width: 1 }, slash: "muted" },
+  none: { shape: "square", fill: null, outline: { ink: "hairline", width: 1 }, slash: null },
+  paused: { shape: "pause", fill: null, outline: null, slash: null },
+}
+
+/**
+ * The key under the Schedule page's grid, in reading order. Paused is listed
+ * only when the week has one: a key entry for a state nothing on screen is in
+ * is noise. Every other state is always listed, missed and nothing-due both,
+ * because telling those two apart is the key's main job.
+ */
+export function scheduleKey(showPaused: boolean): { state: WeekCellState; label: string }[] {
+  return [
+    { state: "logged", label: "Logged" },
+    { state: "due", label: "Due" },
+    { state: "missed", label: "Missed" },
+    ...(showPaused ? [{ state: "paused" as const, label: "Paused" }] : []),
+    { state: "none", label: "Nothing due" },
+  ]
+}
+
+/* ------------------------------------------------------------ week stepping */
+
+/** Where the Schedule page's stepper stands on a given week. */
+export interface WeekNav {
+  /** A whole week of history is left behind this one. */
+  canGoBack: boolean
+  /** Only toward this week: the grid never shows a week that has not begun. */
+  canGoForward: boolean
+  /**
+   * Off this week, so the "This week" button shows (W19); on it, the button
+   * hides. True in BOTH directions: the page left open over a Sunday night
+   * sits one week back, and a device clock set back sits one week ahead.
+   */
+  away: boolean
+  /**
+   * The way "This week" travels, for the step animation: forward from the
+   * past, back from a week ahead. Null on this week.
+   */
+  toThisWeek: "back" | "forward" | null
+}
+
+/**
+ * The stepper's state for the week starting `monday`, given this week's
+ * Monday and the history floor (`historyFloor`). Pure, so the rules the arrows
+ * and the "This week" button follow are tested rather than read off a render.
+ */
+export function weekNav(monday: string, thisMonday: string, floor: string): WeekNav {
+  return {
+    canGoBack: daysBetween(floor, monday) >= 7,
+    canGoForward: monday < thisMonday,
+    away: monday !== thisMonday,
+    toThisWeek: monday < thisMonday ? "forward" : monday > thisMonday ? "back" : null,
+  }
+}
+
 /* ------------------------------------------------------------------ labels */
 
 /** Roughly a month, in days. Used to round a week COUNT into months rather than

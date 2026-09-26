@@ -9,7 +9,13 @@ import {
 } from "@/lib/compound-categories"
 import { containerColour } from "@/lib/containers/colour"
 import { type StackCompound } from "@/lib/home/stack"
-import { type WeekCellState } from "@/lib/protocol/scheduleWeek"
+import {
+  scheduleKey,
+  WEEK_MARK,
+  WEEK_MARK_INK,
+  type WeekCellState,
+  type WeekMarkInk,
+} from "@/lib/protocol/scheduleWeek"
 import { Pause } from "@/components/icons"
 import { toDateKey } from "@/lib/home/mockHomeData"
 
@@ -34,6 +40,17 @@ type CellState = WeekCellState
 /** The name column. `data-schedule-namecol` lets the desktop stylesheet give it a
  *  fixed width on a wide card (`app/desktop.css`). */
 const NAME_COL = "w-[38%] shrink-0"
+/**
+ * A compound's name, IN FULL (the brief's copy rule; cold review D10). It
+ * wraps rather than truncating: "Testosterone Enanthate" and a blend such as
+ * "Glow (BPC-157 + TB-500 + GHK-Cu)" take two lines in a phone's column, where
+ * `truncate` cut them to "Testosterone Enant…". No clamp, so a rare longer
+ * name takes the lines it needs instead of an ellipsis. The line height is
+ * tightened to 15px so a two-line name stays a compact row; a one-line name
+ * sits within the marks' 16px as before. `break-words` breaks a single token
+ * too long for the column rather than letting it run under the marks.
+ */
+export const SCHEDULE_NAME = "text-xs leading-[15px] text-foreground break-words"
 /** The seven-day track every row and the day header share. */
 const DAY_TRACK = "grid flex-1 grid-cols-7 gap-1"
 
@@ -46,9 +63,9 @@ const DAY_TRACK = "grid flex-1 grid-cols-7 gap-1"
  * rules read as a spreadsheet.
  *
  * The states are the app's existing ones, unchanged in meaning, carried by the
- * square: filled in the colour = logged, outlined in the colour = due, a hollow
- * grey square = missed (the old hollow ring, squared), a bare hairline = nothing
- * due, the pause bars = paused. Due and missed never meet: a due dose becomes
+ * square: filled in the colour = logged, outlined in the colour = due, a grey
+ * square with a diagonal slash = missed (W19), a bare hairline = nothing due,
+ * the pause bars = paused. Due and missed never meet: a due dose becomes
  * MISSED only at the end of its day, so due lives on today and after, missed
  * only before.
  *
@@ -168,10 +185,7 @@ export function ScheduleGrid({
               const colour = containerColour({ category: c.category })
               return (
                 <div key={c.id} className="flex items-center gap-3 py-1">
-                  <span
-                    data-schedule-namecol
-                    className={cn(NAME_COL, "truncate text-xs text-foreground")}
-                  >
+                  <span data-schedule-namecol className={cn(NAME_COL, SCHEDULE_NAME)}>
                     {c.name}
                   </span>
                   {/* The marks are decorative; the row carries the meaning as
@@ -208,31 +222,56 @@ export function ScheduleGrid({
 }
 
 /**
- * One day's square, 12px with 3px corners.
+ * One day's square, 12px with 3px corners, drawn from `WEEK_MARK` (the one
+ * table the key reads too, so the two cannot drift apart).
  *
  * Logged is FILLED in the compound's colour and due is the same square
  * OUTLINED in it, so logging a dose reads as filling its square in. Missed is
- * the hollow grey one (the old hollow ring, squared: never a slash), and a day
- * with nothing due is a bare hairline so the row still reads as seven days.
- * Missed is drawn in `--text-muted` against the hairline's `--border-default`,
- * so the state that most needs seeing is never the faintest thing in the row.
+ * the grey square STRUCK THROUGH with a rising slash (Adrian's walk, W19): the
+ * plain grey outline it used to be sat beside "nothing due", the same square in
+ * the hairline, and a missed week read as a week off (cold review D19). A day
+ * with nothing due is still the bare hairline, so the row reads as seven days.
+ * Both of missed's strokes are `--text-muted`, so the state that most needs
+ * seeing is never the faintest thing in the row, and no state colour is used.
  */
 function Mark({ state, colour }: { state: CellState; colour: string }) {
+  const spec = WEEK_MARK[state]
   // Paused is a GLYPH, not another square. A row of pause bars reads as
   // "deliberately off" the length of the week, which a row of empty squares
   // could never say (Adrian, 2026-09-03).
-  if (state === "paused") {
-    return <Pause aria-hidden className="h-2.5 w-2.5 text-text-muted" weight="fill" />
+  if (spec.shape === "pause") {
+    return (
+      <Pause aria-hidden data-mark={state} className="h-2.5 w-2.5 text-text-muted" weight="fill" />
+    )
   }
-  const style =
-    state === "logged"
-      ? { backgroundColor: colour }
-      : state === "due"
-        ? { boxShadow: `inset 0 0 0 1.5px ${colour}` }
-        : state === "missed"
-          ? { boxShadow: "inset 0 0 0 1px var(--text-muted)" }
-          : { boxShadow: "inset 0 0 0 1px var(--border-default)" }
-  return <span aria-hidden className="block h-3 w-3 rounded-[3px]" style={style} />
+  const ink = (i: WeekMarkInk) => (i === "compound" ? colour : WEEK_MARK_INK[i])
+  return (
+    <span
+      aria-hidden
+      data-mark={state}
+      className="relative block h-3 w-3 rounded-[3px]"
+      style={{
+        backgroundColor: spec.fill ? ink(spec.fill) : undefined,
+        boxShadow: spec.outline
+          ? `inset 0 0 0 ${spec.outline.width}px ${ink(spec.outline.ink)}`
+          : undefined,
+      }}
+    >
+      {spec.slash ? (
+        // Corner to corner inside the outline, at the outline's own weight:
+        // it meets the rounded corners' inner edge, so it reads as the square
+        // struck out rather than a separate glyph set inside it.
+        <svg viewBox="0 0 12 12" fill="none" className="absolute inset-0 h-full w-full">
+          <path
+            d="M2 10 10 2"
+            stroke={ink(spec.slash)}
+            strokeWidth={1}
+            strokeLinecap="round"
+          />
+        </svg>
+      ) : null}
+    </span>
+  )
 }
 
 const STATE_LABEL: Record<CellState, string> = {
@@ -244,17 +283,10 @@ const STATE_LABEL: Record<CellState, string> = {
 }
 
 /** The key. Logged and due are drawn in white here: on the grid each takes its
- *  compound's colour. */
+ *  compound's colour. Missed and nothing due are drawn exactly as on the grid,
+ *  slash and all, because both come from `WEEK_MARK`. */
 function Key({ showPaused }: { showPaused: boolean }) {
-  const items: { state: CellState; label: string }[] = [
-    { state: "logged", label: "Logged" },
-    { state: "due", label: "Due" },
-    { state: "missed", label: "Missed" },
-    // Only when the week actually contains one. A key entry for a state nothing
-    // on screen is in is noise.
-    ...(showPaused ? ([{ state: "paused", label: "Paused" }] as const) : []),
-    { state: "none", label: "Nothing due" },
-  ]
+  const items = scheduleKey(showPaused)
   return (
     <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 hairline-t pt-3">
       {items.map((i) => (
