@@ -14,7 +14,8 @@ import { SubpageShell } from "@/components/protocol/pages/Subpage"
 import { blendFor } from "@/lib/compound-blends"
 import { CATEGORY_DISPLAY_ORDER, CATEGORY_META } from "@/lib/compound-categories"
 import { inventoryTypeForCompound } from "@/lib/containers/form"
-import { listRowFigure } from "@/lib/halflife/model"
+import { sharedUnit } from "@/lib/halflife/blendView"
+import { listRowFigure, sumFigures } from "@/lib/halflife/model"
 import { getDoseLogsSnapshot, subscribeDoseLogs, type DayLogs } from "@/lib/home/doseLog"
 import { getHydrationState, subscribeHydrationState, type HydrationState } from "@/lib/home/hydrationState"
 import { toDateKey } from "@/lib/home/mockHomeData"
@@ -96,13 +97,18 @@ export function HalfLifeScreen({
         label: "Blends",
         glyph: "catBlend",
         hue: "var(--blend-1)",
+        // A blend's row reads its parts together, as its page's "All" does
+        // (W5); its first part alone, under the blend's name, read as the
+        // whole blend. Parts in different units do not add: then the first.
         rows: blends.map((b) => {
-          const i = b.drawn[0]?.index ?? 0
+          const parts = b.drawn.flatMap((l) => (b.figures[l.index] ? [b.figures[l.index]!] : []))
+          const unit = sharedUnit(b.drawn.map((l) => l.unit))
+          const figures = parts.length === 0 ? null : unit ? sumFigures(parts) : parts[0]
           return {
             compound: b.compound,
             name: blendFor(b.compound.name)?.label ?? b.compound.name,
             graph: b.graph,
-            ...listRowFigure(b.figures[i] ?? null, b.all[i]?.unit ?? b.compound.unit),
+            ...listRowFigure(figures, unit ?? b.drawn[0]?.unit ?? b.compound.unit),
           }
         }),
       })

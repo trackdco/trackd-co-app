@@ -13,14 +13,15 @@ import {
   type Dose,
 } from "@/lib/halflife/model"
 import type { HalfLifeSource } from "@/lib/halflife/compoundCurve"
+import { guideExample } from "@/lib/halflife/guide"
+import { HIT_26, PRESS, PRIMARY_BUTTON } from "@/lib/ui-presets"
 
 /** The drawing's own units; the SVG scales to the card. */
 const W = 270
 const H = 92
 const PAD = 8
 const IH = H - PAD * 2
-/** The whole drawing, with the TODAY label under it: the guide's leaders are
- *  laid out against this box. */
+/** The whole drawing, with the TODAY label under it. */
 export const GRAPH_VIEW = { w: W, h: H + 14 }
 
 /** The top of the scale: the highest the curves reach, with room above; with
@@ -34,7 +35,7 @@ function graphTop(lines: readonly GraphLine[], t0: number, t1: number, band: boo
   return (mx || 1) * (band ? 1.36 : 1.15)
 }
 
-/** Where the guide's leaders point, in the drawing's units. */
+/** Where a leader to each mark would point, in the drawing's units. */
 export interface GraphAnchors {
   band: [number, number] | null
   now: [number, number] | null
@@ -45,10 +46,15 @@ export interface GraphAnchors {
 }
 
 /**
- * The marks the "Reading the curve" guide names (build-brief-final §3.11), on
- * the same scale the graph draws: the range's top edge in the past, Now on the
+ * The marks the first "Reading the curve" guide pointed its leaders at, on
+ * the scale this graph draws: the range's top edge in the past, Now on the
  * curve, a point on the dashed line ahead, the first dose tick, the upcoming
- * peak, and the top of the ½ line. A mark the graph does not draw is null.
+ * peak, and the top of the ½ line; null for a mark not drawn.
+ *
+ * The guide now explains with a drawn example and a plain key (Adrian's walk,
+ * W2), so no screen calls this. It stays, with the leaders' layout
+ * (`layoutGuide`) and their tests (`lib/halflife/guideLayout.test.ts`, cold
+ * review B24 / F6 / D3), should the leaders come back.
  */
 export function graphAnchors({
   lines,
@@ -87,6 +93,20 @@ export function graphAnchors({
     half: inView(halfAtH) ? [X(halfAtH), PAD + 2] : null,
   }
 }
+
+/**
+ * The fill and the likely range, told apart (Adrian's walk, W3: "bring the
+ * gradient back, softer, and keep the range band; the two must read as
+ * different things"). The FILL is the chart style's tapered gradient, softer
+ * than Weight's 0.35: under the line so far only, fading to nothing at the
+ * base. The RANGE is flat, not tapered, fainter, and edged with a hairline top
+ * and bottom, so it reads as a band around the line, past and ahead, rather
+ * than as more fill. From the approved mock's "over" treatment (`r6/hl7.js`:
+ * range 0.13 flat, fill 0.32 to 0), softened.
+ */
+const FILL_TOP = 0.22
+const RANGE_FILL = 0.1
+const RANGE_EDGE = 0.32
 
 /** The feel-pass tracer (ui-context → Charts): the line sweeps in over 1470ms
  *  on a quintic ease-out, a 7px ring rides the tip and fades over 320ms, and
@@ -167,6 +187,7 @@ export function HalfLifeGraph({
   keyed = false,
   band = false,
   showNow = true,
+  scrub: scrubbable = true,
 }: {
   lines: readonly GraphLine[]
   t0: number
@@ -184,28 +205,41 @@ export function HalfLifeGraph({
   halfAtH?: number | null
   /** The doses as short ticks along the bottom: taken white, to come grey. */
   doseTicks?: boolean
-  /** The graph's own top strip, on black, with a circled "?" that opens the key. */
+  /** A circled "?" in the graph's own top-right corner that opens "Reading
+   *  the curve" (Adrian's walk, W1: no bar, no seam; it sits in the graph). */
   keyed?: boolean
   /** The likely range (×1.14 / ×0.86 at Now, widening to ×1.30 / ×0.76 six
-   *  days out) shaded around the line, in place of the fill (§3.11). */
+   *  days out) as a band around the line, beside the fill (§3.11; W3). */
   band?: boolean
   /** A past run's graph ends before today: no Now line, no TODAY. */
   showNow?: boolean
+  /** Press and drag reads the curve (default on). Off for a drawn example. */
+  scrub?: boolean
 }) {
   const [keyOpen, setKeyOpen] = useState(false)
   const uid = useId().replace(/:/g, "")
   const top = useMemo(() => graphTop(lines, t0, t1, band), [lines, t0, t1, band])
   const built = useMemo(() => lines.map((l) => build(l, t0, t1, nowH, top)), [lines, t0, t1, nowH, top])
-  // The likely range around the isolated line (or the only one).
-  const bandPath = useMemo(() => {
-    if (!band) return null
-    const b = built[selected ?? 0]
-    if (!b || b.pts.length === 0) return null
+  // The line the fill and the range belong to: the isolated one, or the only
+  // one. A blend's "All" draws its lines bare (W5): a band per part would
+  // bury them, and a part is one tap away.
+  const focusLine = selected ?? (lines.length === 1 ? 0 : null)
+  // The likely range around each line: the band, and its two edges. Every
+  // line has its own, shown only on the focus line, so a switch between a
+  // blend's parts fades one out and the next in rather than popping.
+  const ranges = useMemo(() => {
+    if (!band) return built.map(() => null)
     const X = (t: number) => (((t - t0) / (t1 - t0)) * W).toFixed(1)
     const Y = (v: number) => (PAD + IH - (v / top) * IH).toFixed(1)
-    const r = rangeBand(b.pts, nowH)
-    return "M" + r.map(([t, , hi]) => `${X(t)} ${Y(hi)}`).join("L") + "L" + [...r].reverse().map(([t, lo]) => `${X(t)} ${Y(lo)}`).join("L") + "Z"
-  }, [band, built, selected, t0, t1, top, nowH])
+    return built.map((b) => {
+      if (b.pts.length === 0) return null
+      const r = rangeBand(b.pts, nowH)
+      const upper = "M" + r.map(([t, , hi]) => `${X(t)} ${Y(hi)}`).join("L")
+      const lower = "M" + r.map(([t, lo]) => `${X(t)} ${Y(lo)}`).join("L")
+      const area = upper + "L" + [...r].reverse().map(([t, lo]) => `${X(t)} ${Y(lo)}`).join("L") + "Z"
+      return { area, upper, lower }
+    })
+  }, [band, built, t0, t1, top, nowH])
   const tx = ((Math.min(nowH, t1) - t0) / (t1 - t0)) * W
 
   // ---- the tracer: per-frame attribute writes, never React state ----
@@ -282,7 +316,7 @@ export function HalfLifeGraph({
 
   // ---- the scrub: press and drag, like Weight ----
   const [scrub, setScrub] = useState<{ x: number; y: number; label: string; value: string; frac: number } | null>(null)
-  const scrubLine = selected ?? (lines.length === 1 ? 0 : null)
+  const scrubLine = scrubbable ? focusLine : null
   const scrubAt = (clientX: number) => {
     const svg = svgRef.current
     if (!svg || scrubLine == null) return
@@ -304,18 +338,26 @@ export function HalfLifeGraph({
   const DAY_TICKS = useMemo(() => [1, 2].map((j) => (PAD + (IH * j) / 3).toFixed(1)), [])
 
   return (
-    <div className={cn("inset-graph relative rounded-[13px] px-2.5 pt-2.5 pb-1.5", keyed && "pt-0", className)}>
+    <div className={cn("inset-graph relative rounded-[13px] px-2.5 pt-2.5 pb-1.5", className)}>
       {keyed ? (
-        <div className="relative z-10 -mx-2.5 mb-2 flex h-9 items-center justify-end rounded-t-[13px] bg-black px-2">
+        // In the graph's own corner, on the inset itself: no strip, no seam
+        // (W1). A dark disc keeps it legible over the curve (the approved
+        // mock's `.hq9`). Drawn at 26, pressed at 44 (D8): 9px in from the
+        // inset's corner, so the reach is never clipped by the card's grow.
+        <span className="absolute top-[9px] right-[9px] z-20 flex">
           <button
             type="button"
             onClick={() => setKeyOpen(true)}
-            aria-label="Reading the graph"
-            className="flex h-[26px] w-[26px] items-center justify-center rounded-full text-[12px] font-medium text-foreground shadow-[inset_0_0_0_1.2px_var(--text-muted)] transition-colors"
+            aria-label="Reading the curve"
+            className={cn(
+              PRESS.icon,
+              HIT_26,
+              "flex h-[26px] w-[26px] items-center justify-center rounded-full bg-bg-base/55 text-[12px] font-medium text-foreground shadow-[inset_0_0_0_1.2px_var(--text-muted)] transition-colors",
+            )}
           >
             ?
           </button>
-        </div>
+        </span>
       ) : null}
       <svg
         ref={svgRef}
@@ -326,8 +368,8 @@ export function HalfLifeGraph({
         <defs>
           {lines.map((l, i) => (
             <linearGradient key={i} id={`${uid}g${i}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" style={{ stopColor: l.hue }} stopOpacity="0.34" />
-              <stop offset="1" style={{ stopColor: l.hue }} stopOpacity="0.02" />
+              <stop offset="0" style={{ stopColor: l.hue }} stopOpacity={FILL_TOP} />
+              <stop offset="1" style={{ stopColor: l.hue }} stopOpacity="0" />
             </linearGradient>
           ))}
           {lines.map((_, i) => (
@@ -341,16 +383,39 @@ export function HalfLifeGraph({
         ))}
         {built.map((b, i) => {
           const dim = selected != null && selected !== i
-          // The fill belongs to one line only: the isolated one, or the first.
-          const filled = (selected ?? 0) === i
+          // The fill and the range belong to one line: the isolated one, or
+          // the only one (see `focusLine`). The outer group's opacity is the
+          // switch (a 300ms fade); the inner `data-fade` is the tracer's.
+          const range = ranges[i]
           return (
             <g
               key={i}
               className="transition-opacity duration-300 ease-out"
               style={{ opacity: dim ? 0.14 : 1 }}
             >
-              {filled && bandPath ? <path data-fade="" d={bandPath} style={{ fill: lines[i].hue }} fillOpacity="0.2" /> : null}
-              {filled && b.area && !band ? <path data-fade="" d={b.area} fill={`url(#${uid}g${i})`} /> : null}
+              {/* The tapered fill under the line so far, then the flat,
+                  edged range over it (W3). */}
+              {b.area || range ? (
+                <g className="transition-opacity duration-300 ease-out" style={{ opacity: focusLine === i ? 1 : 0 }}>
+                  {b.area ? <path data-fade="" d={b.area} fill={`url(#${uid}g${i})`} /> : null}
+                  {range ? (
+                    <g data-fade="">
+                      <path d={range.area} style={{ fill: lines[i].hue }} fillOpacity={RANGE_FILL} />
+                      {[range.upper, range.lower].map((d, k) => (
+                        <path
+                          key={k}
+                          d={d}
+                          fill="none"
+                          stroke={lines[i].hue}
+                          strokeOpacity={RANGE_EDGE}
+                          strokeWidth="0.75"
+                          strokeLinejoin="round"
+                        />
+                      ))}
+                    </g>
+                  ) : null}
+                </g>
+              ) : null}
               {b.future ? (
                 <path
                   data-fade=""
@@ -452,7 +517,7 @@ export function HalfLifeGraph({
 
       {scrubLine != null ? (
         <div
-          className={cn("absolute inset-x-2.5 bottom-5 cursor-ew-resize touch-none", keyed ? "top-[46px]" : "top-2.5")}
+          className="absolute inset-x-2.5 top-2.5 bottom-5 cursor-ew-resize touch-none"
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId)
             scrubAt(e.clientX)
@@ -469,51 +534,124 @@ export function HalfLifeGraph({
       ) : null}
       {scrub ? (
         <div
-          className="pointer-events-none absolute top-0.5 z-10 -translate-x-1/2 rounded-lg bg-bg-surface-raised px-2 py-1 font-mono text-[10.5px] whitespace-nowrap text-foreground shadow-[0_6px_16px_-8px_rgb(0_0_0)]"
+          className="pointer-events-none absolute top-0.5 z-30 -translate-x-1/2 rounded-lg bg-bg-surface-raised px-2 py-1 font-mono text-[10.5px] whitespace-nowrap text-foreground shadow-[0_6px_16px_-8px_rgb(0_0_0)]"
           style={{ left: `calc(10px + ${scrub.frac} * (100% - 20px))` }}
         >
           <span className="mr-1.5 text-text-muted">{scrub.label}</span>
           {scrub.value}
         </div>
       ) : null}
-      {keyed ? <GraphKey open={keyOpen} onClose={() => setKeyOpen(false)} /> : null}
+      {keyed ? <GraphKey open={keyOpen} onClose={() => setKeyOpen(false)} hue={lines[focusLine ?? 0]?.hue} /> : null}
     </div>
   )
 }
 
+/** The guide's example is drawn in the compound's hue, else the neutral
+ *  chart line (the Half-life page's own explainer draws in it). */
+const GUIDE_HUE = "var(--chart-line)"
+
 /**
- * THE KEY, as a pop-up (build-brief-final §3.3; Adrian, round four: "make it a
- * pop-up instead of a drop-down"). Only the marks the graph really draws.
+ * A mark of the key, drawn the way the graph draws it, in an 18 × 12 box.
+ * Every value here is the graph's own (the line, the fill, the range, Now,
+ * the ½ line and the ticks above), so the key can never show a mark the
+ * graph does not.
  */
-export function GraphKey({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const item = (mark: ReactNode, words: string) => (
-    <li className="flex items-center gap-3 text-[13.5px] text-foreground">
-      <span className="flex w-5 justify-center">{mark}</span>
-      {words}
-    </li>
+function KeyMark({ kind, hue, uid }: { kind: GuideKey; hue: string; uid: string }) {
+  const box = (children: ReactNode) => (
+    <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden className="shrink-0 overflow-visible">
+      {children}
+    </svg>
   )
+  switch (kind) {
+    case "line":
+      return box(
+        <>
+          <defs>
+            <linearGradient id={`${uid}k`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" style={{ stopColor: hue }} stopOpacity={FILL_TOP} />
+              <stop offset="1" style={{ stopColor: hue }} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d="M0 9.5C4 9.5 5 3 9 3s5 4 9 4V12H0Z" fill={`url(#${uid}k)`} />
+          <path d="M0 9.5C4 9.5 5 3 9 3s5 4 9 4" fill="none" stroke={hue} strokeWidth="2" strokeLinecap="round" />
+        </>,
+      )
+    case "range":
+      return box(
+        <>
+          <path d="M0 2.5h18v7H0Z" style={{ fill: hue }} fillOpacity={RANGE_FILL} />
+          <path d="M0 2.5h18M0 9.5h18" stroke={hue} strokeOpacity={RANGE_EDGE} strokeWidth="0.75" />
+        </>,
+      )
+    case "ahead":
+      return box(
+        <path d="M1 6h16" stroke={hue} strokeWidth="2" strokeOpacity="0.55" strokeDasharray="2.5 3.5" strokeLinecap="round" />,
+      )
+    case "now":
+      return box(<path d="M9 0v12" stroke="var(--text-primary)" strokeOpacity="0.6" strokeWidth="1" />)
+    case "half":
+      return box(<path d="M9 0v12" stroke="var(--text-primary)" strokeOpacity="0.8" strokeDasharray="2 3" />)
+    case "taken":
+      return box(<rect x="8" y="5" width="2" height="6" rx="1" style={{ fill: "var(--text-primary)" }} />)
+    case "toCome":
+      return box(<rect x="8" y="5" width="2" height="6" rx="1" style={{ fill: "var(--border-strong)" }} />)
+  }
+}
+
+type GuideKey = "line" | "range" | "ahead" | "now" | "half" | "taken" | "toCome"
+
+/** The key under the drawn example: a plain legend, in the order the eye
+ *  meets the marks, in as few words as each mark needs. */
+const GUIDE_KEY: [GuideKey, string][] = [
+  ["line", "In you so far"],
+  ["range", "Likely range"],
+  ["ahead", "Ahead"],
+  ["now", "Now"],
+  ["half", "½ Last dose half gone"],
+  ["taken", "Doses taken"],
+  ["toCome", "Doses to come"],
+]
+
+/**
+ * "READING THE CURVE" (Adrian's walk, W2): the "?" on a compound's page and
+ * the one in Home's open graph both open this. Like the Half-life page's own
+ * explainer, it explains with a DRAWN graph: one example (`guideExample`,
+ * tested to show every mark apart), drawn by this same graph, tracing in as
+ * the pop-up lands, with a plain key under it in place of pointers. Then one
+ * line, and "Got it". Reduced motion: the pop-up fades and the example shows
+ * drawn (the graph's own fallback).
+ */
+export function GraphKey({ open, onClose, hue = GUIDE_HUE }: { open: boolean; onClose: () => void; hue?: string }) {
+  const uid = useId().replace(/:/g, "")
+  const example = useMemo(() => {
+    const g = guideExample()
+    return { ...g, lines: [{ source: g.source, taken: g.taken, toCome: g.toCome, hue }] as GraphLine[] }
+  }, [hue])
   return (
-    <PopDialog open={open} onClose={onClose} title="Reading the graph">
-      <ul className="mt-4 space-y-3">
-        {item(
-          <svg width="8" height="14" viewBox="0 0 8 14" aria-hidden><line x1="4" y1="0" x2="4" y2="14" stroke="var(--text-primary)" strokeOpacity="0.8" strokeDasharray="2 2" /></svg>,
-          "½ Last dose half gone",
-        )}
-        {item(
-          <svg width="8" height="14" viewBox="0 0 8 14" aria-hidden><line x1="4" y1="0" x2="4" y2="14" stroke="var(--text-primary)" strokeOpacity="0.6" /></svg>,
-          "Now",
-        )}
-        {item(
-          <svg width="6" height="14" viewBox="0 0 6 14" aria-hidden><rect x="2" y="6" width="2" height="7" rx="1" style={{ fill: "var(--text-primary)" }} /></svg>,
-          "Your doses",
-        )}
-        {item(
-          <svg width="18" height="14" viewBox="0 0 18 14" aria-hidden><line x1="1" y1="7" x2="17" y2="7" stroke="var(--text-muted)" strokeWidth="1.8" strokeDasharray="2.5 2.5" strokeLinecap="round" /></svg>,
-          "Ahead",
-        )}
+    <PopDialog open={open} onClose={onClose} title="Reading the curve" className="max-w-[360px]">
+      <HalfLifeGraph
+        lines={example.lines}
+        t0={example.t0}
+        t1={example.t1}
+        nowH={example.nowH}
+        unit=""
+        drawKey={1}
+        band
+        halfAtH={example.halfAtH}
+        doseTicks
+        scrub={false}
+        className="mt-4"
+      />
+      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 px-0.5" aria-label="Key">
+        {GUIDE_KEY.map(([kind, words]) => (
+          <li key={kind} className="flex items-center gap-1.5 text-[12.5px] whitespace-nowrap text-text-muted">
+            <KeyMark kind={kind} hue={hue} uid={uid} />
+            {words}
+          </li>
+        ))}
       </ul>
-      <p className="mt-4 text-[13px] leading-snug text-text-muted">Estimated from your doses and your schedule.</p>
-      <button type="button" onClick={onClose} className="press-button inst-btn mt-4 w-full py-2.5 text-sm font-medium text-bg-base">
+      <p className="mt-3 text-[13px] leading-snug text-text-muted">Estimated from your doses and your schedule.</p>
+      <button type="button" onClick={onClose} className={cn(PRIMARY_BUTTON, "mt-4 w-full py-2.5")}>
         Got it
       </button>
     </PopDialog>

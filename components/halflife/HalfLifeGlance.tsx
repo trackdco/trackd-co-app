@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 
 import { Container } from "@/components/containers"
@@ -11,7 +12,7 @@ import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { CATEGORY_META, type CompoundCategory } from "@/lib/compound-categories"
 import type { DayLogs } from "@/lib/home/doseLog"
 import type { StackCompound } from "@/lib/home/stack"
-import { formatAmount, formatPercent, halfGoneAtH, heldScroll } from "@/lib/halflife/model"
+import { formatPercent, halfGoneAtH, heldScroll, nowReading } from "@/lib/halflife/model"
 
 import { HalfLifeGraph } from "./HalfLifeGraph"
 import { RollNumber } from "./RollNumber"
@@ -33,6 +34,9 @@ const SETTLE_MS = 140
 
 const CATEGORY_ORDER = Object.keys(CATEGORY_META) as CompoundCategory[]
 
+/** A compound's own Half-life page. Stable, so the prefetch runs once per open. */
+const halfLifePage = (id: string) => `/protocol/half-life/${encodeURIComponent(id)}`
+
 function Chevron() {
   return (
     <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden>
@@ -50,25 +54,37 @@ function Chevron() {
  * rail is held on it every frame, so it never drifts) and the graph grows out
  * of it, lined up exactly because it is inside it. Swiping while open switches
  * compound; the close arrow (the one `CloseArrow`, consistency fix #11) closes
- * it and it shrinks back. The open card adds the
- * graph (its own top strip with a circled "?" for the key, the ½ line, the
- * dose ticks) and the rows, and does not repeat the two figures.
+ * it and it shrinks back. The open card adds the graph (a circled "?" in its
+ * own corner for "Reading the curve", W1; the likely range around the line as
+ * every graph draws it, W51; the ½ line; the dose ticks) and the rows, and
+ * does not repeat the two figures.
  *
  * After a dose is tracked nothing scrolls: the figures ROLL from their old
- * value if the card is on screen, else update quietly.
+ * value if the card is on screen, else update quietly. Right after a dose,
+ * while nothing has reached the blood yet, Circulating reads "Absorbing" in
+ * place of 0.00 (ruling 5, `nowReading`).
  *
  * Single compounds only: a blend has one curve per part, and two figures on a
  * card cannot say which part they are.
+ *
+ * OPEN, the name and the two figures at the top are the way to the compound's
+ * own Half-life page (Adrian, 26 Sep: "if I want to know more I'd do that"); a
+ * small arrow fades in beside the name to say so. Shut, they open the card as
+ * before, and the rows below (Level, Half-life and the rest) never navigate.
  */
 export function HalfLifeGlance({
   compounds,
   logs,
   userId,
+  pageHref = halfLifePage,
 }: {
   compounds: readonly StackCompound[]
   logs: DayLogs
   userId: string
+  /** Where an open card's name and figures lead. */
+  pageHref?: (compoundId: string) => string
 }) {
+  const router = useRouter()
   const now = useMinuteNow()
   const { singles, nowH } = useHalfLifeModels(compounds, logs, userId, now)
   const [cat, setCat] = useState<string>("all")
@@ -79,6 +95,11 @@ export function HalfLifeGlance({
   const pinning = useRef(false)
   const settleTimer = useRef<number | undefined>(undefined)
   useEffect(() => () => window.clearTimeout(settleTimer.current), [])
+  // The open card's page is fetched while you read the card, so the tap lands
+  // at once and the page's own entrance is the transition.
+  useEffect(() => {
+    if (openId) router.prefetch(pageHref(openId))
+  }, [openId, pageHref, router])
 
   const cats = CATEGORY_ORDER.filter((c) => singles.some((m) => m.compound.category === c))
   const shown = cat === "all" || !cats.includes(cat as CompoundCategory) ? singles : singles.filter((m) => m.compound.category === cat)
@@ -91,9 +112,9 @@ export function HalfLifeGlance({
   /**
    * The open graph's height at the card's FULL width, set before it opens so
    * the frame grows straight to it while the card widens (measuring mid-grow
-   * would catch the narrow width). The graph's SVG is 270 × 106 in a keyed
-   * frame: a 36px strip, 8px under it, 6px at the foot, 10px each side, inside
-   * a card with 14px each side.
+   * would catch the narrow width). The graph's SVG is 270 × 106 in its inset:
+   * 10px over it (the "?" sits in that corner, over the graph, W1), 6px at the
+   * foot, 10px each side, inside a card with 14px each side.
    */
   const setOpenHeight = (id: string) => {
     const sw = swipeRef.current
@@ -101,7 +122,7 @@ export function HalfLifeGlance({
     if (!sw || !card) return
     const cardW = sw.clientWidth - 40
     const svgW = cardW - 28 - 20
-    card.style.setProperty("--open-h", `${Math.round(36 + 8 + (svgW * 106) / 270 + 6)}px`)
+    card.style.setProperty("--open-h", `${Math.round(10 + (svgW * 106) / 270 + 6)}px`)
   }
   /** Reduced motion: a card that jumps into place does so behind a short fade
    *  (build-brief-final §3.16), never a slide. */
@@ -215,6 +236,7 @@ export function HalfLifeGlance({
           const line = m.graph[0]
           const taken = line?.taken.length ?? 0
           const half = line ? halfGoneAtH([...line.taken, ...line.toCome], nowH, hl, m.line.source.route) : null
+          const now = nowReading(m.figures)
           return (
             <div
               key={m.compound.id}
@@ -223,14 +245,14 @@ export function HalfLifeGlance({
                 else cardRefs.current.delete(m.compound.id)
               }}
               data-open={isOpen ? "true" : "false"}
-              className={cn(INNER_RADIUS, "hl-glance-card relative flex flex-col gap-2.5 px-3.5 py-[13px]")}
+              className={cn(INNER_RADIUS, "hl-glance-card group/hl relative flex flex-col gap-2.5 px-3.5 py-[13px]")}
               style={{ "--hue": m.hue } as CSSProperties}
             >
               <button
                 type="button"
-                onClick={() => tap(m.compound.id)}
-                aria-expanded={isOpen}
-                aria-label={`${m.compound.name}, half-life`}
+                onClick={() => (isOpen ? router.push(pageHref(m.compound.id)) : tap(m.compound.id))}
+                aria-expanded={isOpen ? undefined : false}
+                aria-label={isOpen ? `Open ${m.compound.name}'s half-life page` : `${m.compound.name}, half-life`}
                 className={cn(PRESS.card, "flex flex-col gap-2.5 text-left")}
               >
                 <span className="flex items-center gap-2.5 pr-8 text-sm text-foreground">
@@ -244,12 +266,30 @@ export function HalfLifeGlance({
                     />
                   </span>
                   <span className="truncate">{m.compound.name}</span>
+                  {/* Open: a small arrow fades in after the name, once the card
+                      has grown, to say the name leads to its page. */}
+                  <span
+                    aria-hidden
+                    className="-ml-1 flex shrink-0 -rotate-90 text-text-muted opacity-0 transition-opacity duration-200 group-data-[open=true]/hl:opacity-100 group-data-[open=true]/hl:delay-300 motion-reduce:transition-none"
+                  >
+                    <Chevron />
+                  </span>
                 </span>
                 <span className="grid grid-cols-2 gap-2">
                   <span className="flex flex-col">
                     <span className={cn(FIGURE, "text-[30px] leading-none font-light text-foreground")}>
-                      <RollNumber text={formatAmount(m.figures.circulating)} rollKey={taken} />
-                      <span className="ml-[3px] font-sans text-[13px] text-text-muted">{m.line.unit}</span>
+                      {now.kind === "absorbing" ? (
+                        // Ruling 5: the word in the figure's own line box, so
+                        // the card does not move; it rises in as it lands.
+                        <span className="animate-hl-swap inline-block align-bottom font-sans text-[18px] leading-[30px]">
+                          Absorbing
+                        </span>
+                      ) : (
+                        <>
+                          <RollNumber text={now.text} rollKey={taken} />
+                          <span className="ml-[3px] font-sans text-[13px] text-text-muted">{m.line.unit}</span>
+                        </>
+                      )}
                     </span>
                     <span className={cn(TILE_LABEL, "mt-1.5")}>Circulating</span>
                   </span>
@@ -290,6 +330,7 @@ export function HalfLifeGlance({
                       drawKey={draws}
                       halfAtH={half}
                       doseTicks
+                      band
                       keyed
                     />
                   ) : null}

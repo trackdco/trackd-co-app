@@ -390,6 +390,12 @@ export interface HalfLifeFigures {
    *  dose words count calendar days to it, not hours. */
   nextDoseAtH: number | null
   steady: Steady
+  /** The last dose taken, in hours, or null before the first. */
+  lastDoseAtH: number | null
+  /** The last dose is still being absorbed: it was taken, and its own peak
+   *  ({@link peakAfterH}) is still ahead. What "In you now" reads then is
+   *  {@link nowReading}'s call (Adrian's ruling 5). */
+  absorbing: boolean
 }
 
 export interface FiguresInput {
@@ -417,6 +423,60 @@ export function figuresAt({ doses, halfLifeH, route, nowH, nextDoseAtH }: Figure
     nextDoseInH: nextDoseAtH === null ? null : Math.max(0, nextDoseAtH - nowH),
     nextDoseAtH,
     steady: steadyAt(doses, nowH, halfLifeH, route, nextDoseAtH),
+    lastDoseAtH: lastH,
+    absorbing: since !== null && since < peakAfterH(halfLifeH, route),
+  }
+}
+
+/** What {@link nowReading} needs: the figures of one compound, or a blend's
+ *  parts summed ({@link sumFigures}). */
+export type NowFigures = Pick<HalfLifeFigures, "circulating" | "lastDoseLeft" | "absorbing">
+
+/** What "In you now" and "Circulating" read. */
+export type NowReading = { kind: "absorbing" } | { kind: "amount"; text: string }
+
+/**
+ * What "In you now" (the compound page) and "Circulating" (Home's card, the
+ * Half-life list) read, per Adrian's ruling 5 (26 Sep): right after a dose,
+ * while it is still being absorbed, "Absorbing" in place of a figure that
+ * would read 0.00; the figure as soon as there is one to show. A dose on top
+ * of a level already built up has a figure from the start, so it never reads
+ * "Absorbing". Before the first dose, and once cleared, the figure is what it
+ * always was.
+ */
+export function nowReading(f: NowFigures): NowReading {
+  const text = formatAmount(f.circulating)
+  if (f.lastDoseLeft != null && f.absorbing && Number(text) === 0) return { kind: "absorbing" }
+  return { kind: "amount", text }
+}
+
+/** A blend's figures as one: what its parts hold together. */
+export interface SummedFigures extends NowFigures {
+  /** The part that clears last. */
+  clearsInH: number | null
+  nextDoseInH: number | null
+  nextDoseAtH: number | null
+}
+
+/**
+ * A blend's parts as one (the compound page's "All", W5): what is in you now is
+ * the parts added together (they share one unit: the blend's), it is still
+ * absorbing while any part is, and it clears when its last part does. The
+ * parts share one schedule, so one next dose. Parts with no figures (no
+ * half-life) are not passed.
+ */
+export function sumFigures(parts: readonly HalfLifeFigures[]): SummedFigures {
+  const dosed = parts.filter((p) => p.lastDoseLeft != null)
+  const clears = dosed.map((p) => p.clearsInH).filter((h): h is number => h != null)
+  const next = parts.map((p) => p.nextDoseAtH).filter((h): h is number => h != null)
+  const nextIn = parts.map((p) => p.nextDoseInH).filter((h): h is number => h != null)
+  return {
+    circulating: parts.reduce((s, p) => s + p.circulating, 0),
+    lastDoseLeft: dosed.length ? Math.max(...dosed.map((p) => p.lastDoseLeft!)) : null,
+    absorbing: parts.some((p) => p.absorbing),
+    clearsInH: clears.length ? Math.max(...clears) : null,
+    nextDoseAtH: next.length ? Math.min(...next) : null,
+    nextDoseInH: nextIn.length ? Math.min(...nextIn) : null,
   }
 }
 
@@ -671,12 +731,18 @@ export function formatHalfLifeShort(h: number): string {
  * A Half-life list row (build-brief-final §3.11): its figure, and whether it
  * draws its sparkline. "No doses yet" and NO line before the first dose (a
  * flat line says nothing; cold review D28); "Cleared" once the last dose has;
- * else what is circulating.
+ * "Absorbing" right after a dose, as Home's card and the compound page say it
+ * ({@link nowReading}, ruling 5); else what is circulating. A blend's row
+ * passes its parts summed ({@link sumFigures}), as its page's "All" shows.
  */
-export function listRowFigure(f: HalfLifeFigures | null, unit: string): { figure: string; line: boolean } {
+export function listRowFigure(
+  f: (NowFigures & Pick<HalfLifeFigures, "clearsInH">) | null,
+  unit: string,
+): { figure: string; line: boolean } {
   if (!f || f.lastDoseLeft == null) return { figure: "No doses yet", line: false }
   if (f.clearsInH != null && f.clearsInH <= 0) return { figure: "Cleared", line: true }
-  return { figure: `${formatAmount(f.circulating)} ${unit}`, line: true }
+  const now = nowReading(f)
+  return { figure: now.kind === "absorbing" ? "Absorbing" : `${now.text} ${unit}`, line: true }
 }
 
 /** The Clears in row: "~29 days", or "Cleared" once it has. */
