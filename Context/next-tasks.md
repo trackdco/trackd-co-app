@@ -1,6 +1,6 @@
 # Next Tasks
 
-## 🟡 NOTIFICATIONS (2026-09-26)
+## 🟡 NOTIFICATIONS (2026-09-26) — copy on main, page waits for half-life
 
 Two branches. `notifications/copy-refresh` (off `main`) has everything below the
 page: the new wording, the iPhone prefix, the Android icon, hide-names, and the
@@ -8,10 +8,10 @@ check-up engine. The settings page is task 3, on a branch off
 `design/half-life-motion`, because half-life restyles that exact page. Details in
 `progress-tracker.md`.
 
-### 1. Merge `notifications/copy-refresh` (Adrian says when)
-`npm run check` green (2219 tests). Safe to deploy before 007: the new columns are
-read on their own. After it deploys, check one real push on an iPhone and an
-Android: the prefix only on iPhone, Kyle in the Android status bar.
+### 1. ✅ `notifications/copy-refresh` MERGED to `main` (2026-09-26, Adrian's word)
+Fast-forward, nothing from half-life. Live: the new wording, the iPhone prefix, the
+Android icon. Hide-names and check-ups do nothing yet (007 unapplied, env unset).
+Still to do: check one real push on an iPhone and an Android.
 
 ### 2. Apply `supabase/notifications/007_privacy_and_checkups.sql` (Adrian, or Claude via MCP on his word)
 Adds `hide_compound_names`, `checkins_on`, `last_checkup_on` and the

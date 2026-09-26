@@ -1,6 +1,6 @@
 # Progress Tracker
 
-## 🟡 NOTIFICATIONS — ON BRANCH `notifications/copy-refresh`, NOT MERGED (2026-09-25/26)
+## 🟡 NOTIFICATIONS — `notifications/copy-refresh` MERGED TO `main` 2026-09-26; 007 NOT APPLIED; CHECK-UPS OFF
 
 ### The check-up engine and hide-names (2026-09-26)
 
