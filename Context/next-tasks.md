@@ -48,11 +48,11 @@ it says "(my call)".
 - W51. Home's half-life card shows the range band too, as the graphs do. **Done.**
 - W53. Home's half-life card, ONLY when it is expanded: tapping the compound's name or its figures (next to the
   arrow) opens that compound's half-life page ("if I want to know more I'd do that"). Only the name and the figure at the top by the arrow;
-  NOT the rows below (Level, Half-life and the rest), which keep doing what they do. Collapsed, nothing changes. The arrow keeps working exactly as it does now. With a nice transition into the page (his words: "obviously nice animation"). (Added after the build started: do it by hand.) **Not done:** added after the build started; not built yet.
+  NOT the rows below (Level, Half-life and the rest), which keep doing what they do. Collapsed, nothing changes. The arrow keeps working exactly as it does now. With a nice transition into the page (his words: "obviously nice animation"). **Done** by hand: open, the name and the two figures lead to the page (prefetched, so it lands at once), with a small arrow fading in beside the name; the rows below do not navigate.
 - W54. Tablets and capsules: the dose + and - move by one whole tablet; typing on the pad can give any amount (a
   half included). Done by hand after the build: the stepper already stepped whole ones; the pad now takes decimals. **Done.**
 - W55. Home's week strip stays open for good: remove the arrow that collapses it. (After the build: WeekStrip is being
-  edited by the home-screen builder.) **Not done:** not built in this round; the arrow is still there.
+  edited by the home-screen builder.) **Done** by hand: the arrow is gone from Home and its loading shell.
 - W6. The half-life explainer: rewrite the "when a dose has cleared" sentence; a slightly better "?" icon. **Done** (pick a wording below).
 
 **Journal and markers**
@@ -157,7 +157,7 @@ live on main (else Stock empties for every user). So on the preview, spares stay
 - The syringe, back to full size.
 - Progress: photos filling the row, the Add pose card, the bloods box.
 - Softer grey gradients everywhere.
-- Still to build: W53, W55, and onboarding's date of birth on the shared calendar (W32).
+- Still to build: onboarding's date of birth on the shared calendar (W32; it has iOS wheel logic and a measured SE fit, so it waits for a check at 375x548).
 
 ### Choices I made (each one line; say if you want it the other way)
 - Dates (W32): the calendar opens as a pop-up, and its days are rounded rectangles as in r6 (the journal's Date tile
