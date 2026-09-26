@@ -192,6 +192,33 @@ export function powderAmountInBase(
 }
 
 /**
+ * How MIX asks for a spare's powder (cold review B3): the same mg / IU choice
+ * and conversion as Add, read against the unit the vial is already STORED in.
+ *
+ * Mix used to ask in the stored unit alone. Somatropin is stored in IU but its
+ * box prints mg, so the "10" typed from a 10 mg box went in as 10 IU: the line
+ * read "Draw 60 units for 3 IU" where 20 is right, and the vial was rewritten
+ * to 10 IU, a third of what it holds.
+ *
+ * - `base` is the spare's own unit and never changes here: the row exists.
+ * - `units` offers the other unit ONLY for Somatropin
+ *   ({@link isMgLabelledIuCompound}), the one substance with a fixed IU per mg.
+ *   It does not reuse {@link powderEntryUnits}, which can offer a stored unit
+ *   that disagrees with the dose, and converting that with Somatropin's factor
+ *   would be a guess.
+ * - `initial` is mg when it is offered, as on Add: the figure on the box.
+ */
+export function mixPowderEntry(
+  name: string | null | undefined,
+  storedUnit: string | null | undefined,
+): { units: readonly PowderUnit[]; base: PowderUnit; initial: PowderUnit } {
+  const base: PowderUnit = storedUnit === "iu" ? "iu" : "mg"
+  if (!isMgLabelledIuCompound(name)) return { units: [base], base, initial: base }
+  const units: readonly PowderUnit[] = base === "iu" ? ["iu", "mg"] : ["mg", "iu"]
+  return { units, base, initial: "mg" }
+}
+
+/**
  * The unit to actually SAVE, given what the user last had selected and what is
  * on offer now.
  *

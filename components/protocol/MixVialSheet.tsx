@@ -1,11 +1,12 @@
 "use client"
 
-import { memo, useState } from "react"
+import { memo, useRef, useState } from "react"
 
 import { BottomSheet } from "@/components/layout/BottomSheet"
-import { AnimatedContainer } from "@/components/containers"
+import { StockContainer } from "@/components/protocol/stock/StockContainer"
 import { NumberPad, PadInput, type PadField } from "@/components/feel/NumberPad"
 import { usePadSession } from "@/components/feel/usePadSession"
+import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import {
   mixStockItem,
@@ -17,15 +18,20 @@ import {
 import type { DoseUnit } from "@/lib/db/types"
 import type { StackCompound } from "@/lib/home/stack"
 import { sanitizeAmount, trim } from "@/lib/calculator/recon"
+import { formatDoseAmount } from "@/lib/format/dose"
 import {
-  MIX_PROMPT,
+  MIX_PROMPTS,
   mixDrawLine,
   mixFillLevel,
+  mixVial,
   parseAmount,
   shownUnit,
+  undoMixVial,
 } from "@/lib/protocol/mixDraw"
+import { mixPowderEntry, powderAmountInBase, type PowderUnit } from "@/lib/protocol/stockUnits"
+import { spareMixFields } from "@/lib/protocol/stockRequired"
 import { showToast } from "@/lib/toast"
-import { FIELD_LABEL, PRESS, PRIMARY_BUTTON, SHEET_TITLE } from "@/lib/ui-presets"
+import { CHIP, CHIP_OFF, FIELD_LABEL, PRESS, PRIMARY_BUTTON, SHEET_TITLE } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 
 /** How long the vial takes to fill. Slower than a level quietly correcting
@@ -34,12 +40,24 @@ const FILL_MS = 600
 
 const READ_ONLY = "Trakabl is read only until you subscribe."
 
+/** How long a refused field shakes. Matches `.field-shake` in `globals.css`. */
+const SHAKE_MS = 320
+
+/** A unit pill ON over the white sliding thumb, as on Add stock. */
+const PILL_ON = "border-transparent font-medium text-bg-base"
+
 /**
  * MIX A VIAL (build-brief-final §3.12), opened from "Mix one" on a dry spare.
  *
- * The vial starts dry and fills once the powder and the water are in; one line
- * under it reports the draw for the user's OWN planned dose ("Draw N units for
- * X mg"), and "Mix" starts the vial. Nothing here recommends a dose.
+ * The vial starts with its powder (ruling 4) and fills once the powder and the
+ * water are in, the powder dissolving as it does; one line under it reports the
+ * draw for the user's OWN planned dose ("Draw N units for X mg"), and "Mix"
+ * starts the vial. Nothing here recommends a dose. Until both amounts are in,
+ * the line names what is missing as an amount to type (`MIX_PROMPTS`).
+ *
+ * Somatropin's box prints mg while its vial is stored in IU, so the powder may
+ * be typed in either, as on Add, and is converted to the stored unit before the
+ * draw is worked out and before it is saved (cold review B3).
  *
  * The powder starts EMPTY, not at the amount stored when the vial was added:
  * Adrian, final check round one, "the powder amount shouldn't be pre set …
@@ -143,16 +161,23 @@ function MixBody({
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** The field a refused "Mix" is shaking, if any. */
+  const [shakeId, setShakeId] = useState<"powder" | "water" | null>(null)
+  const shakeTimer = useRef<number | undefined>(undefined)
 
-  // A reconstituted vial's powder is stored in its base unit, mg or IU.
-  const powderUnit = spare.totalAmountUnit ?? spare.baseUnit
-  const powderShown = shownUnit(powderUnit)
-  const powderNum = parseAmount(powder)
+  // A reconstituted vial's powder is STORED in its base unit, mg or IU; it may
+  // be TYPED in the unit on the box (Somatropin: mg), as on Add (B3).
+  const entry = mixPowderEntry(compound.name, spare.totalAmountUnit ?? spare.baseUnit)
+  const [entryPick, setEntryPick] = useState<PowderUnit>(entry.initial)
+  const entryUnit = entry.units.includes(entryPick) ? entryPick : entry.base
+  const powderShown = shownUnit(entryUnit)
+  const powderTyped = parseAmount(powder)
+  /** The typed powder in the STORED unit: what the draw reads and what is saved. */
+  const powderNum = powderTyped == null ? null : powderAmountInBase(powderTyped, entryUnit, entry.base)
   const waterNum = parseAmount(water)
-  const ready = powderNum != null && waterNum != null
   const line = mixDrawLine({
     powder: powderNum,
-    powderUnit,
+    powderUnit: entry.base,
     waterMl: waterNum,
     dose: compound.dose,
     doseUnit: compound.unit,
@@ -175,29 +200,46 @@ function MixBody({
   const [shownFill, setShownFill] = useState(targetFill)
   if (pad.activeId === null && shownFill !== targetFill) setShownFill(targetFill)
 
+  /** A refused "Mix": shake the empty field and open the pad on it, as Add
+   *  stock does. Cleared first, a frame apart, so a second refusal shakes it
+   *  again. "Mix" is never dead without the screen saying why (Adrian). */
+  function refuse(id: "powder" | "water") {
+    window.clearTimeout(shakeTimer.current)
+    setShakeId(null)
+    requestAnimationFrame(() => {
+      setShakeId(id)
+      shakeTimer.current = window.setTimeout(() => setShakeId(null), SHAKE_MS)
+    })
+    pad.open(id)
+  }
+
   async function mix() {
-    if (powderNum == null || waterNum == null || busy) return
+    if (busy) return
+    if (powderNum == null) return refuse("powder")
+    if (waterNum == null) return refuse("water")
+    const typed = powderNum
+    const waterMl = waterNum
     setBusy(true)
     setError(null)
     try {
-      // What was typed is what the vial holds. Saved while the vial is still
-      // an unmixed spare, so the row keeps the unmixed shape its CHECK allows.
-      const stored = spare.totalAmount
-      const powderChanged = stored == null || Math.abs(stored - powderNum) > 1e-9
-      if (powderChanged) {
-        const saved = await updateStockItem(spare.id, unmixedRow(spare, powderNum))
-        if (!saved.ok) {
-          setError(saved.refusal === "read-only" ? READ_ONLY : "Couldn’t mix this vial. Try again.")
-          return
-        }
-      }
-      const mixed = await mixStockItem(spare.id, waterNum, todayKey)
-      if (!mixed.ok) {
-        setError(mixed.refusal === "read-only" ? READ_ONLY : "Couldn’t mix this vial. Try again.")
+      // What was typed is what the vial holds: saved first, while the vial is
+      // still a spare, then the water and the start. A mix that fails after
+      // the powder landed puts the powder back (cold review S6).
+      const done = await mixVial({
+        stored: spare.totalAmount,
+        typed,
+        savePowder: (amount) => updateStockItem(spare.id, spareRow(spare, amount)),
+        mix: () => mixStockItem(spare.id, waterMl, todayKey),
+      })
+      if (!done.ok) {
+        setError(done.refusal === "read-only" ? READ_ONLY : "Couldn’t mix this vial. Try again.")
+        // A powder that could not be put back is on the row now: re-read, so
+        // the screen behind shows what the vial holds.
+        if (!done.restored) onMixed?.()
         return
       }
       onClose()
-      const restorePowder = powderChanged && stored != null ? stored : null
+      const restorePowder = done.restorePowder
       showToast("Mixed. Now in use.", {
         undo: () => void undoMix(spare, todayKey, restorePowder, onMixed),
       })
@@ -206,6 +248,11 @@ function MixBody({
       setBusy(false)
     }
   }
+
+  // The SAME pill as Add stock's unit choice: the white thumb is the selection.
+  const pill = (active: boolean) => cn(CHIP, "duration-300", active ? PILL_ON : CHIP_OFF)
+  const twoUnits = entry.units.length > 1
+  const converted = entryUnit !== entry.base
 
   return (
     <>
@@ -218,17 +265,49 @@ function MixBody({
           fill={shownFill}
         />
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        {/* One unit: the two fields side by side. Two (Somatropin, sold in mg
+            and stored in IU): the powder takes the row with its choice beside
+            it, as on Add stock, and the water sits under it. */}
+        <div className={cn("mt-3 gap-2", twoUnits ? "space-y-3" : "grid grid-cols-2")}>
           <label className="block min-w-0">
             <span className={FIELD_LABEL}>Powder</span>
-            <PadInput
-              {...pad.bind("powder")}
-              value={powder}
-              label="Powder"
-              unit={powderShown}
-              suffix={<FieldUnit unit={powderShown} />}
-              className="h-11 w-full"
-            />
+            <span className="flex items-center gap-2">
+              <PadInput
+                {...pad.bind("powder")}
+                value={powder}
+                label="Powder"
+                unit={powderShown}
+                suffix={<FieldUnit unit={powderShown} />}
+                className={cn("h-11 w-full", shakeId === "powder" && "field-shake")}
+              />
+              {twoUnits ? (
+                <ThumbGroup
+                  selection={entryUnit}
+                  thumbClassName="inst-thumb"
+                  role="group"
+                  aria-label="Powder unit"
+                  className="flex shrink-0 gap-1"
+                >
+                  {entry.units.map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setEntryPick(u)}
+                      aria-pressed={entryUnit === u}
+                      className={pill(entryUnit === u)}
+                    >
+                      {shownUnit(u)}
+                    </button>
+                  ))}
+                </ThumbGroup>
+              ) : null}
+            </span>
+            {/* The conversion, as it happens: what the vial is stored as. */}
+            {converted && powderNum != null ? (
+              <span className="mt-1 block text-xs text-text-muted">
+                = <span className="font-mono">{formatDoseAmount(powderNum)}</span> {shownUnit(entry.base)}
+              </span>
+            ) : null}
           </label>
           <label className="block min-w-0">
             <span className={FIELD_LABEL}>Water</span>
@@ -238,12 +317,13 @@ function MixBody({
               label="Water"
               unit="mL"
               suffix={<FieldUnit unit="mL" />}
-              className="h-11 w-full"
+              className={cn("h-11 w-full", shakeId === "water" && "field-shake")}
             />
           </label>
         </div>
 
-        {/* Reports the arithmetic of the user's own planned dose. */}
+        {/* Reports the arithmetic of the user's own planned dose. The figure is
+            Mono and its unit Sans, one ordinary space apart (F14). */}
         <p aria-live="polite" className="mt-4 min-h-5 text-center text-sm leading-5">
           {line.kind === "draw" ? (
             <span className="text-foreground">
@@ -251,18 +331,20 @@ function MixBody({
               <span className="font-medium">
                 <span className="font-mono tabular-nums">{line.units}</span> {line.noun}
               </span>{" "}
-              for <span className="font-mono tabular-nums">{line.dose}</span>
+              for <span className="font-mono tabular-nums">{line.doseAmount}</span> {line.doseUnit}
             </span>
           ) : line.kind === "prompt" ? (
-            <span className="text-text-muted">{MIX_PROMPT}</span>
+            <span className="text-text-muted">{MIX_PROMPTS[line.missing]}</span>
           ) : null}
         </p>
 
         <div className="mt-4">
+          {/* Never disabled for a missing amount: a tap shakes that field and
+              opens the pad on it, and the line above already names it. */}
           <button
             type="button"
             onClick={() => guard(() => void mix())}
-            disabled={!ready || busy}
+            disabled={busy}
             className={cn(PRIMARY_BUTTON, "w-full")}
           >
             {busy ? "Mixing…" : "Mix"}
@@ -281,7 +363,9 @@ function MixBody({
 }
 
 /**
- * The vial, drawn with the approved container (set B, `components/containers`).
+ * The vial, drawn with the approved container (set B, `components/containers`),
+ * holding its powder while it is dry (`StockContainer`): the powder dissolves
+ * as the water rises, and comes back if the level drains.
  *
  * Its level eases through `AnimatedContainer`, the container's own fill
  * animation, and it is memoised on its four props: the animation's frames
@@ -303,11 +387,13 @@ const MixVial = memo(function MixVial({
 }) {
   return (
     <div className="mix-vial mt-2 flex justify-center">
-      <AnimatedContainer
+      <StockContainer
+        animate
         name={name}
         category={category}
         inventoryType={inventoryType}
         fill={fill}
+        powder={fill <= 0}
         size={150}
         durationMs={FILL_MS}
       />
@@ -320,9 +406,11 @@ function FieldUnit({ unit }: { unit: string }) {
   return <span className="shrink-0 font-sans text-sm text-text-muted">{unit}</span>
 }
 
-/** The spare as an UNMIXED row with `powder` as its amount: no water, no mix
- *  date. `updateStockItem` writes every type column, so all are given. */
-function unmixedRow(
+/** The spare as a SPARE row with `powder` as its amount: its water and mix
+ *  date as they are (none, for a dry vial: `spareMixFields`), so the row keeps
+ *  the shape its CHECK already accepted. `updateStockItem` writes every type
+ *  column, so all are given. */
+function spareRow(
   spare: StockItem,
   powder: number,
 ): Omit<StockInsert, "id" | "protocol_compound_id"> {
@@ -331,8 +419,7 @@ function unmixedRow(
     base_unit: spare.baseUnit as DoseUnit,
     total_amount: powder,
     total_amount_unit: (spare.totalAmountUnit ?? spare.baseUnit) as DoseUnit,
-    bac_water_ml: null,
-    reconstituted_on: null,
+    ...spareMixFields(spare),
     prior_used_base: spare.priorUsedBase,
   }
 }
@@ -348,10 +435,13 @@ async function undoMix(
   restorePowder: number | null,
   onMixed?: () => void,
 ) {
-  const undone = await unmixStockItem(spare.id, todayKey)
-  if (undone.ok && restorePowder != null) {
-    await updateStockItem(spare.id, unmixedRow(spare, restorePowder))
-  }
+  const undone = await undoMixVial({
+    restorePowder,
+    unmix: () => unmixStockItem(spare.id, todayKey),
+    // Back to the spare as it was before the mix: dry, with its own powder.
+    savePowder: (amount) =>
+      updateStockItem(spare.id, { ...spareRow(spare, amount), bac_water_ml: null, reconstituted_on: null }),
+  })
   if (!undone.ok) showToast("Couldn’t undo. Try again.")
   onMixed?.()
 }

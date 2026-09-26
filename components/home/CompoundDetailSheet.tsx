@@ -12,14 +12,12 @@ import {
 import { inventoryTypeForCompound } from "@/lib/containers/form"
 import { BottomSheet } from "@/components/layout/BottomSheet"
 import { ConfirmDialog } from "@/components/feel/ConfirmDialog"
-import { Container } from "@/components/containers"
-import { CARD_EYEBROW, PRESS, PRIMARY_BUTTON } from "@/lib/ui-presets"
+import { CARD_EYEBROW, HIT_30, PRESS, PRIMARY_BUTTON } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 import {
   cadenceLabel,
   formatTimeLabel,
   methodLabel,
-  upcomingDoseDates,
   type StackCompound,
 } from "@/lib/home/stack"
 import { formatDose } from "@/lib/format/dose"
@@ -34,6 +32,30 @@ import { containerNounTitle } from "@/lib/containers/labels"
 import { setStockArchived, type StockItem } from "@/lib/db/inventory"
 import { showToast } from "@/lib/toast"
 import { GHOST_BUTTON } from "@/lib/ui-presets"
+import { nextDoseKey, nextDoseText, stockPicture } from "@/lib/protocol/compoundSheet"
+import { StockPicture } from "@/components/protocol/stock/StockPicture"
+import { StockContainer } from "@/components/protocol/stock/StockContainer"
+
+/** Protocol's stock, in the sheet (build-brief-final §3.7, W17). */
+export interface CompoundStockSection {
+  /** The container in use (the oldest open one, else the first spare), with
+   *  its OWN figures. */
+  inUse: StockItem | null
+  /** Containers held beyond it. */
+  others: number
+  /** A spare still to mix: "Mix one" shows while there is one. */
+  drySpare: StockItem | null
+  /**
+   * Everything held beyond the one in use (`CompoundStockView.extras`, W17).
+   * With it the sheet draws those containers under the one in use (mixed,
+   * unmixed, sealed); without it, the one in use and "+N vials" alone.
+   */
+  extras?: readonly StockItem[] | null
+  onAddStock: () => void
+  onMix: (spare: StockItem) => void
+  onCorrect: (item: StockItem) => void
+  onChanged: () => void
+}
 
 interface CompoundDetailSheetProps {
   open: boolean
@@ -94,22 +116,21 @@ interface CompoundDetailSheetProps {
    * work the caller should have done.
    */
   todaysLog?: { status?: "taken" | "skipped" } | null
+  /**
+   * How many of TODAY's doses of this compound are already logged or skipped.
+   * "Next dose" skips today once they all are (F14). Omitted, it is read from
+   * `todaysLog` when the sheet is on today, else taken as none.
+   */
+  loggedToday?: number
   /** Delete — stop future doses, keep every logged dose (Spec 02: the one verb). */
   onArchive: (id: string) => void
   /**
-   * Protocol's stock, in the sheet (build-brief-final §3.7): the container in
-   * use as one line, "+N vials", Add stock, and Mix one when a spare is still
-   * dry; Correct and Discard behind the ⋯. No vial previews, no pager.
+   * Protocol's stock, in the sheet (build-brief-final §3.7; W17): the
+   * container in use drawn at its level with its figure and "+N vials", what
+   * else is held drawn under it, Add stock, and Mix one when a spare is still
+   * dry; Correct and Discard behind the ⋯.
    */
-  stockSection?: {
-    inUse: StockItem | null
-    others: number
-    drySpare: StockItem | null
-    onAddStock: () => void
-    onMix: (spare: StockItem) => void
-    onCorrect: (item: StockItem) => void
-    onChanged: () => void
-  }
+  stockSection?: CompoundStockSection
 }
 
 /**
@@ -132,6 +153,7 @@ export function CompoundDetailSheet({
   onCorrectStock,
   stock,
   todaysLog,
+  loggedToday,
   onArchive,
   stockSection,
 }: CompoundDetailSheetProps) {
@@ -166,6 +188,7 @@ export function CompoundDetailSheet({
             onCorrectStock={onCorrectStock}
             stock={stock}
             todaysLog={todaysLog}
+            loggedToday={loggedToday}
             onArchive={onArchive}
             stockSection={stockSection}
           />
@@ -188,6 +211,7 @@ function DetailBody({
   onCorrectStock,
   stock,
   todaysLog,
+  loggedToday,
   onArchive,
   stockSection,
 }: {
@@ -208,21 +232,9 @@ function DetailBody({
     exists?: boolean
   }
   todaysLog?: { status?: "taken" | "skipped" } | null
+  loggedToday?: number
   onArchive: (id: string) => void
-  /**
-   * Protocol's stock, in the sheet (build-brief-final §3.7): the container in
-   * use as one line, "+N vials", Add stock, and Mix one when a spare is still
-   * dry; Correct and Discard behind the ⋯. No vial previews, no pager.
-   */
-  stockSection?: {
-    inUse: StockItem | null
-    others: number
-    drySpare: StockItem | null
-    onAddStock: () => void
-    onMix: (spare: StockItem) => void
-    onCorrect: (item: StockItem) => void
-    onChanged: () => void
-  }
+  stockSection?: CompoundStockSection
 }) {
   const [moreOpen, setMoreOpen] = useState(false)
   // A pending Discard of the container in use: it asks first (fix #5).
@@ -256,15 +268,20 @@ function DetailBody({
         : isToday
           ? "Log today's dose"
           : "Log this dose"
-  // The pauses go in, or the Next line names three dates that fall inside a
-  // pause the user deliberately set (Spec w2b-13, Step 6).
-  const upcoming = upcomingDoseDates(
-    compound.schedule,
-    new Date(),
-    3,
-    compound.cycle,
-    compound.pauses,
-  )
+  // ONE next dose (D13), skipping today once today's doses are all dealt
+  // with (F14), and skipping pauses and weeks off (Spec w2b-13, Step 6).
+  const now = new Date()
+  const doneToday = loggedToday ?? (isToday && todaysLog != null ? 1 : 0)
+  const nextKey = nextDoseKey(compound, now, doneToday)
+  // The stock, drawn (W17).
+  const picture = stockSection
+    ? stockPicture({
+        inUse: stockSection.inUse,
+        extras: stockSection.extras,
+        others: stockSection.others,
+        naming: { category: compound.category, name: compound.name },
+      })
+    : null
 
   return (
     <div>
@@ -276,11 +293,14 @@ function DetailBody({
             this same header on the add and log forms, so this is the pattern they
             reuse rather than a one-off. */}
         <div className="flex items-center gap-3">
-          <Container
+          {/* A compound holding only dry vials is drawn dry, with its powder,
+              as its stock below is (W17). */}
+          <StockContainer
             name={compound.name}
             inventoryType={inventoryTypeForCompound(compound.name, compound.method, compound.inventoryForm)}
             category={compound.category}
-            fill={stock?.fill ?? undefined}
+            fill={picture?.lead.powder ? 0 : (stock?.fill ?? undefined)}
+            powder={picture?.lead.powder ?? false}
             size={58}
           />
           <p className="min-w-0 flex-1 text-[17px] leading-snug text-foreground">{compound.name}</p>
@@ -288,19 +308,21 @@ function DetailBody({
 
         {/* ONE long card: the half-life mark in the compound's colour, the
             half-life, the dose, the route, split by hairlines (round three).
-            No half-life (Vitamin D3) or a blend: that part is simply absent. */}
+            No half-life (Vitamin D3) or a blend: that part is simply absent.
+            Tight, as the mockup draws it (W14, r6/extra9.css .sfact9): about
+            36px tall, 12.5px figures. */}
         <div className="inst-rows flex items-stretch overflow-hidden">
           {hl ? (
-            <span className="flex items-center gap-2 px-3.5 py-3">
-              <SolidIcon name="halfLife" size={18} hue={`var(--cat-${compound.category})`} />
-              <span className="font-mono text-[13.5px] text-foreground">{formatHalfLife(hl.halfLifeH)}</span>
-              {hl.estimated ? <span className="text-[11.5px] text-text-muted">est.</span> : null}
+            <span className="flex items-center gap-2 px-3 py-2">
+              <SolidIcon name="halfLife" size={15} hue={`var(--cat-${compound.category})`} />
+              <span className="font-mono text-[12.5px] text-foreground">{formatHalfLife(hl.halfLifeH)}</span>
+              {hl.estimated ? <span className="text-[11px] text-text-muted">est.</span> : null}
             </span>
           ) : null}
-          <span className={cn("flex items-center px-3.5 py-3 font-mono text-[13.5px] text-foreground", hl && "fact-sep")}>
+          <span className={cn("flex items-center px-3 py-2 font-mono text-[12.5px] text-foreground", hl && "fact-sep")}>
             {formatDose(compound.dose, compound.unit)}
           </span>
-          <span className="fact-sep flex items-center px-3.5 py-3 text-[13.5px] text-foreground">
+          <span className="fact-sep flex items-center px-3 py-2 text-[12.5px] text-foreground">
             {methodLabel(compound.method)}
           </span>
         </div>
@@ -321,19 +343,19 @@ function DetailBody({
               {cadenceLabel(compound.schedule.cadence)}
               <span className="text-text-muted">
                 {" "}
-                · <span className="font-mono">{formatTimeLabel(compound.schedule.timeOfDay)}</span>
+                {/* The time never splits ("8:00 / AM" at 375, D26): it moves
+                    to the next line whole. */}
+                · <span className="font-mono whitespace-nowrap">{formatTimeLabel(compound.schedule.timeOfDay)}</span>
               </span>
             </Stat>
           </div>
 
-          {upcoming.length > 0 && (
+          {nextKey ? (
             <p className="px-1 text-xs text-text-muted">
-              Next:{" "}
-              <span className="font-mono text-text-muted">
-                {upcoming.map((k) => dayLong(k)).join(", ")}
-              </span>
+              Next dose{" "}
+              <span className="font-mono text-foreground">{nextDoseText(nextKey, now)}</span>
             </p>
-          )}
+          ) : null}
 
           {/* EVERY ACTION AT ONE LEVEL (Spec w2b-13, Step 7). The `More`
               disclosure is gone: it hid Alter dose, Pause and Delete behind a tap
@@ -352,48 +374,39 @@ function DetailBody({
           {stockSection ? (
             <div>
               <p className={cn(CARD_EYEBROW, "mb-2 px-1")}>Stock</p>
-              {stockSection.inUse ? (
-                <div className="inst-rows">
-                  <div className="flex items-center gap-3 px-3.5 py-2.5">
-                    <span className="min-w-0 flex-1 truncate text-[13.5px] text-foreground">
-                      Current {containerNounTitle({ inventoryType: stockSection.inUse.inventoryType, totalAmountUnit: stockSection.inUse.totalAmountUnit, category: compound.category, name: compound.name }).toLowerCase()}
-                      {stockSection.inUse.dosesRemaining != null ? (
-                        <span className="text-text-muted">
-                          {" · "}
-                          <span className="font-mono">
-                            {stockSection.inUse.dosesRemaining} {stockSection.inUse.dosesRemaining === 1 ? "dose" : "doses"} left
-                          </span>
-                        </span>
-                      ) : null}
-                    </span>
-                    {stockSection.others > 0 ? (
-                      <span className="shrink-0 font-mono text-[12px] text-text-muted">+{stockSection.others}</span>
-                    ) : null}
+              {stockSection.inUse && picture ? (
+                <StockPicture
+                  picture={picture}
+                  name={compound.name}
+                  category={compound.category}
+                  trailing={
                     <button
                       type="button"
                       onClick={() => setMoreOpen((o) => !o)}
                       aria-expanded={moreOpen}
                       aria-label="More stock actions"
-                      className={cn(PRESS.icon, "-mr-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted")}
+                      className={cn(PRESS.icon, HIT_30, "-mr-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted")}
                     >
                       <span aria-hidden className="text-[18px] leading-none">⋯</span>
                     </button>
-                  </div>
-                  {moreOpen ? (
-                    <div className="animate-shortcut-in flex gap-2 px-3.5 py-2.5">
-                      <button type="button" onClick={() => stockSection.onCorrect(stockSection.inUse!)} className={cn(GHOST_BUTTON, "flex-1 py-2 text-[13px]")}>
-                        Correct
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDiscard(true)}
-                        className={cn(GHOST_BUTTON, "flex-1 py-2 text-[13px] text-accent-destructive-on-surface")}
-                      >
-                        Discard
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
+                  }
+                  footer={
+                    moreOpen ? (
+                      <div className="animate-shortcut-in flex gap-2 px-3.5 py-2.5">
+                        <button type="button" onClick={() => stockSection.onCorrect(stockSection.inUse!)} className={cn(GHOST_BUTTON, "flex-1 py-2 text-[13px]")}>
+                          Correct
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDiscard(true)}
+                          className={cn(GHOST_BUTTON, "flex-1 py-2 text-[13px] text-accent-destructive-on-surface")}
+                        >
+                          Discard
+                        </button>
+                      </div>
+                    ) : null
+                  }
+                />
               ) : (
                 <p className="px-1 text-[13px] text-text-muted">Nothing on hand yet.</p>
               )}

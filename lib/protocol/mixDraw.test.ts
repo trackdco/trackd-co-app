@@ -1,13 +1,17 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   MIX_PROMPT,
+  MIX_PROMPTS,
   doseInPowderUnit,
   formatDrawUnits,
   mixDrawLine,
   mixDrawText,
   mixFillLevel,
+  mixMissing,
+  mixVial,
   parseAmount,
+  undoMixVial,
   unitsToDraw,
 } from "./mixDraw"
 
@@ -58,17 +62,57 @@ describe("dose in the powder's unit", () => {
 })
 
 describe("the line under the vial", () => {
-  it("asks for both inputs until both are in", () => {
-    expect(mixDrawLine({ ...base, powder: null, waterMl: 2 })).toEqual({ kind: "prompt" })
-    expect(mixDrawLine({ ...base, powder: 5, waterMl: null })).toEqual({ kind: "prompt" })
-    expect(mixDrawText({ kind: "prompt" })).toBe(MIX_PROMPT)
-    expect(MIX_PROMPT).toBe("Add the powder and water to see the draw")
+  it("names only what is missing, as an amount to type (ruling 4)", () => {
+    expect(mixDrawLine({ ...base, powder: null, waterMl: null })).toEqual({ kind: "prompt", missing: "both" })
+    expect(mixDrawLine({ ...base, powder: null, waterMl: 2 })).toEqual({ kind: "prompt", missing: "powder" })
+    expect(mixDrawLine({ ...base, powder: 5, waterMl: null })).toEqual({ kind: "prompt", missing: "water" })
+    expect(mixDrawText(mixDrawLine({ ...base, powder: null, waterMl: null }))).toBe(
+      "Enter both amounts to see the units to draw",
+    )
+    expect(mixDrawText(mixDrawLine({ ...base, powder: null, waterMl: 2 }))).toBe(
+      "Enter the powder amount to see the units to draw",
+    )
+    expect(mixDrawText(mixDrawLine({ ...base, powder: 5, waterMl: 0 }))).toBe(
+      "Enter the water amount to see the units to draw",
+    )
+    expect(MIX_PROMPT).toBe(MIX_PROMPTS.both)
+  })
+
+  it("never tells anyone to go and add water", () => {
+    for (const text of Object.values(MIX_PROMPTS)) {
+      expect(text).toMatch(/^Enter /)
+      expect(text).not.toMatch(/add (the )?water/i)
+    }
+  })
+
+  it("reads a zero or a missing amount as missing", () => {
+    expect(mixMissing(0, 0)).toBe("both")
+    expect(mixMissing(5, 2)).toBeNull()
   })
 
   it("reports the draw for the planned dose", () => {
     const line = mixDrawLine({ ...base, powder: 5, waterMl: 2 })
-    expect(line).toEqual({ kind: "draw", units: "10", noun: "units", dose: "250 mcg" })
+    expect(line).toEqual({
+      kind: "draw",
+      units: "10",
+      noun: "units",
+      dose: "250 mcg",
+      doseAmount: "250",
+      doseUnit: "mcg",
+    })
     expect(mixDrawText(line)).toBe("Draw 10 units for 250 mcg")
+  })
+
+  it("keeps the dose's figure and unit apart, one space between (F14)", () => {
+    // The sheet sets the figure in Mono and the unit in Sans: a space inside
+    // the Mono span read as the double gap in "for 2  mg".
+    const line = mixDrawLine({ powder: 10, powderUnit: "mg", waterMl: 2, dose: 2, doseUnit: "mg" })
+    if (line.kind !== "draw") throw new Error("expected a draw")
+    expect(line.doseAmount).toBe("2")
+    expect(line.doseUnit).toBe("mg")
+    expect(line.dose).toBe("2 mg")
+    expect(mixDrawText(line)).toBe("Draw 40 units for 2 mg")
+    expect(mixDrawText(line)).not.toMatch(/ {2}/)
   })
 
   it("rounds like the calculator, to one decimal", () => {
@@ -114,5 +158,80 @@ describe("the vial's level", () => {
     expect(mixFillLevel(5, 1)).toBeLessThan(mixFillLevel(5, 2))
     expect(mixFillLevel(5, 3.2)).toBeCloseTo(0.82, 9)
     expect(mixFillLevel(5, 10)).toBeCloseTo(0.82, 9)
+  })
+})
+
+/* ------------------------------------------------ the writes (cold review S6) */
+
+const ok = () => Promise.resolve({ ok: true })
+const fail = () => Promise.resolve({ ok: false })
+
+describe("mixing a vial: two writes, made safe (S6)", () => {
+  it("saves a changed powder, then mixes", async () => {
+    const savePowder = vi.fn(ok)
+    const mix = vi.fn(ok)
+    const r = await mixVial({ stored: 5, typed: 10, savePowder, mix })
+    expect(r).toEqual({ ok: true, restorePowder: 5 })
+    expect(savePowder.mock.calls).toEqual([[10]])
+    expect(mix).toHaveBeenCalledTimes(1)
+  })
+
+  it("writes no powder when it matches what the vial holds", async () => {
+    const savePowder = vi.fn(ok)
+    const r = await mixVial({ stored: 30, typed: 30, savePowder, mix: ok })
+    expect(r).toEqual({ ok: true, restorePowder: null })
+    expect(savePowder).not.toHaveBeenCalled()
+  })
+
+  it("PUTS THE POWDER BACK when the mix fails after it landed", async () => {
+    const savePowder = vi.fn(ok)
+    const r = await mixVial({ stored: 5, typed: 10, savePowder, mix: fail })
+    expect(r).toEqual({ ok: false, refusal: undefined, restored: true })
+    // Typed, then restored to what the vial held: left as it was.
+    expect(savePowder.mock.calls).toEqual([[10], [5]])
+  })
+
+  it("says when the powder could not be put back", async () => {
+    const savePowder = vi.fn().mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false })
+    const r = await mixVial({ stored: 5, typed: 10, savePowder, mix: fail })
+    expect(r).toEqual({ ok: false, refusal: undefined, restored: false })
+  })
+
+  it("never mixes when the powder did not save, and changes nothing", async () => {
+    const mix = vi.fn(ok)
+    const r = await mixVial({ stored: 5, typed: 10, savePowder: () => Promise.resolve({ ok: false, refusal: "read-only" }), mix })
+    expect(r).toEqual({ ok: false, refusal: "read-only", restored: true })
+    expect(mix).not.toHaveBeenCalled()
+  })
+
+  it("carries the read-only refusal of the mix itself", async () => {
+    const r = await mixVial({ stored: 5, typed: 5, savePowder: ok, mix: () => Promise.resolve({ ok: false, refusal: "read-only" }) })
+    expect(r).toEqual({ ok: false, refusal: "read-only", restored: true })
+  })
+})
+
+describe("undoing a mix", () => {
+  it("unmixes, then restores the powder", async () => {
+    const calls: string[] = []
+    const r = await undoMixVial({
+      restorePowder: 5,
+      unmix: () => (calls.push("unmix"), ok()),
+      savePowder: (n) => (calls.push(`powder ${n}`), ok()),
+    })
+    expect(r).toEqual({ ok: true })
+    expect(calls).toEqual(["unmix", "powder 5"])
+  })
+
+  it("fails when the powder cannot be put back, not only when the unmix does", async () => {
+    expect(await undoMixVial({ restorePowder: 5, unmix: ok, savePowder: fail })).toEqual({ ok: false })
+    const savePowder = vi.fn(ok)
+    expect(await undoMixVial({ restorePowder: 5, unmix: fail, savePowder })).toEqual({ ok: false })
+    expect(savePowder).not.toHaveBeenCalled()
+  })
+
+  it("touches no powder that was never changed", async () => {
+    const savePowder = vi.fn(ok)
+    expect(await undoMixVial({ restorePowder: null, unmix: ok, savePowder })).toEqual({ ok: true })
+    expect(savePowder).not.toHaveBeenCalled()
   })
 })

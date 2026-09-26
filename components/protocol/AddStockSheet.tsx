@@ -8,6 +8,7 @@ import {
   CHIP,
   CHIP_OFF,
   FIELD_LABEL,
+  HIT_30,
   INLINE_NOTE,
   INNER_RADIUS,
   PRESS,
@@ -47,9 +48,22 @@ import {
 import { routesOf } from "@/lib/compound-categories"
 import { todayKey } from "@/lib/protocol/cycle"
 import { resolveFill, vialBasis, FILL_PRESETS, round3 } from "@/lib/protocol/vialFill"
-import { firstEmptyStockField, type StockFieldId } from "@/lib/protocol/stockRequired"
+import {
+  firstEmptyStockField,
+  holdsUnmixed,
+  showsBoxCount,
+  spareMixFields,
+  type StockFieldId,
+} from "@/lib/protocol/stockRequired"
 import { showToast } from "@/lib/toast"
-import { Container } from "@/components/containers"
+import { StockContainer } from "@/components/protocol/stock/StockContainer"
+import {
+  noteSparesRefused,
+  sparesRefusedThisVisit,
+  useStockSchema,
+} from "@/components/protocol/stock/sparesSupport"
+import { dropperOffered, offerableForms } from "@/lib/protocol/stockSchema"
+import { notifyStockChanged } from "@/lib/home/doseLog"
 import type { DoseUnit, InventoryType } from "@/lib/db/types"
 
 const EMPTY: StackCompound[] = []
@@ -156,6 +170,7 @@ export function AddStockSheet({
   refillType,
   editItem,
   replaceItemId,
+  sparesSupported,
   onAdded,
 }: {
   open: boolean
@@ -182,6 +197,16 @@ export function AddStockSheet({
   editItem?: StockItem | null
   /** A refill: the container the new one replaces, put away once it is in. */
   replaceItemId?: string | null
+  /**
+   * Whether the database can hold a powder vial UNMIXED, and a dropper
+   * (migrations `025`/`026`). `true`: the full flow, several vials held dry,
+   * the dropper offered (the /preview pages, which cannot save anyway).
+   * `false`: one vial at a time, mixed now, and no dropper. Omitted: the
+   * visit's probe answers (`useStockSchema`, sweep); while it cannot say, the
+   * full powder flow is offered until the database refuses it, the refusal is
+   * remembered for the visit (W17), and the dropper stays hidden.
+   */
+  sparesSupported?: boolean | null
   onAdded: () => void
 }) {
   // A save closes the sheet and says so in the bottom toast ("Added 2 to
@@ -193,6 +218,9 @@ export function AddStockSheet({
   // fresh form with the props it opened on, held while the sheet slides away,
   // so the closing sheet does not flip to a different compound or title.
   const snapshot = { refillFor, preselectFor, refillType, editItem, replaceItemId }
+  // What the database can hold, asked once per visit as the sheet mounts with
+  // its page (sweep): a caller's answer wins (the previews pass `true`).
+  const schema = useStockSchema()
   const [session, setSession] = useState(open ? 1 : 0)
   const [opened, setOpened] = useState(snapshot)
   const [wasOpen, setWasOpen] = useState(open)
@@ -215,6 +243,7 @@ export function AddStockSheet({
       refillType={opened.refillType ?? null}
       editItem={opened.editItem ?? null}
       replaceItemId={opened.replaceItemId ?? null}
+      sparesSupported={sparesSupported ?? schema}
       onAdded={onAdded}
     />
   )
@@ -229,6 +258,7 @@ function AddStockForm({
   refillType,
   editItem,
   replaceItemId,
+  sparesSupported,
   onAdded,
 }: {
   open: boolean
@@ -239,6 +269,7 @@ function AddStockForm({
   refillType: InventoryType | null
   editItem: StockItem | null
   replaceItemId: string | null
+  sparesSupported: boolean | null
   onAdded: () => void
 }) {
   const onClose = () => onOpenChange(false)
@@ -259,10 +290,15 @@ function AddStockForm({
    * cursor, and the catalogue's own default supplies it for everything added
    * before that column existed.
    */
+  // The dropper only where the database holds it (`025`/`026`); a container
+  // that already is one keeps it (sweep, ruling 10).
+  const dropperOk = dropperOffered(sparesSupported)
+  const keptForm = editItem?.inventoryType ?? refillType ?? null
+  const allForms = offerableForms(ALL_FORMS, dropperOk, keptForm)
   const formsForId = (id: string): InventoryType[] => {
     const c = compounds.find((x) => x.id === id)
-    if (!c) return ALL_FORMS
-    const candidates = catalogueForms(c.name) ?? formsForMethod(c.method)
+    if (!c) return allForms
+    const candidates = offerableForms(catalogueForms(c.name) ?? formsForMethod(c.method), dropperOk, keptForm)
     const own = c.inventoryForm
     if (!own || !candidates.includes(own)) return candidates
     return [own, ...candidates.filter((f) => f !== own)]
@@ -352,14 +388,24 @@ function AddStockForm({
   const [boxCount, setBoxCount] = useState(1)
   // MIXING IS NOT PART OF ADD (brief §3.12). A powder vial asks only "Powder in
   // each" and is saved unmixed, every vial a spare; the water is asked when the
-  // user taps "Mix one" (the Mix sheet). So "Mix one now" starts OFF and hidden.
+  // user taps "Mix one" (the Mix sheet).
   //
-  // THE PRE-026 FALLBACK. A database without `026` refuses an unmixed vial
-  // (`isPendingSpare`). When a save is refused that way, `mixFallback` reveals
-  // the old path: the switch (on) and the BAC water field, so the vial can be
-  // added mixed, which that database accepts. Dead once `026` is applied.
-  const [mixNow, setMixNow] = useState(false)
-  const [mixFallback, setMixFallback] = useState(false)
+  // THE PRE-026 FALLBACK (W17). A database without `026` refuses an unmixed
+  // vial (`isPendingSpare`). Once it has (in this sheet, or earlier in the
+  // visit: `sparesSupport`), a powder vial is added the one way that database
+  // holds: ONE vial, mixed now, with its BAC water. The count and the dry vial
+  // are not offered there, since neither could save, and the pad does NOT
+  // open by itself on the water: the field shows, with one line saying why.
+  // Dead once `026` is applied.
+  const [sparesRefusedHere, setSparesRefused] = useState(
+    () => sparesSupported === false || (sparesSupported !== true && sparesRefusedThisVisit()),
+  )
+  // The visit's probe can answer while the sheet is open (sweep): a database
+  // known not to hold spares never offers one.
+  const sparesRefused = sparesRefusedHere || sparesSupported === false
+  /** The database refused an unmixed vial while this sheet was open: say why
+   *  the form changed. */
+  const [refusedHere, setRefusedHere] = useState(false)
   // "How much is in it?" — a Full/¾/½/¼ preset, or an exact amount-left in the
   // vial's own measure (mL of solution, or tab/cap count). An exact entry overrides
   // the preset. Both fold into prior_used_base on save; default Full = no change.
@@ -470,11 +516,19 @@ function AddStockForm({
   const effectiveOralForm = oralRule.countUnit ?? oralForm
 
 
-  /** Editing a vial held unmixed: it has no water, so none is asked. */
-  const editingSpare =
-    ei?.inventoryType === "reconstituted" && ei.acquiredOn == null && ei.bacWaterMl == null
-  /** Held unmixed: a spare with no water, no mix date and no start (`026`). */
-  const unmixed = type === "reconstituted" && (editItem ? editingSpare : !mixNow)
+  /**
+   * Held unmixed: a powder vial with no water, no mix date and no start
+   * (`026`). A correction of a SPARE is always held unmixed, whatever it held
+   * before, so Correct never gives a spare water without starting it (cold
+   * review S5); the water comes from Mix, which starts the vial.
+   */
+  const unmixed = holdsUnmixed(type, editItem, sparesRefused)
+  /** The count shows, or the box is one (W17). */
+  const boxCountShown = showsBoxCount(type, editItem != null, sparesRefused)
+  /** How many containers this add writes. */
+  const boxTotal = boxCountShown ? boxCount : 1
+  /** "Powder in each" beside a count; one container is just "Powder". */
+  const powderLabel = boxCountShown ? "Powder in each" : "Powder"
   const fill = resolveFill(
     type,
     {
@@ -511,8 +565,9 @@ function AddStockForm({
         base_unit: powderBaseUnit,
         total_amount: powderInBase,
         total_amount_unit: powderBaseUnit,
-        bac_water_ml: null,
-        reconstituted_on: null,
+        // None for a new vial or a dry spare; a corrected spare keeps what it
+        // has and never gains any (S5).
+        ...spareMixFields(editItem),
         acquired_on: null,
         prior_used_base: null,
       }
@@ -638,7 +693,12 @@ function AddStockForm({
     picker !== "all" &&
     (refillType != null || selected?.inventoryForm != null || formsForId(compoundId).length <= 1)
   const allowedForms = formsForId(compoundId)
-  const formsToShow = picker === "all" ? ALL_FORMS : allowedForms
+  // A spare corrected into a powder vial is held unmixed, which a database
+  // that has refused spares cannot store: that choice is not offered there.
+  const spareCannotBePowder = editItem != null && editItem.acquiredOn == null && sparesRefused
+  const formsToShow = (picker === "all" ? allForms : allowedForms).filter(
+    (f) => !(spareCannotBePowder && f === "reconstituted" && editItem?.inventoryType !== "reconstituted"),
+  )
 
   // Live "how much is in it?" feedback: the picker only appears once the type's
   // amounts are entered (no capacity → nothing to be a fraction of).
@@ -695,16 +755,29 @@ function AddStockForm({
         const before = stockRowOf(editItem)
         const r = await updateStockItem(editItem.id, fields)
         if (!r.ok) {
+          // A spare corrected INTO a powder vial is held unmixed, and a
+          // database without `026` refuses that shape (S5): say so, rather
+          // than blaming the numbers.
+          const unmixedRefused = r.rejectedShape && unmixed && fields.bac_water_ml == null
+          if (unmixedRefused) {
+            noteSparesRefused()
+            setSparesRefused(true)
+          }
           setError(
             r.refusal === "read-only"
               ? "Trakabl is read only until you subscribe."
-              : r.rejectedShape
-                ? "These numbers don’t fit together. Check the amount, the strength and its unit."
-                : "Couldn’t save your changes. Try again."
+              : unmixedRefused
+                ? "Unmixed vials can’t be saved yet."
+                : r.rejectedShape
+                  ? "These numbers don’t fit together. Check the amount, the strength and its unit."
+                  : "Couldn’t save your changes. Try again."
           )
           return
         }
         onAdded()
+        // Every screen holding stock figures re-reads them, not just the
+        // one that opened this sheet (the + opens it over any page).
+        notifyStockChanged()
         onClose()
         const editedId = editItem.id
         showToast(
@@ -715,6 +788,7 @@ function AddStockForm({
                   void updateStockItem(editedId, before).then((back) => {
                     if (!back.ok) showToast("Couldn’t undo. Try again.")
                     onAdded()
+                    notifyStockChanged()
                   }),
               }
             : {},
@@ -768,19 +842,20 @@ function AddStockForm({
       const r = await addStockItem(
         pcId ? { ...insert, protocol_compound_id: pcId } : insert,
         {
-          count: boxCount,
+          count: boxTotal,
           restAsSpares: true,
           ...(refillFor != null && replaceItemId ? { replace: { id: replaceItemId } } : {}),
         },
       )
       if (!r.ok) {
-        // THE PRE-026 FALLBACK (see `mixFallback`): the database refused a vial
-        // held unmixed. Offer the old path, mixed now, and open the pad on the
-        // water. One line says why; the switch can still turn it back off.
+        // THE PRE-026 FALLBACK (see `sparesRefused`): the database refused a
+        // vial held unmixed. From here the form offers the one shape it holds,
+        // one vial mixed now, remembered for the visit. The water field shows
+        // with one line saying why; the pad stays shut until it is tapped (W17).
         if (r.pendingMigration && unmixed) {
-          setMixFallback(true)
-          setMixNow(true)
-          pad.open("bacWater")
+          noteSparesRefused()
+          setSparesRefused(true)
+          setRefusedHere(true)
           return
         }
         // A form the database cannot hold until `014`/`016` are applied gets its
@@ -797,7 +872,7 @@ function AddStockForm({
               // rather than suggesting the type already chosen.
               type === "dropper"
               ? "Droppers aren’t available yet. Add it as Pre-mixed or Oral for now."
-              : type === "reconstituted" && boxCount > 1
+              : type === "reconstituted" && boxTotal > 1
                 ? "Spare vials aren’t available yet. Add one for now."
                 : "This container type isn’t available yet. Try Reconstituted, Pre-mixed or Oral for now."
             : r.rejectedShape
@@ -811,21 +886,23 @@ function AddStockForm({
         return // keep the sheet open so the input isn't lost on a failed save
       }
       onAdded()
+      notifyStockChanged()
       onClose()
       // Undo takes the container back out, when it is ONE container and
       // nothing was put away for it: only the first row's id is known here (a
       // box's others get theirs in `addStockItem`), and a replaced vial would
       // stay archived. It was added a moment ago, so no dose is drawn from it.
       const addedId = insert.id
-      const undoable = boxCount === 1 && !(refillFor != null && replaceItemId)
+      const undoable = boxTotal === 1 && !(refillFor != null && replaceItemId)
       showToast(
-        compound ? `Added ${boxCount} to ${compound.name}.` : "Added",
+        compound ? `Added ${boxTotal} to ${compound.name}.` : "Added",
         undoable
           ? {
               undo: () =>
                 void deleteStockItem(addedId).then((back) => {
                   if (!back.ok) showToast("Couldn’t undo. Try again.")
                   onAdded()
+                  notifyStockChanged()
                 }),
             }
           : {},
@@ -850,7 +927,7 @@ function AddStockForm({
   const strengthShown = shownUnit(strengthUnits.length === 1 ? strengthUnits[0] : strengthUnit)
   const countShown = effectiveOralForm === "tab" ? "tabs" : "caps"
   /** The water is asked only of a vial being mixed: an edit of a mixed vial, or
-   *  the pre-026 fallback with "Mix one now" on. */
+   *  a new one on a database that cannot hold it unmixed (the pre-026 path). */
   const showWater = type === "reconstituted" && !unmixed
   /** "How full is it" is for correcting a vial you have; a new one is full. */
   const showFill = editItem != null && fill.basis != null
@@ -861,7 +938,7 @@ function AddStockForm({
    */
   const padFields: PadField[] = []
   if (type === "reconstituted") {
-    padFields.push({ id: "powder", label: "Powder in each", short: "Powder", unit: powderShown, value: powder, onChange: setPowder, sanitize: clean })
+    padFields.push({ id: "powder", label: powderLabel, short: "Powder", unit: powderShown, value: powder, onChange: setPowder, sanitize: clean })
     if (showWater) {
       padFields.push({ id: "bacWater", label: "BAC water", short: "Water", unit: "mL", value: bacWater, onChange: setBacWater, sanitize: clean })
     }
@@ -933,11 +1010,13 @@ function AddStockForm({
               // Every add is for ONE compound (Adrian, 2026-09-24): name it, with
               // its container, rather than a picker locked to one option.
               <div className="flex items-center gap-2.5 text-[15px] text-foreground">
-                <Container
+                {/* An unmixed vial is drawn with its powder in it. */}
+                <StockContainer
                   name={selected.name}
                   inventoryType={type}
                   category={selected.category}
                   fill={unmixed ? 0 : 0.95}
+                  powder={unmixed}
                   size={34}
                 />
                 <span className="min-w-0 truncate">{selected.name}</span>
@@ -1044,8 +1123,10 @@ function AddStockForm({
             )}
 
             {/* The count first, then only what the container needs (brief
-                §3.12). An edit corrects one container, so it has no count. */}
-            {!editItem && (
+                §3.12). An edit corrects one container, so it has no count, and
+                a powder vial on a database that cannot hold spares has none
+                either (W17). */}
+            {boxCountShown && (
               <div className={cn(ROWS, "px-3")}>
                 <div className="flex items-center justify-between gap-2.5 py-2">
                   <span className="text-sm text-foreground">
@@ -1063,7 +1144,7 @@ function AddStockForm({
                       type="button"
                       aria-label="One fewer"
                       onClick={() => setBoxCount((n) => Math.max(1, n - 1))}
-                      className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] items-center justify-center text-base text-foreground")}
+                      className={cn(PRESS.icon, HIT_30, "inst-ghost flex h-[30px] w-[30px] items-center justify-center text-base text-foreground")}
                     >
                       −
                     </button>
@@ -1072,47 +1153,21 @@ function AddStockForm({
                       type="button"
                       aria-label="One more"
                       onClick={() => setBoxCount((n) => Math.min(50, n + 1))}
-                      className={cn(PRESS.icon, "inst-ghost flex h-[30px] w-[30px] items-center justify-center text-base text-foreground")}
+                      className={cn(PRESS.icon, HIT_30, "inst-ghost flex h-[30px] w-[30px] items-center justify-center text-base text-foreground")}
                     >
                       +
                     </button>
                   </span>
                 </div>
-                {/* PRE-026 ONLY (see `mixFallback`): shown after the database
-                    refused an unmixed vial. */}
-                {mixFallback && type === "reconstituted" && (
-                  <div className="flex items-center justify-between gap-2.5 py-2">
-                    <span className="text-sm text-foreground">Mix one now</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={mixNow}
-                      aria-label="Mix one now"
-                      onClick={() => setMixNow((m) => !m)}
-                      className={cn(
-                        "relative h-7 w-12 shrink-0 rounded-[11px] transition-colors duration-200",
-                        mixNow ? "bg-accent-amber" : "inst-rail",
-                      )}
-                    >
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "absolute top-1 h-5 w-5 inst-knob transition-[left] duration-200 ease-out motion-reduce:transition-none",
-                          mixNow ? "left-[1.625rem]" : "left-1",
-                        )}
-                      />
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
             {type === "reconstituted" && (
               <div className={cn("grid gap-2", showWater && "grid-cols-2")}>
                 <label className="block">
-                  <span className={FIELD_LABEL}>Powder in each</span>
+                  <span className={FIELD_LABEL}>{powderLabel}</span>
                   <div className="flex items-center gap-2">
-                    <PadInput {...pad.bind("powder")} value={powder} label="Powder in each" unit={powderShown} suffix={<FieldUnit unit={powderShown} />} className={fieldCls("powder")} />
+                    <PadInput {...pad.bind("powder")} value={powder} label={powderLabel} unit={powderShown} suffix={<FieldUnit unit={powderShown} />} className={fieldCls("powder")} />
                     {/* One unit: the field states it. Two (HGH, sold in mg and
                         dosed in iu): the choice sits beside the field. */}
                     {powderUnits.length > 1 && (
@@ -1139,8 +1194,10 @@ function AddStockForm({
                     <PadInput {...pad.bind("bacWater")} value={bacWater} label="BAC water" unit="mL" suffix={<FieldUnit unit="mL" />} className={fieldCls("bacWater")} />
                   </label>
                 )}
-                {mixFallback && showWater && !editItem && (
-                  <p className={cn(INLINE_NOTE, "col-span-2")}>Add the water to add it now.</p>
+                {refusedHere && showWater && !editItem && (
+                  <p className={cn(INLINE_NOTE, "col-span-2")}>
+                    Unmixed vials can’t be saved yet. Add one mixed: enter its water.
+                  </p>
                 )}
               </div>
             )}
