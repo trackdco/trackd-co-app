@@ -2,360 +2,151 @@
 
 import {
   useEffect,
-  useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
+  useSyncExternalStore,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CaretLeft,
-  CircleNotch,
-  ClockCounterClockwise,
-  MagnifyingGlass,
-  Plus,
-  X,
-} from "@/components/icons";
 
-import { cn } from "@/lib/utils";
+import { useWriteAccess } from "@/components/billing/ReadOnlyGate";
+import { AddBar } from "@/components/progress/markers/AddBar";
+import { CreateMarkerCard } from "@/components/progress/markers/CreateMarkerCard";
 import {
-  CARD_EYEBROW,
-  CHIP,
-  CHIP_OFF,
-  CHIP_ON,
-  EDIT_TOGGLE,
-  FIELD_LABEL,
-  GHOST_BUTTON,
-  PRESS,
-  PRIMARY_BUTTON,
-  ROWS,
-} from "@/lib/ui-presets";
-import { dismissToast, getToast, showToast, TOAST_MS } from "@/lib/toast";
+  CrossGlyph,
+  PlusGlyph,
+  RepeatGlyph,
+  SearchGlyph,
+  TickGlyph,
+} from "@/components/progress/markers/glyphs";
+import { MarkerRow } from "@/components/progress/markers/MarkerRow";
 import {
-  customMarkerUserMarkerId,
-  type EntryMarker,
-  type MarkerOption,
-} from "@/lib/progress/journal";
+  EASE,
+  MARKERS_CSS,
+  ghostOut,
+  popChip,
+  reducedMotion,
+  useIsoLayoutEffect,
+  useSideSwap,
+} from "@/components/progress/markers/motion";
 import {
-  OWN_WORD_SLOTS,
-  READY_SCALES,
+  holdRemoval,
+  noRemovedMarkers,
+  removedMarkers,
+  subscribeRemoved,
+  undoRemoval,
+} from "@/components/progress/markers/ownMarkers";
+import type { EntryMarker, MarkerOption } from "@/lib/progress/journal";
+import {
   addableMarkers,
-  asksBetterEnd,
   exactNameMatch,
   lastUsedToAdd,
-  markerNamed,
   pickerSections,
-  polarityFor,
-  scaleWords,
+  ratedInOrder,
+  restoreRow,
   searchMarkers,
   searchPlaceholder,
+  seedRows,
   titleCaseMarkerName,
-  type BetterEnd,
-  type ScaleKey,
+  type RowRating,
 } from "@/lib/progress/markerPick";
-import {
-  createCustomMarker,
-  removeCustomMarker,
-} from "@/app/(app)/progress/actions";
-
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+import { dismissToast, getToast, showToast } from "@/lib/toast";
+import { CARD_EYEBROW, EDIT_TOGGLE, HIT_Y_30, HIT_Y_36, PRESS } from "@/lib/ui-presets";
+import { cn } from "@/lib/utils";
 
 const NO_IDS: string[] = [];
 
-/** New rows arrive one after another (build-brief-final §3.5): 60ms apart, 320ms each. */
+/** New rows arrive one after another: 60ms apart (markers8). */
 const ROW_STAGGER_MS = 60;
+/** A search shows at most this many chips (markers8). */
+const MAX_HITS = 12;
+
+/** A chip's reach: 3px round it, half the 6px gap, so neighbours never overlap. */
+const CHIP_REACH = "relative before:absolute before:-inset-[3px] before:content-['']";
+/** A quiet link's reach: 8px above and below, half the 16px to the row over it. */
+const LINK_REACH = "relative before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']";
 
 /**
- * The dialer's own motion. Hoisted into <head> once by React (`href` dedupes it).
- * Rows rise 6px as they fade in; under reduced motion they only fade.
- */
-const MOTION_CSS = `
-@keyframes md-rise { from { opacity: 0; transform: translateY(6px); } }
-@keyframes md-fade { from { opacity: 0; } }
-@keyframes md-word { from { opacity: 0.3; transform: translateY(4px); } }
-@keyframes md-from-right { from { opacity: 0; transform: translateX(14px); } }
-@keyframes md-from-left { from { opacity: 0; transform: translateX(-14px); } }
-.md-row-in { animation: md-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.md-bar-in { animation: md-rise 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.md-word-in { animation: md-word 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.md-swap-fwd { animation: md-from-right 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.md-swap-back { animation: md-from-left 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-@media (prefers-reduced-motion: reduce) {
-  .md-row-in, .md-bar-in, .md-swap-fwd, .md-swap-back { animation: md-fade 200ms ease-out both; }
-  .md-word-in { animation: none; }
-}
-`;
-
-/**
- * A marker's word values as a single-select scale with a sliding WHITE thumb —
- * the highlight glides from the old pick to the new one. White marks the CURRENT
- * SELECTION (the active-state accent for a control, per ui-context — never amber,
- * which is reserved for the due/live beat, and never a verdict on the value). The
- * thumb is positioned by measuring the chosen pill, so variable-width words line up
- * exactly.
+ * THE MARKERS PANEL (Context/markers-spec.md; the final-check page's
+ * `markers8.js`, `markers7.js`, `markers6.js` and `extra8.css`). Calm and
+ * monochrome: the only thing that lights up is what you chose, and it goes
+ * white.
  *
- * Tap a word, or drag along the words (build-brief-final §3.5): a sideways drag
- * walks the thumb word to word; a vertical one still scrolls the page. When the
- * words overflow, the chosen word and its neighbours are kept in view, so a drag
- * can reach every word.
- */
-function WordScale({
-  words,
-  selectedIndex,
-  onPick,
-}: {
-  words: string[];
-  /** 0-based index of the chosen word, or null. */
-  selectedIndex: number | null;
-  /** Reports the 1-based tier value, and whether a tap or a drag chose it. */
-  onPick: (tierValue: number, how: "tap" | "drag") => void;
-}) {
-  const railRef = useRef<HTMLDivElement>(null);
-  const pillRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const thumbRef = useRef<HTMLSpanElement>(null);
-  const firstRef = useRef(true);
-  const revealedRef = useRef(false);
-  const dragRef = useRef<{
-    id: number;
-    x: number;
-    y: number;
-    engaged: boolean;
-    last: number | null;
-  } | null>(null);
-  const swallowClickUntil = useRef(0);
-
-  useIsoLayoutEffect(() => {
-    const thumb = thumbRef.current;
-    if (!thumb) return;
-    if (selectedIndex == null) {
-      thumb.style.opacity = "0";
-      firstRef.current = true; // re-select without sliding from the old spot
-      return;
-    }
-    const el = pillRefs.current[selectedIndex];
-    if (!el) return;
-    const place = () => {
-      thumb.style.opacity = "1";
-      thumb.style.left = `${el.offsetLeft}px`;
-      thumb.style.width = `${el.offsetWidth}px`;
-    };
-    if (firstRef.current) {
-      const prev = thumb.style.transition;
-      thumb.style.transition = "none";
-      place();
-      requestAnimationFrame(() => {
-        if (thumbRef.current) thumbRef.current.style.transition = prev;
-      });
-      firstRef.current = false;
-    } else {
-      place();
-    }
-  }, [selectedIndex, words]);
-
-  // Keep the chosen word and its neighbours in view when the words overflow.
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail || selectedIndex == null) return;
-    const instant = !revealedRef.current;
-    revealedRef.current = true;
-    if (rail.scrollWidth <= rail.clientWidth + 1) return;
-    const pills = pillRefs.current;
-    const sel = pills[selectedIndex];
-    const lo = pills[Math.max(0, selectedIndex - 1)];
-    const hi = pills[Math.min(words.length - 1, selectedIndex + 1)];
-    if (!sel || !lo || !hi) return;
-    let start = lo.offsetLeft;
-    let end = hi.offsetLeft + hi.offsetWidth;
-    if (end - start > rail.clientWidth) {
-      start = sel.offsetLeft;
-      end = sel.offsetLeft + sel.offsetWidth;
-    }
-    let left = rail.scrollLeft;
-    if (start < left) left = start;
-    else if (end > left + rail.clientWidth) left = end - rail.clientWidth;
-    if (left === rail.scrollLeft) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    rail.scrollTo({ left, behavior: instant || reduce ? "auto" : "smooth" });
-  }, [selectedIndex, words]);
-
-  /** The word under (or nearest to) a pointer's x. */
-  function indexAt(clientX: number): number {
-    let best = -1;
-    let bestGap = Infinity;
-    pillRefs.current.forEach((el, i) => {
-      if (!el || i >= words.length) return;
-      const r = el.getBoundingClientRect();
-      const gap = clientX < r.left ? r.left - clientX : clientX > r.right ? clientX - r.right : 0;
-      if (gap < bestGap) {
-        bestGap = gap;
-        best = i;
-      }
-    });
-    return best;
-  }
-
-  function endDrag() {
-    if (dragRef.current?.engaged) swallowClickUntil.current = performance.now() + 350;
-    dragRef.current = null;
-  }
-
-  function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
-    const d = dragRef.current;
-    if (!d || d.id !== e.pointerId) return;
-    if (e.pointerType === "mouse" && (e.buttons & 1) === 0) {
-      dragRef.current = null;
-      return;
-    }
-    if (!d.engaged) {
-      const dx = Math.abs(e.clientX - d.x);
-      const dy = Math.abs(e.clientY - d.y);
-      if (dy > 10 && dy > dx) {
-        dragRef.current = null; // a scroll, not a drag
-        return;
-      }
-      if (dx < 6 || dx < dy) return;
-      d.engaged = true;
-      try {
-        e.currentTarget.setPointerCapture(e.pointerId);
-      } catch {
-        // The pointer is already gone; the drag simply ends with it.
-      }
-    }
-    const i = indexAt(e.clientX);
-    if (i >= 0 && i !== d.last) {
-      d.last = i;
-      onPick(i + 1, "drag");
-    }
-  }
-
-  return (
-    <div
-      ref={railRef}
-      className="relative flex touch-pan-y gap-1.5 overflow-x-auto pb-px"
-      onPointerDown={(e) => {
-        if (e.pointerType === "mouse" && e.button !== 0) return;
-        dragRef.current = {
-          id: e.pointerId,
-          x: e.clientX,
-          y: e.clientY,
-          engaged: false,
-          last: selectedIndex,
-        };
-      }}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onLostPointerCapture={(e) => {
-        // Capture moving from a pill to the rail bubbles here too: only the rail losing it ends a drag.
-        if (e.target === e.currentTarget) endDrag();
-      }}
-      onClickCapture={(e) => {
-        // The click that ends a drag is not a tap: it must not clear the word.
-        if (performance.now() < swallowClickUntil.current) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }}
-    >
-      <span
-        ref={thumbRef}
-        aria-hidden
-        style={{ left: 0, width: 0 }}
-        className="pointer-events-none absolute top-0 bottom-0 rounded-full bg-accent-primary opacity-0 transition-[left,width,opacity] duration-300 ease-out"
-      />
-      {words.map((w, i) => {
-        const sel = selectedIndex === i;
-        return (
-          <button
-            key={`${w}-${i}`}
-            ref={(el) => {
-              pillRefs.current[i] = el;
-            }}
-            type="button"
-            onClick={() => onPick(i + 1, "tap")}
-            aria-pressed={sel}
-            className={cn(
-              PRESS.pill,
-              "relative z-10 shrink-0 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-300",
-              sel
-                ? "border-transparent font-medium text-bg-base"
-                : "border-border-default text-text-muted hover:text-foreground",
-            )}
-          >
-            {w}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * THE MARKER DIALER (build-brief-final §3.5). The markers on the entry are rows:
- * the name, the chosen word ("Not rated" until you pick one), the word scale to
- * rate on, and a faint × that takes it off the entry (with Undo, no confirm).
- * Below them, "Add more markers" opens the picker and "Use my last" brings back
- * the previous entry's markers.
+ * Before any are added: "Use my last" (with its count), the search, YOURS
+ * (with Edit) and SUGGESTED as chips, and "Create your own". Tick as many as you
+ * like: a ticked chip turns white and pops, and the white "Add N" rises in and
+ * stays pinned in view. Add N adds them all as rows, which arrive one by one.
  *
- * The picker: search, then Suggested (the same for everyone), Yours (your own
- * markers, with Edit to remove one) and All. Tick as many as you like; a ticked
- * chip turns white and the picker stays open; "Add N" adds them all as rows,
- * which arrive one after another. "Create your own" sits at its foot, and a new
- * marker lands ticked under Yours.
+ * The rows: the name and its level word, five steps (drag or tap; tap the
+ * chosen step again to clear), and the x, which takes a row off with
+ * "<Marker> removed" and Undo. Under them, "Add more markers" and "Use my last".
  *
- * Words, never numbers; single-select (tap the chosen word again to clear).
- * Presented NEUTRALLY: no colour by polarity or severity, no amber as a verdict.
- * A marker this person cannot add (`addable: false`) is absent from every add
- * path, never greyed.
+ * Words, never numbers; no colour by polarity or severity. A marker this person
+ * cannot add (`addable: false`) is absent from every add path, never greyed.
+ *
+ * The props stay as they were (HomeJournal and JournalEntrySheet render it);
+ * `onRowsChange` and `onCreatingChange` are optional additions.
  */
 export function MarkerDialer({
   options,
   initial,
   onChange,
   lastUsed = NO_IDS,
+  onRowsChange,
+  onCreatingChange,
 }: {
   options: MarkerOption[];
-  initial: EntryMarker[];
+  /** The markers on the entry to start from. A `tierValue` below 1 is a row
+   *  that is on the entry but not rated yet. */
+  initial: Pick<EntryMarker, "markerId" | "tierValue">[];
+  /** The RATED markers, in row order, whenever a rating changes. */
   onChange: (markers: { markerId: string; tierValue: number }[]) => void;
   /** Marker ids on the previous journal entry, for "Use my last". Hidden when empty. */
   lastUsed?: string[];
+  /** Every row on the entry, rated or not (`tierValue: 0` = not rated), whenever
+   *  the rows change. Hand it back as `initial` to bring the rows back. */
+  onRowsChange?: (rows: RowRating[]) => void;
+  /** True while "Create your own" fills the panel (it has its own header row). */
+  onCreatingChange?: (creating: boolean) => void;
 }) {
   const router = useRouter();
+  const { guard } = useWriteAccess();
 
-  // Custom markers created this session appear immediately (before the server
-  // round-trip refreshes `options`); removed ones hide immediately.
-  const [extra, setExtra] = useState<MarkerOption[]>([]);
-  const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
+  // Your own markers made here show at once, before the page's data catches up.
+  const [made, setMade] = useState<MarkerOption[]>([]);
+  // Your own markers removed (held for the Undo, being sent, or gone): ownMarkers.ts.
+  const removed = useSyncExternalStore(subscribeRemoved, removedMarkers, noRemovedMarkers);
 
+  /** Everything a row can show, including a removed marker still on this entry. */
   const allOptions = useMemo(() => {
     const seen = new Set<string>();
     const out: MarkerOption[] = [];
-    for (const o of [...options, ...extra]) {
-      if (removedIds.has(o.id) || seen.has(o.id)) continue;
+    for (const o of [...options, ...made]) {
+      if (seen.has(o.id)) continue;
       seen.add(o.id);
       out.push(o);
     }
     return out;
-  }, [options, extra, removedIds]);
+  }, [options, made]);
+  /** What can be offered: less your own markers being removed. */
+  const pickable = useMemo(() => allOptions.filter((o) => !removed.has(o.id)), [allOptions, removed]);
+  const byId = useMemo(() => new Map(allOptions.map((m) => [m.id, m])), [allOptions]);
 
-  const byId = useMemo(
-    () => new Map(allOptions.map((m) => [m.id, m])),
-    [allOptions],
-  );
-
-  // The markers on the entry, in the order added, and their chosen words.
-  const [order, setOrder] = useState<string[]>(() => initial.map((m) => m.markerId));
-  const [selected, setSelected] = useState<Map<string, number>>(
-    () => new Map(initial.map((m) => [m.markerId, m.tierValue])),
-  );
-  // The latest ratings for handlers that run later (a drag, an Undo).
-  const selectedRef = useRef(selected);
+  // The rows on the entry, in order, and their ratings.
+  const [seed] = useState(() => seedRows(initial));
+  const [order, setOrder] = useState<string[]>(seed.order);
+  const [rated, setRated] = useState<Map<string, number>>(seed.rated);
+  const orderRef = useRef(order);
+  const ratedRef = useRef(rated);
   const onChangeRef = useRef(onChange);
+  const onRowsChangeRef = useRef(onRowsChange);
+  const onCreatingRef = useRef(onCreatingChange);
   useIsoLayoutEffect(() => {
     onChangeRef.current = onChange;
+    onRowsChangeRef.current = onRowsChange;
+    onCreatingRef.current = onCreatingChange;
   });
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -363,118 +154,132 @@ export function MarkerDialer({
   const [query, setQuery] = useState("");
   const [editYours, setEditYours] = useState(false);
   const [creating, setCreating] = useState<{ name: string } | null>(null);
-  const [swap, setSwap] = useState<"fwd" | "back" | null>(null);
-  /** Rows that arrived in this session, and their stagger delay (ms). */
+  /** Rows that arrived here, and their place in the one-by-one arrival (ms). */
   const [arrive, setArrive] = useState<Map<string, number>>(() => new Map());
-  /** Bumps each time a row's word changes, so the word eases in. */
+  /** Bumps each time a row's word changes, so the word pops in. */
   const [bumps, setBumps] = useState<Record<string, number>>({});
+  /** The Add bar's count, held while it leaves. */
+  const [barCount, setBarCount] = useState(0);
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const swap = useSideSwap(rootRef);
   const focusRowRef = useRef<string | null>(null);
+  const flipFrom = useRef<Map<string, number> | null>(null);
   const mountedRef = useRef(false);
-  /** Custom markers removed under Yours, held for the Undo window before the server hears. */
-  const pendingRemovals = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  /** Toasts this dialer raised, so closing it can take its Undo away with it. */
-  const ourToasts = useRef(new Set<number>());
+  /** "<Marker> removed" toasts for rows: their Undo only means something while this entry is open. */
+  const rowToasts = useRef(new Set<number>());
 
   useEffect(() => {
     mountedRef.current = true;
-    const pending = pendingRemovals.current;
-    const toasts = ourToasts.current;
+    const toasts = rowToasts.current;
     return () => {
       mountedRef.current = false;
-      // An Undo for a dialer that has gone would do nothing: take it away.
+      // A row's Undo belongs to this entry's draft, which has gone with the
+      // dialer (closed, saved, or another day): take it away. Removing one of
+      // your OWN markers is not tied to the entry: its Undo stays, and nothing
+      // is sent before the window passes (ownMarkers.ts; cold review B6).
       const t = getToast();
       if (t && toasts.has(t.id)) dismissToast();
-      // A removal still in its Undo window goes through now.
-      if (pending.size > 0) {
-        const ids = [...pending.keys()];
-        pending.forEach((timer) => clearTimeout(timer));
-        pending.clear();
-        void Promise.all(
-          ids.map((id) => removeCustomMarker(customMarkerUserMarkerId(id))),
-        ).then(() => router.refresh());
-      }
     };
-  }, [router]);
+  }, []);
 
-  // After "Add N" or "Use my last", focus lands on the first new row.
+  // After "Add N" or "Use my last", focus lands on the first new row's steps.
   useEffect(() => {
     const id = focusRowRef.current;
     if (!id) return;
     focusRowRef.current = null;
     rootRef.current
-      ?.querySelector<HTMLElement>(`[data-marker-row="${CSS.escape(id)}"] [aria-pressed]`)
-      ?.focus();
+      ?.querySelector<HTMLElement>(`[data-marker-row="${CSS.escape(id)}"] [role="slider"]`)
+      ?.focus({ preventScroll: true });
   });
 
-  function commit(next: Map<string, number>) {
-    selectedRef.current = next;
-    setSelected(next);
-    onChangeRef.current(
-      [...next.entries()].map(([markerId, tierValue]) => ({ markerId, tierValue })),
-    );
+  // The rows under a removed (or restored) row slide to their new place.
+  useIsoLayoutEffect(() => {
+    const from = flipFrom.current;
+    flipFrom.current = null;
+    if (!from || reducedMotion()) return;
+    rootRef.current?.querySelectorAll<HTMLElement>("[data-marker-row]").forEach((el) => {
+      const was = from.get(el.getAttribute("data-marker-row") ?? "");
+      if (was === undefined) return;
+      const d = was - el.getBoundingClientRect().top;
+      if (Math.abs(d) < 0.5) return;
+      el.animate([{ transform: `translateY(${d}px)` }, { transform: "none" }], { duration: 260, easing: EASE });
+    });
+  }, [order]);
+
+  function captureRows() {
+    const m = new Map<string, number>();
+    rootRef.current?.querySelectorAll<HTMLElement>("[data-marker-row]").forEach((el) => {
+      m.set(el.getAttribute("data-marker-row") ?? "", el.getBoundingClientRect().top);
+    });
+    flipFrom.current = m;
   }
 
-  function toastWithUndo(text: string, undo: () => void) {
-    showToast(text, { undo });
-    const t = getToast();
-    if (t) ourToasts.current.add(t.id);
-  }
-
-  function pick(markerId: string, tierValue: number, how: "tap" | "drag") {
-    const cur = selectedRef.current;
-    const next = new Map(cur);
-    if (cur.get(markerId) === tierValue) {
-      if (how === "drag") return;
-      next.delete(markerId);
-    } else {
-      next.set(markerId, tierValue);
+  /** Set the rows and ratings, and tell the parent what changed. */
+  function apply(nextOrder: string[], nextRated: Map<string, number>) {
+    const before = ratedInOrder(orderRef.current, ratedRef.current);
+    const rowsChanged =
+      nextOrder.length !== orderRef.current.length || nextOrder.some((id, i) => id !== orderRef.current[i]);
+    orderRef.current = nextOrder;
+    ratedRef.current = nextRated;
+    setOrder(nextOrder);
+    setRated(nextRated);
+    const after = ratedInOrder(nextOrder, nextRated);
+    const ratingsChanged =
+      before.length !== after.length ||
+      before.some((m, i) => m.markerId !== after[i].markerId || m.tierValue !== after[i].tierValue);
+    if (ratingsChanged) onChangeRef.current(after);
+    if (rowsChanged || ratingsChanged) {
+      onRowsChangeRef.current?.(nextOrder.map((markerId) => ({ markerId, tierValue: nextRated.get(markerId) ?? 0 })));
     }
-    commit(next);
-    setBumps((b) => ({ ...b, [markerId]: (b[markerId] ?? 0) + 1 }));
   }
 
-  // ---- the picker's working set -------------------------------------------
-  const sections = useMemo(() => pickerSections(allOptions, order), [allOptions, order]);
+  function rate(id: string, value: number) {
+    const next = new Map(ratedRef.current);
+    if (value >= 1) next.set(id, value);
+    else next.delete(id);
+    if (next.get(id) === ratedRef.current.get(id)) return;
+    apply(orderRef.current, next);
+    setBumps((b) => ({ ...b, [id]: (b[id] ?? 0) + 1 }));
+  }
+
+  // ---- the picker's working set ---------------------------------------------
+  const sections = useMemo(() => pickerSections(pickable, order), [pickable, order]);
   const remaining = sections.suggested.length + sections.yours.length + sections.all.length;
-  const addableIds = useMemo(
-    () => new Set(addableMarkers(allOptions, order).map((m) => m.id)),
-    [allOptions, order],
-  );
-  const lastToAdd = useMemo(
-    () => lastUsedToAdd(lastUsed, allOptions, order),
-    [lastUsed, allOptions, order],
-  );
+  const addableIds = useMemo(() => new Set(addableMarkers(pickable, order).map((m) => m.id)), [pickable, order]);
+  const lastToAdd = useMemo(() => lastUsedToAdd(lastUsed, pickable, order), [lastUsed, pickable, order]);
   const q = query.trim();
-  const results = useMemo(() => searchMarkers(allOptions, order, q), [allOptions, order, q]);
+  const results = useMemo(() => searchMarkers(pickable, order, q).slice(0, MAX_HITS), [pickable, order, q]);
   const pickedNow = picked.filter((id) => addableIds.has(id));
   const editingYours = editYours && sections.yours.length > 0;
 
-  const rows = order
-    .map((id) => byId.get(id))
-    .filter((m): m is MarkerOption => m !== undefined);
-  // Ticks not yet added keep the picker open (an Undo can bring a row back mid-pick).
+  // The Add bar keeps its last count while it leaves.
+  if (pickedNow.length > 0 && barCount !== pickedNow.length) setBarCount(pickedNow.length);
+  const barMounted = pickedNow.length > 0 || barCount > 0;
+
+  const rows = order.map((id) => byId.get(id)).filter((m): m is MarkerOption => m !== undefined);
+  // Ticks not yet added keep the picker open.
   const showPicker = rows.length === 0 || pickerOpen || pickedNow.length > 0;
 
-  // ---- actions --------------------------------------------------------------
+  // ---- actions ----------------------------------------------------------------
   function addRows(ids: string[]) {
-    const fresh = ids.filter((id) => !order.includes(id));
+    const cur = orderRef.current;
+    const fresh = ids.filter((id, i) => !cur.includes(id) && ids.indexOf(id) === i);
     if (fresh.length === 0) return;
-    setOrder((prev) => [...prev, ...fresh.filter((id) => !prev.includes(id))]);
     setArrive((prev) => {
       const next = new Map(prev);
       fresh.forEach((id, i) => next.set(id, i * ROW_STAGGER_MS));
       return next;
     });
     focusRowRef.current = fresh[0];
+    apply([...cur, ...fresh], ratedRef.current);
   }
 
   function resetPicker() {
     setPicked([]);
     setQuery("");
     setEditYours(false);
-    setSwap(null);
+    setBarCount(0);
   }
 
   function togglePicker() {
@@ -494,325 +299,227 @@ export function MarkerDialer({
     resetPicker();
   }
 
-  function toggleChip(id: string) {
+  function toggleChip(id: string, el: HTMLElement) {
+    const on = picked.includes(id);
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+    if (!on) popChip(el);
   }
 
-  /** × on a row: off the entry at once, with Undo. No confirm. */
+  /** The x on a row: off the entry at once, with Undo. No confirm. */
   function removeRow(id: string) {
     const name = byId.get(id)?.name ?? "Marker";
-    const at = order.indexOf(id);
-    const tier = selectedRef.current.get(id);
-    setOrder((prev) => prev.filter((x) => x !== id));
-    if (tier !== undefined) {
-      const next = new Map(selectedRef.current);
-      next.delete(id);
-      commit(next);
-    }
-    toastWithUndo(`${name} removed`, () => {
-      if (!mountedRef.current) return;
-      setOrder((prev) =>
-        prev.includes(id) ? prev : [...prev.slice(0, at), id, ...prev.slice(at)],
-      );
-      setArrive((prev) => new Map(prev).set(id, 0));
-      if (tier !== undefined && !selectedRef.current.has(id)) {
-        const next = new Map(selectedRef.current);
-        next.set(id, tier);
-        commit(next);
-      }
+    const at = orderRef.current.indexOf(id);
+    if (at < 0) return;
+    const tier = ratedRef.current.get(id);
+    const row = rootRef.current?.querySelector<HTMLElement>(`[data-marker-row="${CSS.escape(id)}"]`);
+    if (row && rootRef.current) ghostOut(row, rootRef.current);
+    captureRows();
+    const nextRated = new Map(ratedRef.current);
+    nextRated.delete(id);
+    apply(
+      orderRef.current.filter((x) => x !== id),
+      nextRated,
+    );
+    showToast(`${name} removed`, {
+      undo: () => {
+        if (!mountedRef.current) return;
+        captureRows();
+        setArrive((prev) => new Map(prev).set(id, 0));
+        const back = new Map(ratedRef.current);
+        if (tier !== undefined && !back.has(id)) back.set(id, tier);
+        apply(restoreRow(orderRef.current, id, at), back);
+      },
     });
-  }
-
-  function unhide(id: string) {
-    setRemovedIds((prev) => {
-      if (!prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
+    const t = getToast();
+    if (t) rowToasts.current.add(t.id);
   }
 
   /**
-   * Soft-remove one of your own markers (Yours → Edit → ×). It hides at once and
-   * the server hears only once the Undo window has passed, since a removal
-   * cannot be taken back once it is sent. History is kept either way.
+   * Yours, Edit, x: one of your own markers leaves the picker at once; the
+   * server hears once the Undo window has passed. Its history is kept either way.
    */
   function removeYours(m: MarkerOption) {
-    setRemovedIds((prev) => new Set(prev).add(m.id));
-    setPicked((p) => p.filter((x) => x !== m.id));
-    const timer = setTimeout(() => void commitRemoval(m), TOAST_MS.undo + 150);
-    pendingRemovals.current.set(m.id, timer);
-    toastWithUndo(`${m.name} removed`, () => {
-      const t = pendingRemovals.current.get(m.id);
-      if (t === undefined) return;
-      clearTimeout(t);
-      pendingRemovals.current.delete(m.id);
-      if (mountedRef.current) unhide(m.id);
+    guard(() => {
+      holdRemoval(m, () => router.refresh());
+      setPicked((p) => p.filter((x) => x !== m.id));
+      showToast(`${m.name} removed`, { undo: () => void undoRemoval(m.id) });
     });
   }
 
-  async function commitRemoval(m: MarkerOption) {
-    if (!pendingRemovals.current.delete(m.id)) return;
-    const res = await removeCustomMarker(customMarkerUserMarkerId(m.id));
-    if (!res.ok) {
-      // The server still has it: show it again so the picker matches reality.
-      if (mountedRef.current) unhide(m.id);
-      showToast(`Couldn’t remove ${m.name}. Try again.`);
-      return;
-    }
-    router.refresh();
-  }
-
   function openCreate(name: string) {
-    setCreating({ name });
-    setSwap("fwd");
-    setEditYours(false);
+    swap(1, () => {
+      setCreating({ name });
+      setEditYours(false);
+      onCreatingRef.current?.(true);
+    });
   }
 
   function closeCreate() {
-    setCreating(null);
-    setSwap("back");
+    swap(-1, () => {
+      setCreating(null);
+      onCreatingRef.current?.(false);
+    });
   }
 
-  /** A new marker lands ticked under Yours, with the picker open. */
+  /** A new marker goes straight onto the entry as a row, and is under Yours from now on. */
   function onCreated(marker: MarkerOption) {
-    setExtra((prev) => [...prev, marker]);
-    setPicked((p) => (p.includes(marker.id) ? p : [...p, marker.id]));
-    setCreating(null);
-    setSwap("back");
-    setQuery("");
-    setEditYours(false);
-    setPickerOpen(true);
+    setMade((prev) => (prev.some((o) => o.id === marker.id) ? prev : [...prev, marker]));
+    swap(1, () => {
+      setCreating(null);
+      setQuery("");
+      setEditYours(false);
+      setPickerOpen(false);
+      addRows([marker.id]);
+      onCreatingRef.current?.(false);
+    });
+    showToast("Saved. It’s under Yours now.");
     router.refresh();
   }
 
-  // ---- render ---------------------------------------------------------------
-  const motion = (
-    <style href="trakabl-marker-dialer-motion" precedence="default">
-      {MOTION_CSS}
-    </style>
+  // ---- render -------------------------------------------------------------------
+  const chip = (m: MarkerOption) => (
+    <PickChip key={m.id} label={m.name} on={picked.includes(m.id)} onToggle={(el) => toggleChip(m.id, el)} />
   );
 
-  if (creating) {
-    return (
-      <div ref={rootRef}>
-        {motion}
-        <div className="md-swap-fwd">
-          <CreateMarkerCard
-            initialName={creating.name}
-            options={allOptions}
-            onCancel={closeCreate}
-            onCreated={onCreated}
-          />
-        </div>
-      </div>
-    );
-  }
+  const onEntryNamed = q && results.length === 0 ? rows.find((m) => m.name.toLowerCase() === q.toLowerCase()) : undefined;
 
-  const chip = (m: MarkerOption) => (
-    <PickChip
-      key={m.id}
-      label={m.name}
-      on={picked.includes(m.id)}
-      onClick={() => toggleChip(m.id)}
-    />
+  const picker = (
+    <div data-marker-picker>
+      <label className={cn(HIT_Y_36, "md-search mt-2.5 flex items-center gap-2 rounded-xl bg-bg-input px-[11px] text-text-muted")}>
+        <SearchGlyph />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={searchPlaceholder(remaining)}
+          aria-label="Search markers"
+          enterKeyHint="search"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          className="relative z-[1] min-w-0 flex-1 border-0 bg-transparent py-[9px] text-[12.5px] text-foreground outline-none placeholder:text-text-muted"
+        />
+      </label>
+
+      {q ? (
+        <>
+          {results.length > 0 ? <div className="mt-2 flex flex-wrap gap-1.5">{results.map(chip)}</div> : null}
+          {onEntryNamed ? (
+            <p className="mt-2 text-[12px] text-text-muted">{onEntryNamed.name} is already on this entry.</p>
+          ) : null}
+          {!exactNameMatch(pickable, q) ? (
+            <CreateButton onClick={() => openCreate(q)}>Create “{titleCaseMarkerName(q)}”</CreateButton>
+          ) : null}
+        </>
+      ) : (
+        <>
+          {sections.yours.length > 0 ? (
+            <>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <h3 className={CARD_EYEBROW}>Yours</h3>
+                <button
+                  type="button"
+                  onClick={() => setEditYours((v) => !v)}
+                  aria-pressed={editingYours}
+                  className={EDIT_TOGGLE}
+                >
+                  {editingYours ? "Done" : "Edit"}
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {editingYours
+                  ? sections.yours.map((m) => <RemoveChip key={m.id} label={m.name} onRemove={() => removeYours(m)} />)
+                  : sections.yours.map(chip)}
+              </div>
+            </>
+          ) : null}
+          {sections.suggested.length > 0 ? (
+            <>
+              <h3 className={cn(CARD_EYEBROW, "mt-3")}>Suggested</h3>
+              <div className="mt-2 flex flex-wrap gap-1.5">{sections.suggested.map(chip)}</div>
+            </>
+          ) : null}
+          {remaining === 0 ? <p className="mt-3 text-[12px] text-text-muted">Every marker is on this entry.</p> : null}
+          <CreateButton onClick={() => openCreate("")}>Create your own</CreateButton>
+        </>
+      )}
+
+      {barMounted ? (
+        <AddBar
+          count={pickedNow.length > 0 ? pickedNow.length : barCount}
+          visible={pickedNow.length > 0}
+          onAdd={addPicked}
+          onLeft={() => setBarCount(0)}
+        />
+      ) : null}
+    </div>
   );
 
   return (
-    <div ref={rootRef} className="flex flex-col gap-3">
-      {motion}
+    <div ref={rootRef} data-marker-dialer className="relative">
+      <style href="trakabl-markers-panel" precedence="default">
+        {MARKERS_CSS}
+      </style>
 
-      {rows.length > 0 && (
-        <div className={ROWS}>
-          {rows.map((m) => {
-            const id = m.id;
-            const chosen = selected.get(id);
-            const word = chosen ? m.tierLabels[chosen - 1] : undefined;
-            const delay = arrive.get(id);
-            const bump = bumps[id] ?? 0;
-            return (
-              <div
-                key={id}
-                data-marker-row={id}
-                className={cn("px-3.5 pt-2.5 pb-3", delay !== undefined && "md-row-in")}
-                style={delay ? { animationDelay: `${delay}ms` } : undefined}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
-                    {m.name}
-                    {m.kind === "custom" && (
-                      <span className="ml-1.5 text-[11px] text-text-muted">Yours</span>
-                    )}
-                  </span>
-                  <span
-                    key={bump}
-                    className={cn(
-                      "shrink-0 text-[13px]",
-                      word ? "text-foreground" : "text-text-muted",
-                      bump > 0 && "md-word-in",
-                    )}
-                  >
-                    {word ?? "Not rated"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeRow(id)}
-                    aria-label={`Remove ${m.name}`}
-                    className={cn(
-                      PRESS.icon,
-                      "-my-2 -mr-2.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:text-foreground",
-                    )}
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </div>
-                <div className="mt-2">
-                  <WordScale
-                    words={m.tierLabels}
-                    selectedIndex={chosen ? chosen - 1 : null}
-                    onPick={(tv, how) => pick(id, tv, how)}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {rows.length > 0 && (
-        <div className="-my-1 flex flex-wrap items-center gap-x-5">
-          <LinkButton onClick={togglePicker} expanded={showPicker}>
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            Add more markers
-          </LinkButton>
-          {lastToAdd.length > 0 && (
-            <LinkButton onClick={addLast}>
-              <ClockCounterClockwise className="h-3.5 w-3.5" aria-hidden />
-              Use my last
-            </LinkButton>
-          )}
-        </div>
-      )}
-
-      {showPicker && (
-        <div className={cn(swap === "back" && "md-swap-back")}>
-          {rows.length === 0 && lastToAdd.length > 0 && (
+      {creating ? (
+        <CreateMarkerCard
+          initialName={creating.name}
+          options={pickable}
+          onCancel={closeCreate}
+          onCreated={onCreated}
+        />
+      ) : rows.length === 0 ? (
+        <div className="flex flex-col gap-0.5">
+          {lastToAdd.length > 0 ? (
             <button
               type="button"
               onClick={addLast}
-              className={cn(GHOST_BUTTON, "mb-3 w-full py-2.5 text-[13px]")}
+              className={cn(
+                PRESS.button,
+                HIT_Y_36,
+                "inst-ghost flex w-full items-center justify-center gap-[7px] p-[9px] text-[12px] text-foreground",
+              )}
             >
-              <ClockCounterClockwise className="h-4 w-4" aria-hidden />
+              <RepeatGlyph />
               Use my last
-              <span className="font-mono text-[11px] text-text-muted">{lastToAdd.length}</span>
+              <span className="font-mono text-[10.5px] text-text-muted">{lastToAdd.length}</span>
             </button>
-          )}
-
-          <div className="relative">
-            <MagnifyingGlass
-              className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-text-muted"
-              aria-hidden
+          ) : null}
+          {picker}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {rows.map((m) => (
+            <MarkerRow
+              key={m.id}
+              marker={m}
+              value={rated.get(m.id) ?? 0}
+              bump={bumps[m.id] ?? 0}
+              arriveDelay={arrive.get(m.id)}
+              onRate={(v) => rate(m.id, v)}
+              onRemove={() => removeRow(m.id)}
             />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={searchPlaceholder(remaining)}
-              aria-label="Search markers"
-              enterKeyHint="search"
-              autoComplete="off"
-              autoCorrect="off"
-              spellCheck={false}
-              className="inset-focus h-11 w-full rounded-xl bg-bg-input pr-10 pl-9 text-[13px] text-foreground outline-none placeholder:text-text-muted"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="Clear search"
-                className={cn(
-                  PRESS.icon,
-                  "absolute top-1/2 right-1 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-text-muted hover:text-foreground",
-                )}
-              >
-                <X className="h-3.5 w-3.5" aria-hidden />
-              </button>
-            )}
+          ))}
+          <div className="flex flex-wrap gap-x-3.5">
+            <LinkButton onClick={togglePicker} expanded={showPicker}>
+              <PlusGlyph />
+              Add more markers
+            </LinkButton>
+            {lastToAdd.length > 0 ? (
+              <LinkButton onClick={addLast}>
+                <RepeatGlyph />
+                Use my last
+              </LinkButton>
+            ) : null}
           </div>
-
-          {q ? (
-            <div className="mt-3">
-              {results.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">{results.map(chip)}</div>
-              ) : (
-                <p className="text-[13px] text-text-muted">No marker matches “{q}”.</p>
-              )}
-              {!exactNameMatch(allOptions, q) && (
-                <CreateButton onClick={() => openCreate(q)}>
-                  Create “{titleCaseMarkerName(q)}”
-                </CreateButton>
-              )}
-            </div>
-          ) : (
-            <div className="mt-3.5">
-              <div className="space-y-4">
-                {sections.suggested.length > 0 && (
-                  <PickSection title="Suggested">{sections.suggested.map(chip)}</PickSection>
-                )}
-                {sections.yours.length > 0 && (
-                  <PickSection
-                    title="Yours"
-                    action={
-                      <button
-                        type="button"
-                        onClick={() => setEditYours((v) => !v)}
-                        aria-pressed={editingYours}
-                        className={EDIT_TOGGLE}
-                      >
-                        {editingYours ? "Done" : "Edit"}
-                      </button>
-                    }
-                  >
-                    {editingYours
-                      ? sections.yours.map((m) => (
-                          <RemoveChip key={m.id} label={m.name} onClick={() => removeYours(m)} />
-                        ))
-                      : sections.yours.map(chip)}
-                  </PickSection>
-                )}
-                {sections.all.length > 0 && (
-                  <PickSection title="All">{sections.all.map(chip)}</PickSection>
-                )}
-                {remaining === 0 && (
-                  <p className="text-[13px] text-text-muted">Every marker is on the entry.</p>
-                )}
-              </div>
-              <CreateButton onClick={() => openCreate("")}>Create your own</CreateButton>
-            </div>
-          )}
-
-          {pickedNow.length > 0 && (
-            <div className="md-bar-in sticky bottom-2 z-10 mt-4">
-              <button type="button" onClick={addPicked} className={cn(PRIMARY_BUTTON, "w-full")}>
-                Add {pickedNow.length}
-              </button>
-            </div>
-          )}
+          {showPicker ? <div className="-mt-2.5">{picker}</div> : null}
         </div>
       )}
     </div>
   );
 }
 
-/** A quiet text link under the rows ("Add more markers", "Use my last"). */
-function LinkButton({
-  onClick,
-  expanded,
-  children,
-}: {
-  onClick: () => void;
-  expanded?: boolean;
-  children: ReactNode;
-}) {
+/** A quiet text link under the rows: muted, 11.5px. */
+function LinkButton({ onClick, expanded, children }: { onClick: () => void; expanded?: boolean; children: ReactNode }) {
   return (
     <button
       type="button"
@@ -820,7 +527,8 @@ function LinkButton({
       aria-expanded={expanded}
       className={cn(
         PRESS.text,
-        "flex min-h-11 items-center gap-1.5 text-[13px] text-text-muted transition-colors hover:text-foreground",
+        LINK_REACH,
+        "flex items-center gap-[5px] text-[11.5px] text-text-muted transition-colors hover:text-foreground",
       )}
     >
       {children}
@@ -828,382 +536,66 @@ function LinkButton({
   );
 }
 
-/** A picker section: its eyebrow (and an action at right), then its chips. */
-function PickSection({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section>
-      <div className="flex min-h-5 items-center justify-between gap-2">
-        <h3 className={CARD_EYEBROW}>{title}</h3>
-        {action}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">{children}</div>
-    </section>
-  );
-}
-
-/** A plus before an unticked chip; a tick (drawn in) before a ticked one. Same size, so ticking never reflows the chips. */
-function ChipGlyph({ on }: { on: boolean }) {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 12 12"
-      aria-hidden
-      className={cn("shrink-0", on && "tick-draw")}
-    >
-      {on ? (
-        <path
-          d="M2.5 6.3l2.4 2.4 4.6-5"
-          pathLength={1}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ) : (
-        <path
-          d="M6 2.5v7M2.5 6h7"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-      )}
-    </svg>
-  );
-}
-
 /**
- * A marker you can tick: the app's chip (consistency fix #20), outlined off
- * and white on. The weight stays regular when ticked, so a tick never widens
- * the chip and reflows the ones after it.
+ * A marker you can tick: raised grey (the Instrument ghost), radius 8, a thin +
+ * before its name. Ticked, it is the lit white key with dark text and a small
+ * tick, and it pops. The weight never changes, so a tick never reflows the chips.
  */
-function PickChip({
-  label,
-  on,
-  onClick,
-}: {
-  label: string;
-  on: boolean;
-  onClick: () => void;
-}) {
+function PickChip({ label, on, onToggle }: { label: string; on: boolean; onToggle: (el: HTMLElement) => void }) {
   return (
     <button
       type="button"
-      onClick={onClick}
       aria-pressed={on}
-      className={cn(CHIP, on ? CHIP_ON : CHIP_OFF, "min-h-9 font-normal duration-200")}
+      onClick={(e: MouseEvent<HTMLButtonElement>) => onToggle(e.currentTarget)}
+      className={cn(
+        PRESS.pill,
+        CHIP_REACH,
+        "md-chip inline-flex max-w-full items-center gap-1.5 px-[9px] py-[5px] text-[11px] leading-[1.35]",
+        on ? "inst-thumb text-bg-base" : "inst-ghost text-foreground",
+      )}
     >
-      <ChipGlyph on={on} />
-      {label}
+      {on ? <TickGlyph /> : <PlusGlyph />}
+      <span className="truncate">{label}</span>
     </button>
   );
 }
 
-/** One of your own markers while Yours is being edited: tap to remove it. */
-function RemoveChip({ label, onClick }: { label: string; onClick: () => void }) {
+/** One of your own markers while Yours is being edited: outlined, with an x. */
+function RemoveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={onRemove}
       aria-label={`Remove ${label}`}
-      className={cn(CHIP, CHIP_OFF, "min-h-9")}
+      data-editing="true"
+      className={cn(
+        PRESS.pill,
+        CHIP_REACH,
+        "md-chip inst-ghost inline-flex max-w-full items-center gap-1 px-[9px] py-[5px] text-[11px] leading-[1.35] text-foreground",
+      )}
     >
-      {label}
-      <X className="h-3 w-3" aria-hidden />
+      <span className="truncate">{label}</span>
+      <span className="ml-0.5 flex text-text-muted">
+        <CrossGlyph size={9} />
+      </span>
     </button>
   );
 }
 
-/** The picker's foot: "Create your own", or "Create “…”" from a search. */
+/** "Create your own", or "Create “…”" from a search: a small outlined button. */
 function CreateButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn(CHIP, "mt-4 min-h-9 max-w-full border-border-strong text-foreground")}
-    >
-      <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden />
-      <span className="truncate">{children}</span>
-    </button>
-  );
-}
-
-/** A single choice in the create card (its steps, which end is better). */
-function OptionCard({
-  on,
-  onClick,
-  children,
-}: {
-  on: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={on}
-      onClick={onClick}
       className={cn(
-        PRESS.card,
-        "block w-full rounded-xl bg-bg-surface-raised px-3 py-2.5 text-left text-[13px] text-foreground transition-shadow duration-200",
-        on && "shadow-[inset_0_0_0_1.5px_var(--text-primary)]",
+        PRESS.pill,
+        HIT_Y_30,
+        "mt-2.5 inline-flex max-w-full items-center gap-1.5 rounded-md px-[11px] py-1.5 text-[11.5px] text-foreground shadow-[inset_0_0_0_1px_var(--border-strong)]",
       )}
     >
-      {children}
+      <PlusGlyph />
+      <span className="truncate">{children}</span>
     </button>
-  );
-}
-
-/**
- * Create your own marker (build-brief-final §3.5): name it, pick its steps
- * (ready-made or your own words), and, only for Level and your own words, say
- * which end is better. The name is title-cased. Which end is better orients
- * future charts only: it is NEVER rendered as a good/bad colour (architecture
- * Invariant 3).
- */
-function CreateMarkerCard({
-  initialName,
-  options,
-  onCancel,
-  onCreated,
-}: {
-  initialName: string;
-  options: MarkerOption[];
-  onCancel: () => void;
-  onCreated: (marker: MarkerOption) => void;
-}) {
-  const nameId = useId();
-  const nameRef = useRef<HTMLInputElement>(null);
-  const [step, setStep] = useState(0);
-  const [dir, setDir] = useState<0 | 1 | -1>(0);
-  const [name, setName] = useState(initialName);
-  const [scale, setScale] = useState<ScaleKey>("severity");
-  const [own, setOwn] = useState<string[]>(() => Array<string>(OWN_WORD_SLOTS).fill(""));
-  const [better, setBetter] = useState<BetterEnd | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const asks = asksBetterEnd(scale);
-  const steps = asks ? 3 : 2;
-  const words = scaleWords(scale, own);
-  const lo = words[0] ?? "Low";
-  const hi = words[words.length - 1] ?? "High";
-
-  useEffect(() => {
-    if (step === 0) nameRef.current?.focus({ preventScroll: true });
-  }, [step]);
-
-  function go(to: number) {
-    setError(null);
-    setDir(to > step ? 1 : -1);
-    setStep(to);
-  }
-
-  function back() {
-    if (step === 0) onCancel();
-    else go(step - 1);
-  }
-
-  function chooseScale(next: ScaleKey) {
-    setScale(next);
-    setBetter(null);
-    setError(null);
-  }
-
-  async function save() {
-    setBusy(true);
-    setError(null);
-    const res = await createCustomMarker({
-      name: titleCaseMarkerName(name),
-      labels: words,
-      polarity: polarityFor(scale, better ?? "neither"),
-    });
-    setBusy(false);
-    if (res.ok && res.marker) onCreated(res.marker);
-    else setError(res.error ?? "Couldn’t save. Try again.");
-  }
-
-  function primary() {
-    if (busy) return;
-    if (step === 0) {
-      const n = titleCaseMarkerName(name);
-      if (!n) {
-        setError("Give it a name.");
-        nameRef.current?.focus();
-        return;
-      }
-      const taken = markerNamed(options, n);
-      if (taken) {
-        setError(`${taken.name} is already a marker.`);
-        return;
-      }
-      go(1);
-      return;
-    }
-    if (step === 1) {
-      if (scale === "own" && words.length < 2) {
-        setError("Add at least two words.");
-        return;
-      }
-      if (asks) {
-        go(2);
-        return;
-      }
-    }
-    if (step === 2 && better === null) return;
-    void save();
-  }
-
-  const last = step === steps - 1;
-
-  return (
-    <div>
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={back}
-          className={cn(
-            PRESS.text,
-            "-my-2 flex min-h-11 w-16 items-center gap-1 text-[13px] text-text-muted transition-colors hover:text-foreground",
-          )}
-        >
-          {step === 0 ? (
-            "Cancel"
-          ) : (
-            <>
-              <CaretLeft className="h-3.5 w-3.5" aria-hidden />
-              Back
-            </>
-          )}
-        </button>
-        <span className="text-[13px] text-foreground">New marker</span>
-        <span className="w-16" aria-hidden />
-      </div>
-
-      <div className="mt-2 flex gap-1.5" aria-hidden>
-        {Array.from({ length: steps }, (_, i) => (
-          <i
-            key={i}
-            className={cn(
-              "block h-[3px] flex-1 rounded-full transition-colors duration-300",
-              i <= step ? "bg-text-primary" : "bg-bg-surface-raised",
-            )}
-          />
-        ))}
-      </div>
-
-      <form
-        key={step}
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault();
-          primary();
-        }}
-        className={cn("mt-4", dir === 1 && "md-swap-fwd", dir === -1 && "md-swap-back")}
-      >
-        {step === 0 && (
-          <>
-            <label htmlFor={nameId} className="block text-[15px] font-light text-foreground">
-              Name it
-            </label>
-            <input
-              id={nameId}
-              ref={nameRef}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Neck pain"
-              maxLength={40}
-              autoComplete="off"
-              enterKeyHint="next"
-              className="inset-focus mt-2.5 h-11 w-full rounded-xl bg-bg-input px-3 text-[13.5px] text-foreground outline-none placeholder:text-text-muted"
-            />
-          </>
-        )}
-
-        {step === 1 && (
-          <>
-            <p className="text-[15px] font-light text-foreground">Pick its steps</p>
-            <div role="radiogroup" aria-label="Steps" className="mt-2.5 flex flex-col gap-1.5">
-              {READY_SCALES.map((s) => (
-                <OptionCard key={s.key} on={scale === s.key} onClick={() => chooseScale(s.key)}>
-                  {s.words.join(" · ")}
-                </OptionCard>
-              ))}
-              <OptionCard on={scale === "own"} onClick={() => chooseScale("own")}>
-                Your own words
-              </OptionCard>
-            </div>
-            {scale === "own" && (
-              <div className="mt-3">
-                <p className={FIELD_LABEL}>Low to high</p>
-                <div className="grid grid-cols-5 gap-1">
-                  {own.map((w, i) => (
-                    <input
-                      key={i}
-                      value={w}
-                      onChange={(e) =>
-                        setOwn((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
-                      }
-                      placeholder={String(i + 1)}
-                      aria-label={`Word ${i + 1}, low to high`}
-                      maxLength={24}
-                      autoComplete="off"
-                      className="inset-focus h-10 min-w-0 rounded-lg bg-bg-input px-1 text-center text-[12px] text-foreground outline-none placeholder:text-text-muted"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <p className="text-[15px] font-light text-foreground">Which end is better?</p>
-            <div
-              role="radiogroup"
-              aria-label="Which end is better"
-              className="mt-2.5 flex flex-col gap-1.5"
-            >
-              <OptionCard on={better === "low"} onClick={() => setBetter("low")}>
-                “{lo}” is better
-              </OptionCard>
-              <OptionCard on={better === "high"} onClick={() => setBetter("high")}>
-                “{hi}” is better
-              </OptionCard>
-              <OptionCard on={better === "neither"} onClick={() => setBetter("neither")}>
-                Neither
-              </OptionCard>
-            </div>
-          </>
-        )}
-
-        {error && (
-          <p role="alert" className="mt-2.5 text-[12.5px] text-state-error">
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={busy || (step === 2 && better === null)}
-          className={cn(PRIMARY_BUTTON, "mt-4 w-full")}
-        >
-          {busy && <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />}
-          {busy ? "Saving…" : last ? "Save marker" : "Next"}
-        </button>
-      </form>
-    </div>
   );
 }

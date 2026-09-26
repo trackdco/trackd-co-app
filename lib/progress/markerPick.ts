@@ -10,19 +10,30 @@
 import type { MarkerOption } from "@/lib/progress/journal";
 
 /**
- * Suggested, the same for everyone, in this order. Matched by catalogue name;
- * a name the catalogue does not have (or cannot offer this person) drops out.
+ * Suggested, the same for everyone, in this order (Adrian, 26 Sep 2026: Energy,
+ * Libido, Sleep quality, Mood, Pump strength, Recovery, Motivation). Matched by
+ * catalogue name, ignoring case; a name the catalogue does not have (or cannot
+ * offer this person) drops out. The app decides what to suggest here, in code:
+ * the catalogue's own `is_default` flag is not read for it.
  */
 export const SUGGESTED_MARKERS = [
   "Energy",
   "Libido",
   "Sleep Quality",
   "Mood",
-  "Pumps",
-  "Strength",
+  "Pump Strength",
   "Recovery",
   "Motivation",
 ] as const;
+
+/**
+ * Other catalogue names a suggestion answers to. The catalogue still calls pump
+ * strength "Pumps" (`supabase/seed/markers.csv`); if the row is renamed to
+ * "Pump Strength", the suggestion follows with no code change.
+ */
+export const SUGGESTED_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  "Pump Strength": ["Pumps"],
+};
 
 const norm = (s: string) => s.trim().toLowerCase();
 const byName = (a: MarkerOption, b: MarkerOption) => a.name.localeCompare(b.name);
@@ -54,7 +65,8 @@ export function pickerSections(
   const catalogue = pool.filter((m) => m.kind === "catalogue");
   const suggested: MarkerOption[] = [];
   for (const name of SUGGESTED_MARKERS) {
-    const hit = catalogue.find((m) => norm(m.name) === norm(name));
+    const names = [name, ...(SUGGESTED_ALIASES[name] ?? [])].map(norm);
+    const hit = catalogue.find((m) => names.includes(norm(m.name)));
     if (hit && !suggested.includes(hit)) suggested.push(hit);
   }
   const taken = new Set(suggested.map((m) => m.id));
@@ -184,4 +196,224 @@ export function polarityFor(scale: ScaleKey, better: BetterEnd): "positive" | "n
   if (better === "high") return "positive";
   if (better === "low") return "negative";
   return "neutral";
+}
+
+/* ------------------------------------------------------------ the rows --- */
+
+/** A marker on the entry and its 1-based rating (0 or absent = not rated). */
+export interface RowRating {
+  markerId: string;
+  tierValue: number;
+}
+
+/**
+ * The rows a dialer starts from. Every marker in `initial` is a row, in order,
+ * once; only a whole rating of 1 or more counts as rated. So a parent can hand
+ * back a row that was added but not yet rated (`tierValue: 0`) and it stays a
+ * row, and a not-rated row is never reported as a rating (the save refuses 0).
+ */
+export function seedRows(initial: readonly RowRating[]): {
+  order: string[];
+  rated: Map<string, number>;
+} {
+  const order: string[] = [];
+  const rated = new Map<string, number>();
+  for (const m of initial) {
+    if (typeof m?.markerId !== "string" || m.markerId === "") continue;
+    if (!order.includes(m.markerId)) order.push(m.markerId);
+    const tv = Math.trunc(m.tierValue);
+    if (Number.isFinite(tv) && tv >= 1) rated.set(m.markerId, tv);
+  }
+  return { order, rated };
+}
+
+/** What the dialer reports: the rated rows, in row order. */
+export function ratedInOrder(order: readonly string[], rated: ReadonlyMap<string, number>): RowRating[] {
+  const out: RowRating[] = [];
+  for (const id of order) {
+    const tv = rated.get(id);
+    if (tv !== undefined && tv >= 1) out.push({ markerId: id, tierValue: tv });
+  }
+  return out;
+}
+
+/** Undo brings a removed row back where it was (or at the end, if the rows
+ *  have since shrunk). A row that is already back stays put. */
+export function restoreRow(order: readonly string[], id: string, at: number): string[] {
+  if (order.includes(id)) return order.slice();
+  const i = Math.max(0, Math.min(at, order.length));
+  return [...order.slice(0, i), id, ...order.slice(i)];
+}
+
+/* ----------------------------------------------------------- the steps --- */
+
+/** The step under a pointer across `n` equal bars: 1 to n, clamped, so a drag
+ *  past either end holds the end step (markers6: `ceil(x / width * n)`). */
+export function stepAt(x: number, left: number, width: number, n: number): number {
+  if (n <= 0) return 0;
+  if (!(width > 0)) return 1;
+  return Math.min(n, Math.max(1, Math.ceil(((x - left) / width) * n)));
+}
+
+/** A tap on a step: the chosen step again clears it (0); any other sets it. */
+export function tapStep(current: number, tapped: number): number {
+  return current === tapped ? 0 : tapped;
+}
+
+/**
+ * How bar `i` (0-based) draws for a rating (0 = not rated), from markers8:
+ * filled WHITE up to the rating on a brightness ramp (the leftmost filled bar
+ * dimmest, the chosen one full), the chosen bar enlarged to 1.08. Nothing is
+ * filled or enlarged until a rating.
+ */
+export function stepLook(i: number, value: number): { filled: boolean; opacity: number; scale: number } {
+  const filled = value >= 1 && i < value;
+  return {
+    filled,
+    opacity: filled ? 0.45 + (0.55 * (i + 1)) / value : 0,
+    scale: value >= 1 && i === value - 1 ? 1.08 : 1,
+  };
+}
+
+/**
+ * The steps from a keyboard, as a slider from 0 (not rated) to `n`. Returns
+ * the new rating, or null for a key the steps do not take.
+ */
+export function keyStep(current: number, key: string, n: number): number | null {
+  switch (key) {
+    case "ArrowRight":
+    case "ArrowUp":
+      return Math.min(n, current + 1);
+    case "ArrowLeft":
+    case "ArrowDown":
+      return Math.max(0, current - 1);
+    case "Home":
+      return 0;
+    case "End":
+      return n;
+    case "Delete":
+    case "Backspace":
+      return 0;
+    default:
+      return null;
+  }
+}
+
+/* ----------------------------------------------- the pinned "Add N" bar --- */
+
+/** A box on screen (client pixels). */
+export interface ScreenRect {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/**
+ * The lowest point the pinned "Add N" bar may reach: the bottom of what you can
+ * see, above anything fixed along the bottom that overlaps the bar sideways
+ * (the tab bar, the +, a pinned Save). Only boxes in the lower half count, so
+ * a fixed header never drags the floor up. `gap` is the breathing room kept
+ * above that floor.
+ */
+export function pinFloor(
+  viewTop: number,
+  viewBottom: number,
+  bar: { left: number; right: number },
+  fixed: readonly ScreenRect[],
+  gap: number,
+): number {
+  const half = viewTop + (viewBottom - viewTop) / 2;
+  let floor = viewBottom;
+  for (const b of fixed) {
+    if (!(b.bottom > b.top) || !(b.right > b.left)) continue; // not drawn
+    if (b.right <= bar.left || b.left >= bar.right) continue; // beside the bar
+    if (b.top <= half || b.top >= viewBottom) continue; // not along the bottom
+    floor = Math.min(floor, b.top);
+  }
+  return floor - gap;
+}
+
+/**
+ * How far to lift the bar (px, 0 or less) so it stays in view: what
+ * `position: sticky; bottom` does, for a bar whose panel clips it (a sticky
+ * child of an `overflow: hidden` panel never sticks). `slot` is where the bar
+ * sits in the flow, `floor` the lowest its bottom may reach, `ceiling` the
+ * highest its top may reach (the picker's own top, as sticky keeps a child
+ * inside its parent).
+ */
+export function pinLift(slot: { top: number; bottom: number }, floor: number, ceiling: number): number {
+  const over = slot.bottom - floor;
+  if (!(over > 0)) return 0;
+  const room = Math.max(0, slot.top - ceiling);
+  const lift = Math.min(over, room);
+  return lift > 0 ? -lift : 0;
+}
+
+/* ------------------------------------------------ removals with an Undo --- */
+
+export interface RemovalQueue<T> {
+  /** Hold a removal for `ms`, then run it; a second schedule for an id replaces the first. */
+  schedule(id: string, item: T, ms: number): void;
+  /** The Undo: drop a held removal. True if one was held. */
+  cancel(id: string): boolean;
+  has(id: string): boolean;
+  ids(): string[];
+  subscribe(listener: () => void): () => void;
+}
+
+/**
+ * Removals that wait out their Undo before the server hears (Yours, Edit, x).
+ *
+ * It lives OUTSIDE any one dialer (cold review B6): closing the journal, or
+ * switching its tile, must neither send a removal early nor take its Undo away.
+ * The toast's Undo still cancels it after the dialer has gone, and a dialer
+ * that mounts meanwhile keeps the marker hidden until the window passes.
+ * Timers are passed in, so the rules are testable without a clock.
+ */
+export function createRemovalQueue<T>(
+  run: (item: T, id: string) => void,
+  timers: {
+    set: (fn: () => void, ms: number) => unknown;
+    clear: (handle: unknown) => void;
+  } = {
+    set: (fn, ms) => setTimeout(fn, ms),
+    clear: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+  },
+): RemovalQueue<T> {
+  const held = new Map<string, { item: T; handle: unknown }>();
+  const listeners = new Set<() => void>();
+  const emit = () => listeners.forEach((l) => l());
+  const take = (id: string) => {
+    const h = held.get(id);
+    if (!h) return undefined;
+    timers.clear(h.handle);
+    held.delete(id);
+    return h;
+  };
+  return {
+    schedule(id, item, ms) {
+      take(id);
+      const handle = timers.set(() => {
+        const h = held.get(id);
+        if (!h || h.handle !== handle) return;
+        held.delete(id);
+        emit();
+        run(h.item, id);
+      }, ms);
+      held.set(id, { item, handle });
+      emit();
+    },
+    cancel(id) {
+      const h = take(id);
+      if (h) emit();
+      return h !== undefined;
+    },
+    has: (id) => held.has(id),
+    ids: () => [...held.keys()],
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
 }

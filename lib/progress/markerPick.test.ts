@@ -63,7 +63,7 @@ describe("addableMarkers", () => {
 describe("pickerSections", () => {
   it("orders Suggested by the fixed list, skipping what is missing or on the entry", () => {
     const s = pickerSections(OPTIONS, [id("Libido")]);
-    expect(s.suggested.map((m) => m.name)).toEqual(["Energy", "Sleep Quality", "Mood", "Strength"]);
+    expect(s.suggested.map((m) => m.name)).toEqual(["Energy", "Sleep Quality", "Mood"]);
   });
 
   it("puts your own markers under Yours, alphabetical, never a removed one", () => {
@@ -72,16 +72,36 @@ describe("pickerSections", () => {
 
   it("puts the rest of the catalogue under All, alphabetical, and each marker in one section only", () => {
     const s = pickerSections(OPTIONS, []);
-    expect(s.all.map((m) => m.name)).toEqual(["Acne", "Focus"]);
+    expect(s.all.map((m) => m.name)).toEqual(["Acne", "Focus", "Strength"]);
     const every = [...s.suggested, ...s.yours, ...s.all].map((m) => m.id);
     expect(new Set(every).size).toBe(every.length);
     expect(every.length).toBe(addableMarkers(OPTIONS, []).length);
   });
 
-  it("the suggested list is the settled one", () => {
+  it("the suggested list is Adrian's (W7, 26 Sep 2026)", () => {
     expect(SUGGESTED_MARKERS).toEqual([
-      "Energy", "Libido", "Sleep Quality", "Mood", "Pumps", "Strength", "Recovery", "Motivation",
+      "Energy", "Libido", "Sleep Quality", "Mood", "Pump Strength", "Recovery", "Motivation",
     ]);
+  });
+
+  it("W7: suggests the live catalogue's markers in his order, pump strength being \"Pumps\" until it is renamed", () => {
+    const live = [
+      "Acne", "Appetite", "Energy", "Focus", "Libido", "Mood", "Motivation", "Pumps", "Recovery",
+      "Sleep Quality", "Strength", "Back Pumps",
+    ].map((n) => cat(n));
+    expect(pickerSections(live, []).suggested.map((m) => m.name)).toEqual([
+      "Energy", "Libido", "Sleep Quality", "Mood", "Pumps", "Recovery", "Motivation",
+    ]);
+    // Strength is no longer suggested; it stays under the rest of the catalogue.
+    expect(pickerSections(live, []).all.map((m) => m.name)).toContain("Strength");
+    // After a rename in the catalogue, the same suggestion finds it by its new name.
+    const renamed = live.map((m) => (m.name === "Pumps" ? { ...m, name: "Pump Strength" } : m));
+    expect(pickerSections(renamed, []).suggested.map((m) => m.name)[4]).toBe("Pump Strength");
+  });
+
+  it("never suggests one of your own markers under a suggested name", () => {
+    const opts = [cat("Energy"), own("Pumps")];
+    expect(pickerSections(opts, []).suggested.map((m) => m.name)).toEqual(["Energy"]);
   });
 });
 
