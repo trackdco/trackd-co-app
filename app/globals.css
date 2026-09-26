@@ -41,6 +41,14 @@
   --text-primary: #f5f3f0;
   --text-muted: #8d8b89;
   --text-subtle: #4f4d4a;
+  /* TEXT ON AN INPUT (cold review D16). An input is a step lighter than the
+     surface it sits in, so `--text-muted` measures only 4.40:1 on
+     `--bg-input`, under the 4.5 floor. An empty field shows only its unit
+     ("mL", "mg/mL") or its placeholder ("Anything to remember?"), so those
+     words are the field's label: on an input they read in this step up,
+     5.19:1 on `--bg-input` (6.12 on surface). Applied by scope, never by hand:
+     see "Text on an input" below. */
+  --text-on-input: #9a9895;
 
   /**
    * THE AA-SAFE MUTED, for surfaces that must MEASURE rather than merely look
@@ -413,6 +421,7 @@
   --bg-surface-raised: #242422;
   --text-muted: #7a7a74;
   --text-subtle: #4a4a46;
+  --text-on-input: #7a7a74;
   --border-default: #2e2e2c;
   --border-strong: #3e3e3a;
 }
@@ -442,6 +451,7 @@
   --bg-surface-raised: #222120;
   --text-muted: #8d8b89;
   --text-subtle: #4f4d4a;
+  --text-on-input: #9a9895;
   --border-default: #2b2a28;
   --border-strong: #3d3b39;
   font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
@@ -1412,26 +1422,33 @@ svg ::-moz-selection {
   to { stroke-dashoffset: 0; }
 }
 /* FIRST RUN (build-brief-final §3.1): the bubble arrives a beat after Home,
-   and its preview taps the circle on a loop. */
+   and its preview taps the circle TWICE on a loop, as its words say ("Tap the
+   circle twice to log it."; cold review D1): the first tap opens the row, the
+   second logs it. Two taps about 830ms apart (plainly two, never a double-tap),
+   then a rest before it starts again. */
 .first-run-bubble {
   animation: toast-in 320ms cubic-bezier(0.22, 1, 0.36, 1) 420ms both;
 }
 .first-run-tap {
-  animation: first-run-tap 1800ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: first-run-tap 2600ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 .first-run-ring {
-  animation: first-run-ring 1800ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: first-run-ring 2600ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 @keyframes first-run-tap {
-  0%, 30% { transform: scale(0); opacity: 0; }
-  42% { transform: scale(1); opacity: 1; }
-  62% { transform: scale(1); opacity: 1; }
-  80%, 100% { transform: scale(1.6); opacity: 0; }
+  0%, 12% { transform: scale(0); opacity: 0; }
+  20%, 28% { transform: scale(1); opacity: 1; }
+  38% { transform: scale(1.6); opacity: 0; }
+  39%, 44% { transform: scale(0); opacity: 0; }
+  52%, 60% { transform: scale(1); opacity: 1; }
+  70%, 100% { transform: scale(1.6); opacity: 0; }
 }
 @keyframes first-run-ring {
-  0%, 36% { transform: scale(1); }
-  46% { transform: scale(0.86); }
-  60%, 100% { transform: scale(1); }
+  0%, 15% { transform: scale(1); }
+  22% { transform: scale(0.86); }
+  30%, 47% { transform: scale(1); }
+  54% { transform: scale(0.86); }
+  62%, 100% { transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .first-run-bubble { animation: toast-fade 200ms ease-out 200ms both; }
@@ -1471,6 +1488,23 @@ svg ::-moz-selection {
 }
 @keyframes toast-fade {
   from { opacity: 0; }
+}
+
+/* TEXT ON AN INPUT (cold review D16). Muted words on the input surface (a
+   unit, a placeholder, a pad field's "optional", a chip's second line) take
+   `--text-on-input`, so they measure 5:1 there rather than 4.4. Done by
+   redefining the two muted tokens on EVERYTHING painted with the input
+   surface and what is inside it, so no field needs a class of its own: a
+   native input's `::placeholder` inherits the property, a PadInput's unit
+   (the caller's `suffix`) sits inside `.pad-input`, and a field drawn as a
+   `bg-bg-input` box around a clear input and its unit (the Calculator's
+   "mL") is covered by its box. Muted on a darker surface inside one only
+   gains. The public site pins `--text-on-input` to its own muted, so its
+   fields read as they shipped. */
+.pad-input,
+.bg-bg-input {
+  --text-muted: var(--text-on-input);
+  --muted-foreground: var(--text-on-input);
 }
 
 /* A field's focus ring sits INSIDE it (inset 1.2px, muted), so a panel's
@@ -1744,7 +1778,10 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
   width: 22px;
   background: var(--text-primary);
 }
+/* Reduced motion: the card takes its new width at once (cold review D12), and
+   so does everything in it. */
 @media (prefers-reduced-motion: reduce) {
+  .hl-glance-card,
   .hl-glance-card *,
   .hl-pager-bar {
     transition: none !important;
@@ -1871,6 +1908,33 @@ html:has(.lp-site) .inst-engraved:not([data-app-look] *) {
     transition: none;
   }
 }
+/* SHEETS UNDER REDUCED MOTION (cold review D2; build-brief-final §3.16:
+   "slides and springs become short fades"). The protected primitive
+   (`components/ui/sheet.tsx`) slides every sheet with tw-animate's
+   `slide-in-from-bottom` / `slide-out-to-bottom`, which read these
+   properties; here the distances go to zero and the sheet and its scrim fade
+   instead, 160ms each way. Unlayered, so it beats those utilities. Desktop's
+   rail and dialog keep their own rules (`app/desktop.css`: more specific, and
+   no motion at all under reduce); the dialog's close and the viewer, which
+   desktop leaves to the primitive, fade here too. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="sheet-content"] {
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-enter-opacity: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-opacity: 0;
+    animation-duration: 160ms;
+    animation-timing-function: ease-out;
+  }
+  [data-slot="sheet-overlay"] {
+    animation-duration: 160ms;
+  }
+}
+
 /* A sheet is up: the + goes under it (§3.6). */
 body:has([data-slot="sheet-content"]) .shortcuts-layer {
   opacity: 0;

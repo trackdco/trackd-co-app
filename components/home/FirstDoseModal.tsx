@@ -3,6 +3,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
+import { trapTabIn } from "@/components/feel/PopDialog"
+import { SheetLayer, useTopOpenSheet } from "@/components/layout/BottomSheet"
+import { SHEET_CONTENT } from "@/lib/feel/overlay"
 import { PRIMARY_BUTTON } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
 
@@ -22,18 +25,38 @@ const SPARKS = Array.from({ length: 10 }, (_, i) => {
  * The timings are the brief's, to the millisecond. WAAPI keyframes carry
  * numbers only: `var()` inside a keyframe snaps in Safari. Reduced motion: a
  * plain fade, everything already drawn.
+ *
+ * Like every pop-up (cold review B36): focus moves to Done, Tab stays in the
+ * card, and focus goes back to where it was when it closes. If a sheet is up
+ * when it opens, it renders inside that sheet (a Radix sheet takes the page's
+ * pointer and focus), over the whole window (`SheetLayer`), and it is
+ * `pointer-events-auto` either way, because an open sheet leaves
+ * `pointer-events: none` on <body>. A sheet under it stays open: Escape
+ * stops at the card, and a tap on Done or the dark is not a tap outside the
+ * sheet (`data-over-sheet`, which the sheet frame exempts). Once it starts to
+ * close it stays where it is until it has faded, so nothing can move it
+ * mid-fade and draw it afresh.
  */
 export function FirstDoseModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [mounted, setMounted] = useState(open)
   const [prevOpen, setPrevOpen] = useState(open)
+  // Where it stays while it fades out (`undefined`: it follows the top sheet).
+  const [pinned, setPinned] = useState<HTMLElement | null | undefined>(undefined)
   if (open !== prevOpen) {
     setPrevOpen(open)
-    if (open) setMounted(true)
+    if (open) {
+      setMounted(true)
+      setPinned(undefined)
+    }
   }
   const scrimRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const doneRef = useRef<HTMLButtonElement>(null)
   const closing = useRef(false)
+  const returnTo = useRef<Element | null>(null)
+  // Inside the top sheet when one is up, else on <body>.
+  const liveSheet = useTopOpenSheet(mounted)
+  const sheet = pinned === undefined ? liveSheet : pinned
 
   useLayoutEffect(() => {
     if (!open || !mounted) return
@@ -41,6 +64,8 @@ export function FirstDoseModal({ open, onClose }: { open: boolean; onClose: () =
     const scrim = scrimRef.current
     const card = cardRef.current
     if (!scrim || !card) return
+    const active = document.activeElement
+    if (active && !card.contains(active)) returnTo.current = active
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const q = <T extends Element>(sel: string) => Array.from(card.querySelectorAll<T>(sel))
     if (reduce) {
@@ -104,6 +129,20 @@ export function FirstDoseModal({ open, onClose }: { open: boolean; onClose: () =
     doneRef.current?.focus({ preventScroll: true })
   }, [open, mounted])
 
+  // A sheet that closes under the card moves it back to <body>: focus follows.
+  useLayoutEffect(() => {
+    const card = cardRef.current
+    if (!open || !card || card.contains(document.activeElement)) return
+    doneRef.current?.focus({ preventScroll: true })
+  }, [open, sheet])
+
+  /** Back to where focus was before the card opened, if that is still there. */
+  const giveFocusBack = () => {
+    const back = returnTo.current as HTMLElement | null
+    returnTo.current = null
+    if (back?.isConnected) back.focus?.({ preventScroll: true })
+  }
+
   const close = () => {
     if (closing.current) return
     closing.current = true
@@ -113,8 +152,11 @@ export function FirstDoseModal({ open, onClose }: { open: boolean; onClose: () =
     if (!scrim || !card) {
       setMounted(false)
       onClose()
+      giveFocusBack()
       return
     }
+    // Stays in the sheet (or on <body>) it is fading out in.
+    setPinned(card.closest<HTMLElement>(SHEET_CONTENT))
     // Leaves the way it came: the card down and out (180ms), the scrim (220ms).
     card.animate(
       [
@@ -129,23 +171,36 @@ export function FirstDoseModal({ open, onClose }: { open: boolean; onClose: () =
       .finally(() => {
         setMounted(false)
         onClose()
+        giveFocusBack()
       })
   }
 
+  // Escape closes it and Tab stays in it. Caught on the way down (capture, on
+  // the window) and stopped, so a sheet underneath does not act on them too.
   useEffect(() => {
     if (!mounted) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close()
+      if (e.key === "Escape") {
+        e.stopPropagation()
+        close()
+        return
+      }
+      const card = cardRef.current
+      if (card && trapTabIn(card, e)) e.stopPropagation()
     }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
     // `close` is stable enough for a keydown listener that lives while mounted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted])
 
   if (!mounted || typeof document === "undefined") return null
-  return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-6" role="presentation">
+  const layer = (
+    <div
+      data-over-sheet=""
+      className="pointer-events-auto fixed inset-0 z-[80] flex items-center justify-center p-6"
+      role="presentation"
+    >
       <div ref={scrimRef} className="absolute inset-0 bg-black/60" onClick={close} aria-hidden />
       <div
         ref={cardRef}
@@ -153,7 +208,8 @@ export function FirstDoseModal({ open, onClose }: { open: boolean; onClose: () =
         aria-modal="true"
         aria-labelledby="first-dose-title"
         aria-describedby="first-dose-line"
-        className="inst-card relative w-full max-w-[300px] rounded-[24px] px-5 pt-6 pb-4 text-center"
+        tabIndex={-1}
+        className="inst-card relative w-full max-w-[300px] rounded-[24px] px-5 pt-6 pb-4 text-center outline-none"
       >
         <div className="relative mx-auto h-[140px] w-[140px]">
           <svg width="140" height="140" viewBox="0 0 140 140" aria-hidden className="absolute inset-0 overflow-visible">
@@ -199,8 +255,14 @@ export function FirstDoseModal({ open, onClose }: { open: boolean; onClose: () =
           Done
         </button>
       </div>
-    </div>,
-    document.body,
+    </div>
+  )
+  return sheet ? (
+    <SheetLayer sheet={sheet} className="z-[80]">
+      {layer}
+    </SheetLayer>
+  ) : (
+    createPortal(layer, document.body)
   )
 }
 

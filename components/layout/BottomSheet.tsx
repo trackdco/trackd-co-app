@@ -1,11 +1,136 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { useSheetDrag } from "@/components/home/useSheetDrag"
+import { isOverSheet, SHEET_CONTENT, topOpenSheet, windowFrame } from "@/lib/feel/overlay"
 import { SHEET_TITLE } from "@/lib/ui-presets"
 import { cn } from "@/lib/utils"
+
+/** A sheet has landed once its own entrance (or desktop slide) has ended:
+ *  nothing is animating on the content element itself. */
+function landed(sheet: HTMLElement): boolean {
+  return (sheet.getAnimations?.() ?? []).length === 0
+}
+
+function readTopSheet(): HTMLElement | null {
+  return topOpenSheet(document.querySelectorAll<HTMLElement>(SHEET_CONTENT), landed)
+}
+
+/** Sheets come and go as portals on <body>; they flip `data-state` as they
+ *  start to close, and they land when their entrance animation ends. */
+function subscribeSheets(onChange: () => void): () => void {
+  if (typeof document === "undefined") return () => {}
+  const onLanded = (e: Event) => {
+    if ((e.target as Element | null)?.matches?.(SHEET_CONTENT)) onChange()
+  }
+  const settle = ["animationend", "animationcancel", "transitionend", "transitioncancel"]
+  settle.forEach((t) => document.addEventListener(t, onLanded, true))
+  let portals: MutationObserver | null = null
+  let states: MutationObserver | null = null
+  if (typeof MutationObserver !== "undefined") {
+    portals = new MutationObserver(onChange)
+    portals.observe(document.body, { childList: true })
+    states = new MutationObserver(onChange)
+    states.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-state"] })
+  }
+  return () => {
+    settle.forEach((t) => document.removeEventListener(t, onLanded, true))
+    portals?.disconnect()
+    states?.disconnect()
+  }
+}
+
+const noSheet = () => null
+const noSubscription = () => () => {}
+
+/**
+ * THE TOP OPEN SHEET's content element, or null when no sheet is open (cold
+ * review B10, B36). A Radix sheet hides everything outside itself from screen
+ * readers and traps Tab inside itself, so a layer that must stay reachable
+ * while one is up (the bottom toast's Undo, the first-dose card) renders INTO
+ * this element, as the pop-up and the number pad do. A sheet counts once it
+ * has landed and stops counting the moment it starts to close
+ * (`lib/feel/overlay.ts`). `active` false (a pop-up that is not showing)
+ * reads nothing and watches nothing.
+ */
+export function useTopOpenSheet(active = true): HTMLElement | null {
+  return useSyncExternalStore(active ? subscribeSheets : noSubscription, active ? readTopSheet : noSheet, noSheet)
+}
+
+/** Where a `fixed; inset: 0` box lands on <body>: the window as fixed
+ *  things see it. Measured with a throwaway probe, never drawn. */
+function windowBox(doc: Document): DOMRect {
+  const probe = doc.createElement("div")
+  probe.style.cssText = "position:fixed;inset:0;visibility:hidden;pointer-events:none"
+  doc.body.appendChild(probe)
+  const box = probe.getBoundingClientRect()
+  doc.body.removeChild(probe)
+  return box
+}
+
+/**
+ * A LAYER RENDERED INTO A SHEET THAT STILL COVERS THE WINDOW (cold review B10,
+ * B36). With `sheet` (from `useTopOpenSheet`) its children go inside that
+ * sheet, in a frame laid over the whole window; without, they render where
+ * they stand, untouched.
+ *
+ * The frame is there for desktop's centred dialog, which is placed with a
+ * `translate` (`app/desktop.css`): that makes the dialog the box a `fixed`
+ * child is placed against, so the toast sat inside the dialog, 9.25rem above
+ * its foot. A hidden `fixed; inset: 0` probe shows where that box is, and
+ * the same probe on <body> where the window is; when they differ the frame is
+ * moved back over the window (`windowFrame`), again whenever the sheet
+ * changes size or the window does. The frame is itself the box its
+ * children's `fixed` is placed against (`translate: 0 0`), so they sit
+ * exactly where they would on <body>. On a phone sheet the two probes agree
+ * and the frame is left as it is drawn: `inset: 0`, the window. The frame takes no taps (the layer's own parts do), and
+ * `className` gives it its layer (`z-[70]` for the toast).
+ */
+export function SheetLayer({
+  sheet,
+  className,
+  children,
+}: {
+  sheet: HTMLElement | null
+  className?: string
+  children: ReactNode
+}) {
+  const probeRef = useRef<HTMLSpanElement>(null)
+  const frameRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const probe = probeRef.current
+    const frame = frameRef.current
+    if (!sheet || !probe || !frame) return
+    const place = () => {
+      const f = windowFrame(probe.getBoundingClientRect(), windowBox(sheet.ownerDocument))
+      frame.style.left = f ? `${f.left}px` : ""
+      frame.style.top = f ? `${f.top}px` : ""
+      frame.style.width = f ? `${f.width}px` : ""
+      frame.style.height = f ? `${f.height}px` : ""
+    }
+    place()
+    const sized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place)
+    sized?.observe(sheet)
+    window.addEventListener("resize", place)
+    return () => {
+      sized?.disconnect()
+      window.removeEventListener("resize", place)
+    }
+  }, [sheet])
+  if (!sheet) return <>{children}</>
+  return createPortal(
+    <>
+      <span ref={probeRef} aria-hidden className="pointer-events-none invisible fixed inset-0" />
+      <div ref={frameRef} data-sheet-layer="" className={cn("pointer-events-none fixed inset-0 [translate:0_0]", className)}>
+        {children}
+      </div>
+    </>,
+    sheet,
+  )
+}
 
 /**
  * THE ONE SHEET FRAME (consistency fix #1): a bottom sheet with a grab handle
@@ -63,10 +188,13 @@ export function BottomSheet({
         showCloseButton={false}
         onOpenAutoFocus={onOpenAutoFocus}
         onEscapeKeyDown={onEscapeKeyDown}
-        // A tap on the toast's Undo is not a tap outside: the sheet stays.
+        // A tap on the toast (its Undo) or on the first-dose card is not a tap
+        // outside: the sheet stays. Needed ALWAYS, not only while a sheet
+        // rises: once they move into the sheet (`SheetLayer`) they are in its
+        // DOM but still outside its React tree, which is how Radix judges
+        // "outside". Removing this makes Undo and Done close the sheet.
         onInteractOutside={(e) => {
-          const t = e.target as Element | null
-          if (t?.closest?.("[data-toast]")) e.preventDefault()
+          if (isOverSheet(e.target as Element | null)) e.preventDefault()
         }}
         className="gap-0 border-t-0 bg-transparent p-0 shadow-none"
       >

@@ -213,10 +213,43 @@ export const PRIMARY_PILL =
   "press-button inst-btn inline-flex min-h-9 items-center justify-center gap-1.5 px-4 py-2 " +
   "text-[13px] font-medium text-bg-base disabled:pointer-events-none disabled:opacity-50"
 
+/**
+ * A HIT AREA of at least 44 × 44 around a smaller drawing (Apple's floor; cold
+ * review D8). A transparent `::before` reaches past the drawing on every side,
+ * so what is drawn does not change and nothing moves. Pick the one for the
+ * drawing's size, and leave at least that reach of room to the next control so
+ * the two never overlap. The element must be positioned: these carry
+ * `relative`, and a caller's own `absolute` wins through `cn()`. Inside a
+ * scroll or `overflow-hidden` box the reach is clipped at its edge, so give it
+ * room there (TypeRail does).
+ *
+ * - `HIT_26`: a 26px drawing (the circled "?" beside a title), 9px out.
+ * - `HIT_30`: a 30px drawing (the close arrow), 7px out.
+ * - `HIT_34`: a 34px drawing (the "+" at a header's top right), 5px out.
+ * - `HIT_Y_30`: a control 30px tall and wider than 44 (a type chip), 7px
+ *   above and below only, so side-by-side chips never overlap.
+ * - `HIT_Y_25`: a card-header switch's choice, 25px tall (`SEGMENTED_ITEM`:
+ *   Cycles' 1M / 3M / 1Y / All), 10px above and below only.
+ * - `HIT_Y_36`: a sheet switch's choice, 36px tall (`SEGMENTED_ITEM_LG`),
+ *   4px above and below only.
+ * - `HIT_Y_TEXT`: a word or two used as a button, one line of 11 to 13px
+ *   type (a compound card's "Add stock", a footer's legal links), 16px above
+ *   and below only. Links stacked closer than 32px apart must not take it.
+ */
+export const HIT_26 = "relative before:absolute before:-inset-[9px] before:content-['']"
+export const HIT_30 = "relative before:absolute before:-inset-[7px] before:content-['']"
+export const HIT_34 = "relative before:absolute before:-inset-[5px] before:content-['']"
+export const HIT_Y_30 = "relative before:absolute before:inset-x-0 before:-inset-y-[7px] before:content-['']"
+export const HIT_Y_25 = "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']"
+export const HIT_Y_36 = "relative before:absolute before:inset-x-0 before:-inset-y-1 before:content-['']"
+export const HIT_Y_TEXT = "relative before:absolute before:inset-x-0 before:-inset-y-4 before:content-['']"
+
 /** The small "+" at a page's or sheet header's top right, and in a row: a
- *  rounded square, radius 10 (build-brief-final §2.4). */
+ *  rounded square, radius 10 (build-brief-final §2.4), drawn at 34px with a
+ *  44px hit area (`HIT_34`). */
 export const ADD_ACTION =
-  "press-button inst-btn flex h-[34px] w-[34px] shrink-0 items-center justify-center text-bg-base"
+  "press-button inst-btn flex h-[34px] w-[34px] shrink-0 items-center justify-center text-bg-base " +
+  HIT_34
 
 /** A choice among a few (mg / mcg, a unit, a pose), not on a rail: rounded
  *  rectangles, outlined off, white on (consistency fix #20). */
@@ -226,12 +259,17 @@ export const CHIP_ON = "border-transparent inst-thumb font-medium text-bg-base"
 export const CHIP_OFF = "border-border-default text-text-muted hover:text-text-primary"
 
 /** Two to four choices side by side: the rail and its sliding thumb
- *  (ThumbGroup). Card-header size, and a sheet size. */
+ *  (ThumbGroup). Card-header size, and a sheet size. A label never breaks
+ *  inside itself ("Sub-" / "Q" at the hyphen; cold review D7). Each choice is
+ *  pressed at 44 tall, drawn as before (D8): the card-header size reaches 7px
+ *  past its rail above and below, the sheet size 1px. */
 export const SEGMENTED_TRACK = "inst-rail flex p-[3px]"
 export const SEGMENTED_ITEM =
-  "press-pill flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 py-1 text-[11.5px] transition-colors duration-300"
+  "press-pill flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 py-1 text-[11.5px] transition-colors duration-300 " +
+  HIT_Y_25
 export const SEGMENTED_ITEM_LG =
-  "press-pill flex flex-1 items-center justify-center gap-1.5 rounded-sm px-3 py-2 text-sm transition-colors duration-300"
+  "press-pill flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm px-3 py-2 text-sm transition-colors duration-300 " +
+  HIT_Y_36
 
 /** A warning or note inside a sheet: a muted line, at most one amber glyph,
  *  no box (consistency fix #27). */
@@ -244,6 +282,14 @@ export const TILE_LABEL = "text-[11px] text-text-muted"
 
 /** The chevron on a row that GOES somewhere (fix #11). An icon, so subtle. */
 export const ROW_CHEVRON = "h-4 w-4 shrink-0 text-text-subtle"
+
+/**
+ * THE ONE CLOSE ARROW's frame (`components/feel/CloseArrow.tsx`): a 30px
+ * rounded square (radius 9) on the ghost surface, with a 44px hit area.
+ */
+export const CLOSE_ARROW =
+  "close-arrow inst-ghost flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] text-foreground " +
+  HIT_30
 
 /** Corners INSIDE a card: never rounder than the card (fix #9). */
 export const INNER_RADIUS = "rounded-xl"
