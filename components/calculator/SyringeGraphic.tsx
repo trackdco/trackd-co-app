@@ -14,17 +14,17 @@ import {
   FLANGE_X,
   LABEL_SIZE,
   LABEL_Y,
+  PLUNGER_FADE_X,
   STOPPER_W,
   SYRINGE_SIZES,
   THUMB_W,
   THUMB_X,
-  TICK_MAJOR,
-  TICK_MINOR,
   VIEW_H,
   VIEW_W,
   barrelX,
-  graduations,
   plungerOffset,
+  scaleMarks,
+  tickLength,
   type SyringeSize,
 } from "@/lib/calculator/syringe"
 
@@ -51,6 +51,9 @@ const HUB_D = `M${HUB_X} ${AXIS_Y - 5.5}L${BARREL_X} ${AXIS_Y - 10}V${AXIS_Y + 1
  * cut reads over the amber, the lit edge over the empty glass, so one layer
  * serves the whole barrel. The 0 tick is not drawn: the barrel's end is the
  * zero line, and a tick there would sit on the rounded corner.
+ *
+ * Three lengths (`scaleMarks`): a printed number's tick, an unprinted ten's
+ * (1 mL prints every 20, so the tens between stay readable), and the rest.
  */
 function Scale({
   size,
@@ -61,13 +64,13 @@ function Scale({
   shown: boolean
   clipId: string
 }) {
-  const ticks = graduations(size)
+  const ticks = scaleMarks(size)
   let cut = ""
   let lit = ""
   for (const t of ticks) {
     if (t.units === 0) continue
     const x = barrelX(t.fraction)
-    const len = t.labelled ? TICK_MAJOR : TICK_MINOR
+    const len = tickLength(t.kind)
     cut += `M${x.toFixed(2)} ${BARREL_Y}V${BARREL_Y + len}`
     lit += `M${(x + 0.8).toFixed(2)} ${BARREL_Y + 0.5}V${BARREL_Y + len - 1}`
   }
@@ -122,8 +125,11 @@ function Fall({ id, top, bottom }: { id: string; top: string; bottom: string }) 
  * `lib/calculator/syringe` (pure, tested) and nothing here re-derives them.
  *
  * The plunger (stopper, rod and thumb rest) is one rigid part that travels
- * with the draw, 1:1. The viewBox reserves its full travel, so the graphic's
- * box is the same size at every draw and nothing around it moves.
+ * with the draw, 1:1. The syringe is drawn full size and the box is a close
+ * view of it: an empty syringe is whole, and as the draw grows the rod runs
+ * out of the frame at the right through a short fade (`PLUNGER_FADE_X`), so the
+ * box is the same size at every draw and on every barrel and nothing around it
+ * moves (W37, D21; see `lib/calculator/syringe`).
  *
  * Motion is transforms and opacity only. The fill is a full-length rect scaled
  * on X from the needle end, not a rect whose `width` changes: `transform` runs
@@ -157,6 +163,8 @@ export function SyringeGraphic({
   const amberId = `${uid}-amber`
   const partId = `${uid}-part`
   const rodId = `${uid}-rod`
+  const fadeId = `${uid}-fade`
+  const frameId = `${uid}-frame`
 
   const offset = plungerOffset(fill)
   const travel = `translateX(${offset.toFixed(2)}px)`
@@ -181,6 +189,30 @@ export function SyringeGraphic({
         <Fall id={amberId} top="--syringe-fill-top" bottom="--syringe-fill-bottom" />
         <Fall id={partId} top="--syringe-part-top" bottom="--syringe-part-bottom" />
         <Fall id={rodId} top="--syringe-rod-top" bottom="--syringe-rod-bottom" />
+        {/* The frame's right edge: the plunger fades out over its last
+            stretch rather than being cut off by the box. A luminance mask,
+            so its white is a mask value, not a colour on screen. */}
+        <linearGradient
+          id={fadeId}
+          gradientUnits="userSpaceOnUse"
+          x1={PLUNGER_FADE_X}
+          y1={0}
+          x2={VIEW_W}
+          y2={0}
+        >
+          <stop offset="0" stopColor="white" />
+          <stop offset="1" stopColor="white" stopOpacity={0} />
+        </linearGradient>
+        <mask
+          id={frameId}
+          maskUnits="userSpaceOnUse"
+          x={0}
+          y={0}
+          width={VIEW_W}
+          height={VIEW_H}
+        >
+          <rect x={0} y={0} width={VIEW_W} height={VIEW_H} fill={`url(#${fadeId})`} />
+        </mask>
       </defs>
 
       {/* Needle and hub. */}
@@ -220,23 +252,27 @@ export function SyringeGraphic({
       </g>
 
       {/* The rod, from the stopper's back out through the flange, and the
-          thumb rest. Seen through the glass inside the barrel. */}
-      <g className="transition-syringe-plunger" style={{ transform: travel }}>
-        <rect
-          x={BARREL_X + STOPPER_W - 0.5}
-          y={AXIS_Y - ROD_H / 2}
-          width={THUMB_X - BARREL_X - STOPPER_W + 1}
-          height={ROD_H}
-          fill={`url(#${rodId})`}
-        />
-        <rect
-          x={THUMB_X}
-          y={AXIS_Y - THUMB_H / 2}
-          width={THUMB_W}
-          height={THUMB_H}
-          rx={2}
-          fill={`url(#${partId})`}
-        />
+          thumb rest. Seen through the glass inside the barrel. The mask sits
+          on a group that never moves, so the fade stays at the frame's edge
+          while the plunger slides under it. */}
+      <g mask={`url(#${frameId})`}>
+        <g className="transition-syringe-plunger" style={{ transform: travel }}>
+          <rect
+            x={BARREL_X + STOPPER_W - 0.5}
+            y={AXIS_Y - ROD_H / 2}
+            width={THUMB_X - BARREL_X - STOPPER_W + 1}
+            height={ROD_H}
+            fill={`url(#${rodId})`}
+          />
+          <rect
+            x={THUMB_X}
+            y={AXIS_Y - THUMB_H / 2}
+            width={THUMB_W}
+            height={THUMB_H}
+            rx={2}
+            fill={`url(#${partId})`}
+          />
+        </g>
       </g>
 
       {/* The glass's one highlight. */}

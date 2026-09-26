@@ -15,6 +15,16 @@ const FIELD_LABEL =
   "block text-[10px] font-sans uppercase tracking-[0.14em] text-text-muted"
 
 /**
+ * The shared field focus (build-brief-final §3.5, `.inset-focus` in
+ * globals.css): an inset 1.2px muted ring INSIDE the field. Here the field is a
+ * box around its value button and its unit, so the box takes the ring while
+ * the value button has keyboard focus, rather than the button drawing a 2px
+ * amber ring round only its own part (cold review D31).
+ */
+const FIELD_FOCUS =
+  "has-[[data-pad-field]:focus-visible]:inset-ring-[1.2px] has-[[data-pad-field]:focus-visible]:inset-ring-text-muted"
+
+/**
  * The mg/mcg switch, sitting INSIDE the field's own surface at its right edge
  * (Adrian, 2026-07-30: "drop the button down into it so it's part of the little
  * tablet thing", and "I should be able to still see both measurements").
@@ -141,7 +151,10 @@ function Field({
           <span className="sr-only normal-case"> in {staticUnit}</span>
         ) : null}
       </label>
-      {/* The field is the surface; the input and the unit share it. */}
+      {/* The field is the surface; the input and the unit share it. Its
+          muted words (the unit, a placeholder, the pill's unpicked side) take
+          `--text-on-input` through the `.bg-bg-input` scope in globals.css,
+          5:1 on this surface (D16; pinned in lib/feel/sharedUiCss.test.ts). */}
       {/* `pl-2.5` + `gap-1` rather than the roomier defaults: the paired
           columns are tightest at 360-390px, where the pill and the number are
           competing for about 110px of field. */}
@@ -170,6 +183,7 @@ function Field({
       <div
         className={cn(
           "mt-1.5 flex h-11 items-center gap-1 rounded-xl border border-transparent bg-bg-input pr-1 transition-[border-color,box-shadow] duration-200",
+          FIELD_FOCUS,
           active && "border-text-primary ring-1 ring-text-primary",
         )}
       >
@@ -184,7 +198,7 @@ function Field({
           aria-describedby={hint ? hintId : undefined}
           className={cn(
             PRESS.field,
-            "flex h-full w-full min-w-0 flex-1 items-center overflow-hidden rounded-xl pl-2.5 pr-1.5 text-left font-mono text-base tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "flex h-full w-full min-w-0 flex-1 items-center overflow-hidden rounded-xl pl-2.5 pr-1.5 text-left font-mono text-base tabular-nums text-foreground outline-none",
           )}
         >
           <span ref={fitRef} className="pad-value min-w-0 whitespace-nowrap">

@@ -18,6 +18,7 @@ import {
   type MgUnit,
 } from "@/lib/calculator/recon"
 import { CALCULATOR_DISCLAIMER, misuseCopy } from "@/lib/calculator/copy"
+import { reconFigures } from "@/lib/calculator/figures"
 import {
   DEFAULT_SYRINGE_SIZE,
   fillFraction,
@@ -36,9 +37,6 @@ import { NumberPad, type PadField } from "@/components/feel/NumberPad"
 import { CalculatorInputs } from "./CalculatorInputs"
 import { FirstRunDisclaimer } from "./FirstRunDisclaimer"
 import { SyringeGraphic } from "./SyringeGraphic"
-
-/** The app-wide "no value" placeholder (Profile, Weight, the day sheet). */
-const NO_VALUE = "—"
 
 /**
  * The two amber panels: the transient misuse warning and the standing legal
@@ -133,6 +131,8 @@ export function ReconCalculator() {
 
   const result = computed
   const units = result?.unitsPerDose ?? null
+  // Blank until there is a figure (D23): never a dash in a number's place.
+  const figures = reconFigures(result)
   const fill = fillFraction(units, size)
   const misuse = misuseKind(units, size)
   // Hold the last warning text through the collapse. The panel is always
@@ -313,9 +313,9 @@ export function ReconCalculator() {
             </span>
           ) : null}
         </div>
-        {/* Nearly edge to edge: the plunger travels with the draw, so the
-            drawing keeps a barrel length of room beside the barrel, and every
-            pixel of width goes to the scale (build-brief-final §3.13). */}
+        {/* Nearly edge to edge, so every pixel of width goes to the barrel
+            and its scale. The syringe is drawn full size; its plunger slides
+            out of the frame's right edge as the draw grows (W37, D21). */}
         <div className="-mx-4">
           <SyringeGraphic
             size={size}
@@ -362,24 +362,9 @@ export function ReconCalculator() {
         className="flow-card animate-home-up grid grid-cols-3 divide-x divide-border-default rounded-2xl bg-bg-surface py-3"
         style={{ animationDelay: "55ms" }}
       >
-        <Figure
-          label="Concentration"
-          value={result ? formatConcentration(result.concentration) : NO_VALUE}
-          unit="mg/mL"
-        />
-        <Figure
-          label="Per dose"
-          value={
-            result?.mlPerDose != null ? trim(result.mlPerDose, 3) : NO_VALUE
-          }
-          unit="mL"
-        />
-        <Figure
-          label="Insulin"
-          value={units != null ? trim(units, 1) : NO_VALUE}
-          unit="U"
-          accent
-        />
+        <Figure label="Concentration" value={figures.concentration} unit="mg/mL" />
+        <Figure label="Per dose" value={figures.perDose} unit="mL" />
+        <Figure label="Insulin" value={figures.insulin} unit="U" accent />
       </section>
 
       {/* ---- Inputs ---- */}
@@ -451,7 +436,7 @@ export function ReconCalculator() {
                 <div className="space-y-1.5 font-mono text-xs leading-relaxed text-text-muted">
                   <p>concentration = powder ÷ BAC water</p>
                   <p>
-                    = {trim(result.powderMg, 3)} mg ÷ {bac || NO_VALUE} mL ={" "}
+                    = {trim(result.powderMg, 3)} mg ÷ {bac} mL ={" "}
                     <span className="text-foreground">
                       {formatConcentration(result.concentration)} mg/mL
                     </span>
@@ -507,6 +492,10 @@ export function ReconCalculator() {
  * One of the three figures. Insulin units carries the amber accent because it is
  * the number the user acts on (spec 07); the other two stay white, so the row
  * keeps a single amber beat.
+ *
+ * With no figure yet the value is left blank and only the unit shows, as an
+ * empty field shows only its unit (D23). The line keeps its height either way,
+ * so the card does not grow when the first figure arrives.
  */
 function Figure({
   label,
@@ -515,7 +504,7 @@ function Figure({
   accent,
 }: {
   label: string
-  value: string
+  value: string | null
   unit: string
   accent?: boolean
 }) {
@@ -527,9 +516,13 @@ function Figure({
         {label}
       </p>
       <p className="mt-1 font-mono text-base tabular-nums [overflow-wrap:anywhere]">
-        <span className={accent ? "text-accent-amber" : "text-foreground"}>
-          {value}
-        </span>{" "}
+        {value != null ? (
+          <>
+            <span className={accent ? "text-accent-amber" : "text-foreground"}>
+              {value}
+            </span>{" "}
+          </>
+        ) : null}
         <span className="text-[11px] text-text-muted">{unit}</span>
       </p>
     </div>

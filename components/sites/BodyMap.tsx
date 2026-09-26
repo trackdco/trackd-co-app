@@ -17,7 +17,7 @@
  * sites are relevant (route-filtered), which are active, and per-site heat. Styling
  * is token-only (no hardcoded hex, per ui-context).
  */
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react"
 
 import { ThumbGroup } from "@/components/feel/SlidingThumb"
 import { SEGMENTED_ITEM, SEGMENTED_ITEM_LG, SEGMENTED_TRACK } from "@/lib/ui-presets"
@@ -35,6 +35,7 @@ import {
   routeTransform,
   type BodyRegion,
 } from "@/components/sites/bodyArtwork"
+import { regionAccessibleName, regionHalos, type RegionHalo } from "@/components/sites/regionHit"
 
 export type BodyMapMode = "select" | "pick" | "recency"
 
@@ -181,6 +182,16 @@ export function BodyMap({
                   >
                     <BodySilhouette aspect={key} route={route} sex={sex} />
                     <g transform={routeTransform(route, sex)}>
+                      {/* Under every region's fill, so a halo only ever
+                          takes a tap that no region's own paint took (D8). */}
+                      {interactive && isActive && onTapSite ? (
+                        <RegionHalos
+                          regions={routeRegions(route, key, sex)}
+                          transform={routeTransform(route, sex)}
+                          tappable={sitesById}
+                          onTap={onTapSite}
+                        />
+                      ) : null}
                       {routeRegions(route, key, sex).map((r, i) => (
                         <RegionShape
                           key={r.siteId}
@@ -293,7 +304,7 @@ function RegionShape({
       role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
       aria-label={
-        isInteractive ? `${site!.label}${active ? ", selected" : ""}` : undefined
+        isInteractive ? regionAccessibleName(site!.label, active) : undefined
       }
       aria-pressed={isInteractive && mode === "select" ? active : undefined}
       className={cn(
@@ -314,7 +325,7 @@ function RegionShape({
     >
       {/* Native tooltip only when NOT the scrub target — otherwise the browser's
           default title tooltip fights the parent's pointer-following tooltip. */}
-      {site && !canInspect && <title>{site.label}</title>}
+      {site && !canInspect && <title>{regionAccessibleName(site.label, false)}</title>}
       {/* `site-hit` carries the transparent stroke that makes a region tappable
           at its own visual centre — without it the two triceps on the back view
           cannot be hit where the user aims, on either body. Applied only where
@@ -332,6 +343,59 @@ function RegionShape({
       {isInteractive && (
         <path d={region.d} className="mr-focus" pointerEvents="none" />
       )}
+    </g>
+  )
+}
+
+/** One body side's halos, keyed by its (constant) region array. */
+const HALO_CACHE = new WeakMap<readonly BodyRegion[], RegionHalo[]>()
+
+/**
+ * THE HIT HALOS (cold review D8): each thin tappable region's invisible twin,
+ * its outline stroked transparent and just wide enough to take its narrow side
+ * to a finger's reach (`regionHalos`: Outer Quad is 9px across). Drawn BEFORE
+ * the regions, so every region's own paint sits above every halo and no halo
+ * can take a neighbour's tap; where halos meet in a gap, the smaller region's
+ * is on top. A transparent stroke is still painted for hit-testing, which is
+ * the mechanism (as `.site-hit`). Not focusable, not announced, never lit: the
+ * region itself is the control, and nothing here suggests a site. Only the
+ * visible panel draws them, so the faded-out side takes no taps.
+ */
+function RegionHalos({
+  regions,
+  transform,
+  tappable,
+  onTap,
+}: {
+  regions: readonly BodyRegion[]
+  transform: string
+  tappable: ReadonlyMap<string, InjectionSiteRow>
+  onTap: (siteId: string) => void
+}) {
+  // The artwork's arrays are constants, so this measures once per body and
+  // side for the app's lifetime; a Front / Back flip remounts this and reads
+  // the cache rather than parsing the paths again mid-crossfade.
+  const halos = useMemo(() => {
+    const hit = HALO_CACHE.get(regions)
+    if (hit) return hit
+    const made = regionHalos(regions, transform)
+    HALO_CACHE.set(regions, made)
+    return made
+  }, [regions, transform])
+  return (
+    <g aria-hidden fill="transparent" stroke="transparent" strokeLinejoin="round">
+      {halos
+        .filter((h) => tappable.has(h.siteId))
+        .map((h) => (
+          <path
+            key={h.siteId}
+            d={h.d}
+            data-halo={h.siteId}
+            strokeWidth={h.strokeWidth.toFixed(1)}
+            style={{ cursor: "pointer" }}
+            onClick={() => onTap(h.siteId)}
+          />
+        ))}
     </g>
   )
 }

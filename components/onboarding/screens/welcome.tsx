@@ -85,7 +85,9 @@ export function WelcomeScreen() {
                 "text-balance [overflow-wrap:anywhere]",
               )}
             >
-              {name ? `You're in, ${name}!` : "You're in!"}
+              {/* No exclamation marks in the app's copy (cold review D15);
+                  the one exception is "Trakabl is going paid!" (ruling 6). */}
+              {name ? `You're in, ${name}.` : "You're in."}
             </h1>
               {/* ⚠️ THE TRIAL HALF IS WITHHELD, NOT REWORDED (Adrian, 2026-08-15).
                   A cold review found this line unconditional, so a returning

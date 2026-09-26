@@ -27,6 +27,9 @@ export interface SyringeSize {
    * Interval between LABELLED graduations, in units. Chosen so a value anywhere
    * between roughly 10 and 40 units is readable straight off the barrel, which
    * is the spec's bar. Approved by Adrian, 2026-07-30: 5 / 5 / 10.
+   *
+   * This is the PUBLIC calculator's scale, frozen as it shipped. The app's own
+   * barrel prints 5 / 5 / 20 (`APP_LABEL_STEP`, `scaleMarks`, below).
    */
   labelStep: number
   /** Pill label. */
@@ -128,20 +131,79 @@ export function misuseKind(
 }
 
 /* ---------------------------------------------------------------------------
+   The APP's printed scale (the calculator, and the app previews on the public
+   site). The public calculator draws its own frozen copy over `graduations`
+   above, which keeps the approved 5 / 5 / 10 labelling as it shipped.
+
+   On 1 mL the app labels every 20 units, not every 10 (cold review D21 and
+   Adrian's walk, W37): eleven numbers at a 10-unit pitch ran together into
+   "90100". The tens in between keep a MID tick, longer than the minor ones,
+   so a draw of 30 still reads straight off the barrel.
+   --------------------------------------------------------------------------- */
+
+/** Units between the app's printed numbers, per barrel. */
+export const APP_LABEL_STEP: Readonly<Record<SyringeSizeId, number>> = {
+  "0.3": 5,
+  "0.5": 5,
+  "1": 20,
+}
+
+/** Units between the mid ticks: every ten, where ten is not already printed. */
+const MID_STEP = 10
+
+export type TickKind = "major" | "mid" | "minor"
+
+export interface ScaleMark extends Graduation {
+  /** Major carries a printed number; mid is an unprinted ten; minor the rest. */
+  kind: TickKind
+}
+
+/**
+ * Every tick on the app's barrel, needle end (0) to plunger end (capacity),
+ * with its kind. Same positions as `graduations`; only the labelling differs.
+ */
+export function scaleMarks(size: SyringeSize): ScaleMark[] {
+  const step = APP_LABEL_STEP[size.id] ?? size.labelStep
+  return graduations(size).map((g) => {
+    const labelled = g.units % step === 0
+    const kind: TickKind = labelled
+      ? "major"
+      : g.units % MID_STEP === 0
+        ? "mid"
+        : "minor"
+    return { ...g, labelled, kind }
+  })
+}
+
+/* ---------------------------------------------------------------------------
    The artwork's coordinate space. One viewBox, scaled to whatever width the
    card gives it, so the syringe keeps its proportions on every phone.
 
-   The plunger is one rigid part that travels WITH the draw (build-brief-final
-   §3.13), so the box reserves its whole travel: to the right of the thumb
-   rest's resting place sits one more barrel length of empty ground, and the
-   graphic is the same size at every draw. That reserve is why the barrel is a
-   smaller share of the box than it was when the plunger stood still.
+   FULL SIZE, WITH A MOVING PLUNGER (Adrian's walk of the preview, W37; cold
+   review D21). The plunger is one rigid part that travels WITH the draw
+   (build-brief-final §3.13). The first build reserved its whole travel inside
+   the box, one more barrel length of empty ground to the right, which shrank
+   the barrel to 42% of the box and pushed it left. Adrian asked for the
+   syringe full size again, as it was, and the moving plunger only if it fits.
+
+   It fits by FRAMING rather than by reserving: the barrel takes the same share
+   of the box it had before the plunger moved (about 65%), and the drawing is a
+   close view of the syringe. At an empty draw the whole plunger is in frame,
+   its thumb rest just past the flange. As the draw grows the stopper, rod and
+   thumb rest slide right together, 1:1, and the rod runs out of the frame
+   through a short fade at the right edge (`PLUNGER_FADE_X`), the way a camera
+   close on the barrel would show it. The box is the same size at every draw
+   and on every barrel; nothing around it moves.
    --------------------------------------------------------------------------- */
+
+/** The whole drawing. 320 wide, as the syringe was before the plunger moved. */
+export const VIEW_W = 320
+export const VIEW_H = 56
 
 /** Barrel — the only part whose length carries meaning. `BARREL_X` is the 0
  *  mark, where the stopper bottoms out; `BARREL_W` runs 0 to the capacity. */
-export const BARREL_X = 46
-export const BARREL_W = 200
+export const BARREL_X = 58
+export const BARREL_W = 208
 /** Unmarked glass past the capacity mark, before the flange, as on a real
  *  barrel. It is also what keeps the last printed number clear of the flange. */
 export const BARREL_TAIL = 12
@@ -161,34 +223,41 @@ export const STOPPER_W = 8
 
 /** The thumb rest at rest (an empty barrel): a short stub of rod past the
  *  flange, then the rest itself. It moves right by `plungerOffset(fill)`. */
-export const THUMB_X = FLANGE_X + FLANGE_W + 5
+export const THUMB_X = FLANGE_X + FLANGE_W + 6
 export const THUMB_W = 7
 
-/** Wide enough for the thumb rest at a FULL draw, one barrel length out. */
-export const VIEW_W = THUMB_X + BARREL_W + THUMB_W + 1
-export const VIEW_H = 56
+/**
+ * Where the plunger starts to fade as it leaves the frame: just past the
+ * thumb rest's resting place, so an empty syringe is drawn whole and a drawn
+ * one lets its rod run out through the last stretch of the box.
+ */
+export const PLUNGER_FADE_X = THUMB_X + THUMB_W + 2
 
 /** Tick lengths, measured down from the barrel's top edge. The major tick
  *  stops short of the rod, which runs along the axis behind the glass. */
 export const TICK_MINOR = 6
+export const TICK_MID = 8.5
 export const TICK_MAJOR = 11
+
+/** The length of one tick of the app's scale. */
+export function tickLength(kind: TickKind): number {
+  return kind === "major" ? TICK_MAJOR : kind === "mid" ? TICK_MID : TICK_MINOR
+}
 
 /**
  * Baseline and size for the printed numbers, below the barrel.
  *
- * The size is set by the tightest case, then pushed as large as that case
- * allows, because a scale you cannot read defeats the graphic. On the 1 mL
- * barrel 11 numbers sit at a 20-unit pitch and the widest ("100") is 3 × 0.6em;
- * at 11 its neighbour ("90") leaves 3.5 units of advance between the two (more
- * of ink). The SVG is drawn slightly wider than its card (see
- * `ReconCalculator`), so 11 here lands at about 8px on a 375px phone: the
- * plunger's reserved travel is what costs the size.
+ * The tightest case is 0.5 mL, eleven numbers at a 20.8-unit pitch; at 10 the
+ * two-digit numbers are 12 units wide, which leaves 8.8 units of air between
+ * neighbours. The SVG is drawn slightly wider than its card (see
+ * `ReconCalculator`), so 10 here lands at about 11.5px on a 375px phone and
+ * 12px on a 390px one, as it did before the plunger moved.
  *
  * The last number overhangs the capacity mark by half its width, which
  * `BARREL_TAIL` absorbs, so it never runs into the flange.
  */
 export const LABEL_Y = BARREL_Y + BARREL_H + 14
-export const LABEL_SIZE = 11
+export const LABEL_SIZE = 10
 
 /** Left-to-right position of a 0…1 fraction along the barrel. */
 export function barrelX(fraction: number): number {
@@ -199,7 +268,7 @@ export function barrelX(fraction: number): number {
  * How far the stopper, rod and thumb rest sit from their empty position, for
  * a 0…1 fill. The plunger is rigid, so it travels exactly as far as the draw's
  * edge: `barrelX(fill) === BARREL_X + plungerOffset(fill)`. Clamped like the
- * fill, so no value can push the thumb rest out of the box reserved for it.
+ * fill, so no value can push the stopper past the capacity mark.
  */
 export function plungerOffset(fill: number): number {
   if (!Number.isFinite(fill)) return 0
