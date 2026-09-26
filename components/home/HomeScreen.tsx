@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react"
 import Link from "next/link"
 import { CalendarDots, User } from "@/components/icons"
-import { CloseArrowIcon } from "@/components/feel/CloseArrow"
 import { belongsInDayLog, ringCounts } from "@/lib/home/dayDoses"
 import { PRESS } from "@/lib/ui-presets"
 import { useWriteAccess } from "@/components/billing/ReadOnlyGate"
 import { cn } from "@/lib/utils"
 import { showToast } from "@/lib/toast"
 import { bubbleSeen, celebrated, hasAnyLog, markBubbleSeen, markCelebrated } from "@/lib/home/firstRun"
+import { firstDoseOwed, oweFirstDose, owedFirstDoseAction, settleFirstDose } from "@/lib/home/firstDoseOwed"
 import { FirstDoseModal } from "@/components/home/FirstDoseModal"
 import { HomeJournal } from "@/components/home/HomeJournal"
 
@@ -17,7 +17,6 @@ import { useCloudHydration } from "@/components/home/useCloudHydration"
 import { SkeletonSwap } from "@/components/feel/Skeleton"
 import { HomeSkeleton } from "@/components/home/HomeSkeleton"
 import { useArrivedFromSkeleton, useSkeletonOnScreen } from "@/components/feel/Skeleton"
-import { getStripOpen, subscribeStripOpen, writeStripOpen } from "@/lib/home/weekStripOpen"
 import {
   getHydrationState,
   subscribeHydrationState,
@@ -62,7 +61,7 @@ import {
 } from "@/lib/home/pauses"
 import { newId } from "@/lib/home/id"
 import { AddCompoundSheet } from "@/components/home/AddCompoundSheet"
-import type { BodySex, InjectionSiteRoute, InjectionSiteRow } from "@/lib/db/types"
+import type { BodySex, InjectionSiteRow } from "@/lib/db/types"
 import {
   dateKeyToDate,
   seedStack,
@@ -107,8 +106,10 @@ import {
   type DayLogs,
 } from "@/lib/home/doseLog"
 import { resolveDrawSources, type DrawSourcesResult } from "@/lib/home/protocolSync"
+import { freeToRestore } from "@/lib/home/logRows"
 import { remainingLabel } from "@/lib/containers/labels"
 import { siteDaysSince } from "@/lib/home/siteRecency"
+import { recentInjectionSites, siteLabelFrom } from "@/lib/home/recentSites"
 import { setSelectedDay } from "@/lib/home/selectedDay"
 import { HalfLifeGlance } from "@/components/halflife/HalfLifeGlance"
 
@@ -148,7 +149,6 @@ function hhmmNow(): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
 }
 
-/* The week strip open/closed store lives in `lib/home/weekStripOpen.ts`. */
 
 export function HomeScreen({
   todayKey: serverTodayKey,
@@ -211,24 +211,6 @@ export function HomeScreen({
   const today = useMemo(() => dateKeyToDate(todayKey), [todayKey])
 
   const [selectedKey, setSelectedKey] = useState<DateKey>(serverTodayKey)
-  // The week strip is collapsible and DEFAULTS TO OPEN, with the choice kept
-  // between sessions (Spec 02). Read lazily so SSR stays deterministic and the
-  // first paint doesn't flash the wrong state.
-  const stripOpen = useSyncExternalStore(
-    subscribeStripOpen,
-    getStripOpen,
-    () => true // server: always open, so SSR is deterministic
-  )
-  const setStripOpen = (next: boolean | ((cur: boolean) => boolean)) =>
-    writeStripOpen(typeof next === "function" ? next(getStripOpen()) : next)
-  // False on the server and on the very first client render, true from the next
-  // one — which is exactly when the stored state has been applied, so the strip
-  // settles into place silently and only animates from a real user tap.
-  const stripReady = useSyncExternalStore(
-    subscribeStripOpen,
-    () => true,
-    () => false
-  )
   // Which week the strip shows: 0 = current, -1 = last week, … Swipe to change,
   // capped at 0 so it stays a "look back" (never a future week).
   const [weekOffset, setWeekOffset] = useState(0)
@@ -660,64 +642,10 @@ export function HomeScreen({
   const siteDaysSinceToday = siteDaysSince(logs, todayKey)
 
   // Recent injectable doses grouped by SITE (muscle), newest first, for the
-  // Injection-sites "Last logged" list. Each muscle shows the compound(s) logged
-  // there on its most recent day ("Left Delt — Test E, Deca · today"), so two
-  // compounds put in one area read together instead of as separate rows. Injectable
-  // (IM / Sub-Q) only; a site-less dose stays on its own; an archived/deleted
-  // compound is skipped (no name to show).
-  const todayN = Math.floor(dateKeyToDate(todayKey).getTime() / 86_400_000)
-  const siteGroups = new Map<
-    string,
-    {
-      siteLabel: string | null
-      route: InjectionSiteRoute
-      dayKey: DateKey
-      daysAgo: number
-      sortKey: string
-      compounds: string[]
-    }
-  >()
-  for (const [key, dayLogObj] of Object.entries(logs)) {
-    if (key > todayKey) continue
-    const ago = todayN - Math.floor(dateKeyToDate(key).getTime() / 86_400_000)
-    if (ago < 0) continue
-    for (const [compoundId, log] of Object.entries(dayLogObj)) {
-      const c = stack.find((s) => s.id === compoundId)
-      const route =
-        c?.method === "im" ? "im" : c?.method === "subq" ? "subq" : null
-      if (!c || !route) continue
-      const site = log.siteId
-        ? injectionCatalogue.find((s) => s.id === log.siteId)
-        : null
-      // Group by site id; a site-less dose gets a unique key so it stays separate.
-      const groupKey = log.siteId ?? `none:${compoundId}:${key}`
-      const sortKey = `${key}T${log.time24 ?? "00:00"}`
-      const g = siteGroups.get(groupKey)
-      if (!g) {
-        siteGroups.set(groupKey, {
-          siteLabel: site?.label ?? null,
-          route,
-          dayKey: key as DateKey,
-          daysAgo: ago,
-          sortKey,
-          compounds: [c.name],
-        })
-      } else if (key > g.dayKey) {
-        // A newer day for this site — it becomes the shown day; reset its compounds.
-        g.dayKey = key as DateKey
-        g.daysAgo = ago
-        g.sortKey = sortKey
-        g.compounds = [c.name]
-      } else if (key === g.dayKey) {
-        // Same (most-recent) day — collect the other compound(s) put in this muscle.
-        if (!g.compounds.includes(c.name)) g.compounds.push(c.name)
-        if (sortKey > g.sortKey) g.sortKey = sortKey
-      }
-      // Older day → ignore (we only show each site's most recent day).
-    }
-  }
-  const recentInjectionSites = [...siteGroups.values()].sort((a, b) =>
-    a.sortKey < b.sortKey ? 1 : -1,
+  // Injection-sites "Last logged" list (card + sheet). Doses with no site are
+  // left out (F14); days are calendar days (`lib/home/recentSites.ts`).
+  const recentSites = recentInjectionSites(logs, todayKey, stack, (id) =>
+    siteLabelFrom(injectionCatalogue, id),
   )
 
   const cycleTitle = isToday
@@ -752,9 +680,10 @@ export function HomeScreen({
     const firstEver = hydration === "done" && !hasAnyLog(logs) && !celebrated(userId)
     commitDoseOn(userId, compoundId, log, day, day, slot)
     if (firstEver) {
-      markCelebrated(userId)
-      // After the tick's lift, so the row reads as logged under the scrim.
-      window.setTimeout(() => setFirstDoseOpen(true), 420)
+      // Owed until it opens (B36): marked celebrated only by the timer that
+      // opens it, so leaving Home inside the 420ms keeps it for the next visit.
+      oweFirstDose(userId)
+      openFirstDoseSoon()
     }
     // The row's tick lifts once its row has closed (feel pass §8).
     trackedRef.current = { id: compoundId, slot, day }
@@ -767,6 +696,43 @@ export function HomeScreen({
    */
   const trackedRef = useRef<{ id: string; slot: number; day: string } | null>(null)
   const [firstDoseOpen, setFirstDoseOpen] = useState(false)
+
+  /**
+   * "First Dose Logged" opens after the tick's lift (420ms), so the row reads as
+   * logged under the scrim. The timer is held here and cleared on unmount, and
+   * the moment is marked celebrated only when the pop-up actually opens (B36).
+   */
+  const firstDoseTimer = useRef<number | undefined>(undefined)
+  const openFirstDoseSoon = useCallback(() => {
+    window.clearTimeout(firstDoseTimer.current)
+    firstDoseTimer.current = window.setTimeout(() => {
+      firstDoseTimer.current = undefined
+      settleFirstDose(userId)
+      markCelebrated(userId)
+      setFirstDoseOpen(true)
+    }, 420)
+  }, [userId, setFirstDoseOpen])
+  useEffect(
+    () => () => {
+      window.clearTimeout(firstDoseTimer.current)
+      firstDoseTimer.current = undefined
+    },
+    [],
+  )
+  // A pop-up owed from a Home left inside the 420ms opens on this visit, once
+  // the history has settled (and is dropped if that first dose was unticked).
+  const anyLog = hasAnyLog(logs)
+  useEffect(() => {
+    const action = owedFirstDoseAction({
+      owed: firstDoseOwed(userId),
+      timerPending: firstDoseTimer.current !== undefined,
+      hydrated: hydration === "done",
+      celebrated: celebrated(userId),
+      anyLog,
+    })
+    if (action === "drop") settleFirstDose(userId)
+    else if (action === "open") openFirstDoseSoon()
+  }, [anyLog, hydration, userId, openFirstDoseSoon])
   // First run: the bubble goes after the first tap and never comes back.
   const [bubbleGone, setBubbleGone] = useState(() => typeof window !== "undefined" && bubbleSeen(userId))
   const [popKey, setPopKey] = useState<string | null>(null)
@@ -875,28 +841,9 @@ export function HomeScreen({
             title="Dashboard"
             eyebrow={dayLong(selectedKey)}
             action={
-              // Collapse, calendar, profile — left to right (Spec 02).
+              // Calendar and profile. The week strip stays open for good (Adrian,
+              // 26 Sep): it has no collapse arrow.
               <div className="-mr-1 flex items-center">
-                {/* The week opens in place, so its toggle is THE close arrow
-                    (consistency fix #11): raised and pointing up while the
-                    week is open, a plain down arrow while it is shut. */}
-                <button
-                  type="button"
-                  onClick={() => setStripOpen((o) => !o)}
-                  aria-expanded={stripOpen}
-                  aria-label={stripOpen ? "Collapse the week" : "Expand the week"}
-                  className={cn(PRESS.icon, "flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "flex h-[30px] w-[30px] items-center justify-center rounded-[9px] transition-[rotate,color] duration-300 ease-out motion-reduce:transition-none",
-                      stripOpen ? "inst-ghost text-foreground" : "rotate-180",
-                    )}
-                  >
-                    <CloseArrowIcon />
-                  </span>
-                </button>
                 <Link
                   href="/calendar"
                   aria-label="Open calendar"
@@ -916,24 +863,8 @@ export function HomeScreen({
           />
         </div>
 
-        {/* Collapsible (Spec 02). Kept MOUNTED so it animates both ways; `inert`
-            while closed so its day buttons leave the tab order. */}
-        <div
-          className={cn(
-            "grid",
-            !skeletonShown && "animate-shortcut-fade",
-            // The transition is suppressed until the store's first CLIENT read.
-            // `useSyncExternalStore` prevents a hydration MISMATCH, not a wrong
-            // first paint: the server snapshot is "open", so a user who collapsed
-            // the strip would watch it render open and then animate shut on every
-            // single load, shoving the page below it upward.
-            stripReady &&
-              "transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
-          )}
-          data-area="weekstrip"
-          style={{ gridTemplateRows: stripOpen ? "1fr" : "0fr" }}
-        >
-          <div className="overflow-hidden" inert={!stripOpen}>
+        {/* The week strip, always open (Adrian, 26 Sep: no collapse arrow). */}
+        <div className={cn(!skeletonShown && "animate-shortcut-fade")} data-area="weekstrip">
           <WeekStrip
             weekOffset={weekOffset}
             daysForOffset={daysForOffset}
@@ -945,7 +876,6 @@ export function HomeScreen({
             onWeekChange={handleWeekChange}
             loading={!logKnown}
           />
-          </div>
         </div>
 
 
@@ -1089,8 +1019,12 @@ export function HomeScreen({
                 })
                 for (const t of targets) handleRemove(t.compound.id, day, t.slot)
                 showToast("Unticked", {
+                  // Only into a slot still empty: a dose logged again inside
+                  // the toast's 3s is never written over (cold review B17).
                   undo: () => {
-                    for (const r of removed) handleTracked(r.id, r.log, day, r.slot)
+                    for (const r of freeToRestore(getDoseLogsSnapshot(userId), day, removed)) {
+                      handleTracked(r.id, r.log, day, r.slot)
+                    }
                   },
                 })
               }}
@@ -1114,7 +1048,7 @@ export function HomeScreen({
         <div data-area="sites" className="animate-home-up" style={{ animationDelay: "110ms" }}>
           <InjectionSitesGlanceCard
             daysSince={siteDaysSinceToday}
-            recentSites={recentInjectionSites}
+            recentSites={recentSites}
             bodySex={bodySex}
             defaultRoute={defaultRoute}
             onOpen={() => {
@@ -1379,7 +1313,7 @@ export function HomeScreen({
         onOpenChange={setSitesOpen}
         catalogue={injectionCatalogue}
         daysSince={siteDaysSinceToday}
-        recentSites={recentInjectionSites}
+        recentSites={recentSites}
         bodySex={bodySex}
         defaultRoute={defaultRoute}
         showMirrorTip={mirrorTip}

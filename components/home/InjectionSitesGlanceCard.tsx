@@ -10,24 +10,18 @@ import type {
   InjectionSiteAspect,
   InjectionSiteRoute,
 } from "@/lib/db/types"
-import { siteHeat } from "@/lib/home/siteRecency"
+import { daysSinceLabel, siteHeat } from "@/lib/home/siteRecency"
+import type { RecentInjectionSite } from "@/lib/home/recentSites"
 import { siteDisplayName } from "@/lib/home/siteCatalog"
 import { BodySilhouette } from "@/components/sites/BodySilhouette"
 import { routeRegions, routeTransform } from "@/components/sites/bodyArtwork"
 
-interface RecentSite {
-  siteLabel: string | null
-  route: InjectionSiteRoute
-  /** The compound(s) logged at this site on its most recent day. */
-  compounds: string[]
-  daysAgo: number
-}
-
 interface InjectionSitesGlanceCardProps {
   /** Days since each site was last used (from the dose log). */
   daysSince: Record<string, number>
-  /** Recently-used sites (newest first), each with the compound(s) put there. */
-  recentSites: RecentSite[]
+  /** Recently-used sites (newest first), each with the compound(s) put there.
+   *  Only doses logged WITH a site (F14): the list names muscles. */
+  recentSites: RecentInjectionSite[]
   /** Which figure the preview draws (from the user's profile). */
   bodySex: BodySex
   /** The route to open on — the stack's majority route. Followed until the user
@@ -118,14 +112,14 @@ export function InjectionSitesGlanceCard({
             <p className={cn(CARD_EYEBROW, "mb-2.5")}>Last logged</p>
             {sitesForRoute.length > 0 ? (
               <ul className="flex flex-col gap-2.5">
-                {sitesForRoute.map((s, i) => (
-                  <li key={i} className="min-w-0">
+                {sitesForRoute.map((s) => (
+                  <li key={s.siteId} className="min-w-0">
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 truncate text-sm text-foreground">
-                        {s.siteLabel ? siteDisplayName(s.siteLabel) : "No site"}
+                        {siteDisplayName(s.siteLabel)}
                       </span>
                       <span className="shrink-0 font-mono text-[0.7rem] text-text-muted">
-                        {s.daysAgo === 0 ? "today" : `${s.daysAgo}d`}
+                        {daysSinceLabel(s.daysAgo)}
                       </span>
                     </div>
                     <p className="truncate text-[0.7rem] text-text-muted">
@@ -136,7 +130,8 @@ export function InjectionSitesGlanceCard({
               </ul>
             ) : (
               <p className="text-xs text-text-muted">
-                No {route === "im" ? "IM" : "Sub-Q"} doses logged yet.
+                {/* Sites, not doses: a dose logged without a site is not listed (F14). */}
+                No {route === "im" ? "IM" : "Sub-Q"} sites logged yet.
               </p>
             )}
           </div>

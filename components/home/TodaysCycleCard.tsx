@@ -4,7 +4,7 @@ import { useContext, useRef, useState, type ReactNode } from "react"
 
 import { CaretRight, Pause, Plus } from "@/components/icons"
 import { cn } from "@/lib/utils"
-import { CARD_EYEBROW, DATA_MONO, PRESS, ROW_CHEVRON, ROW_META, ROW_NAME } from "@/lib/ui-presets"
+import { CARD_EYEBROW, DATA_MONO, HIT_24, PRESS, ROW_CHEVRON, ROW_META, ROW_NAME } from "@/lib/ui-presets"
 import { CategoryIcon } from "@/components/compounds/CategoryIcon"
 import { Container } from "@/components/containers"
 import { Fold } from "@/components/protocol/pages/Subpage"
@@ -23,10 +23,10 @@ import {
   type BulkTickKind,
   type BulkTickMark,
 } from "@/lib/home/stackTicks"
-import { partitionByStack, type Stack } from "@/lib/home/stacks"
+import { partitionByStack, stackColourVar, type Stack } from "@/lib/home/stacks"
 import type { OneOffLog } from "@/lib/home/oneOffLogs"
-import { paletteColourVar } from "@/lib/palette"
 import { closeRowIn, LogEdge, LogFlowContext, type LogFlow } from "@/components/home/log/LogFlow"
+import { SMALL_PHONE_NO_TOP } from "@/lib/home/smallPhone"
 import {
   DueAside,
   FlowDoseRow,
@@ -315,7 +315,8 @@ export function TodaysCycleCard({
     >
       {progress ? <LogEdge logged={progress.logged} due={progress.due} /> : null}
       {greeting}
-      <h2 className={cn(CARD_EYEBROW, greeting && "mt-3")}>{title}</h2>
+      {/* On an SE-sized screen the greeting is hidden (ruling 2): its gap goes too. */}
+      <h2 className={cn(CARD_EYEBROW, greeting && ["mt-3", SMALL_PHONE_NO_TOP])}>{title}</h2>
 
       {dueDoses.length > 0 ? (
         flow ? (
@@ -474,7 +475,8 @@ function StackDoseRow({
     if (open && !next(open)) closeRowIn(flow, members.map((m) => m.id))
     setOpenState(next)
   }
-  const colour = paletteColourVar(stack.colour)
+  // Null for a "No colour" stack (W23): each container in its own look.
+  const colour = stackColourVar(stack)
   /**
    * The last whole-stack action and when it happened (see `isReflexReversal`).
    * A ref: it must not re-render, and is only read at the moment of a click.
@@ -519,13 +521,9 @@ function StackDoseRow({
 
   return (
     <div className="mt-3 first:mt-2">
-      <GroupDivider
-        mark={<span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: colour }} aria-hidden />}
-        label={stack.name}
-        // A wholly paused stack has NOTHING live in it, so no "0 due" nag.
-        aside={total === 0 ? <DueAside pending={0} settled="Paused" /> : <DueAside pending={complete ? 0 : total - logged} />}
-      />
-
+      {/* No group header over a stack (cold review D11): the row names it and
+          says "N of M logged" or "Paused", and its containers carry the
+          stack's colour. */}
       {/* A finished stack dims exactly as a finished dose row does. */}
       <div
         className={cn(
@@ -547,7 +545,8 @@ function StackDoseRow({
             type="button"
             onClick={unlogAll}
             aria-label={`Untick the ${unlogTargets.length} logged ${unlogTargets.length === 1 ? "dose" : "doses"} in ${stack.name}`}
-            className={cn(PRESS.tick, "inst-tick log-tick-on flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ease-out")}
+            // Drawn at 24, pressed at 44, as a dose row's tick (D4).
+            className={cn(PRESS.tick, HIT_24, "inst-tick log-tick-on flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ease-out")}
           >
             <TickMark draw={false} />
           </button>
@@ -564,6 +563,7 @@ function StackDoseRow({
             aria-label={partial ? `Log the remaining ${total - logged} in ${stack.name}` : `Log all of ${stack.name}`}
             className={cn(
               PRESS.tick,
+              HIT_24,
               "inst-tick flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ease-out",
               // Partway reads as partway: the ring goes white without filling.
               partial ? "border-text-primary text-transparent" : "log-tick-due",

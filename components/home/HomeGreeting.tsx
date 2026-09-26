@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 
 import { useMounted } from "@/components/home/useMounted"
 import { PAGE_TITLE } from "@/lib/ui-presets"
+import { SMALL_PHONE_HIDDEN } from "@/lib/home/smallPhone"
 
 type Period = "morning" | "afternoon" | "evening"
 
@@ -30,6 +31,10 @@ const GREETING: Record<Period, string> = {
  * 1-minute tick so a session left open rolls morning → afternoon → evening on its
  * own. The day's status (completion ring + next dose) lives in `DayStatusWidgets`,
  * below Today's Log.
+ *
+ * On an SE-sized screen it is not shown at all (ruling 2, `lib/home/smallPhone`),
+ * everywhere on Home, the first-run card included, so it never shows and then
+ * vanishes the moment a first compound is added.
  */
 export function HomeGreeting({ firstName }: { firstName: string | null }) {
   const mounted = useMounted()
@@ -60,7 +65,7 @@ export function HomeGreeting({ firstName }: { firstName: string | null }) {
   const greeting = mounted ? GREETING[period] : "Hello"
 
   return (
-    <section>
+    <section className={SMALL_PHONE_HIDDEN}>
       <h2 className={PAGE_TITLE}>
         {greeting}
         {name ? `, ${name}` : ""}
