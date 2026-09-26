@@ -3,8 +3,9 @@ import { notFound } from "next/navigation"
 import { ProtocolPreview } from "./preview"
 
 /**
- * DEV-ONLY preview of the Protocol screen (Step 4) — the Plan / Stock toggle, the
- * active-cycle header ("Week X of N"), and the compound list — viewable WITHOUT
+ * DEV-ONLY preview of the Protocol screen: the compounds row with its stock
+ * (two open vials and spares, a paused compound, a blend, none on hand), the
+ * Schedule card and the Stacks, Cycles and Half-life buttons, viewable WITHOUT
  * signing in or any Supabase env, with mock data. 404s in production. The real
  * screen is `/protocol` (behind auth); this is just to look at the UI.
  */

@@ -243,6 +243,14 @@ export const HIT_Y_30 = "relative before:absolute before:inset-x-0 before:-inset
 export const HIT_Y_25 = "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']"
 export const HIT_Y_36 = "relative before:absolute before:inset-x-0 before:-inset-y-1 before:content-['']"
 export const HIT_Y_TEXT = "relative before:absolute before:inset-x-0 before:-inset-y-4 before:content-['']"
+/* protocol-page */
+/** A 20px drawing (the small "?" inset on Protocol's Stacks, Cycles and
+ *  Half-life buttons), 12px out: 44 × 44. Leave 12px clear around it. */
+export const HIT_20 = "relative before:absolute before:-inset-[12px] before:content-['']"
+/** log-rows: a 24px drawing (the log tick, and a stack's tick), 10px out: 44 × 44.
+ *  A row's name sits 12px from the tick (`gap-3`), so the two never overlap
+ *  (cold review D4). */
+export const HIT_24 = "relative before:absolute before:-inset-2.5 before:content-['']"
 
 /** The small "+" at a page's or sheet header's top right, and in a row: a
  *  rounded square, radius 10 (build-brief-final §2.4), drawn at 34px with a
@@ -250,6 +258,21 @@ export const HIT_Y_TEXT = "relative before:absolute before:inset-x-0 before:-ins
 export const ADD_ACTION =
   "press-button inst-btn flex h-[34px] w-[34px] shrink-0 items-center justify-center text-bg-base " +
   HIT_34
+
+/**
+ * A PAGE'S OWN ACTION at its top right, in words: "+ New stack", "+ New cycle"
+ * (Adrian's ruling 1, 26 Sep). The quick-actions "+" stays on every page, so a
+ * page's own action no longer draws as a second bare "+": it is the white
+ * button at a row's size, the plus and then its words. Values from the
+ * approved mock (`r6/proto8.js` `newBtn8`, `.m-btn.sm.newb8`): 12px medium,
+ * 13px sides, a 6px gap, radius 10 (`inst-btn`). Drawn 30px tall, pressed at
+ * 44 (`HIT_Y_30`, above and below only). Used through `SubpageShell`'s
+ * `action`; its plus is 12px (`h-3 w-3`).
+ */
+export const PAGE_ACTION =
+  "press-button inst-btn inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap px-[13px] " +
+  "text-[12px] font-medium text-bg-base disabled:pointer-events-none disabled:opacity-50 " +
+  HIT_Y_30
 
 /** A choice among a few (mg / mcg, a unit, a pose), not on a rail: rounded
  *  rectangles, outlined off, white on (consistency fix #20). */

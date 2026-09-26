@@ -373,6 +373,14 @@ function buildMock(demo = 0): { stack: StackCompound[]; stock: StockItem[]; logs
     spare("pv-inv-reta-s1", "pv-reta", "Retatrutide"),
     spare("pv-inv-reta-s2", "pv-reta", "Retatrutide"),
     spare("pv-inv-reta-s3", "pv-reta", "Retatrutide"),
+    // A blend with a vial, so its name takes its three lines over a real
+    // level and a Runs dry date; and a PAUSED compound with stock, whose
+    // card says "Paused" rather than a runway it does not have.
+    vial("pv-inv-glow", "pv-glow", "Glow (BPC-157 + TB-500 + GHK-Cu)", { dosesRemaining: 12, remainingBase: 21, totalBase: 30 }),
+    vial("pv-inv-nand", "pv-nandrolone", "Nandrolone", {
+      inventoryType: "preconcentrated", category: "anabolic", reconstitutedOn: null, bacWaterMl: null,
+      totalAmountUnit: "ml", remainingDisplay: 6, dosesRemaining: 15, remainingBase: 1200, totalBase: 2000,
+    }),
   ]
   const read: StockRead = {
     ok: true,
@@ -380,7 +388,11 @@ function buildMock(demo = 0): { stack: StackCompound[]; stock: StockItem[]; logs
     compounds: [
       { protocolCompoundId: "pv-test-e", dosesReady: 17, openCount: 1, sparesHeld: 1 },
       { protocolCompoundId: "pv-ipa", dosesReady: 3, openCount: 1, sparesHeld: 0 },
+      // Two open vials, 4 and 7: the sheet's "Current vial" says 4 (the one
+      // in use, as Home does), and Runs dry counts all 11 (cold review F1).
       { protocolCompoundId: "pv-reta", dosesReady: 11, openCount: 2, sparesHeld: 3 },
+      { protocolCompoundId: "pv-glow", dosesReady: 12, openCount: 1, sparesHeld: 0 },
+      { protocolCompoundId: "pv-nandrolone", dosesReady: 15, openCount: 1, sparesHeld: 0 },
     ],
   }
 

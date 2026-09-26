@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
 import { PageScrollTitle } from "@/components/layout/PageScrollTitle"
 import { ProtocolBlocks, RouteTitle } from "@/components/feel/RouteSkeletons"
@@ -25,12 +25,11 @@ import { AddToStackMenu } from "@/components/navigation/add-to-stack-menu"
 import { AddStockSheet } from "@/components/protocol/AddStockSheet"
 import { MixVialSheet } from "@/components/protocol/MixVialSheet"
 import { listStock, type StockItem, type StockRead } from "@/lib/db/inventory"
-import { containersOf } from "@/lib/protocol/stockView"
 import { cn } from "@/lib/utils"
 import { PRESS } from "@/lib/ui-presets"
-import { runsDryInDays } from "@/lib/protocol/runsDry"
 import { remainingLabel } from "@/lib/containers/labels"
-import { mixWaterDefault, needsMixing } from "@/lib/protocol/stockPage"
+import { compoundStockViews, extraFill, withRunway, type StockSnapshot } from "@/lib/protocol/stockPage"
+import { useDeviceToday } from "@/components/home/useDeviceToday"
 import { subscribeDoseSynced } from "@/lib/home/doseLog"
 import { resolveProtocolCompoundIds } from "@/lib/home/protocolSync"
 import {
@@ -136,15 +135,18 @@ export function ProtocolScreen({
   const fromSkeleton = useArrivedFromSkeleton("protocol")
   const skeletonShown = useSkeletonOnScreen("protocol")
   const logs = previewLogs ?? liveLogs
-  const screenToday = toDateKey(new Date())
+  // The device's day, and it follows midnight (on focus, on becoming visible,
+  // and once a minute), so a Protocol left open overnight moves its Runs dry
+  // with the date rather than reading a day late (cold review B37).
+  const todayKey = useDeviceToday(toDateKey(new Date()))
   // `isRunning`, not just `!archived`. Spec 06 says a compound whose cycle has
   // ENDED behaves exactly like a deleted one, and Home drops it — but this
   // screen filtered on the deleted flag alone, so an ended compound kept its
   // card, its stock and a schedule row of seven "nothing due" cells here while
   // being absent from the dashboard entirely.
   const active = useMemo(
-    () => compounds.filter((c) => isRunning(c, screenToday)),
-    [compounds, screenToday],
+    () => compounds.filter((c) => isRunning(c, todayKey)),
+    [compounds, todayKey],
   )
   // Honour `?stock=` once the compound list is available. Adjusted during render
   // rather than in an effect (React's documented pattern for reacting to a
@@ -176,7 +178,6 @@ export function ProtocolScreen({
   }
 
 
-  const todayKey = screenToday
   // The week the Schedule grid draws (and the ones behind it) now lives in
   // `ScheduleWeeks`, which derives it from `todayKey` so it still follows
   // midnight rather than freezing at mount.
@@ -187,14 +188,19 @@ export function ProtocolScreen({
   // no vials, so initialising to one made the page assert that on every cold load
   // and on any failed read (offline, resolver error) — the same mistake
   // `resolveDrawSources` was written to avoid.
-  const [fetchedStock, setFetchedStock] = useState<Map<string, StockItem> | null>(
-    null
-  )
-  /** Per compound: containers held beyond the one in use, a spare still to
-   *  mix, and the water it was last mixed with. */
-  const [stockExtras, setStockExtras] = useState<Map<string, { others: number; drySpare: StockItem | null; lastWater: number }>>(
-    () => new Map(),
-  )
+  //
+  // What the read returned is kept AS READ, one view per compound: the
+  // container in use with its own figures, and the doses every open one holds.
+  // The runway is walked from the latter in render, on the day it is then
+  // (cold review B37); the former is what the sheet's "Current vial" states
+  // (F1: it used to be overwritten with the compound's total).
+  const [snapshot, setSnapshot] = useState<StockSnapshot | null>(null)
+  // Today's logged doses as they stand when a read LANDS, not when it was
+  // asked for: a ref, so the read's effect need not re-run on every log.
+  const logsRef = useRef(logs)
+  useEffect(() => {
+    logsRef.current = logs
+  }, [logs])
   const [stockTick, setStockTick] = useState(0)
   const [stockFailed, setStockFailed] = useState(false)
   /**
@@ -210,14 +216,25 @@ export function ProtocolScreen({
   useEffect(() => subscribeDoseSynced(() => setStockTick((t) => t + 1)), [])
   // Preview data is DERIVED, not set into state from an effect — a synchronous
   // setState there cascades an extra render for no reason.
-  const stockByCompound = useMemo(
-    () =>
-      previewStock && !previewRead
-        ? new Map(previewStock.map((s) => [s.protocolCompoundId, s]))
-        : fetchedStock,
-    [previewStock, previewRead, fetchedStock]
+  const stockByCompound = useMemo(() => {
+    if (previewStock && !previewRead) return new Map(previewStock.map((s) => [s.protocolCompoundId, s]))
+    if (!snapshot) return null
+    const out = new Map<string, StockItem>()
+    for (const [id, view] of snapshot.views) {
+      out.set(id, withRunway(view, active.find((c) => c.id === id), todayKey, snapshot.readOn))
+    }
+    return out
+  }, [previewStock, previewRead, snapshot, active, todayKey])
+  const stockKnown = (previewStock !== undefined && !previewRead) || snapshot !== null
+  const views = snapshot?.views
+  const othersByCompound = useMemo(
+    () => new Map([...(views ?? [])].map(([id, v]) => [id, v.others])),
+    [views],
   )
-  const stockKnown = (previewStock !== undefined && !previewRead) || fetchedStock !== null
+  const extraFills = useMemo(
+    () => new Map([...(views ?? [])].map(([id, v]) => [id, v.extras.map(extraFill)])),
+    [views],
+  )
   const activeKey = active.map((c) => c.id).join(",")
   useEffect(() => {
     if (previewStock && !previewRead) return
@@ -242,34 +259,15 @@ export function ProtocolScreen({
         Object.entries(idMap).map(([clientId, pcId]) => [pcId, clientId])
       )
       // ONE card per compound, as today: the container IN USE (the oldest open
-      // one), carrying what the compound holds in every open container, and a
-      // runway walked over the days a dose is actually due.
-      const next = new Map<string, StockItem>()
-      const extras = new Map<string, { others: number; drySpare: StockItem | null; lastWater: number }>()
-      for (const held of read.compounds) {
-        const clientId = pcToClient.get(held.protocolCompoundId)
-        const box = containersOf(read.items, held.protocolCompoundId)
-        // Only spares held (a box not yet mixed or opened): the first stands
-        // for the compound, drawn full, with no runway until it is started.
-        const inUse = box.inUse ?? box.spares[0] ?? null
-        if (!clientId || !inUse) continue
-        const mine = read.items.filter((i) => i.protocolCompoundId === held.protocolCompoundId)
-        extras.set(clientId, {
-          others: Math.max(0, box.open.length + box.spares.length - 1),
-          drySpare: box.spares.find(needsMixing) ?? null,
-          lastWater: mixWaterDefault(mine),
-        })
-        const c = active.find((x) => x.id === clientId)
-        next.set(clientId, {
-          ...inUse,
-          dosesRemaining: held.dosesReady,
-          daysToEmpty: c
-            ? runsDryInDays(c, held.dosesReady, todayKey, loggedCountFor(logs[todayKey], clientId))
-            : inUse.daysToEmpty,
-        })
-      }
-      setFetchedStock(next)
-      setStockExtras(extras)
+      // one) with its own figures, beside what the compound holds in every open
+      // container. The day's logged doses are the ones this read has already
+      // subtracted, so they are counted now, as it lands.
+      const readOn = toDateKey(new Date())
+      const day = logsRef.current[readOn]
+      setSnapshot({
+        readOn,
+        views: compoundStockViews(read, pcToClient, (id) => loggedCountFor(day, id)),
+      })
     })()
     return () => {
       cancelled = true
@@ -308,7 +306,8 @@ export function ProtocolScreen({
         <CompoundsRow
           compounds={active}
           stockByCompound={stockByCompound ?? new Map()}
-          othersByCompound={new Map([...stockExtras].map(([k, v]) => [k, v.others]))}
+          othersByCompound={othersByCompound}
+          extraFills={extraFills}
           stockKnown={stockKnown}
           todayKey={todayKey}
           onOpen={setDetailTarget}
@@ -354,6 +353,9 @@ export function ProtocolScreen({
         open={detailTarget !== null}
         compound={detailTarget}
         context="plan"
+        // Today's doses already logged, so "Next dose" moves past today once
+        // they all are (D13/F14).
+        loggedToday={detailTarget ? loggedCountFor(logs[todayKey], detailTarget.id) : 0}
         onOpenChange={(o) => !o && setDetailTarget(null)}
         onEdit={(c) => {
           setDetailTarget(null)
@@ -392,9 +394,14 @@ export function ProtocolScreen({
         stockSection={
           detailTarget
             ? {
+                // The container in use, with ITS OWN count: the figure Home
+                // states for the same vial (cold review F1).
                 inUse: stockByCompound?.get(detailTarget.id) ?? null,
-                others: stockExtras.get(detailTarget.id)?.others ?? 0,
-                drySpare: stockExtras.get(detailTarget.id)?.drySpare ?? null,
+                others: views?.get(detailTarget.id)?.others ?? 0,
+                drySpare: views?.get(detailTarget.id)?.drySpare ?? null,
+                // The mixed, unmixed and sealed containers held beyond the one
+                // in use, drawn under it (W17).
+                extras: views?.get(detailTarget.id)?.extras ?? null,
                 onAddStock: () =>
                   guard(() => {
                     const c = detailTarget
@@ -405,7 +412,7 @@ export function ProtocolScreen({
                   guard(() => {
                     const c = detailTarget
                     setDetailTarget(null)
-                    setMixTarget({ compound: c, spare, lastWater: stockExtras.get(c.id)?.lastWater ?? 2 })
+                    setMixTarget({ compound: c, spare, lastWater: views?.get(c.id)?.lastWater ?? 2 })
                     setMixOpen(true)
                   }),
                 onCorrect: (item) =>
@@ -450,6 +457,9 @@ export function ProtocolScreen({
         // A refill replaces the container refilled ("A new vial replaces this
         // one"); adding to a compound that holds none replaces nothing.
         replaceItemId={null}
+        // The mock-data preview shows the full flow (spares, the dropper);
+        // the live app asks the database what it holds (sweep).
+        sparesSupported={previewCompounds !== undefined ? true : undefined}
         userId={userId}
         onOpenChange={(o) => {
           if (!o) {
