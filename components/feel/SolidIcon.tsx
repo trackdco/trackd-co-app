@@ -30,7 +30,9 @@ export function SolidIcon({
   title?: string
   className?: string
 }) {
-  const id = useId().replace(/:/g, "")
+  // Whatever React's id format ("«r1»", ":r1:"), keep only characters that
+  // are safe in `url(#…)` everywhere, as the containers do.
+  const id = useId().replace(/[^a-zA-Z0-9_-]/g, "")
   const top = hue
     ? `color-mix(in srgb, ${hue} 70%, white)`
     : tone === "on"

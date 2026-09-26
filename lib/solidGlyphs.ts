@@ -3,7 +3,9 @@
  * 24 grid, painted with a vertical gradient by `components/feel/SolidIcon.tsx`.
  * Generated from the final-check page's own definitions (round four
  * `NAVG9`, `TILE7`, `BTN_ICONS`, `PMK8`, `MENU_ICONS`), so the app draws
- * exactly the marks Adrian approved. Pure data: no React.
+ * exactly the marks Adrian approved; the few drawn since (Restart, and the
+ * Cycles and Half-life marks he asked to change on his walk of the preview)
+ * say so where they sit. Pure data: no React.
  *
  * A part is a filled path (`d`, even-odd, so holes read as holes) or a stroked
  * one (`s`, round caps, width `w`), at an optional opacity `o`.
@@ -89,16 +91,23 @@ export const GLYPHS = {
     { d: "M6.3 9.7h11.4a2.3 2.3 0 0 1 2.3 2.3v0a2.3 2.3 0 0 1 -2.3 2.3h-11.4a2.3 2.3 0 0 1 -2.3 -2.3v0a2.3 2.3 0 0 1 2.3 -2.3Z", o: 0.68 },
     { d: "M6.3 16h11.4a2.3 2.3 0 0 1 2.3 2.3v0a2.3 2.3 0 0 1 -2.3 2.3h-11.4a2.3 2.3 0 0 1 -2.3 -2.3v0a2.3 2.3 0 0 1 2.3 -2.3Z", o: 0.42 },
   ],
+  // Cycles (W36, Adrian's walk: "change the icon"): a looping arrow, so it
+  // reads as something that repeats. Its dim stretch is the days off, and the
+  // lit run the days on, going round into the arrow and back to the start.
+  // Drawn for the build on a ring of radius 8 (the seven-part ring before it
+  // was round three's `PMK8`); the arrowhead is filled, then stroked in the
+  // same paint so its corners come out soft like the rest of the set.
   tileCycles: [
-    { d: "M12.71 1.82A10.2 10.2 0 0 1 19.51 5.10L16.71 7.67A6.4 6.4 0 0 0 12.45 5.62Z", o: 1 },
-    { d: "M20.40 6.21A10.2 10.2 0 0 1 22.08 13.57L18.32 12.99A6.4 6.4 0 0 0 17.27 8.37Z", o: 1 },
-    { d: "M21.76 14.96A10.2 10.2 0 0 1 17.06 20.86L15.17 17.56A6.4 6.4 0 0 0 18.12 13.86Z", o: 1 },
-    { d: "M15.77 21.48A10.2 10.2 0 0 1 8.23 21.48L9.63 17.95A6.4 6.4 0 0 0 14.37 17.95Z", o: 1 },
-    { d: "M6.94 20.86A10.2 10.2 0 0 1 2.24 14.96L5.87 13.86A6.4 6.4 0 0 0 8.83 17.56Z", o: 1 },
-    { d: "M1.92 13.57A10.2 10.2 0 0 1 3.60 6.21L6.73 8.37A6.4 6.4 0 0 0 5.68 12.98Z", o: 0.3 },
-    { d: "M4.49 5.10A10.2 10.2 0 0 1 11.29 1.82L11.55 5.62A6.4 6.4 0 0 0 7.29 7.67Z", o: 0.3 },
+    { s: "M16.93 5.7A8 8 0 0 1 19.42 15", w: 3.3, o: 0.32 },
+    { s: "M18.22 17.03A8 8 0 1 1 6.44 6.25", w: 3.3 },
+    { d: "M3.3 3.3L9.93 4.27L9.38 9.38Z" },
+    { s: "M3.3 3.3L9.93 4.27L9.38 9.38Z", w: 1.1 },
   ],
+  // Half-life (W6, "upgrade the icon just slightly"): the approved curve and
+  // its dot, now over a faint fill down to the axis, so it carries the same
+  // weight as the Stacks and Cycles marks beside it and reads as the graphs do.
   halfLife: [
+    { d: "M2.6 18.6C5.2 18.6 5.6 6.2 8.4 6.2S11 15.4 13.4 15.4 16 9.4 18 9.4V20.6H2.6Z", o: 0.26 },
     { s: "M2.6 18.6C5.2 18.6 5.6 6.2 8.4 6.2S11 15.4 13.4 15.4 16 9.4 18 9.4", w: 2.3 },
     { d: "M16.6 9.6a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0Z" },
   ],
