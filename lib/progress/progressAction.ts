@@ -1,15 +1,22 @@
 /**
- * A tiny client-only signal so another surface (the global "+" menu, or the
- * Calendar) can ask the Progress screen to open one of its real flows — the
- * **Journal** compose (Write / Markers), a specific day's **Journal** entry, or
- * the **Bloodwork** gallery — without duplicating their server-fetched data. The
- * caller invokes `requestProgressAction(...)` and then navigates to `/progress`;
- * the matching section subscribes, opens its sheet, and clears the signal. A
- * monotonic `id` makes a repeat request of the same action re-fire. Module state
- * survives client (SPA) navigation and resets on a full reload — fine, it's only
- * a transient "open this now" nudge, never persisted.
+ * A tiny client-only signal so another surface (the Calendar, the desktop rail
+ * and command palette, a block's photos) can ask the Progress screen to open
+ * one of its real flows — the **Journal** compose (Write / Markers), a specific
+ * day's **Journal** entry, or the **Bloodwork** gallery — without duplicating
+ * their server-fetched data. The caller invokes `requestProgressAction(...)` and
+ * then navigates to `/progress`; the matching section subscribes, opens its
+ * sheet, and clears the signal. A monotonic `id` makes a repeat request of the
+ * same action re-fire. Module state survives client (SPA) navigation and resets
+ * on a full reload — fine, it's only a transient "open this now" nudge, never
+ * persisted.
+ *
+ * The + is NOT a caller any more (W11): its Journal opens the full-page writer
+ * where you stand, on today, rather than sending you to Progress
+ * (`components/shortcuts/QuickActionsFab.tsx`).
  */
 export type ProgressAction =
+  /** The journal feed with Write / Markers open. The Progress journal still
+   *  answers it; nothing outside Progress asks for it since the + stopped. */
   | "journal-compose"
   | "journal-open"
   /**
